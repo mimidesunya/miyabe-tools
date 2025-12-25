@@ -1,0 +1,19 @@
+services:
+  web:
+    image: nginx:latest
+    ports:
+      - "8095:80"
+    volumes:
+      - ./app:/var/www/html
+      - ./data:/var/www/data
+      - ./lib:/var/www/lib
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - php
+
+  php:
+    image: php:8.3-fpm
+    volumes:
+      - ./app:/var/www/html
+      - ./data:/var/www/data
+      - ./lib:/var/www/lib

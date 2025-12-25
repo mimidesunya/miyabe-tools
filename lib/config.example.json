@@ -1,0 +1,14 @@
+{
+  "LINE_CHANNEL_ID": "YOUR_CHANNEL_ID",
+  "LINE_CHANNEL_SECRET": "YOUR_CHANNEL_SECRET",
+  "BASE_URL": "https://your-domain.com",
+  "REDIRECT_URI": "https://your-domain.com/line/callback.php",
+  "MUNICIPALITIES": {
+    "kawasaki": {},
+    "higashikurume": {},
+    "hino-shi": { "allow_offset": true }
+  },
+  "DEFAULT_SLUG": "kawasaki",
+  "ADMIN_LINE_IDS": ["YOUR_ADMIN_LINE_ID_HERE"],
+  "GOOGLE_MAPS_API_KEY": "YOUR_GOOGLE_MAPS_API_KEY_HERE"
+}

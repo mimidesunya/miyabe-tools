@@ -1,0 +1,445 @@
+/* Extracted from app/boards/index.html */
+body {
+  margin: 0;
+}
+
+#map {
+  height: 100vh;
+  width: 100vw;
+}
+
+#controls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+#gps-btn {
+  font-size: 16px;
+  padding: 6px 16px;
+  border-radius: 8px;
+  border: none;
+  background: #fff;
+  box-shadow: 0 2px 6px #0002;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+#gps-btn.active {
+  background: #c6f7d0;
+}
+
+@media (max-width:600px) {
+  #gps-btn {
+    font-size: 13px;
+    padding: 5px 10px;
+  }
+}
+
+#legend-wrap {
+  position: absolute;
+  right: 15px;
+  bottom: 15px;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+/* current location marker */
+.gps-marker {
+  width: 18px;
+  height: 18px;
+  background: #1e90ff;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(30, 144, 255, 0.5);
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(30, 144, 255, 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 12px rgba(30, 144, 255, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(30, 144, 255, 0);
+  }
+}
+
+.gps-marker {
+  animation: pulse 2s infinite;
+}
+
+/* basemap switch buttons */
+#basemap-switch {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+#basemap-switch button {
+  font-size: 14px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 2px 6px #0001;
+}
+
+#basemap-switch button.active {
+  background: #eef6ff;
+  border-color: #bcd4ff;
+  color: #275ea3;
+}
+
+#list-btn:hover {
+  background: #f5f5f5;
+  border-color: #bbb;
+}
+
+@media (max-width:600px) {
+
+  #basemap-switch button,
+  #list-btn {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+}
+
+#legend {
+  background: #fff;
+  padding: 10px 14px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px #0002;
+  font-size: 15px;
+  color: #333;
+  user-select: none;
+  display: inline-block;
+}
+
+#legend div {
+  margin-bottom: 4px;
+}
+
+#legend div:last-child {
+  margin-bottom: 0;
+}
+
+/* legend counts */
+.legend-count {
+  margin-left: 8px;
+  color: #555;
+  font-weight: 600;
+}
+
+@media (max-width:600px) {
+  #legend {
+    font-size: 12px;
+    padding: 7px 8px;
+  }
+
+  #legend img {
+    width: 13px !important;
+  }
+}
+
+/* subtle offset toggle under legend */
+#offset-toggle {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+  background: #fff;
+  color: #555;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+}
+
+#offset-toggle.active {
+  background: #eef6ff;
+  border-color: #bcd4ff;
+  color: #275ea3;
+}
+
+/* code label marker (instead of pin) */
+.code-marker {
+  background: transparent;
+  border: none;
+}
+
+.code-marker .label {
+  position: relative;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -100%);
+  background: #eee;
+  border: 2px solid #888;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #222;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.code-marker .label .status-emoji {
+  margin-right: 4px;
+}
+
+.code-marker .label .status-emoji:empty {
+  display: none;
+}
+
+/* status color variants */
+.code-marker .label.status-pending {
+  background: #e9eefc;
+  border-color: #4c6ef5;
+  color: #172b4d;
+}
+
+.code-marker .label.status-in_progress {
+  background: #fff3cd;
+  border-color: #ffb100;
+}
+
+.code-marker .label.status-done {
+  background: #d4edda;
+  border-color: #28a745;
+}
+
+.code-marker .label.status-issue {
+  background: #f8d7da;
+  border-color: #dc3545;
+}
+
+/* Self badge icon at top-right of label */
+.code-marker .label .self-icon {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #333;
+  font-size: 10px;
+  line-height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+/* Comment badge icon at bottom-right of label */
+.code-marker .label .comment-icon {
+  position: absolute;
+  bottom: -10px;
+  right: -10px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #2c7be5;
+  font-size: 10px;
+  line-height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+/* popup status themes */
+.leaflet-popup.popup-pending .leaflet-popup-content-wrapper {
+  background: #f2f3f5;
+  border: 2px solid #9aa0a6;
+  color: #222;
+}
+
+.leaflet-popup.popup-pending .leaflet-popup-tip {
+  background: #f2f3f5;
+  border: 2px solid #9aa0a6;
+}
+
+.leaflet-popup.popup-in_progress .leaflet-popup-content-wrapper {
+  background: #fff3cd;
+  border: 2px solid #ffb100;
+  color: #222;
+}
+
+.leaflet-popup.popup-in_progress .leaflet-popup-tip {
+  background: #fff3cd;
+  border: 2px solid #ffb100;
+}
+
+.leaflet-popup.popup-done .leaflet-popup-content-wrapper {
+  background: #d4edda;
+  border: 2px solid #28a745;
+  color: #222;
+}
+
+.leaflet-popup.popup-done .leaflet-popup-tip {
+  background: #d4edda;
+  border: 2px solid #28a745;
+}
+
+.leaflet-popup.popup-issue .leaflet-popup-content-wrapper {
+  background: #f8d7da;
+  border: 2px solid #dc3545;
+  color: #222;
+}
+
+.leaflet-popup.popup-issue .leaflet-popup-tip {
+  background: #f8d7da;
+  border: 2px solid #dc3545;
+}
+
+/* make popup a bit roomier and responsive */
+.leaflet-popup-content {
+  margin: 8px 10px;
+}
+
+.leaflet-popup-content-wrapper {
+  max-width: 92vw;
+}
+
+/* legend swatch matching marker label */
+.legend-swatch {
+  display: inline-block;
+  background: rgba(255, 255, 0, 1);
+  border: 2px solid #ff0000;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #222;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  vertical-align: middle;
+}
+
+/* legend status variants (match marker label colors) */
+.legend-swatch.status-in_progress {
+  background: #fff3cd;
+  border-color: #ffb100;
+}
+
+.legend-swatch.status-done {
+  background: #d4edda;
+  border-color: #28a745;
+}
+
+.legend-swatch.status-issue {
+  background: #f8d7da;
+  border-color: #dc3545;
+}
+
+/* search controls */
+#search-input {
+  font-size: 16px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  min-width: 240px;
+  box-shadow: 0 2px 6px #0001;
+}
+
+#search-btn {
+  font-size: 16px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: none;
+  background: #f4f6ff;
+  cursor: pointer;
+  box-shadow: 0 2px 6px #0002;
+}
+
+#help-btn {
+  font-size: 15px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(180deg, #fff3cd, #ffe69c);
+  color: #5c4b00;
+  font-weight: 700;
+  box-shadow: 0 2px 6px #0002;
+}
+
+#help-btn:hover {
+  filter: brightness(0.98);
+}
+
+#help-btn:active {
+  transform: translateY(1px);
+}
+
+@media (max-width:600px) {
+  #search-input {
+    font-size: 13px;
+    min-width: 160px;
+    padding: 5px 8px;
+  }
+
+  #search-btn {
+    font-size: 13px;
+    padding: 5px 10px;
+  }
+}
+
+/* auth panel: green background only */
+#auth {
+  background: #2ecc71;
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px #0003;
+  gap: 8px;
+}
+
+/* keep comment input and button on one line */
+.task-comment {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.task-comment input {
+  min-width: 0;
+}
+
+#auth a {
+  color: #fff;
+  text-decoration: none;
+}
+
+#auth #auth-name {
+  font-weight: 600;
+  color: #fff;
+}
+
+.task-actions button,
+.task-comment button {
+  white-space: nowrap;
+}
+
+@media (max-width: 360px) {
+  .task-actions button {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+}
