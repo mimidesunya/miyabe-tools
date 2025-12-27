@@ -59,7 +59,7 @@ python tools/boards/import_tsv.py kawasaki
 ### 3. ジオコーディング (geocode_boards.py)
 
 TSVファイルの住所情報から緯度経度を取得し、TSVファイルを更新します。
-`lib/config.json` に `google_maps_api_key` が設定されている必要があります。
+`data/config.json` に `GOOGLE_MAPS_API_KEY` が設定されている必要があります。
 
 ```bash
 python tools/boards/geocode_boards.py <slug>

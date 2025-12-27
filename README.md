@@ -17,9 +17,9 @@ Docker Compose、Nginx、PHP-FPM、および SQLite を使用して動作しま�
 1.  このリポジトリをクローンします。
 2.  設定ファイルを作成します。
     ```bash
-    cp lib/config.example.json lib/config.json
+    cp config.example.json data/config.json
     ```
-    `lib/config.json` を開き、LINE Developers コンソールから取得した `CHANNEL_ID` や `CHANNEL_SECRET` を設定してください。
+    `data/config.json` を開き、LINE Developers コンソールから取得した `CHANNEL_ID` や `CHANNEL_SECRET` を設定してください。
 
 3.  以下のコマンドを実行してサービスを開始します。
     ```bash

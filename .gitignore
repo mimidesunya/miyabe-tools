@@ -9,5 +9,6 @@ Thumbs.db
 *.swo
 
 # Local config (already added)
-/lib/config.json
-/data/
+/data/config.json
+/data/boards/
+/data/users.sqlite

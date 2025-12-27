@@ -5,7 +5,7 @@
 Google Maps Geocoding APIを使用します。
 
 使用方法:
-1. lib/config.json に GOOGLE_MAPS_API_KEY を設定してください。
+1. data/config.json に GOOGLE_MAPS_API_KEY を設定してください。
 2. python tools/boards/geocode_boards.py <入力TSV> <住所プレフィックス>
    例: python tools/boards/geocode_boards.py tools/boards/data/hino-shi/data.tsv "東京都日野市"
 """
@@ -19,9 +19,9 @@ from pathlib import Path
 import requests
 
 def load_api_key():
-    """lib/config.json から API キーを読み込む"""
+    """data/config.json から API キーを読み込む"""
     root = Path(__file__).resolve().parents[2]
-    config_path = root / "lib" / "config.json"
+    config_path = root / "data" / "config.json"
     
     if not config_path.exists():
         print(f"エラー: 設定ファイルが見つかりません: {config_path}")
@@ -75,7 +75,7 @@ def main():
 
     api_key = load_api_key()
     if not api_key or api_key == "YOUR_GOOGLE_MAPS_API_KEY_HERE":
-        print("エラー: lib/config.json に有効な GOOGLE_MAPS_API_KEY を設定してください。")
+        print("エラー: data/config.json に有効な GOOGLE_MAPS_API_KEY を設定してください。")
         return
 
     if not input_path.exists():
