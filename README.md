@@ -26,7 +26,7 @@ Docker Compose、Nginx、PHP-FPM、および SQLite を使用して動作しま�
     docker-compose up -d
     ```
 
-4.  ブラウザを開き、[http://localhost:8095](http://localhost:8095) にアクセスします。
+4.  ブラウザを開き、[http://localhost:8301](http://localhost:8301) にアクセスします。
 
 ## プロジェクト構成
 
