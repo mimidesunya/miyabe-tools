@@ -1,14 +1,8 @@
-# OS generated files
-.DS_Store
-Thumbs.db
 
-# IDEs and editors
-.vscode/
-.idea/
-*.swp
-*.swo
+# Local config
+/data/
+/.venv/
 
-# Local config (already added)
-/data/config.json
-/data/boards/
-/data/users.sqlite
+# Config files
+deploy.json
+*.json
