@@ -3,6 +3,41 @@ import os
 import subprocess
 import sys
 import time
+import tempfile
+import shutil
+import atexit
+
+# Store temp key path for cleanup
+_temp_key_path = None
+
+def prepare_ssh_key(key_path):
+    """Copy SSH key to a temp file with correct permissions for WSL."""
+    global _temp_key_path
+    
+    # Create a temp file
+    fd, temp_path = tempfile.mkstemp(prefix='ssh_key_')
+    os.close(fd)
+    
+    # Copy the key content
+    shutil.copy2(key_path, temp_path)
+    
+    # Set correct permissions (600)
+    os.chmod(temp_path, 0o600)
+    
+    _temp_key_path = temp_path
+    
+    # Register cleanup
+    atexit.register(cleanup_temp_key)
+    
+    print(f"SSH key prepared at: {temp_path}")
+    return temp_path
+
+def cleanup_temp_key():
+    """Remove the temporary SSH key file."""
+    global _temp_key_path
+    if _temp_key_path and os.path.exists(_temp_key_path):
+        os.remove(_temp_key_path)
+        print(f"Cleaned up temp SSH key: {_temp_key_path}")
 
 def load_config(config_path):
     with open(config_path, 'r') as f:
@@ -56,6 +91,10 @@ def main():
     config_path = sys.argv[1]
     config = load_config(config_path)
     
+    # Prepare SSH key (copy to temp with correct permissions for WSL)
+    original_key_path = config['key_path']
+    config['key_path'] = prepare_ssh_key(original_key_path)
+    
     registry = config['registry_domain']
     # Image names
     img_web = f"{registry}/miyabe-tools-web:latest"
@@ -88,6 +127,7 @@ def main():
 services:
   web:
     image: {img_web}
+    restart: always
     ports:
       - "{config.get('app_port', 8301)}:80"
     volumes:
@@ -97,6 +137,7 @@ services:
 
   php:
     image: {img_php}
+    restart: always
     volumes:
       - ./data:/var/www/data
 """
