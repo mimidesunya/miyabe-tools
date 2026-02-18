@@ -135,66 +135,176 @@ function clearMarkers() {
 
 function loadAll(skipFitBounds = false) {
 	clearMarkers();
+	
+	// Coordinate grouping
+	const groups = new Map();
 	for (const r of allRows) {
 		if (!r.lat || !r.lng) continue;
-		const baseHtml = `<div>
-		  <div style="margin-bottom:6px"><b>${Ui.escapeHtml(r.desc)}</b><br>${Ui.escapeHtml(r.address)}</div>
-		  <div style="margin:6px 0 8px; font-size:13px;"><a href="https://www.google.com/maps/search/?api=1&query=${r.lat},${r.lng}" target="_blank" rel="noopener" style="color:#1a73e8; text-decoration:none; font-weight:600;">📍 Googleマップで開く</a></div>
-		  <div class="task-panel" data-code="${Ui.escapeHtml(r.code)}">
-			<div class="task-status" style="${authState.loggedIn ? 'display:none;' : ''}">ステータス: <span class="task-status-text">読み込み中...</span></div>
-			<div class="task-select" style="margin-top:6px; ${authState.loggedIn ? '' : 'display:none;'}">
-			  <label>ステータス:
-				<select class="status-select">
-				  <option value="pending">未着手</option>
-				  <option value="in_progress">⏳ 着手</option>
-				  <option value="done">✅ 掲示</option>
-				  <option value="issue">⚠️ 異常</option>
-				</select>
-			  </label>
-			</div>
-			<div class="task-comment" style="margin-top:6px; ${authState.loggedIn ? '' : 'display:none;'}">
-			  <input type="text" placeholder="コメント" style="width: 180px;" />
-			</div>
-			<div class="task-last" style="margin-top:6px; font-size: 12px; color: #555;"></div>
-		  </div>
-		</div>`;
-		const codeIcon = L.divIcon({
-			className: 'code-marker',
-			html: `<div class="label"><span class="status-emoji" aria-hidden="true"></span><span class="code-text">${Ui.escapeHtml(r.code)}</span></div>`,
-			iconSize: null,
-			iconAnchor: [0, 0]
-		});
-		const maxPopupWidth = Math.min(460, Math.max(320, window.innerWidth - 32));
-		const marker = L.marker([r.lat, r.lng], { icon: codeIcon })
-			.addTo(map)
-			.bindPopup(baseHtml, {
-				maxWidth: maxPopupWidth,
-				minWidth: Math.min(320, maxPopupWidth),
-				autoPanPaddingTopLeft: [20, 12],
-				autoPanPaddingBottomRight: [20, 12]
-			});
+		const k = `${Number(r.lat).toFixed(6)},${Number(r.lng).toFixed(6)}`;
+		if (!groups.has(k)) groups.set(k, []);
+		groups.get(k).push(r);
+	}
 
-		// 位置調整モード中はポップアップを表示しない
-		marker.on('click', (e) => {
-			if (adjustMode) {
-				if (e.originalEvent) L.DomEvent.stop(e.originalEvent);
+	for (const [k, items] of groups) {
+		const count = items.length;
+		const [baseLat, baseLng] = k.split(',').map(Number);
+
+		items.forEach((r, index) => {
+			let showLat = baseLat;
+			let showLng = baseLng;
+
+			// If overlap exists, spread them out and draw connecting lines
+			if (count > 1) {
+				// Spread radius (approx 15-20m)
+				const radius = 0.00020;
+				// Distribute in a circle starting from 12 o'clock
+				const angle = (index / count) * Math.PI * 2 - (Math.PI / 2);
+				
+				showLat = baseLat + Math.sin(angle) * radius * 0.75; // Flatten lat slightly for perspective
+				showLng = baseLng + Math.cos(angle) * radius;
+
+				// Draw a connector line from original position to offset position
+				const line = L.polyline([[baseLat, baseLng], [showLat, showLng]], {
+					color: '#666',
+					weight: 1.5,
+					opacity: 0.6,
+					dashArray: '3, 4',
+					interactive: false
+				}).addTo(map);
+				markers.push(line); // Add to markers array for auto-cleanup
 			}
-		});
+
+			const baseHtml = `<div>
+			  <div class="info-view" style="${authState.loggedIn && adjustMode ? 'display:none;' : ''}">
+				<div style="margin-bottom:6px"><b>${Ui.escapeHtml(r.desc)}</b><br>${Ui.escapeHtml(r.address)}</div>
+			  </div>
+			  <div class="info-edit" style="margin-bottom:8px; display:${authState.loggedIn && adjustMode ? 'block' : 'none'};">
+				<input type="text" class="edit-desc" value="${Ui.escapeHtml(r.desc)}" placeholder="設置場所" style="width:100%; margin-bottom:4px; padding:4px; border:1px solid #ccc; border-radius:4px;">
+				<input type="text" class="edit-addr" value="${Ui.escapeHtml(r.address)}" placeholder="住所" style="width:100%; padding:4px; border:1px solid #ccc; border-radius:4px;">
+				<div class="edit-status" style="font-size:11px; color:#666; text-align:right; min-height:1.2em; margin-top:2px;">(変更で自動保存)</div>
+			  </div>
+			  <div style="margin:6px 0 8px; font-size:13px;"><a href="https://www.google.com/maps/search/?api=1&query=${baseLat},${baseLng}" target="_blank" rel="noopener" style="color:#1a73e8; text-decoration:none; font-weight:600;">📍 Googleマップで開く</a></div>
+			  <div class="task-panel" data-code="${Ui.escapeHtml(r.code)}">
+				<div class="task-status" style="${authState.loggedIn ? 'display:none;' : ''}">ステータス: <span class="task-status-text">読み込み中...</span></div>
+				<div class="task-select" style="margin-top:6px; ${authState.loggedIn ? '' : 'display:none;'}">
+				  <label>ステータス:
+					<select class="status-select">
+					  <option value="pending">未着手</option>
+					  <option value="in_progress">⏳ 着手</option>
+					  <option value="done">✅ 掲示</option>
+					  <option value="issue">⚠️ 異常</option>
+					</select>
+				  </label>
+				</div>
+				<div class="task-comment" style="margin-top:6px; ${authState.loggedIn ? '' : 'display:none;'}">
+				  <input type="text" placeholder="コメント" style="width: 180px;" />
+				</div>
+				<div class="task-last" style="margin-top:6px; font-size: 12px; color: #555;"></div>
+			  </div>
+			</div>`;
+			const codeIcon = L.divIcon({
+				className: 'code-marker',
+				html: `<div class="label"><span class="status-emoji" aria-hidden="true"></span><span class="code-text">${Ui.escapeHtml(r.code)}</span></div>`,
+				iconSize: null,
+				iconAnchor: [0, 0]
+			});
+			const maxPopupWidth = Math.min(460, Math.max(320, window.innerWidth - 32));
+			const marker = L.marker([showLat, showLng], { icon: codeIcon })
+				.addTo(map)
+				.bindPopup(baseHtml, {
+					maxWidth: maxPopupWidth,
+					minWidth: Math.min(320, maxPopupWidth),
+					autoPanPaddingTopLeft: [20, 12],
+					autoPanPaddingBottomRight: [20, 12]
+				});
+
+		
+		// 位置調整モード中でも編集のためにポップアップを表示する
+		// 以前はここで click イベントを停止していたが、削除してデフォルト動作（ポップアップオープン）を許可する
+		
         
 		setTimeout(() => {
 			const isSelfInit = !!(authState && authState.loggedIn && r.updatedBy && authState.user && authState.user.id === r.updatedBy);
 			const hasCommentInit = !!r.hasComment;
 			Ui.updateMarkerStatus(r.code, r.status || 'pending', isSelfInit, hasCommentInit, codeToMarker);
+			// Dragging is handled via label mousedown, which is separate from cleanup click
 			MapUtils.setupDragForMarker(marker, r.code, map, authState, adjustMode, slug);
 		}, 0);
 
 		marker.on('popupopen', async (e) => {
-			if (adjustMode) {
-				map.closePopup();
-				return;
-			}
-			const panel = e.popup.getElement().querySelector('.task-panel');
+			// adjustMode でもポップアップを許可する形に変更
+			
+			const container = e.popup.getElement();
+			const panel = container.querySelector('.task-panel');
 			if (!panel) return;
+			
+			const infoView = container.querySelector('.info-view');
+			const infoEdit = container.querySelector('.info-edit');
+			const editDesc = container.querySelector('.edit-desc');
+			const editAddr = container.querySelector('.edit-addr');
+			const editStatus = container.querySelector('.edit-status');
+
+			// Switch view based on mode
+			if (authState && authState.loggedIn && adjustMode) {
+				if(infoView) infoView.style.display = 'none';
+				if(infoEdit) infoEdit.style.display = 'block';
+			} else {
+				if(infoView) infoView.style.display = 'block';
+				if(infoEdit) infoEdit.style.display = 'none';
+			}
+
+			// Reflect current data to inputs and view (because bindPopup html is stale)
+			if (editDesc) editDesc.value = r.desc || '';
+			if (editAddr) editAddr.value = r.address || '';
+			if (infoView) infoView.innerHTML = `<div style="margin-bottom:6px"><b>${Ui.escapeHtml(r.desc)}</b><br>${Ui.escapeHtml(r.address)}</div>`;
+
+			// Wire up edit inputs
+			if (editDesc && editAddr) {
+				const saveInfo = async () => {
+					const newDesc = editDesc.value.trim();
+					const newAddr = editAddr.value.trim();
+					if (newDesc === r.desc && newAddr === r.address) return;
+					
+					if (editStatus) editStatus.textContent = '保存中...';
+					
+					// Optimistic update
+					const oldDesc = r.desc;
+					const oldAddr = r.address;
+					r.desc = newDesc;
+					r.address = newAddr;
+					
+					try {
+						await Api.updateBoardInfo(slug, r.code, newDesc, newAddr);
+						// Update view text as well
+						if (infoView) infoView.innerHTML = `<div style="margin-bottom:6px"><b>${Ui.escapeHtml(newDesc)}</b><br>${Ui.escapeHtml(newAddr)}</div>`;
+						if (editStatus) {
+							editStatus.textContent = '保存しました';
+							editStatus.style.color = '#34a853';
+							setTimeout(() => { 
+								if (editStatus) {
+									editStatus.textContent = '(変更で自動保存)';
+									editStatus.style.color = '#666';
+								}
+							}, 2000);
+						}
+					} catch (err) {
+						if (editStatus) {
+							editStatus.textContent = '保存失敗';
+							editStatus.style.color = 'red';
+						}
+						console.error('Save failed', err);
+						// Revert
+						r.desc = oldDesc;
+						r.address = oldAddr;
+					}
+				};
+				
+				[editDesc, editAddr].forEach(inp => {
+					inp.onblur = saveInfo;
+					inp.onkeydown = (ev) => { if (ev.key === 'Enter') { ev.target.blur(); } };
+				});
+			}
+
 			const code = panel.getAttribute('data-code');
 			const statusWrap = panel.querySelector('.task-status');
 			const statusEl = panel.querySelector('.task-status-text');
@@ -202,6 +312,9 @@ function loadAll(skipFitBounds = false) {
 			const selectWrap = panel.querySelector('.task-select');
 			const commentEl = panel.querySelector('.task-comment');
             
+			// Default visibility (override adjustMode check for task parts?)
+			// User asked for address/place edit. Task edit should probably remain available or hidden?
+			// Assuming allow everything if logged in.
 			if (statusWrap) statusWrap.style.display = authState.loggedIn ? 'none' : '';
 			if (selectWrap) selectWrap.style.display = authState.loggedIn ? '' : 'none';
 			if (commentEl) commentEl.style.display = authState.loggedIn ? '' : 'none';
@@ -216,13 +329,13 @@ function loadAll(skipFitBounds = false) {
 				if (statusEl) statusEl.textContent = em ? `${em} ${Ui.statusLabel(info.status.status)}` : Ui.statusLabel(info.status.status);
 			}
             
-			if (authState && authState.loggedIn && !adjustMode && selectWrap) {
+			if (authState && authState.loggedIn && selectWrap) {
 				const sel = selectWrap.querySelector('.status-select');
 				if (sel) sel.value = info.status.status || 'pending';
 			}
             
 			if (lastEl) {
-				if (authState && authState.loggedIn && !adjustMode) {
+				if (authState && authState.loggedIn) {
 					lastEl.textContent = '';
 				} else {
 					lastEl.textContent = info.status.last_comment ? `「${Ui.escapeHtml(info.status.last_comment)}」` : '';
@@ -234,7 +347,7 @@ function loadAll(skipFitBounds = false) {
 			Ui.updateMarkerStatus(code, info.status.status, isSelf, hasCom, codeToMarker);
 			Ui.updatePopupStatusStyle(e.popup, info.status.status);
             
-			if (authState && authState.loggedIn && !adjustMode && commentEl) {
+			if (authState && authState.loggedIn && commentEl) {
 				const input = commentEl.querySelector('input');
 				if (input) input.value = info.status.last_comment || '';
 			}
@@ -342,7 +455,8 @@ function loadAll(skipFitBounds = false) {
 		markers.push(marker);
 		bounds.extend([r.lat, r.lng]);
 		if (r.code) codeToMarker.set(r.code, marker);
-	}
+		}); // end inner forEach (items)
+	} // end outer for (groups)
 	if (!bounds.isValid()) {
 	} else if (!skipFitBounds) {
 		map.fitBounds(bounds, { padding: [30, 30] });

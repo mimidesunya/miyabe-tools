@@ -1,8 +1,11 @@
 
 # Local config
 /data/
+/logs/
 /.venv/
 
 # Config files
 deploy.json
 *.json
+*.pyc
+*.pyc

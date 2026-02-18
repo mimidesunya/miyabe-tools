@@ -38,6 +38,32 @@ function set_board_coords(PDO $boardsPdo, string $code, float $lat, float $lon):
     return ['ok' => true, 'board_code' => $code, 'lat' => $lat, 'lon' => $lon];
 }
 
+// 掲示場の基本情報を更新する
+function update_board_info(PDO $boardsPdo, string $code, string $desc, string $addr): array {
+    if (mb_strlen($desc) > 200 || mb_strlen($addr) > 200) {
+        http_response_code(400);
+        return ['error' => '文字数が長すぎます'];
+    }
+    try {
+        $stmt = $boardsPdo->prepare('UPDATE boards SET place = :place, address = :addr WHERE code = :code');
+        $stmt->execute([':place' => $desc, ':addr' => $addr, ':code' => $code]);
+        if ($stmt->rowCount() === 0) {
+            // codeが存在しないか、値が変わっていない場合
+            // code確認
+            $check = $boardsPdo->prepare('SELECT 1 FROM boards WHERE code = :code');
+            $check->execute([':code' => $code]);
+            if (!$check->fetch()) {
+                 http_response_code(404);
+                 return ['error' => '掲示場が見つかりません'];
+            }
+        }
+    } catch (Throwable $e) {
+        http_response_code(500);
+        return ['error' => '情報の更新に失敗しました'];
+    }
+    return ['ok' => true, 'board_code' => $code, 'place' => $desc, 'address' => $addr];
+}
+
 function json_input(): array {
     $ctype = $_SERVER['CONTENT_TYPE'] ?? '';
     if (stripos($ctype, 'application/json') !== false) {
@@ -182,7 +208,7 @@ if ($method === 'POST') {
         $note = isset($data['note']) ? trim((string)$data['note']) : '';
         echo json_encode(add_comment($pdo, (int)$uid, $code, $note), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
-    } elseif ($action === 'move' || $action === 'set_coords') {
+    } elseif ($action === 'move' || $action === 'set_coords' || $action === 'update_info') {
         // 権限チェック
         $config = load_config();
         $municipalities = $config['MUNICIPALITIES'] ?? [];
@@ -190,6 +216,14 @@ if ($method === 'POST') {
         if (!$allowOffset) {
             http_response_code(403);
             echo json_encode(['error' => 'この自治体では位置調整が許可されていません'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        if ($action === 'update_info') {
+            $desc = isset($data['desc']) ? trim((string)$data['desc']) : '';
+            $addr = isset($data['addr']) ? trim((string)$data['addr']) : '';
+            $boardsPdo = open_boards_pdo($slug);
+            echo json_encode(update_board_info($boardsPdo, $code, $desc, $addr), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             exit;
         }
 

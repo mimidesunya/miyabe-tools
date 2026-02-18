@@ -4,4 +4,4 @@
 cd "$(dirname "$0")"
 
 # Execute the python deployment script
-python3 deploy/deploy.py deploy.json
+python3 deploy/deploy.py deploy.json "$@"

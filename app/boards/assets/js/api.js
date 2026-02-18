@@ -55,3 +55,13 @@ export async function checkAuth(slug) {
 	return await r.json();
 }
 
+export async function updateBoardInfo(slug, code, desc, addr) {
+	const res = await fetch('/boards/api/tasks.php', {
+		method: 'POST', headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ action: 'update_info', slug, board_code: code, desc, addr })
+	});
+	if (res.redirected) { window.location.href = res.url; return null; }
+	if (!res.ok) throw new Error('HTTP ' + res.status);
+	return await res.json();
+}
+

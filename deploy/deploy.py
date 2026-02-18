@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import sys
+import argparse
 import time
 import tempfile
 import shutil
@@ -83,13 +84,44 @@ def ssh_copy_content(config, content, remote_path):
         print(f"Error in ssh_copy_content: {e}")
         sys.exit(1)
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python3 deploy/deploy.py <config_file>")
-        sys.exit(1)
+def sync_files(config, dest_dir):
+    """Syncs app, lib, nginx, and reiki data directories to remote."""
+    print("=== Syncing Code and Config Files ===")
+    
+    # Ensure remote directories exist
+    ssh_exec(config, f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/nginx {dest_dir}/data/reiki")
 
-    config_path = sys.argv[1]
-    config = load_config(config_path)
+    # Use rsync for better handling of large number of files
+    # Note: rsync over ssh is more reliable for large directories
+    ssh_base = f"ssh -i {config['key_path']} -p {config.get('port', 22)} -o StrictHostKeyChecking=no"
+    
+    # Sync each directory separately for better error handling and progress tracking
+    dirs_to_sync = [
+        ("app/", f"{dest_dir}/app/"),
+        ("lib/", f"{dest_dir}/lib/"),
+        ("nginx/", f"{dest_dir}/nginx/"),
+        ("data/reiki/", f"{dest_dir}/data/reiki/")
+    ]
+    
+    for local_path, remote_path in dirs_to_sync:
+        print(f"Syncing {local_path}...")
+        # -a: archive mode (preserves permissions, times, etc.)
+        # -v: verbose
+        # -z: compress during transfer
+        # --delete: remove files on remote that don't exist locally
+        rsync_cmd = f"rsync -avz --delete -e '{ssh_base}' {local_path} {config['user']}@{config['host']}:{remote_path}"
+        run_command(rsync_cmd, capture_output=False)
+    
+    print("Sync complete.")
+
+def main():
+    parser = argparse.ArgumentParser(description='Deploy script.')
+    parser.add_argument('config_file', help='Path to configuration JSON file')
+    parser.add_argument('--full', action='store_true', help='Perform full deployment including Docker build and push. Default is code-only sync.')
+    
+    args = parser.parse_args()
+
+    config = load_config(args.config_file)
     
     # Prepare SSH key (copy to temp with correct permissions for WSL)
     original_key_path = config['key_path']
@@ -100,29 +132,30 @@ def main():
     img_web = f"{registry}/miyabe-tools-web:latest"
     img_php = f"{registry}/miyabe-tools-php:latest"
 
-    print("=== 1. Docker Login ===")
-    # Note: Login might be needed on local if pushing provided we have access.
-    # Assuming user is logged in or we can pass password.
-    # For CI-like scripts, echo password to stdin is safer.
-    login_cmd = f"echo {config['registry_pass']} | docker login {registry} -u {config['registry_user']} --password-stdin"
-    run_command(login_cmd)
-
-    print("=== 2. Build & Push Images ===")
-    run_command(f"docker build -t {img_web} -f docker/nginx/Dockerfile .", capture_output=False)
-    run_command(f"docker build -t {img_php} -f docker/php/Dockerfile .", capture_output=False)
-    
-    run_command(f"docker push {img_web}", capture_output=False)
-    run_command(f"docker push {img_php}", capture_output=False)
-
-    print("=== 3. Prepare Remote Environment ===")
     dest_dir = config['dest_dir']
     if not dest_dir.startswith('/'):
         dest_dir = f"~/{dest_dir}"
-    
+
+    if args.full:
+        print("=== 1. Docker Login ===")
+        login_cmd = f"echo {config['registry_pass']} | docker login {registry} -u {config['registry_user']} --password-stdin"
+        run_command(login_cmd)
+
+        print("=== 2. Build & Push Images ===")
+        run_command(f"docker build -t {img_web} -f docker/nginx/Dockerfile .", capture_output=False)
+        run_command(f"docker build -t {img_php} -f docker/php/Dockerfile .", capture_output=False)
+        
+        run_command(f"docker push {img_web}", capture_output=False)
+        run_command(f"docker push {img_php}", capture_output=False)
+
+    print("=== 3. Prepare Remote Environment ===")
     ssh_exec(config, f"mkdir -p {dest_dir}/data")
+    
+    # Always sync code now, to support volume mounts
+    sync_files(config, dest_dir)
 
     # Generate docker-compose.prod.yml
-    # We remove build contexts and volumes that mount code, keeping data volumes.
+    # We mount app and lib to allow code updates without image rebuild
     docker_compose_prod = f"""version: '3'
 services:
   web:
@@ -132,6 +165,9 @@ services:
       - "{config.get('app_port', 8301)}:80"
     volumes:
       - ./data:/var/www/data
+      - ./app:/var/www/html
+      - ./lib:/var/www/lib
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - php
 
@@ -140,18 +176,22 @@ services:
     restart: always
     volumes:
       - ./data:/var/www/data
+      - ./app:/var/www/html
+      - ./lib:/var/www/lib
 """
     
     print("=== 4. Deploy to Remote ===")
     ssh_copy_content(config, docker_compose_prod, f"{dest_dir}/docker-compose.yml")
     
-    # We need to ensure the remote server can pull from the registry.
-    # We'll run docker login on the remote too.
-    remote_login = f"echo {config['registry_pass']} | docker login {registry} -u {config['registry_user']} --password-stdin"
-    ssh_exec(config, remote_login)
-    
-    # Pull and Up
-    ssh_exec(config, f"cd {dest_dir} && docker compose pull && docker compose up -d")
+    if args.full:
+        # Remote login and pull only if we pushed new images
+        remote_login = f"echo {config['registry_pass']} | docker login {registry} -u {config['registry_user']} --password-stdin"
+        ssh_exec(config, remote_login)
+        ssh_exec(config, f"cd {dest_dir} && docker compose pull && docker compose up -d")
+    else:
+        print("=== Restarting services to pick up code changes ===")
+        # Explicit restart to ensure PHP/Nginx reload
+        ssh_exec(config, f"cd {dest_dir} && docker compose up -d && docker compose restart")
 
     print("=== Deployment Complete ===")
 

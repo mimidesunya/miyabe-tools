@@ -10,7 +10,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 function load_config(): array {
     $configFile = dirname(__DIR__) . '/data/config.json';
     if (!file_exists($configFile)) {
-        $example = dirname(__DIR__) . '/config.example.json';
+        $example = dirname(__DIR__) . '/data/config.example.json';
         if (file_exists($example)) {
             return json_decode(file_get_contents($example), true);
         }

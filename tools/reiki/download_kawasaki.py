@@ -10,11 +10,17 @@ import time
 import requests
 from pathlib import Path
 
+# 同じディレクトリのモジュールをインポートするためにパスを追加
+import sys
+sys.path.append(str(Path(__file__).parent))
+import parse_kawasaki
+
 # 設定
 BASE_URL = "http://www.reiki.city.kawasaki.jp/kawasaki/d1w_reiki/"
 # 実行ディレクトリからの相対パス、または絶対パス
 WORKSPACE_ROOT = Path(__file__).parent.parent.parent
 DATA_DIR = WORKSPACE_ROOT / "data" / "reiki" / "kawasaki"
+OUTPUT_MD_DIR = WORKSPACE_ROOT / "data" / "reiki" / "kawasaki_md"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 DELAY = 0.5  # サーバー負荷軽減のための待機時間（秒）
 
@@ -105,8 +111,14 @@ def main():
         # DATA_DIR直下に保存
         dest_path = DATA_DIR / filename
         
-        if download_file(url, dest_path):
+        # ダウンロード実行（既存ならスキップ）
+        downloaded = download_file(url, dest_path)
+        if downloaded:
             count += 1
+        
+        # ファイルが存在すれば（ダウンロード済み含む）変換処理を実行
+        if dest_path.exists():
+             parse_kawasaki.process_file(dest_path, OUTPUT_MD_DIR)
         
         if (i + 1) % 10 == 0:
             print(f"Progress: {i + 1}/{len(hno_list)} IDs processed...")
