@@ -1,0 +1,630 @@
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans JP', sans-serif;
+    background: #f5f7fb;
+    color: #1f2937;
+}
+
+/* ─── Header ─── */
+.header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: linear-gradient(90deg, #ffffff 0%, #f9fbff 100%);
+    border-bottom: 1px solid #e5e7eb;
+    padding: 12px 16px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+}
+.header h1 { margin: 0; font-size: 20px; white-space: nowrap; }
+.meta { color: #6b7280; font-size: 13px; }
+
+/* ─── Desktop: Two-column grid layout ─── */
+.layout {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    height: calc(100vh - 58px);
+    overflow: hidden;
+}
+.sidebar {
+    border-right: 1px solid #e5e7eb;
+    background: #fff;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ─── Search & Filters ─── */
+.search {
+    padding: 12px;
+    border-bottom: 1px solid #eef2f7;
+    position: sticky;
+    top: 0;
+    background: #fff;
+    z-index: 5;
+    flex-shrink: 0;
+}
+.search input[type="text"] {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 14px;
+}
+.search select {
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background: #fff;
+}
+.search button[type="submit"] {
+    margin-top: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #275ea3;
+    background: #275ea3;
+    color: #fff;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.filter-block {
+    margin-top: 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+}
+.filter-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+    padding: 8px 10px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+.filter-count {
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 500;
+}
+.checkbox-grid {
+    max-height: 180px;
+    overflow-y: auto;
+    padding: 6px 8px 10px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 10px;
+}
+.checkbox-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12px;
+    line-height: 1.35;
+    cursor: pointer;
+    color: #1f2937;
+    min-width: 0;
+}
+.checkbox-item input[type="checkbox"] {
+    margin-top: 2px;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+}
+.checkbox-item span {
+    display: block;
+    overflow-wrap: anywhere;
+}
+
+/* ─── List ─── */
+.list { margin: 0; padding: 0; list-style: none; }
+.list a {
+    display: block;
+    padding: 12px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    text-decoration: none;
+    color: inherit;
+}
+.list a:hover { background: #f8fafc; }
+.list a.active { background: #e8f0fe; border-left: 3px solid #275ea3; }
+.law-title {
+    font-size: 14px;
+    color: #0f172a;
+    font-weight: 600;
+    line-height: 1.35;
+    display: -webkit-box;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.file-name {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #64748b;
+    word-break: break-all;
+}
+.file-meta { margin-top: 4px; font-size: 12px; color: #94a3b8; }
+.reading-kana {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #475569;
+    letter-spacing: 0.02em;
+}
+
+/* ─── Pager ─── */
+.pager {
+    display: flex;
+    gap: 6px;
+    padding: 10px 12px;
+    border-top: 1px solid #eef2f7;
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    flex-shrink: 0;
+    z-index: 5;
+}
+.pager a, .pager span {
+    padding: 5px 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 12px;
+    text-decoration: none;
+    color: #334155;
+    background: #fff;
+}
+
+/* ─── Content ─── */
+.content {
+    overflow: auto;
+    padding: 16px;
+}
+.card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
+}
+.title { margin: 0 0 8px 0; font-size: 22px; }
+.badge {
+    display: inline-block;
+    background: #eef2ff;
+    color: #3730a3;
+    border: 1px solid #c7d2fe;
+    border-radius: 999px;
+    font-size: 12px;
+    padding: 3px 8px;
+    margin-right: 6px;
+    margin-bottom: 4px;
+}
+.kv {
+    display: grid;
+    grid-template-columns: 170px 1fr;
+    gap: 6px 10px;
+    font-size: 14px;
+}
+.kv dt { color: #475569; }
+.kv dd { margin: 0; color: #0f172a; }
+
+/* ─── Guide (Legend) ─── */
+.guide h3 {
+    margin: 16px 0 8px;
+    font-size: 17px;
+    color: #0f172a;
+}
+.guide p, .guide li {
+    font-size: 14px;
+    line-height: 1.8;
+    color: #1f2937;
+}
+.guide ul {
+    margin: 0;
+    padding-left: 18px;
+}
+.guide .hint {
+    margin-top: 8px;
+    padding: 10px;
+    border: 1px solid #dbeafe;
+    border-radius: 8px;
+    background: #eff6ff;
+    color: #1e3a8a;
+    font-size: 13px;
+}
+
+/* ─── Law Content ─── */
+.law-content {
+    font-size: 15px;
+    line-height: 1.9;
+    color: #111827;
+}
+.law-content h1, .law-content h2, .law-content h3, .law-content h4 {
+    margin: 0.8em 0 0.4em;
+    line-height: 1.4;
+}
+.law-content p, .law-content div, .law-content li {
+    margin: 0.45em 0;
+}
+.law-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-size: 14px;
+}
+.law-content th, .law-content td {
+    border: 1px solid #dbe4ef;
+    padding: 6px 8px;
+    vertical-align: top;
+}
+.law-content th {
+    background: #f8fafc;
+    font-weight: 600;
+}
+.law-content a {
+    color: #1d4ed8;
+    text-decoration: underline;
+    word-break: break-all;
+}
+
+/* ─── Empty Content Placeholder ─── */
+.empty-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 60px 20px;
+    color: #64748b;
+}
+
+/* ─── Mobile Back Button (hidden on desktop) ─── */
+.mobile-back {
+    display: none;
+}
+
+/* ─── Desktop Menu Toggle (hidden on desktop) ─── */
+#menu-toggle {
+    display: none;
+}
+
+/* ─── Feedback Section ─── */
+.feedback-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.feedback-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.feedback-buttons button {
+    padding: 6px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+#btn-good {
+    border: 1px solid #86efac;
+    background: #f0fdf4;
+}
+#btn-bad {
+    border: 1px solid #fca5a5;
+    background: #fef2f2;
+}
+#vote-status {
+    font-size: 12px;
+    color: #6b7280;
+}
+.view-count-label {
+    margin-left: auto;
+    font-size: 12px;
+    color: #94a3b8;
+    white-space: nowrap;
+}
+#comment-input {
+    flex: 1;
+    padding: 7px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 13px;
+    min-width: 0;
+}
+
+/* ═══════════════════════════════════════
+   Tablet (≤1024px): single-column stack
+   ═══════════════════════════════════════ */
+@media (max-width: 1024px) {
+    .layout {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow: visible;
+    }
+    .sidebar {
+        border-right: none;
+        border-bottom: 1px solid #e5e7eb;
+        max-height: 45vh;
+    }
+    .content {
+        overflow: visible;
+        height: auto;
+    }
+}
+
+/* ═══════════════════════════════════════
+   Mobile (≤768px): Master/Detail pattern
+   No file selected → show search + list
+   File selected    → show detail + back btn
+   ═══════════════════════════════════════ */
+@media (max-width: 768px) {
+    .header { padding: 10px 12px; }
+    .header h1 { font-size: 17px; }
+
+    /* Stack layout, no fixed height, natural scroll */
+    .layout {
+        display: flex;
+        flex-direction: column;
+        height: auto;
+        overflow: visible;
+    }
+
+    /* Sidebar: shown normally when no file selected */
+    .sidebar {
+        max-height: none;
+        border-bottom: none;
+        overflow-y: visible;
+        order: 2;
+    }
+
+    /* Content area */
+    .content {
+        order: 3;
+    }
+
+    /* When a file is selected → hide sidebar, show detail */
+    .layout.has-detail .sidebar {
+        display: none;
+    }
+
+    /* When NO file selected and not landing → hide content on mobile; list is primary */
+    .layout:not(.has-detail):not(.is-landing) .content {
+        display: none;
+    }
+
+    /* Landing page: guide appears ABOVE sidebar */
+    .layout.is-landing .content {
+        order: 1;
+    }
+    .layout.is-landing .sidebar {
+        order: 2;
+        border-top: 1px solid #e5e7eb;
+    }
+
+    /* Mobile back button */
+    .mobile-back {
+        order: 0;
+    }
+
+    /* Guide: collapsible on mobile, closed by default */
+    .guide-toggle {
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        -webkit-tap-highlight-color: rgba(39, 94, 163, 0.1);
+    }
+    .guide-arrow::after {
+        content: '\25B6';
+        font-size: 12px;
+        color: #94a3b8;
+        transition: transform 0.2s;
+    }
+    .guide.expanded .guide-arrow::after {
+        transform: rotate(90deg);
+    }
+    .guide-body {
+        display: none;
+    }
+    .guide.expanded .guide-body {
+        display: block;
+    }
+
+    /* Mobile back button: visible when detail is open */
+    .layout.has-detail .mobile-back {
+        display: block;
+        padding: 10px 12px;
+        background: #fff;
+        border-bottom: 1px solid #e5e7eb;
+        position: sticky;
+        top: 0;
+        z-index: 15;
+    }
+    .mobile-back a {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        color: #275ea3;
+        text-decoration: none;
+        font-weight: 600;
+        padding: 10px 14px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        background: #f8fafc;
+        -webkit-tap-highlight-color: rgba(39, 94, 163, 0.15);
+    }
+    .mobile-back a:active {
+        background: #e8f0fe;
+    }
+
+    /* Content adjustments */
+    .content {
+        padding: 10px;
+    }
+
+    /* Menu toggle: not needed in master/detail mode */
+    #menu-toggle {
+        display: none !important;
+    }
+
+    /* Prevent iOS zoom on inputs */
+    .search input[type="text"],
+    .search button[type="submit"],
+    .search select {
+        font-size: 16px !important;
+    }
+    .search input[type="text"] {
+        padding: 12px;
+    }
+    .search button[type="submit"] {
+        padding: 12px;
+    }
+
+    /* Filters: single column for easier touch, collapsed by default */
+    .filter-block .checkbox-grid {
+        display: none;
+    }
+    .filter-block.expanded .checkbox-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        max-height: 200px;
+    }
+    .filter-title::after {
+        content: '\25B6';
+        font-size: 10px;
+        color: #94a3b8;
+        transition: transform 0.2s;
+    }
+    .filter-block.expanded .filter-title::after {
+        transform: rotate(90deg);
+    }
+    .checkbox-item {
+        font-size: 14px;
+        padding: 4px 0;
+        min-height: 36px;
+        align-items: center;
+    }
+    .checkbox-item input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+        flex: 0 0 20px;
+    }
+
+    /* List items: larger touch targets */
+    .list a {
+        padding: 14px 12px;
+    }
+    .law-title {
+        font-size: 15px;
+        line-clamp: 3;
+        -webkit-line-clamp: 3;
+    }
+
+    /* Pager: larger tap area */
+    .pager {
+        justify-content: center;
+    }
+    .pager a, .pager span {
+        padding: 10px 16px;
+        font-size: 14px;
+    }
+
+    /* Cards */
+    .card {
+        padding: 14px;
+        border-radius: 8px;
+    }
+    .title { font-size: 18px; line-height: 1.3; }
+
+    /* KV: stack vertically */
+    .kv {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+    .kv dt {
+        margin-top: 10px;
+        font-weight: 600;
+        color: #334155;
+        font-size: 13px;
+    }
+    .kv dd {
+        padding-left: 10px;
+        border-left: 2px solid #e2e8f0;
+        font-size: 14px;
+        line-height: 1.6;
+    }
+
+    /* Law content */
+    .law-content table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .law-content {
+        font-size: 14px;
+        line-height: 1.8;
+    }
+
+    /* Guide */
+    .guide h3 { font-size: 16px; }
+    .guide p, .guide li { font-size: 13px; line-height: 1.7; }
+
+    /* Feedback: stack vertically for full-width buttons */
+    .feedback-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    .feedback-buttons {
+        justify-content: center;
+        gap: 12px;
+    }
+    .feedback-buttons button {
+        flex: 1;
+        justify-content: center;
+        padding: 12px 16px;
+        font-size: 16px;
+        min-height: 44px;
+    }
+    .view-count-label {
+        margin-left: 0;
+        text-align: center;
+    }
+    #vote-status {
+        text-align: center;
+        display: block;
+    }
+    #comment-input {
+        font-size: 16px !important;
+        padding: 12px;
+        width: 100%;
+    }
+
+    /* Badge */
+    .badge {
+        font-size: 11px;
+        padding: 2px 6px;
+    }
+}
+
+/* ═══════════════════════════════════════
+   Small phones (≤400px)
+   ═══════════════════════════════════════ */
+@media (max-width: 400px) {
+    .header h1 { font-size: 15px; }
+    .content { padding: 6px; }
+    .card { padding: 10px; }
+    .title { font-size: 16px; }
+}

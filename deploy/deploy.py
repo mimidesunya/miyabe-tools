@@ -103,13 +103,21 @@ def sync_files(config, dest_dir):
         ("data/reiki/", f"{dest_dir}/data/reiki/")
     ]
     
+    # Files that should never be deleted on remote (e.g. user-generated data)
+    rsync_excludes = {
+        "data/reiki/": ["feedback.sqlite"],
+    }
+
     for local_path, remote_path in dirs_to_sync:
         print(f"Syncing {local_path}...")
         # -a: archive mode (preserves permissions, times, etc.)
         # -v: verbose
         # -z: compress during transfer
         # --delete: remove files on remote that don't exist locally
-        rsync_cmd = f"rsync -avz --delete -e '{ssh_base}' {local_path} {config['user']}@{config['host']}:{remote_path}"
+        exclude_opts = ""
+        for pattern in rsync_excludes.get(local_path, []):
+            exclude_opts += f" --exclude='{pattern}'"
+        rsync_cmd = f"rsync -avz --delete{exclude_opts} -e '{ssh_base}' {local_path} {config['user']}@{config['host']}:{remote_path}"
         run_command(rsync_cmd, capture_output=False)
     
     print("Sync complete.")
