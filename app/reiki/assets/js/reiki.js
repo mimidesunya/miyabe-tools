@@ -1,3 +1,47 @@
+function currentSlug() {
+    return document.body && document.body.dataset ? (document.body.dataset.reikiSlug || '') : '';
+}
+
+function buildPageUrl(extraParams) {
+    const url = new URL('/reiki/', window.location.origin);
+    const slug = currentSlug();
+    if (slug) {
+        url.searchParams.set('slug', slug);
+    }
+    Object.entries(extraParams || {}).forEach(([key, value]) => {
+        if (value != null && value !== '') {
+            url.searchParams.set(key, value);
+        }
+    });
+    return url.toString();
+}
+
+function buildApiUrl(action, extraParams) {
+    const url = new URL('/reiki/api.php', window.location.origin);
+    url.searchParams.set('action', action);
+    const slug = currentSlug();
+    if (slug) {
+        url.searchParams.set('slug', slug);
+    }
+    Object.entries(extraParams || {}).forEach(([key, value]) => {
+        if (value != null && value !== '') {
+            url.searchParams.set(key, value);
+        }
+    });
+    return url.toString();
+}
+
+window.linkinyo = function(_sysCode, lawId) {
+    if (!lawId) {
+        return false;
+    }
+
+    const targetFile = `${lawId}_j.html`;
+    const url = buildPageUrl({ file: targetFile });
+    window.location.href = url;
+    return false;
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     const toggle = document.getElementById('menu-toggle');
     const sidebar = document.querySelector('.sidebar');
@@ -63,7 +107,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ─── Collapsible filters on mobile ───
-    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+    const isCompactLayout = window.matchMedia('(max-width: 1024px)').matches;
     document.querySelectorAll('.filter-block').forEach(block => {
         const title = block.querySelector('.filter-title');
         if (!title) return;
@@ -71,8 +115,7 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             block.classList.toggle('expanded');
         });
-        // On desktop, keep expanded
-        if (!isMobile) {
+        if (!isCompactLayout) {
             block.classList.add('expanded');
         }
     });
@@ -86,8 +129,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 guideSection.classList.toggle('expanded');
             });
         }
-        // On desktop, always show guide body
-        if (!isMobile) {
+        if (!isCompactLayout) {
             guideSection.classList.add('expanded');
         }
     }
@@ -96,7 +138,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const feedbackSection = document.getElementById('feedback-section');
     if (feedbackSection) {
         const filename = feedbackSection.dataset.filename;
-        const cookieKey = 'reiki_voted_' + filename;
+        const slug = currentSlug();
+        const cookieKey = 'reiki_voted_' + slug + '_' + filename;
 
         function hasVoted() {
             return document.cookie.split(';').some(c => c.trim().startsWith(cookieKey + '='));
@@ -149,7 +192,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // Load stats
-        fetch('/reiki/api.php?action=stats&filename=' + encodeURIComponent(filename))
+        fetch(buildApiUrl('stats', { filename: filename }))
             .then(r => r.json())
             .then(data => {
                 updateVoteCounts(data.votes);
@@ -162,10 +205,10 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(() => {});
 
         // Record view
-        fetch('/reiki/api.php?action=view', {
+        fetch(buildApiUrl('view'), {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ filename: filename })
+            body: JSON.stringify({ slug: slug, filename: filename })
         }).then(r => r.json()).then(data => {
             if (data.viewCount !== undefined) {
                 document.getElementById('view-count').textContent = data.viewCount;
@@ -179,10 +222,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             const comment = (document.getElementById('comment-input').value || '').trim();
-            fetch('/reiki/api.php?action=vote', {
+            fetch(buildApiUrl('vote'), {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ filename: filename, vote: vote, comment: comment })
+                body: JSON.stringify({ slug: slug, filename: filename, vote: vote, comment: comment })
             })
             .then(r => r.json())
             .then(data => {
@@ -191,7 +234,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     setVotedCookie();
                     disableButtons();
                     document.getElementById('vote-status').textContent = '投票しました！';
-                    fetch('/reiki/api.php?action=stats&filename=' + encodeURIComponent(filename))
+                    fetch(buildApiUrl('stats', { filename: filename }))
                         .then(r => r.json())
                         .then(d => renderComments(d.comments))
                         .catch(() => {});

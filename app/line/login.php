@@ -21,9 +21,7 @@ if (!$slug && isset($_SERVER['HTTP_REFERER'])) {
 }
 // スラッグのバリデーション
 if ($slug && preg_match('/^[a-z0-9_-]+$/', $slug)) {
-    $municipalities = $config['MUNICIPALITIES'] ?? [];
-    $allowed = array_keys($municipalities);
-    if (in_array($slug, $allowed)) {
+    if (municipality_entry($slug) !== null) {
         $_SESSION['login_return_slug'] = $slug;
     }
 }

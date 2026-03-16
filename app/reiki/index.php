@@ -2,21 +2,38 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/includes/functions.php';
+require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'municipalities.php';
 
 // ─────────────────────────────────────
 // Path Configuration
 // ─────────────────────────────────────
-$workspaceRoot = dirname(__DIR__, 2);
-$dataDir = $workspaceRoot . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'reiki' . DIRECTORY_SEPARATOR . 'kawasaki';
-$cleanHtmlDir = $workspaceRoot . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'reiki' . DIRECTORY_SEPARATOR . 'kawasaki_html';
-$classificationDir = $workspaceRoot . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'reiki' . DIRECTORY_SEPARATOR . 'kawasaki_json';
-$dbPath = $workspaceRoot . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'reiki' . DIRECTORY_SEPARATOR . 'ordinances.sqlite';
+$slug = get_slug();
+if ($slug === '') {
+    $slug = get_default_slug();
+}
+$municipality = municipality_entry($slug);
+if ($municipality === null) {
+    http_response_code(404);
+    echo '自治体が見つかりません。';
+    exit;
+}
+$reikiFeature = municipality_feature($slug, 'reiki') ?? [];
+$featureAvailable = (bool)($reikiFeature['enabled'] ?? false);
+$switcherItems = municipality_switcher_items('reiki');
+$dataDir = (string)($reikiFeature['data_dir'] ?? '');
+$cleanHtmlDir = (string)($reikiFeature['clean_html_dir'] ?? '');
+$classificationDir = (string)($reikiFeature['classification_dir'] ?? '');
+$dbPath = (string)($reikiFeature['db_path'] ?? '');
+$reikiImageUrl = (string)($reikiFeature['image_url'] ?? '/data/reiki/kawasaki_images');
+$pageTitle = (string)($reikiFeature['title'] ?? ($municipality['name'] . '例規集 AI評価ビューア'));
+$clearUrl = '/reiki/?slug=' . rawurlencode($slug);
+$featureNotice = $featureAvailable ? '' : ($municipality['name'] . 'の例規集は準備中です。');
 
 // ─────────────────────────────────────
 // Query Parameters
 // ─────────────────────────────────────
 $q = trim((string)($_GET['q'] ?? ''));
-$file = trim((string)($_GET['file'] ?? ''));
+$file = $featureAvailable ? trim((string)($_GET['file'] ?? '')) : '';
 $sort = trim((string)($_GET['sort'] ?? 'date'));
 $direction = trim((string)($_GET['dir'] ?? '')); 
 $hasClassFilterParam = array_key_exists('class', $_GET);
@@ -34,6 +51,19 @@ if (!is_array($filterStances)) {
     $filterStances = $str !== '' ? [$str] : [];
 }
 $filterStances = array_filter($filterStances, fn($v) => (string)$v !== '');
+
+$documentTypeOptions = ['条例', '規則', '規程', '要綱', 'その他'];
+$hasDocTypeFilterParam = array_key_exists('doctype', $_GET);
+$filterDocTypes = $_GET['doctype'] ?? [];
+if (!is_array($filterDocTypes)) {
+    $str = trim((string)$filterDocTypes);
+    $filterDocTypes = $str !== '' ? [$str] : [];
+}
+$filterDocTypes = array_values(array_filter(array_map(
+    static fn($v) => normalize_document_type((string)$v),
+    $filterDocTypes
+), static fn($v) => in_array($v, $documentTypeOptions, true)));
+$filterDocTypes = array_values(array_unique($filterDocTypes));
 
 $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = 50;
@@ -54,7 +84,7 @@ $direction = strtolower($direction) === 'asc' ? 'asc' : 'desc';
 // Database Connection
 // ─────────────────────────────────────
 $pdo = null;
-if (file_exists($dbPath)) {
+if ($featureAvailable && $dbPath !== '' && file_exists($dbPath)) {
     try {
         $pdo = new PDO('sqlite:' . $dbPath);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -99,6 +129,16 @@ if ($pdo) {
         $where[] = 'combined_stance IN (' . implode(',', $placeholders) . ')';
     }
 
+    if (!empty($filterDocTypes)) {
+        $placeholders = [];
+        foreach ($filterDocTypes as $i => $val) {
+            $ph = ":doctype_$i";
+            $placeholders[] = $ph;
+            $params[$ph] = $val;
+        }
+        $where[] = "(CASE document_type WHEN '条例' THEN '条例' WHEN '規則' THEN '規則' WHEN '規程' THEN '規程' WHEN '要綱' THEN '要綱' ELSE 'その他' END) IN (" . implode(',', $placeholders) . ')';
+    }
+
     $dirSql = $direction === 'asc' ? 'ASC' : 'DESC';
     $orderBy = "enactment_date $dirSql, sortable_kana ASC";
     
@@ -122,7 +162,7 @@ if ($pdo) {
     $total = (int)$stmt->fetchColumn();
 
     $offset = ($page - 1) * $perPage;
-    $sql = "SELECT filename, title, reading_kana, sortable_kana, primary_class, necessity_score, fiscal_impact_score, regulatory_burden_score, policy_effectiveness_score, responsible_department, enactment_date, updated_at FROM ordinances WHERE " . implode(' AND ', $where) . " ORDER BY $orderBy LIMIT :limit OFFSET :offset";
+    $sql = "SELECT filename, title, reading_kana, sortable_kana, primary_class, necessity_score, fiscal_impact_score, regulatory_burden_score, policy_effectiveness_score, responsible_department, enactment_date, updated_at, document_type FROM ordinances WHERE " . implode(' AND ', $where) . " ORDER BY $orderBy LIMIT :limit OFFSET :offset";
     $stmt = $pdo->prepare($sql);
     foreach ($params as $k => $v) {
         $stmt->bindValue($k, $v);
@@ -137,7 +177,7 @@ if ($pdo) {
             'name' => $name,
             'path' => $dataDir . DIRECTORY_SEPARATOR . $name,
             'mtime' => strtotime($row['updated_at']), 
-            'title' => $row['title'],
+            'title' => decode_html_text((string)($row['title'] ?? '')),
             'reading_kana' => $row['reading_kana'],
             'primary_class' => $row['primary_class'],
             'necessity_score' => $row['necessity_score'],
@@ -146,11 +186,12 @@ if ($pdo) {
             'policy_effectiveness_score' => $row['policy_effectiveness_score'] ?? 0,
             'responsible_department' => $row['responsible_department'],
             'enactment_date' => $row['enactment_date'],
+            'document_type' => normalize_document_type((string)($row['document_type'] ?? '')),
         ];
     }
 } else {
     // Fallback to file scanning (Legacy)
-    if (is_dir($dataDir)) {
+    if ($featureAvailable && is_dir($dataDir)) {
         $it = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($dataDir, FilesystemIterator::SKIP_DOTS)
         );
@@ -240,14 +281,14 @@ $selectedClassification = null;
 if ($selectedRecord !== null) {
     $cleanHtmlPath = $cleanHtmlDir . DIRECTORY_SEPARATOR . $selectedRecord['name'];
     if (is_file($cleanHtmlPath)) {
-        $selectedContentHtml = read_text_auto($cleanHtmlPath);
+        $selectedContentHtml = sanitize_law_html(read_text_auto($cleanHtmlPath), $reikiImageUrl);
         if (preg_match('/<div class="law-title">([^<]+)<\/div>/', $selectedContentHtml, $m)) {
-            $selectedTitle = trim($m[1]);
+            $selectedTitle = decode_html_text($m[1]);
         }
     } else {
         $selectedHtml = read_text_auto($selectedRecord['path']);
         $selectedTitle = extract_title($selectedHtml, $selectedRecord['name']);
-        $selectedContentHtml = extract_law_content_html($selectedHtml);
+        $selectedContentHtml = extract_law_content_html($selectedHtml, $reikiImageUrl);
     }
     
     if (empty($selectedText)) {
@@ -262,24 +303,35 @@ foreach ($pagedRecords as $record) {
     resolve_record_title($record, $titleCache);
 }
 
-$isLanding = ($selectedRecord === null && $q === '' && $page === 1 && !$hasClassFilterParam && !$hasStanceFilterParam);
+$isLanding = ($selectedRecord === null && $q === '' && $page === 1 && !$hasClassFilterParam && !$hasStanceFilterParam && !$hasDocTypeFilterParam);
 ?><!doctype html>
 <html lang="ja">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>川崎市条例評価</title>
+    <title><?php echo h($pageTitle); ?></title>
     <?php $cssVer = @filemtime(__DIR__ . '/assets/css/reiki.css') ?: 1; ?>
     <?php $jsVer  = @filemtime(__DIR__ . '/assets/js/reiki.js')  ?: 1; ?>
     <link rel="stylesheet" href="/reiki/assets/css/reiki.css?v=<?php echo $cssVer; ?>">
 </head>
-<body>
+<body data-reiki-slug="<?php echo h($slug); ?>">
 <header class="header">
     <div style="display:flex; align-items:center; gap:10px;">
-        <h1><a href="/reiki/" style="color:inherit; text-decoration:none;">川崎市条例評価</a></h1>
+        <h1><a href="<?php echo h($clearUrl); ?>" style="color:inherit; text-decoration:none;"><?php echo h($pageTitle); ?></a></h1>
         <button id="menu-toggle" type="button">🔍 検索・一覧</button>
     </div>
-    <div class="meta">全<?php echo h((string)$total); ?>本</div>
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+        <select aria-label="自治体切り替え" onchange="if (this.value) { window.location.href = this.value; }" style="padding:8px 10px; border:1px solid #cbd5e1; border-radius:999px; font-size:13px;">
+            <?php foreach ($switcherItems as $item): ?>
+                <?php $switchMunicipality = municipality_entry((string)$item['slug']); ?>
+                <?php $switchUrl = (string)($switchMunicipality['reiki']['url'] ?? ''); ?>
+                <option value="<?php echo h($switchUrl); ?>" <?php echo $item['slug'] === $slug ? 'selected' : ''; ?>>
+                    <?php echo h($item['name'] . (!empty($item['enabled']) ? '' : ' (準備中)')); ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <div class="meta"><?php echo $featureAvailable ? '全' . h((string)$total) . '本' : '準備中'; ?></div>
+    </div>
 </header>
 <?php
 $layoutClasses = 'layout';
@@ -292,6 +344,7 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
     </nav>
     <aside class="sidebar">
         <form class="search" method="get">
+            <input type="hidden" name="slug" value="<?php echo h($slug); ?>">
             <input type="text" name="q" value="<?php echo h($q); ?>" placeholder="タイトル・ファイル名で検索">
             <?php if ($selectedRecord): ?>
                 <input type="hidden" name="file" value="<?php echo h($selectedRecord['name']); ?>">
@@ -346,6 +399,22 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
                 </div>
             </div>
 
+            <div class="filter-block" data-filter-group>
+                <div class="filter-title">
+                    <span>種別 (複数選択可)</span>
+                    <span class="filter-count" data-selected-count>0件選択</span>
+                </div>
+                <div class="checkbox-grid" data-filter-options>
+                    <?php foreach ($documentTypeOptions as $docType): ?>
+                        <label class="checkbox-item" data-filter-option>
+                            <input type="checkbox" name="doctype[]" value="<?php echo h($docType); ?>"
+                                <?php if (!$hasDocTypeFilterParam || in_array($docType, $filterDocTypes, true)) echo 'checked'; ?>>
+                            <span><?php echo h($docType); ?></span>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
             <button type="submit">検索・並べ替え</button>
             
             <div style="margin-top:12px; border-top:1px solid #eef2f7; padding-top:8px;">
@@ -357,11 +426,11 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
                 </div>
             </div>
 
-            <?php if ($q !== '' || !empty($filterClasses) || !empty($filterStances)): ?>
+            <?php if ($q !== '' || !empty($filterClasses) || !empty($filterStances) || !empty($filterDocTypes)): ?>
                 <div style="margin-top:8px; font-size:12px; color:#64748b;">
                     検索結果: <?php echo h((string)$total); ?>件
                     <br>
-                    <a href="/reiki/" style="color:#275ea3; text-decoration:none;">[×] 条件をクリア</a>
+                    <a href="<?php echo h($clearUrl); ?>" style="color:#275ea3; text-decoration:none;">[×] 条件をクリア</a>
                 </div>
             <?php endif; ?>
         </form>
@@ -447,7 +516,17 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
     </aside>
 
     <main class="content">
-        <?php if ($selectedRecord === null): ?>
+        <?php if (!$featureAvailable): ?>
+            <div class="empty-content">
+                <div style="font-size:40px; margin-bottom:12px;">🏗</div>
+                <div style="font-size:16px; font-weight:600; color:#334155; margin-bottom:8px;">
+                    <?php echo h($featureNotice); ?>
+                </div>
+                <div style="font-size:14px; color:#64748b;">
+                    自治体切り替えUIには対応済みです。データを配置すると、この画面からそのまま検索・閲覧できます。
+                </div>
+            </div>
+        <?php elseif ($selectedRecord === null): ?>
             <?php if ($isLanding): ?>
                 <?php include __DIR__ . '/includes/guide.php'; ?>
             <?php else: ?>
@@ -529,13 +608,13 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
                         <dd style="line-height:1.6;"><?php echo nl2br(h((string)($selectedClassification['reason'] ?? '-'))); ?></dd>
                     </dl>
                 <?php else: ?>
-                    <div class="meta">分類結果ファイル（kawasaki_json/*.json）が未作成、または該当データなし。</div>
+                    <div class="meta">分類結果ファイル（<?php echo h((string)($reikiFeature['classification_dir_rel'] ?? 'reiki/*_json')); ?>）が未作成、または該当データなし。</div>
                 <?php endif; ?>
             </section>
 
             <!-- Feedback Section -->
             <?php $filenameStem = pathinfo($selectedRecord['name'], PATHINFO_FILENAME); ?>
-            <section class="card" id="feedback-section" data-filename="<?php echo h($filenameStem); ?>">
+            <section class="card" id="feedback-section" data-filename="<?php echo h($filenameStem); ?>" data-slug="<?php echo h($slug); ?>">
                 <div class="feedback-row">
                     <span style="font-size:14px; font-weight:600; color:#334155;">このAI評価はどうですか？</span>
                     <div class="feedback-buttons">

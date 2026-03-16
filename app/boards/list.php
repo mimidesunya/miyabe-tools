@@ -12,6 +12,9 @@ function h(?string $s): string {
 
 // スラッグを取得し、DBを初期化（boards + attached tasks/users）
 $slug = get_slug();
+$municipality = municipality_entry($slug);
+$municipalityName = (string)($municipality['name'] ?? $slug);
+$switcherItems = municipality_switcher_items('boards');
 $boardsPdo = open_boards_with_tasks_pdo($slug);
 
 // 初期値
@@ -91,7 +94,7 @@ $statusLabels = [
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>掲示場一覧 - <?php echo h($slug); ?></title>
+    <title>掲示場一覧 - <?php echo h($municipalityName); ?></title>
     <style>
         * { box-sizing: border-box; }
         body { 
@@ -111,10 +114,19 @@ $statusLabels = [
         }
         
         .header h1 { margin: 0; font-size: 20px; }
+        .header-meta { color: #64748b; font-size: 12px; }
         .header-links a { 
             margin-left: 12px; 
             color: #275ea3; 
             text-decoration: none;
+        }
+        .header-links select {
+            margin-left: 12px;
+            padding: 6px 10px;
+            border: 1px solid #d5dbe3;
+            border-radius: 999px;
+            font-size: 13px;
+            background: #fff;
         }
         
         .container {
@@ -207,9 +219,13 @@ $statusLabels = [
 </head>
 <body>
     <div class="header">
-        <h1>掲示場一覧</h1>
+        <div>
+            <h1>掲示場一覧</h1>
+            <div class="header-meta"><?php echo h($municipalityName); ?></div>
+        </div>
         <div class="header-links">
             <span style="color: #666; margin-right: 15px;"><?php echo count($boards); ?>件表示中</span>
+            <a href="/">トップ</a>
             <a href="/boards/<?php echo h($slug); ?>/">マップ表示</a>
             <?php if ($me): ?>
                 <span>ようこそ、<?php echo h($me['name'] ?? ''); ?>さん</span>
@@ -218,8 +234,21 @@ $statusLabels = [
                 <?php endif; ?>
                 <a href="/line/logout.php">ログアウト</a>
             <?php else: ?>
-                <a href="/line/login.php">LINEでログイン</a>
+                <a href="/line/login.php?slug=<?php echo h($slug); ?>">LINEでログイン</a>
             <?php endif; ?>
+            <select aria-label="自治体切り替え" onchange="if (this.value) { window.location.href = this.value; }">
+                <?php foreach ($switcherItems as $item): ?>
+                    <?php $switchMunicipality = municipality_entry((string)$item['slug']); ?>
+                    <?php $switchUrl = (string)($switchMunicipality['boards']['list_url'] ?? ''); ?>
+                    <?php if (!$item['enabled']): ?>
+                        <option value="" disabled><?php echo h($item['name']); ?> (準備中)</option>
+                    <?php else: ?>
+                        <option value="<?php echo h($switchUrl); ?>" <?php echo $item['slug'] === $slug ? 'selected' : ''; ?>>
+                            <?php echo h($item['name']); ?>
+                        </option>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            </select>
         </div>
     </div>
     

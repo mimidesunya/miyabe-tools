@@ -66,6 +66,12 @@ function h(?string $value): string
     return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+function decode_html_text(?string $value): string
+{
+    $decoded = html_entity_decode((string)($value ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    return trim((string)$decoded);
+}
+
 function get_stance_label(string $stance): string
 {
     return match ($stance) {
@@ -74,6 +80,18 @@ function get_stance_label(string $stance): string
         '中立/不明', '判断保留' => '判断保留',
         '衝突', '要見直し' => '要見直し',
         default => $stance,
+    };
+}
+
+function normalize_document_type(?string $documentType): string
+{
+    $value = trim((string)$documentType);
+    return match ($value) {
+        '条例' => '条例',
+        '規則' => '規則',
+        '規程' => '規程',
+        '要綱' => '要綱',
+        default => 'その他',
     };
 }
 
@@ -98,20 +116,20 @@ function read_text_auto(string $path): string
 function extract_title(string $html, string $fallback): string
 {
     if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $html, $m)) {
-        $title = trim(strip_tags($m[1]));
+        $title = decode_html_text(strip_tags($m[1]));
         if ($title !== '') {
             return $title;
         }
     }
 
     if (preg_match('/○([^\r\n<]{2,120})/u', $html, $m)) {
-        $title = trim($m[1]);
+        $title = decode_html_text($m[1]);
         if ($title !== '') {
             return $title;
         }
     }
 
-    return $fallback;
+    return decode_html_text($fallback);
 }
 
 function normalize_text(string $html): string
@@ -145,8 +163,8 @@ function resolve_record_title(array $record, array &$cache): string {
         return $cache[$name];
     }
     if (!empty($record['title'])) {
-        $cache[$name] = $record['title'];
-        return $record['title'];
+        $cache[$name] = decode_html_text((string)$record['title']);
+        return $cache[$name];
     }
     
     $html = read_text_auto((string)$record['path']);
@@ -157,7 +175,7 @@ function resolve_record_title(array $record, array &$cache): string {
     return $title;
 }
 
-function sanitize_law_html(string $html): string
+function sanitize_law_html(string $html, string $imageBaseUrl = '/data/reiki/kawasaki_images'): string
 {
     $dom = new DOMDocument();
     libxml_use_internal_errors(true);
@@ -196,7 +214,7 @@ function sanitize_law_html(string $html): string
             $src = $img->getAttribute('src');
             if ($src && !preg_match('#^(https?://|//)#i', $src)) {
                 $filename = basename($src);
-                $img->setAttribute('src', '/data/reiki/kawasaki_images/' . $filename);
+                $img->setAttribute('src', rtrim($imageBaseUrl, '/') . '/' . $filename);
             }
         }
     }
@@ -204,7 +222,7 @@ function sanitize_law_html(string $html): string
     return $dom->saveHTML() ?: '';
 }
 
-function extract_law_content_html(string $html): string
+function extract_law_content_html(string $html, string $imageBaseUrl = '/data/reiki/kawasaki_images'): string
 {
     $dom = new DOMDocument();
     libxml_use_internal_errors(true);
@@ -215,12 +233,12 @@ function extract_law_content_html(string $html): string
     $nodes = $xpath->query("//div[contains(concat(' ', normalize-space(@class), ' '), ' USER-SET-STYLE ')]");
     if ($nodes instanceof DOMNodeList && $nodes->length > 0) {
         $raw = inner_html($nodes->item(0));
-        return sanitize_law_html($raw);
+        return sanitize_law_html($raw, $imageBaseUrl);
     }
 
     $body = $xpath->query('//body');
     if ($body instanceof DOMNodeList && $body->length > 0) {
-        return sanitize_law_html(inner_html($body->item(0)));
+        return sanitize_law_html(inner_html($body->item(0)), $imageBaseUrl);
     }
 
     return '';

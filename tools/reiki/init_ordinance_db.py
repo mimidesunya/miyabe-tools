@@ -3,31 +3,101 @@
 Initialize ordinance database from JSON metadata files.
 Creates data/reiki/ordinances.sqlite
 """
+import argparse
+import html
 import json
 import sqlite3
 import re
 from pathlib import Path
 
-def normalize_kana(kana):
-    """Normalize reading kana for sorting. Removes common prefixes like 'かわさきし'."""
+def project_root() -> Path:
+    return Path(__file__).resolve().parent.parent.parent
+
+def load_config(root: Path) -> dict:
+    for candidate in (root / "data" / "config.json", root / "data" / "config.example.json"):
+        if candidate.exists():
+            try:
+                data = json.loads(candidate.read_text(encoding="utf-8"))
+            except Exception:
+                return {}
+            return data if isinstance(data, dict) else {}
+    return {}
+
+def data_path(root: Path, relative: str) -> Path:
+    return root / "data" / Path(relative.replace("\\", "/"))
+
+def default_slug(root: Path) -> str:
+    config = load_config(root)
+    value = str(config.get("DEFAULT_SLUG", "")).strip()
+    if value:
+        return value
+    municipalities = config.get("MUNICIPALITIES", {})
+    if isinstance(municipalities, dict) and municipalities:
+        first = next(iter(municipalities.keys()), "")
+        if isinstance(first, str):
+            return first.strip()
+    return "kawasaki"
+
+def municipality_reiki_paths(root: Path, slug: str) -> tuple[Path, Path, Path]:
+    config = load_config(root)
+    municipalities = config.get("MUNICIPALITIES", {})
+    entry = municipalities.get(slug, {}) if isinstance(municipalities, dict) else {}
+    feature = entry.get("reiki", {}) if isinstance(entry, dict) else {}
+    if not isinstance(feature, dict):
+        feature = {}
+
+    if slug == "kawasaki":
+        default_json_dir = "reiki/kawasaki_json"
+        default_clean_html = "reiki/kawasaki_html"
+        default_db = "reiki/ordinances.sqlite"
+    else:
+        default_json_dir = f"reiki/{slug}_json"
+        default_clean_html = f"reiki/{slug}_html"
+        default_db = f"reiki/{slug}/ordinances.sqlite"
+
+    json_dir_rel = str(feature.get("classification_dir", default_json_dir)).strip()
+    clean_html_rel = str(feature.get("clean_html_dir", default_clean_html)).strip()
+    db_rel = str(feature.get("db_path", default_db)).strip()
+
+    return (
+        data_path(root, json_dir_rel),
+        data_path(root, clean_html_rel),
+        data_path(root, db_rel),
+    )
+
+def sortable_prefixes(root: Path, slug: str) -> list[str]:
+    config = load_config(root)
+    municipalities = config.get("MUNICIPALITIES", {})
+    entry = municipalities.get(slug, {}) if isinstance(municipalities, dict) else {}
+    feature = entry.get("reiki", {}) if isinstance(entry, dict) else {}
+    if isinstance(feature, dict):
+        raw = feature.get("sortable_prefixes", [])
+        if isinstance(raw, list):
+            values = [str(v).strip() for v in raw if str(v).strip()]
+            if values:
+                return values
+    if slug == "kawasaki":
+        return ["かわさきし", "かわさき"]
+    return []
+
+def normalize_kana(kana, prefixes=None):
+    """Normalize reading kana for sorting."""
     if not kana:
         return ""
     
-    # Remove "かわさき(し)" prefix if present at start
-    # Many ordinances start with "Kawasaki City ..."
     normalized = kana
-    if normalized.startswith("かわさきし"):
-        normalized = normalized[5:]
-    elif normalized.startswith("かわさき"):
-        normalized = normalized[4:]
+    for prefix in prefixes or []:
+        if prefix and normalized.startswith(prefix):
+            normalized = normalized[len(prefix):]
+            break
         
     return normalized
 
-def init_db(root: Path):
-    db_path = root / "data" / "reiki" / "ordinances.sqlite"
-    json_dir = root / "data" / "reiki" / "kawasaki_json"
+def init_db(root: Path, slug: str):
+    json_dir, clean_html_dir, db_path = municipality_reiki_paths(root, slug)
     
     print(f"Creating database at {db_path}...")
+    db_path.parent.mkdir(parents=True, exist_ok=True)
     
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -68,6 +138,7 @@ def init_db(root: Path):
     
     files = list(json_dir.glob("*.json"))
     print(f"Found {len(files)} JSON files. Importing...")
+    prefixes = sortable_prefixes(root, slug)
     
     count = 0
     for json_file in files:
@@ -78,13 +149,13 @@ def init_db(root: Path):
             filename = json_file.stem  # e.g., "H213902500001_j"
             
             # Extract fields
-            title = data.get("title", "")
-            reading_kana = data.get("readingKana", "")
+            title = html.unescape(data.get("title", ""))
+            reading_kana = html.unescape(data.get("readingKana", ""))
             if not reading_kana:
                 # Fallback if no reading provided (though most should have it)
                 reading_kana = title 
                 
-            sortable_kana = normalize_kana(reading_kana)
+            sortable_kana = normalize_kana(reading_kana, prefixes)
             
             primary_class = data.get("primaryClass", "")
             
@@ -118,7 +189,7 @@ def init_db(root: Path):
             # Extract enactment date from clean HTML metadata
             # Format in clean HTML: <div class="law-date">昭和38年８月19日 (1963-08-19)</div>
             enactment_date = None
-            clean_html_path = root / "data" / "reiki" / "kawasaki_html" / (filename + ".html")
+            clean_html_path = clean_html_dir / (filename + ".html")
             if clean_html_path.exists():
                 try:
                     with open(clean_html_path, "r", encoding="utf-8") as hf:
@@ -160,7 +231,10 @@ def init_db(root: Path):
     print(f"\nSuccessfully imported {count} records.")
 
 if __name__ == "__main__":
-    current_dir = Path(__file__).parent.resolve()
-    # Assuming script is in tools/reiki/, root is up 2 levels
-    project_root = current_dir.parent.parent
-    init_db(project_root)
+    parser = argparse.ArgumentParser(description="自治体ごとの例規 JSON から SQLite を初期化します。")
+    parser.add_argument("--slug", default=None, help="自治体slug。未指定時は config の DEFAULT_SLUG を使います。")
+    args = parser.parse_args()
+
+    root = project_root()
+    slug = (args.slug or default_slug(root)).strip()
+    init_db(root, slug)

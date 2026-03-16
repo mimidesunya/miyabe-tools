@@ -19,14 +19,12 @@ if ($user && isset($user['id'])) {
 }
 
 // スラッグごとの設定を確認
-$slug = $_GET['slug'] ?? '';
-$config = load_config();
-$municipalities = $config['MUNICIPALITIES'] ?? [];
-$allowOffset = false;
-
-if (isset($municipalities[$slug])) {
-    $allowOffset = $municipalities[$slug]['allow_offset'] ?? false;
+$slug = get_slug($_GET['slug'] ?? null);
+if ($slug === '') {
+    $slug = get_default_slug();
 }
+$municipality = municipality_entry($slug);
+$allowOffset = (bool)($municipality['boards']['allow_offset'] ?? false);
 
 echo json_encode([
     'loggedIn' => (bool)$user,

@@ -1,21 +1,135 @@
-<!DOCTYPE html>
+<?php
+declare(strict_types=1);
+
+require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'session.php';
+
+function h(?string $value): string
+{
+    return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
+$slug = get_slug();
+$municipality = municipality_entry($slug);
+if ($municipality === null) {
+    http_response_code(404);
+    echo '自治体が見つかりません。';
+    exit;
+}
+
+$switcherItems = municipality_switcher_items('boards');
+$pageTitle = (string)($municipality['boards']['title'] ?? ($municipality['name'] . ' ポスター掲示場'));
+?><!DOCTYPE html>
 <html lang="ja">
 
 <head>
   <meta charset="UTF-8">
-  <title>選挙掲示場マップ</title>
+  <title><?php echo h($pageTitle); ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- Leaflet CDN -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="/boards/assets/css/style.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    #page-header {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 1300;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      max-width: min(720px, calc(100vw - 24px));
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+      backdrop-filter: blur(10px);
+    }
+    .page-title-block {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+    .page-kicker {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #0f5c4d;
+    }
+    .page-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #17202b;
+      white-space: nowrap;
+    }
+    .page-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-left: auto;
+      align-items: center;
+    }
+    .page-links a,
+    .page-links select {
+      font-size: 13px;
+      border-radius: 999px;
+      border: 1px solid #d4dbe3;
+      background: #fff;
+      color: #1f2937;
+      text-decoration: none;
+      padding: 8px 12px;
+    }
+    .page-links select {
+      max-width: 220px;
+    }
+    @media (max-width: 720px) {
+      #page-header {
+        right: 12px;
+        padding: 10px;
+      }
+      .page-title {
+        white-space: normal;
+      }
+      .page-links {
+        width: 100%;
+        margin-left: 0;
+      }
+      .page-links a,
+      .page-links select {
+        flex: 1 1 160px;
+      }
+    }
+  </style>
 </head>
 
 <body>
+  <div id="page-header">
+    <div class="page-title-block">
+      <div class="page-kicker">Poster Board Console</div>
+      <div class="page-title"><?php echo h($pageTitle); ?></div>
+    </div>
+    <div class="page-links">
+      <a href="/">トップ</a>
+      <a href="<?php echo h((string)$municipality['boards']['list_url']); ?>">一覧</a>
+      <select aria-label="自治体切り替え" onchange="if (this.value) { window.location.href = this.value; }">
+        <?php foreach ($switcherItems as $item): ?>
+          <?php if (!$item['enabled']): ?>
+            <option value="" disabled><?php echo h($item['name']); ?> (準備中)</option>
+          <?php else: ?>
+            <option value="<?php echo h($item['url']); ?>" <?php echo $item['slug'] === $slug ? 'selected' : ''; ?>>
+              <?php echo h($item['name']); ?>
+            </option>
+          <?php endif; ?>
+        <?php endforeach; ?>
+      </select>
+    </div>
+  </div>
   <div id="controls">
     <div id="auth" style="display:flex; gap:8px; align-items:center; justify-content:flex-end;">
       <span id="auth-name" style="display:none;"></span>
-      <a id="auth-login" href="/line/login.php" style="display:none;">LINEでログインして編集</a>
+      <a id="auth-login" href="/line/login.php?slug=<?php echo h($slug); ?>" style="display:none;">LINEでログインして編集</a>
       <a id="auth-logout" href="/line/logout.php" style="display:none;">ログアウト</a>
     </div>
     <div style="display:flex; gap:6px; align-items:center;">
@@ -29,7 +143,6 @@
 
   </div>
   <div id="map"></div>
-  <!-- 凡例（レジェンド）と位置調整トグル -->
   <div id="legend-wrap">
     <div id="legend">
       <div>
@@ -52,7 +165,6 @@
     </div>
     <button id="offset-toggle" style="display:none;">位置調整: OFF</button>
   </div>
-  <!-- Help modal -->
   <div id="help-modal"
     style="display:none; position:fixed; inset:0; background: rgba(0,0,0,0.4); z-index:2000; align-items:center; justify-content:center;">
     <div

@@ -114,9 +114,8 @@ $_SESSION['user'] = [
 ];
 
 // セッションから戻り先のスラッグを取得
-$defaultSlug = $config['DEFAULT_SLUG'] ?? '';
-$municipalities = $config['MUNICIPALITIES'] ?? [];
-$allowed = array_keys($municipalities);
+$defaultSlug = get_default_slug();
+$allowed = municipality_slugs();
 $returnSlug = $_SESSION['login_return_slug'] ?? $defaultSlug;
 if ($returnSlug === '' && !empty($allowed)) $returnSlug = $allowed[0];
 unset($_SESSION['login_return_slug']);

@@ -1,0 +1,102 @@
+{
+    "openai": {
+        "apiKey": "YOUR_OPENAI_API_KEY",
+        "baseUrl": "https://api.openai.com/v1/chat/completions",
+        "chatModel": "gpt-5.1",
+        "timeoutMs": 300000,
+        "maxRetries": 3
+    },
+    "gemini": {
+        "apiKey": "YOUR_GEMINI_API_KEY",
+        "textModel": "gemini-3-flash-preview",
+        "imageModel": "gemini-3-pro-image-preview",
+        "maxRetries": 3
+    },
+    "claude": {
+        "apiKey": "YOUR_ANTHROPIC_API_KEY",
+        "baseUrl": "https://api.anthropic.com/v1/messages",
+        "chatModel": "claude-3-5-sonnet-20241022",
+        "timeoutMs": 300000,
+        "maxRetries": 3
+    },
+    "copper": {
+        "serverUri": "ctip://cti.li/",
+        "user": "user",
+        "password": "kappa",
+        "properties": {
+            "output.pdf.version": "1.4A-1"
+        }
+    },
+    "LINE_CHANNEL_ID": "YOUR_CHANNEL_ID",
+    "LINE_CHANNEL_SECRET": "YOUR_CHANNEL_SECRET",
+    "BASE_URL": "https://your-domain.com",
+    "REDIRECT_URI": "https://your-domain.com/line/callback.php",
+    "MUNICIPALITIES": {
+        "kawasaki": {
+            "name": "川崎市",
+            "boards": {
+                "enabled": true,
+                "title": "川崎市 ポスター掲示場"
+            },
+            "reiki": {
+                "enabled": true,
+                "title": "川崎市例規集 AI評価ビューア",
+                "data_dir": "reiki/kawasaki",
+                "clean_html_dir": "reiki/kawasaki_html",
+                "classification_dir": "reiki/kawasaki_json",
+                "image_dir": "reiki/kawasaki_images",
+                "markdown_dir": "reiki/kawasaki_md",
+                "db_path": "reiki/kawasaki/ordinances.sqlite",
+                "legacy_db_path": "reiki/ordinances.sqlite",
+                "sortable_prefixes": ["かわさきし", "かわさき"]
+            },
+            "gijiroku": {
+                "enabled": true,
+                "title": "川崎市議会 会議録 全文検索",
+                "assembly_name": "川崎市議会",
+                "data_dir": "gijiroku/kawasaki_council",
+                "downloads_dir": "gijiroku/kawasaki_council/downloads",
+                "index_json_path": "gijiroku/kawasaki_council/meetings_index.json",
+                "db_path": "gijiroku/kawasaki_council/minutes.sqlite"
+            }
+        },
+        "higashikurume": {
+            "name": "東久留米市",
+            "boards": {
+                "enabled": true,
+                "title": "東久留米市 ポスター掲示場"
+            },
+            "reiki": {
+                "enabled": false,
+                "title": "東久留米市例規集 AI評価ビューア"
+            },
+            "gijiroku": {
+                "enabled": false,
+                "title": "東久留米市議会 会議録 全文検索",
+                "assembly_name": "東久留米市議会"
+            }
+        },
+        "hino-shi": {
+            "name": "日野市",
+            "boards": {
+                "enabled": true,
+                "title": "日野市 ポスター掲示場",
+                "allow_offset": true
+            },
+            "reiki": {
+                "enabled": false,
+                "title": "日野市例規集 AI評価ビューア"
+            },
+            "gijiroku": {
+                "enabled": false,
+                "title": "日野市議会 会議録 全文検索",
+                "assembly_name": "日野市議会"
+            }
+        }
+    },
+    "DEFAULT_SLUG": "kawasaki",
+    "ADMIN_LINE_IDS": [
+        "YOUR_ADMIN_LINE_ID_HERE"
+    ],
+    "GOOGLE_MAPS_API_KEY": "YOUR_GOOGLE_MAPS_API_KEY_HERE"
+}

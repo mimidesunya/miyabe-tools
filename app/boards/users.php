@@ -99,7 +99,11 @@ if ($slug === '') {
     die('自治体(slug)が正しく指定されていません。');
 }
 
+$municipality = municipality_entry($slug);
+$municipalityName = (string)($municipality['name'] ?? $slug);
+$switcherItems = municipality_switcher_items('boards');
 $pdo = open_tasks_pdo($slug);
+$me = current_user();
 $users = [];
 if ($pdo) {
     // クエリパラメータによるオプションのソート
@@ -150,8 +154,6 @@ if ($pdo) {
     ";
     $stmt = $pdo->query($sql);
     $rows = $stmt ? $stmt->fetchAll() : [];
-    // アクセス制御: 指定された LINE ユーザー ID のみがこのページにアクセス可能
-    $me = current_user();
     foreach ($rows as $r) {
         $last_ts = $r['last_ts'] ?? null;
         $last_hist = $r['last_hist'] ?? null;
@@ -218,13 +220,17 @@ if (!is_admin($me)) {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ユーザー一覧 - 掲示場タスク</title>
+  <title>ユーザー一覧 - <?php echo h($municipalityName); ?> 掲示場タスク</title>
   <style>
     :root { --bg:#f6f8fb; --card:#fff; --text:#222; --muted:#667788; --accent:#275ea3; --success:#10b981; --error:#ef4444; --warning:#f59e0b; }
     body { margin:0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', Meiryo, Arial, sans-serif; background: var(--bg); color: var(--text); }
     header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+    header .title-wrap { display:grid; gap:2px; }
     header .title { font-weight:700; }
-    header .links a { margin-left:10px; color: var(--accent); text-decoration:none; }
+    header .subtitle { font-size:12px; color: var(--muted); }
+    header .links { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+    header .links a { color: var(--accent); text-decoration:none; }
+    header .links select { padding: 6px 10px; border:1px solid #d1d5db; border-radius:999px; font-size:13px; }
 
     .container { max-width: 1080px; margin: 18px auto; padding: 0 12px; }
     .toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; color: var(--muted); }
@@ -261,22 +267,40 @@ if (!is_admin($me)) {
 </head>
 <body>
   <header>
-    <div class="title">ユーザー一覧</div>
+    <div class="title-wrap">
+      <div class="title">ユーザー一覧</div>
+      <div class="subtitle"><?php echo h($municipalityName); ?></div>
+    </div>
     <div class="links">
-      <a href="index.html">マップ</a>
+      <a href="/">トップ</a>
+      <a href="/boards/<?php echo h($slug); ?>/">マップ</a>
+      <a href="/boards/list.php?slug=<?php echo h($slug); ?>">一覧</a>
+      <select aria-label="自治体切り替え" onchange="if (this.value) { window.location.href = this.value; }">
+        <?php foreach ($switcherItems as $item): ?>
+          <?php $switchMunicipality = municipality_entry((string)$item['slug']); ?>
+          <?php $switchUrl = (string)($switchMunicipality['boards']['users_url'] ?? ''); ?>
+          <?php if (!$item['enabled']): ?>
+            <option value="" disabled><?php echo h($item['name']); ?> (準備中)</option>
+          <?php else: ?>
+            <option value="<?php echo h($switchUrl); ?>" <?php echo $item['slug'] === $slug ? 'selected' : ''; ?>>
+              <?php echo h($item['name']); ?>
+            </option>
+          <?php endif; ?>
+        <?php endforeach; ?>
+      </select>
     </div>
   </header>
   <div class="container">
     <div class="toolbar">
       <div>並び替え:</div>
-      <a href="?sort=done">掲示が多い順</a>
-      <a href="?sort=in_progress">着手が多い順</a>
-      <a href="?sort=issue">異常が多い順</a>
-      <a href="?sort=boards">更新地点が多い順</a>
-      <a href="?sort=last">最終更新が新しい順</a>
-      <a href="?sort=name">名前順</a>
+      <a href="?slug=<?php echo h($slug); ?>&sort=done">掲示が多い順</a>
+      <a href="?slug=<?php echo h($slug); ?>&sort=in_progress">着手が多い順</a>
+      <a href="?slug=<?php echo h($slug); ?>&sort=issue">異常が多い順</a>
+      <a href="?slug=<?php echo h($slug); ?>&sort=boards">更新地点が多い順</a>
+      <a href="?slug=<?php echo h($slug); ?>&sort=last">最終更新が新しい順</a>
+      <a href="?slug=<?php echo h($slug); ?>&sort=name">名前順</a>
       <div style="margin-left:auto;">
-        <?php if ($me) { echo '<span class="muted">ログイン中: ' . h($me['name'] ?? '') . '</span>'; } else { echo '<a href="/line/login.php">LINEでログイン</a>'; } ?>
+        <?php if ($me) { echo '<span class="muted">ログイン中: ' . h($me['name'] ?? '') . '</span>'; } else { echo '<a href="/line/login.php?slug=' . h($slug) . '">LINEでログイン</a>'; } ?>
       </div>
     </div>
 
@@ -285,6 +309,7 @@ if (!is_admin($me)) {
       <h3>📋 一括割り振り</h3>
       <p class="muted" style="margin: 0 0 12px 0;">自分が着手中の掲示板を他のユーザーに一括で割り振ることができます。</p>
       <form id="bulkReassignForm" onsubmit="handleBulkReassign(event)">
+        <input type="hidden" name="slug" value="<?php echo h($slug); ?>">
         <div class="form-row">
           <div class="form-group">
             <label for="toUserId">割り振り先ユーザー</label>

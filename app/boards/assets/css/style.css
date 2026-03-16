@@ -1,4 +1,4 @@
-/* Extracted from app/boards/index.html */
+/* Extracted from app/boards/index.php */
 body {
   margin: 0;
 }
@@ -10,7 +10,7 @@ body {
 
 #controls {
   position: absolute;
-  top: 10px;
+  top: 88px;
   right: 10px;
   z-index: 1000;
   display: flex;
@@ -35,6 +35,9 @@ body {
 }
 
 @media (max-width:600px) {
+  #controls {
+    top: 124px;
+  }
   #gps-btn {
     font-size: 13px;
     padding: 5px 10px;

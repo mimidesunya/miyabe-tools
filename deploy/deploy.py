@@ -85,11 +85,11 @@ def ssh_copy_content(config, content, remote_path):
         sys.exit(1)
 
 def sync_files(config, dest_dir):
-    """Syncs app, lib, nginx, and reiki data directories to remote."""
+    """Syncs app, lib, nginx, and data directories to remote."""
     print("=== Syncing Code and Config Files ===")
     
     # Ensure remote directories exist
-    ssh_exec(config, f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/nginx {dest_dir}/data/reiki")
+    ssh_exec(config, f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/nginx {dest_dir}/data/reiki {dest_dir}/data/gijiroku")
 
     # Use rsync for better handling of large number of files
     # Note: rsync over ssh is more reliable for large directories
@@ -100,7 +100,8 @@ def sync_files(config, dest_dir):
         ("app/", f"{dest_dir}/app/"),
         ("lib/", f"{dest_dir}/lib/"),
         ("nginx/", f"{dest_dir}/nginx/"),
-        ("data/reiki/", f"{dest_dir}/data/reiki/")
+        ("data/reiki/", f"{dest_dir}/data/reiki/"),
+        ("data/gijiroku/", f"{dest_dir}/data/gijiroku/")
     ]
     
     # Files that should never be deleted on remote (e.g. user-generated data)

@@ -1,11 +1,16 @@
 
 # Local config
-/data/
+/data/*
 /logs/
 /.venv/
+/.claude/
+__pycache__/
 
 # Config files
 deploy.json
-*.json
-*.pyc
-*.pyc
+/data/config.json
+*.py[cod]
+!/data/config.example.json
+!/data/japan_local_governments.tsv
+!/data/local_assembly_minutes_urls.tsv
+!/data/local_government_homepages.csv

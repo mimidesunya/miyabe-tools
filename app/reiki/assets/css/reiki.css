@@ -344,22 +344,89 @@ body {
 }
 
 /* ═══════════════════════════════════════
-   Tablet (≤1024px): single-column stack
+   Tablet (≤1024px): list-first master/detail
    ═══════════════════════════════════════ */
 @media (max-width: 1024px) {
+    .header { padding: 10px 12px; }
+    .header h1 { font-size: 18px; }
+
     .layout {
-        grid-template-columns: 1fr;
+        display: flex;
+        flex-direction: column;
         height: auto;
         overflow: visible;
     }
     .sidebar {
         border-right: none;
-        border-bottom: 1px solid #e5e7eb;
-        max-height: 45vh;
+        border-bottom: none;
+        max-height: none;
+        overflow-y: visible;
+        order: 2;
     }
     .content {
         overflow: visible;
         height: auto;
+        order: 3;
+        padding: 12px;
+    }
+    .layout.has-detail .sidebar {
+        display: none;
+    }
+    .layout:not(.has-detail):not(.is-landing) .content {
+        display: none;
+    }
+    .layout.is-landing .content {
+        order: 1;
+    }
+    .layout.is-landing .sidebar {
+        order: 2;
+        border-top: 1px solid #e5e7eb;
+    }
+    .mobile-back {
+        order: 0;
+    }
+    .layout.has-detail .mobile-back {
+        display: block;
+        padding: 10px 12px;
+        background: #fff;
+        border-bottom: 1px solid #e5e7eb;
+        position: sticky;
+        top: 0;
+        z-index: 15;
+    }
+    .mobile-back a {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        color: #275ea3;
+        text-decoration: none;
+        font-weight: 600;
+        padding: 10px 14px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        background: #f8fafc;
+        -webkit-tap-highlight-color: rgba(39, 94, 163, 0.15);
+    }
+    .filter-block .checkbox-grid {
+        display: none;
+    }
+    .filter-block.expanded .checkbox-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        max-height: 220px;
+    }
+    .filter-title::after {
+        content: '\25B6';
+        font-size: 10px;
+        color: #94a3b8;
+        transition: transform 0.2s;
+    }
+    .filter-block.expanded .filter-title::after {
+        transform: rotate(90deg);
+    }
+    #menu-toggle {
+        display: none !important;
     }
 }
 
@@ -371,51 +438,6 @@ body {
 @media (max-width: 768px) {
     .header { padding: 10px 12px; }
     .header h1 { font-size: 17px; }
-
-    /* Stack layout, no fixed height, natural scroll */
-    .layout {
-        display: flex;
-        flex-direction: column;
-        height: auto;
-        overflow: visible;
-    }
-
-    /* Sidebar: shown normally when no file selected */
-    .sidebar {
-        max-height: none;
-        border-bottom: none;
-        overflow-y: visible;
-        order: 2;
-    }
-
-    /* Content area */
-    .content {
-        order: 3;
-    }
-
-    /* When a file is selected → hide sidebar, show detail */
-    .layout.has-detail .sidebar {
-        display: none;
-    }
-
-    /* When NO file selected and not landing → hide content on mobile; list is primary */
-    .layout:not(.has-detail):not(.is-landing) .content {
-        display: none;
-    }
-
-    /* Landing page: guide appears ABOVE sidebar */
-    .layout.is-landing .content {
-        order: 1;
-    }
-    .layout.is-landing .sidebar {
-        order: 2;
-        border-top: 1px solid #e5e7eb;
-    }
-
-    /* Mobile back button */
-    .mobile-back {
-        order: 0;
-    }
 
     /* Guide: collapsible on mobile, closed by default */
     .guide-toggle {
@@ -441,43 +463,11 @@ body {
         display: block;
     }
 
-    /* Mobile back button: visible when detail is open */
-    .layout.has-detail .mobile-back {
-        display: block;
-        padding: 10px 12px;
-        background: #fff;
-        border-bottom: 1px solid #e5e7eb;
-        position: sticky;
-        top: 0;
-        z-index: 15;
-    }
-    .mobile-back a {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 14px;
-        color: #275ea3;
-        text-decoration: none;
-        font-weight: 600;
-        padding: 10px 14px;
-        border: 1px solid #d1d5db;
-        border-radius: 8px;
-        background: #f8fafc;
-        -webkit-tap-highlight-color: rgba(39, 94, 163, 0.15);
-    }
     .mobile-back a:active {
         background: #e8f0fe;
     }
 
-    /* Content adjustments */
-    .content {
-        padding: 10px;
-    }
-
-    /* Menu toggle: not needed in master/detail mode */
-    #menu-toggle {
-        display: none !important;
-    }
+    .content { padding: 10px; }
 
     /* Prevent iOS zoom on inputs */
     .search input[type="text"],
@@ -492,24 +482,6 @@ body {
         padding: 12px;
     }
 
-    /* Filters: single column for easier touch, collapsed by default */
-    .filter-block .checkbox-grid {
-        display: none;
-    }
-    .filter-block.expanded .checkbox-grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        max-height: 200px;
-    }
-    .filter-title::after {
-        content: '\25B6';
-        font-size: 10px;
-        color: #94a3b8;
-        transition: transform 0.2s;
-    }
-    .filter-block.expanded .filter-title::after {
-        transform: rotate(90deg);
-    }
     .checkbox-item {
         font-size: 14px;
         padding: 4px 0;

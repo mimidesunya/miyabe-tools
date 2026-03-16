@@ -1,44 +1,53 @@
 # ポスター支援ツール
 
-選挙ポスター掲示場の設置・撤去などの作業状況をリアルタイムで共有・管理するためのツールです。
-Docker Compose、Nginx、PHP-FPM、および SQLite を使用して動作します。
+選挙ポスター掲示場の位置確認、作業進捗の共有、LINE ログイン連携を行う Web ツールです。  
+掲示場機能は自治体スラッグ単位で分離されており、複数自治体を同じUIで切り替えられます。
 
-## 主な機能
+## 画面
 
-- LINE ログイン連携による作業者認証
-- 地図上での掲示場位置の確認と作業ステータスの更新
-- 自治体ごとの掲示場データ管理
+- マップ: `/boards/{slug}/`
+- 一覧: `/boards/list.php?slug={slug}`
+- ユーザー一覧: `/boards/users.php?slug={slug}`
 
-## 前提条件
+例:
 
-- Docker
-- Docker Compose
+- `/boards/kawasaki/`
+- `/boards/higashikurume/`
 
-## 始め方
+## データ構成
 
-1.  このリポジトリをクローンします。
-2.  設定ファイルを作成します。
-    ```bash
-    cp config.example.json data/config.json
-    ```
-    `data/config.json` を開き、LINE Developers コンソールから取得した `CHANNEL_ID` や `CHANNEL_SECRET` を設定してください。
+- 掲示場マスタ: `data/boards/{slug}/boards.sqlite`
+- タスク状態: `data/boards/{slug}/tasks.sqlite`
+- 共通ユーザーDB: `data/users.sqlite`
+- 初期TSV: `tools/boards/data/{slug}/data.tsv`
 
-3.  以下のコマンドを実行してサービスを開始します。
-    ```bash
-    docker-compose up -d
-    ```
+`users.sqlite` は全自治体で共有、`boards.sqlite` / `tasks.sqlite` は自治体ごとに分離されます。
 
-4.  ブラウザを開き、[http://localhost:8301](http://localhost:8301) にアクセスします。
+## 設定
 
-## プロジェクト構成
+`data/config.json` の `MUNICIPALITIES.{slug}.boards` を使います。
 
-- `docker-compose.yml`: Nginx と PHP サービスを定義します。
-- `nginx/default.conf`: Nginx の設定ファイルです。
-- `app/`: 公開ディレクトリ（PHP, HTML, CSS, JS）。
-- `lib/`: 非公開ライブラリ・設定ファイル。
-- `data/`: SQLite データベースなどの永続データ（Git 除外）。
-- `tools/`: データベース初期化やマイグレーション用のスクリプト。
+主な項目:
 
-## 開発
+- `enabled`: 画面を有効化するか
+- `title`: 画面表示名
+- `allow_offset`: 位置調整モードを許可するか
 
-`app/` ディレクトリはコンテナ内の `/var/www/html` にバインドマウントされています。`app/` 内のファイルに加えた変更は、即座にブラウザに反映されます。
+## 初期化
+
+```bash
+python tools/boards/init_db.py kawasaki
+python tools/boards/init_users_db.py
+```
+
+TSV だけ更新したい場合:
+
+```bash
+python tools/boards/import_tsv.py kawasaki
+```
+
+## メモ
+
+- URL は `slug` ごとに固定です。
+- ログイン後の戻り先も `slug` を保持します。
+- 位置調整権限は自治体ごとに切り替えられます。

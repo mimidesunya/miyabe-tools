@@ -210,9 +210,8 @@ if ($method === 'POST') {
         exit;
     } elseif ($action === 'move' || $action === 'set_coords' || $action === 'update_info') {
         // 権限チェック
-        $config = load_config();
-        $municipalities = $config['MUNICIPALITIES'] ?? [];
-        $allowOffset = $municipalities[$slug]['allow_offset'] ?? false;
+        $boardsFeature = municipality_feature($slug, 'boards');
+        $allowOffset = (bool)($boardsFeature['allow_offset'] ?? false);
         if (!$allowOffset) {
             http_response_code(403);
             echo json_encode(['error' => 'この自治体では位置調整が許可されていません'], JSON_UNESCAPED_UNICODE);
