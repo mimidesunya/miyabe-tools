@@ -185,7 +185,7 @@ function loadAll(skipFitBounds = false) {
 			  </div>
 			  <div style="margin:6px 0 8px; font-size:13px;"><a href="https://www.google.com/maps/search/?api=1&query=${baseLat},${baseLng}" target="_blank" rel="noopener" style="color:#1a73e8; text-decoration:none; font-weight:600;">📍 Googleマップで開く</a></div>
 			  <div class="task-panel" data-code="${Ui.escapeHtml(r.code)}">
-				<div class="task-status" style="${authState.loggedIn ? 'display:none;' : ''}">ステータス: <span class="task-status-text">読み込み中...</span></div>
+				<div class="task-status" style="display:none;">ステータス: <span class="task-status-text">読み込み中...</span></div>
 				<div class="task-select" style="margin-top:6px; ${authState.loggedIn ? '' : 'display:none;'}">
 				  <label>ステータス:
 					<select class="status-select">
@@ -201,6 +201,7 @@ function loadAll(skipFitBounds = false) {
 				</div>
 				<div class="task-last" style="margin-top:6px; font-size: 12px; color: #555;"></div>
 			  </div>
+			  <div style="margin-top:8px; font-size:11px; color:#aaa; user-select:all;">${Ui.escapeHtml(r.code)}:${Number(r.lat).toFixed(6)}, ${Number(r.lng).toFixed(6)}</div>
 			</div>`;
 			const codeIcon = L.divIcon({
 				className: 'code-marker',
@@ -315,14 +316,14 @@ function loadAll(skipFitBounds = false) {
 			// Default visibility (override adjustMode check for task parts?)
 			// User asked for address/place edit. Task edit should probably remain available or hidden?
 			// Assuming allow everything if logged in.
-			if (statusWrap) statusWrap.style.display = authState.loggedIn ? 'none' : '';
+			if (statusWrap) statusWrap.style.display = 'none';
 			if (selectWrap) selectWrap.style.display = authState.loggedIn ? '' : 'none';
 			if (commentEl) commentEl.style.display = authState.loggedIn ? '' : 'none';
 			if (lastEl) lastEl.style.display = authState.loggedIn ? 'none' : '';
 			if (statusEl) statusEl.textContent = '読み込み中...';
             
 			const info = await Api.fetchTaskStatus(slug, code);
-			if (!info || !info.status) { if (statusEl) statusEl.textContent = '取得失敗'; return; }
+			if (!info || !info.status) { return; }
             
 			{
 				const em = Ui.statusEmoji(info.status.status);
@@ -611,10 +612,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 		authState = s || { loggedIn: false, user: null };
 		Ui.updateAuthUi(authState, adjustMode);
 
-		// Show help if not logged in
-		if (!authState.loggedIn) {
+		// Show help on first visit if not logged in
+		if (!authState.loggedIn && !sessionStorage.getItem('boards_help_shown')) {
 			const helpModal = document.getElementById('help-modal');
 			if (helpModal) helpModal.style.display = 'flex';
+			sessionStorage.setItem('boards_help_shown', '1');
 		}
 		
 		// 位置調整ボタンの表示制御
@@ -628,21 +630,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 			if (offsetToggle) offsetToggle.style.display = 'none';
 		}
         
-		// Add list view link to controls
-		const controlsDiv = document.getElementById('controls');
-		if (controlsDiv && !document.getElementById('list-view-link')) {
-			const listLink = document.createElement('a');
-			listLink.id = 'list-view-link';
-			listLink.href = `/boards/list.php?slug=${encodeURIComponent(slug)}`;
-			listLink.target = '_blank';
-			listLink.rel = 'noopener noreferrer';
-			listLink.textContent = '📋 一覧表示';
-			listLink.style.cssText = 'display:inline-block; padding:6px 12px; background:#34a853; color:#fff; text-decoration:none; border-radius:6px; font-size:14px; margin-left:8px;';
-			const authDiv = document.getElementById('auth');
-			if (authDiv && authDiv.parentElement) {
-				authDiv.parentElement.appendChild(listLink);
-			}
-		}
 	} catch (_) { /* ignore */ }
     
 	// Initial fetch

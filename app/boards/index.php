@@ -26,102 +26,96 @@ $pageTitle = (string)($municipality['boards']['title'] ?? ($municipality['name']
   <title><?php echo h($pageTitle); ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="/boards/assets/css/style.css" />
+  <?php
+  $assetDir = __DIR__ . '/assets';
+  $assetFiles = array_merge(
+      glob($assetDir . '/css/*.css') ?: [],
+      glob($assetDir . '/js/*.js')   ?: []
+  );
+  $assetVer = max(array_map('filemtime', $assetFiles));
+  ?>
+  <link rel="stylesheet" href="/boards/assets/css/style.css?v=<?php echo $assetVer; ?>" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     #page-header {
       position: fixed;
-      top: 12px;
-      left: 12px;
+      top: 8px;
+      left: 8px;
       z-index: 1300;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 10px;
-      max-width: min(720px, calc(100vw - 24px));
-      padding: 10px 12px;
-      border-radius: 14px;
+      gap: 6px;
+      max-width: min(680px, calc(100vw - 16px));
+      padding: 7px 10px;
+      border-radius: 10px;
       border: 1px solid rgba(15, 23, 42, 0.12);
       background: rgba(255, 255, 255, 0.94);
-      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
       backdrop-filter: blur(10px);
-    }
-    .page-title-block {
-      display: grid;
-      gap: 2px;
-      min-width: 0;
-    }
-    .page-kicker {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: #0f5c4d;
-    }
-    .page-title {
-      font-size: 15px;
-      font-weight: 700;
-      color: #17202b;
-      white-space: nowrap;
     }
     .page-links {
       display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
+      flex-wrap: nowrap;
+      gap: 5px;
       margin-left: auto;
       align-items: center;
     }
-    .page-links a,
-    .page-links select {
-      font-size: 13px;
+    .page-links a {
+      font-size: 12px;
       border-radius: 999px;
       border: 1px solid #d4dbe3;
       background: #fff;
       color: #1f2937;
       text-decoration: none;
-      padding: 8px 12px;
+      padding: 5px 10px;
+      white-space: nowrap;
+    }
+    .page-links a.kml-link {
+      font-size: 10px;
+      padding: 4px 7px;
+      color: #999;
+      border-color: #e8eaed;
     }
     .page-links select {
-      max-width: 220px;
+      font-size: 12px;
+      border-radius: 999px;
+      border: 1px solid #d4dbe3;
+      background: #fff;
+      color: #1f2937;
+      padding: 5px 8px;
+      max-width: 160px;
     }
-    @media (max-width: 720px) {
+    .gps-hint {
+      display: block;
+      font-size: 10px;
+      font-weight: normal;
+      opacity: 0.65;
+      line-height: 1.2;
+    }
+    #gps-btn.active .gps-hint { display: none; }
+    @media (max-width: 480px) {
       #page-header {
-        right: 12px;
-        padding: 10px;
+        right: 8px;
       }
-      .page-title {
-        white-space: normal;
-      }
-      .page-links {
-        width: 100%;
-        margin-left: 0;
-      }
-      .page-links a,
-      .page-links select {
-        flex: 1 1 160px;
-      }
+      .page-links { flex-wrap: wrap; width: 100%; margin-left: 0; }
+      .page-links select { max-width: 100%; flex: 1 1 auto; }
     }
   </style>
 </head>
 
 <body>
+  <script>if(/Line\//i.test(navigator.userAgent)&&!location.search.includes('openExternalBrowser=1')){var u=new URL(location.href);u.searchParams.set('openExternalBrowser','1');location.replace(u.toString());}</script>
   <div id="page-header">
-    <div class="page-title-block">
-      <div class="page-kicker">Poster Board Console</div>
-      <div class="page-title"><?php echo h($pageTitle); ?></div>
-    </div>
     <div class="page-links">
-      <a href="/">トップ</a>
       <a href="<?php echo h((string)$municipality['boards']['list_url']); ?>">一覧</a>
+      <a href="/boards/api/kml.php?slug=<?php echo h($slug); ?>" download class="kml-link">KML</a>
       <select aria-label="自治体切り替え" onchange="if (this.value) { window.location.href = this.value; }">
         <?php foreach ($switcherItems as $item): ?>
-          <?php if (!$item['enabled']): ?>
-            <option value="" disabled><?php echo h($item['name']); ?> (準備中)</option>
-          <?php else: ?>
-            <option value="<?php echo h($item['url']); ?>" <?php echo $item['slug'] === $slug ? 'selected' : ''; ?>>
-              <?php echo h($item['name']); ?>
-            </option>
-          <?php endif; ?>
+          <?php if (!$item['enabled'] && $item['slug'] !== $slug) continue; ?>
+          <option value="<?php echo h($item['url']); ?>" <?php echo $item['slug'] === $slug ? 'selected' : ''; ?>>
+            <?php echo h($item['name']); ?>
+          </option>
         <?php endforeach; ?>
       </select>
     </div>
@@ -138,7 +132,7 @@ $pageTitle = (string)($municipality['boards']['title'] ?? ($municipality['name']
       <button id="help-btn">ヘルプ</button>
     </div>
     <div style="display:flex; gap:6px; align-items:center; justify-content:flex-end;">
-      <button id="gps-btn">GPS: OFF</button>
+      <button id="gps-btn"><span id="gps-label">GPS: OFF</span><span class="gps-hint">現在地を追従させるにはこちら</span></button>
     </div>
 
   </div>
@@ -212,7 +206,19 @@ $pageTitle = (string)($municipality['boards']['title'] ?? ($municipality['name']
       </div>
     </div>
   </div>
-  <script type="module" src="/boards/assets/js/main.js"></script>
+  <script>
+  (function(){
+    function adjust(){
+      var h=document.getElementById('page-header');
+      var c=document.getElementById('controls');
+      if(h&&c) c.style.top=(h.getBoundingClientRect().bottom+8)+'px';
+    }
+    adjust();
+    window.addEventListener('resize',adjust);
+    if(window.ResizeObserver) new ResizeObserver(adjust).observe(document.getElementById('page-header'));
+  })();
+  </script>
+  <script type="module" src="/boards/assets/js/main.js?v=<?php echo $assetVer; ?>"></script>
 </body>
 
 </html>

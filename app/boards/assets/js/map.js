@@ -3,16 +3,34 @@ import * as Api from './api.js';
 export function initMap() {
 	const map = L.map('map').setView([35.5, 139.4], 11);
 	const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-	  attribution: '© OpenStreetMap contributors'
+	  attribution: '© OpenStreetMap contributors',
+	  maxZoom: 19
 	}).addTo(map);
 	const esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-	  attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+	  attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+	  maxZoom: 19
 	});
-	const baseLayers = { '標準地図 (OSM)': osmLayer, '航空写真 (Esri)': esriSat };
+	const googleRoad = L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+	  subdomains: ['0', '1', '2', '3'],
+	  attribution: '© Google',
+	  maxZoom: 21
+	});
+	const googleHybrid = L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+	  subdomains: ['0', '1', '2', '3'],
+	  attribution: '© Google',
+	  maxZoom: 21
+	});
+	const baseLayers = {
+	  '標準地図 (OSM)': osmLayer,
+	  '航空写真 (Esri)': esriSat,
+	  'Google マップ': googleRoad,
+	  'Google 航空写真': googleHybrid
+	};
 	L.control.layers(baseLayers, null, { position: 'topleft' }).addTo(map);
     
 	// Basemap switch logic
-	const baseRefs = { mapBase: osmLayer, satBase: esriSat };
+	const baseRefs = { mapBase: osmLayer, satBase: esriSat, googleRoad, googleHybrid };
+	const allBaseLayers = [osmLayer, esriSat, googleRoad, googleHybrid];
 	const container = document.getElementById('basemap-switch');
 	if (container) {
 		container.addEventListener('click', (e) => {
@@ -20,7 +38,7 @@ export function initMap() {
 			if (!btn) return;
 			const key = btn.getAttribute('data-base');
 			if (!key) return;
-			[osmLayer, esriSat].forEach(l => { if (l && map.hasLayer(l)) map.removeLayer(l); });
+			allBaseLayers.forEach(l => { if (l && map.hasLayer(l)) map.removeLayer(l); });
 			const target = baseRefs[key];
 			if (target) target.addTo(map);
 			const btns = container.querySelectorAll('button[data-base]');
@@ -44,7 +62,9 @@ export function setupGps(map) {
 
 	gpsBtn.addEventListener('click', function () {
 		gpsActive = !gpsActive;
-		gpsBtn.textContent = gpsActive ? 'GPS: ON' : 'GPS: OFF';
+		const gpsLabel = document.getElementById('gps-label');
+		if (gpsLabel) gpsLabel.textContent = gpsActive ? 'GPS: ON' : 'GPS: OFF';
+		else gpsBtn.textContent = gpsActive ? 'GPS: ON' : 'GPS: OFF';
 		gpsBtn.classList.toggle('active', gpsActive);
 		if (gpsActive) {
 			if (location.protocol !== 'https:' && !/^localhost$|^127\.0\.0\.1$/.test(location.hostname)) {

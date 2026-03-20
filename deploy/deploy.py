@@ -101,13 +101,20 @@ def sync_files(config, dest_dir):
         ("lib/", f"{dest_dir}/lib/"),
         ("nginx/", f"{dest_dir}/nginx/"),
         ("data/reiki/", f"{dest_dir}/data/reiki/"),
-        ("data/gijiroku/", f"{dest_dir}/data/gijiroku/")
+        ("data/gijiroku/", f"{dest_dir}/data/gijiroku/"),
+        ("data/boards/", f"{dest_dir}/data/boards/"),
     ]
     
     # Files that should never be deleted on remote (e.g. user-generated data)
     rsync_excludes = {
         "data/reiki/": ["feedback.sqlite"],
+        "data/boards/": ["tasks.sqlite"],
     }
+
+    # Sync data/config.json separately (rsync only handles directories above)
+    print("Syncing data/config.json...")
+    ssh_base_scp = f"scp -i {config['key_path']} -P {config.get('port', 22)} -o StrictHostKeyChecking=no"
+    run_command(f"{ssh_base_scp} data/config.json {config['user']}@{config['host']}:{dest_dir}/data/config.json", capture_output=False)
 
     for local_path, remote_path in dirs_to_sync:
         print(f"Syncing {local_path}...")

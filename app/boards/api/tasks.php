@@ -209,9 +209,9 @@ if ($method === 'POST') {
         echo json_encode(add_comment($pdo, (int)$uid, $code, $note), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     } elseif ($action === 'move' || $action === 'set_coords' || $action === 'update_info') {
-        // 権限チェック
+        // 権限チェック: allow_offset設定またはADMINユーザーであれば許可
         $boardsFeature = municipality_feature($slug, 'boards');
-        $allowOffset = (bool)($boardsFeature['allow_offset'] ?? false);
+        $allowOffset = (bool)($boardsFeature['allow_offset'] ?? false) || is_admin(current_user());
         if (!$allowOffset) {
             http_response_code(403);
             echo json_encode(['error' => 'この自治体では位置調整が許可されていません'], JSON_UNESCAPED_UNICODE);

@@ -196,8 +196,11 @@ function normalize_municipality_entry(string $slug, array $entry, bool $isDefaul
         || ($gijirokuDbRelative !== '' && is_file(data_path($gijirokuDbRelative)));
     $gijirokuEnabled = feature_enabled_value($gijirokuConfig['enabled'] ?? null, $gijirokuDetected);
 
+    $code = trim((string)($entry['code'] ?? ''));
+
     return [
         'slug' => $slug,
+        'code' => $code,
         'name' => $name,
         'boards' => [
             'enabled' => $boardsEnabled,
@@ -274,6 +277,14 @@ function municipality_registry(): array
         $registry[$slug] = normalize_municipality_entry($slug, $normalizedEntry, $isDefaultSlug, $singleMunicipality);
     }
 
+    uasort($registry, function (array $a, array $b): int {
+        $ca = (string)($a['code'] ?? '');
+        $cb = (string)($b['code'] ?? '');
+        if ($ca === '' && $cb === '') return 0;
+        if ($ca === '') return 1;
+        if ($cb === '') return -1;
+        return strcmp($ca, $cb);
+    });
     return $registry;
 }
 

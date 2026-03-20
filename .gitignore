@@ -1,16 +1,20 @@
 
 # Local config
 /data/*
+!/data/config.example.json
+!/data/japan_local_governments.tsv
+!/data/kyoto_poster_board_urls.csv
+!/data/local_assembly_minutes_urls.tsv
+!/data/local_government_homepages.csv
+!/data/local_reiki_urls.tsv
+deploy.json
+
+# KMZ map files
+/kmzs/
+
+# Runtime
 /logs/
 /.venv/
 /.claude/
 __pycache__/
-
-# Config files
-deploy.json
-/data/config.json
 *.py[cod]
-!/data/config.example.json
-!/data/japan_local_governments.tsv
-!/data/local_assembly_minutes_urls.tsv
-!/data/local_government_homepages.csv

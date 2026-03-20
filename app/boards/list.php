@@ -218,6 +218,7 @@ $statusLabels = [
     </style>
 </head>
 <body>
+    <script>if(/Line\//i.test(navigator.userAgent)&&!location.search.includes('openExternalBrowser=1')){var u=new URL(location.href);u.searchParams.set('openExternalBrowser','1');location.replace(u.toString());}</script>
     <div class="header">
         <div>
             <h1>掲示場一覧</h1>

@@ -266,6 +266,7 @@ if (!is_admin($me)) {
   </style>
 </head>
 <body>
+  <script>if(/Line\//i.test(navigator.userAgent)&&!location.search.includes('openExternalBrowser=1')){var u=new URL(location.href);u.searchParams.set('openExternalBrowser','1');location.replace(u.toString());}</script>
   <header>
     <div class="title-wrap">
       <div class="title">ユーザー一覧</div>

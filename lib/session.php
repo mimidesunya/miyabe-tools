@@ -90,22 +90,45 @@ function open_tasks_pdo(string $slug): PDO {
 
 /**
  * 掲示場データベースをオープンし、タスクDBとユーザーDBをアタッチする
+ * tasks.sqlite が存在しない場合は自動的に作成する
  */
 function open_boards_with_tasks_pdo(string $slug): PDO {
     $pdo = open_boards_pdo($slug);
-    
+
     $tasksPath = data_path("boards/{$slug}/tasks.sqlite");
-    if (file_exists($tasksPath)) {
-        $quoted = $pdo->quote($tasksPath);
-        $pdo->exec("ATTACH DATABASE {$quoted} AS tasks");
-    }
-    
+    $quoted = $pdo->quote($tasksPath);
+    $pdo->exec("ATTACH DATABASE {$quoted} AS tasks");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS tasks.task_status (
+        board_code TEXT PRIMARY KEY,
+        status TEXT NOT NULL DEFAULT 'pending',
+        updated_by INTEGER NOT NULL,
+        last_comment TEXT,
+        updated_at TEXT DEFAULT (datetime('now')),
+        CHECK (status IN ('pending', 'in_progress', 'done', 'issue'))
+    )");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS tasks.status_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        board_code TEXT NOT NULL,
+        user_id INTEGER NOT NULL,
+        old_status TEXT,
+        new_status TEXT,
+        note TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+    )");
+    $pdo->exec("CREATE TRIGGER IF NOT EXISTS tasks.trg_task_status_hist
+        AFTER UPDATE ON task_status
+        WHEN OLD.status IS NOT NEW.status
+        BEGIN
+            INSERT INTO status_history (board_code, user_id, old_status, new_status, note)
+            VALUES (NEW.board_code, NEW.updated_by, OLD.status, NEW.status, NEW.last_comment);
+        END");
+
     $usersPath = data_path('users.sqlite');
     if (file_exists($usersPath)) {
         $quoted = $pdo->quote($usersPath);
         $pdo->exec("ATTACH DATABASE {$quoted} AS users");
     }
-    
+
     return $pdo;
 }
 
