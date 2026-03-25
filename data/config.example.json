@@ -32,7 +32,7 @@
     "BASE_URL": "https://your-domain.com",
     "REDIRECT_URI": "https://your-domain.com/line/callback.php",
     "MUNICIPALITIES": {
-        "kawasaki": {
+        "kawasaki-shi": {
             "name": "川崎市",
             "boards": {
                 "enabled": true,
@@ -41,12 +41,12 @@
             "reiki": {
                 "enabled": true,
                 "title": "川崎市例規集 AI評価ビューア",
-                "data_dir": "reiki/kawasaki",
-                "clean_html_dir": "reiki/kawasaki_html",
-                "classification_dir": "reiki/kawasaki_json",
-                "image_dir": "reiki/kawasaki_images",
-                "markdown_dir": "reiki/kawasaki_md",
-                "db_path": "reiki/kawasaki/ordinances.sqlite",
+                "source_dir": "reiki/kawasaki-shi/source",
+                "clean_html_dir": "reiki/kawasaki-shi/html",
+                "classification_dir": "reiki/kawasaki-shi/json",
+                "image_dir": "reiki/kawasaki-shi/images",
+                "markdown_dir": "reiki/kawasaki-shi/markdown",
+                "db_path": "reiki/kawasaki-shi/ordinances.sqlite",
                 "legacy_db_path": "reiki/ordinances.sqlite",
                 "sortable_prefixes": ["かわさきし", "かわさき"]
             },
@@ -54,13 +54,36 @@
                 "enabled": true,
                 "title": "川崎市議会 会議録 全文検索",
                 "assembly_name": "川崎市議会",
-                "data_dir": "gijiroku/kawasaki_council",
-                "downloads_dir": "gijiroku/kawasaki_council/downloads",
-                "index_json_path": "gijiroku/kawasaki_council/meetings_index.json",
-                "db_path": "gijiroku/kawasaki_council/minutes.sqlite"
+                "data_dir": "gijiroku/kawasaki-shi",
+                "downloads_dir": "gijiroku/kawasaki-shi/downloads",
+                "index_json_path": "gijiroku/kawasaki-shi/meetings_index.json",
+                "db_path": "gijiroku/kawasaki-shi/minutes.sqlite"
             }
         },
-        "higashikurume": {
+        "kyoto-fu": {
+            "name": "京都府",
+            "boards": {
+                "enabled": false,
+                "title": "京都府 ポスター掲示場"
+            },
+            "reiki": {
+                "enabled": true,
+                "title": "京都府例規集 AI評価ビューア",
+                "source_dir": "reiki/kyoto-fu/source",
+                "clean_html_dir": "reiki/kyoto-fu/html",
+                "classification_dir": "reiki/kyoto-fu/json",
+                "image_dir": "reiki/kyoto-fu/images",
+                "markdown_dir": "reiki/kyoto-fu/markdown",
+                "db_path": "reiki/kyoto-fu/ordinances.sqlite",
+                "sortable_prefixes": ["きょうとふ"]
+            },
+            "gijiroku": {
+                "enabled": false,
+                "title": "京都府議会 会議録 全文検索",
+                "assembly_name": "京都府議会"
+            }
+        },
+        "higashikurume-shi": {
             "name": "東久留米市",
             "boards": {
                 "enabled": true,
@@ -94,7 +117,7 @@
             }
         }
     },
-    "DEFAULT_SLUG": "kawasaki",
+    "DEFAULT_SLUG": "kawasaki-shi",
     "ADMIN_LINE_IDS": [
         "YOUR_ADMIN_LINE_ID_HERE"
     ],

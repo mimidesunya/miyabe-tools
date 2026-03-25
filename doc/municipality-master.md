@@ -1,6 +1,6 @@
 # 自治体マスタ
 
-`data/japan_local_governments.tsv` は、会議録や例規集を複数自治体へ広げる前提で使う全国自治体マスタです。
+`work/municipalities/municipality_master.tsv` は、会議録や例規集を複数自治体へ広げる前提で使う全国自治体マスタです。
 
 ## ソース
 
@@ -31,7 +31,7 @@
 ## 再生成
 
 ```powershell
-pwsh -File tools/municipalities/build_master_tsv.ps1
+pwsh -File tools/municipalities/build_municipality_master_tsv.ps1
 ```
 
 ローカルに取得済みの CSV を使う場合は `-SourceCsvPath` を渡します。

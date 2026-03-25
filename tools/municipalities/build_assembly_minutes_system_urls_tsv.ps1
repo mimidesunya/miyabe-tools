@@ -1,7 +1,7 @@
 param(
-    [string]$MasterTsv = (Join-Path $PSScriptRoot '..\..\data\japan_local_governments.tsv'),
-    [string]$OutFile = (Join-Path $PSScriptRoot '..\..\data\local_assembly_minutes_urls.tsv'),
-    [string]$HomepageCsv = (Join-Path $PSScriptRoot '..\..\data\local_government_homepages.csv'),
+    [string]$MasterTsv = (Join-Path $PSScriptRoot '..\..\data\municipalities\municipality_master.tsv'),
+    [string]$OutFile = (Join-Path $PSScriptRoot '..\..\data\municipalities\assembly_minutes_system_urls.tsv'),
+    [string]$HomepageCsv = (Join-Path $PSScriptRoot '..\..\data\municipalities\municipality_homepages.csv'),
     [string]$IndexUrl = 'https://app-mints.com/kaigiroku/',
     [int]$DelayMilliseconds = 150
 )

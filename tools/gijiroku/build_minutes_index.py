@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a lean SQLite full-text index for scraped Kawasaki council minutes."""
+"""Build a lean SQLite full-text index for scraped local assembly minutes."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote_to_bytes, urlsplit
 
 
 FULLWIDTH_DIGITS = str.maketrans("０１２３４５６７８９", "0123456789")
@@ -41,6 +41,10 @@ def data_path(root: Path, relative: str) -> Path:
     return root / "data" / Path(relative.replace("\\", "/"))
 
 
+def work_path(root: Path, relative: str) -> Path:
+    return root / "work" / Path(relative.replace("\\", "/"))
+
+
 def default_slug(root: Path) -> str:
     config = load_config(root)
     value = str(config.get("DEFAULT_SLUG", "")).strip()
@@ -51,7 +55,7 @@ def default_slug(root: Path) -> str:
         first = next(iter(municipalities.keys()), "")
         if isinstance(first, str):
             return first.strip()
-    return "kawasaki"
+    return ""
 
 
 def municipality_gijiroku_paths(root: Path, slug: str) -> tuple[Path, Path, Path]:
@@ -62,19 +66,16 @@ def municipality_gijiroku_paths(root: Path, slug: str) -> tuple[Path, Path, Path
     if not isinstance(feature, dict):
         feature = {}
 
-    if slug == "kawasaki":
-        default_data_dir = "gijiroku/kawasaki_council"
-    else:
-        default_data_dir = f"gijiroku/{slug}"
+    default_data_dir = f"gijiroku/{slug}"
 
     data_dir_rel = str(feature.get("data_dir", default_data_dir)).strip()
-    downloads_rel = str(feature.get("downloads_dir", f"{data_dir_rel}/downloads")).strip()
-    index_json_rel = str(feature.get("index_json_path", f"{data_dir_rel}/meetings_index.json")).strip()
+    downloads_rel = str(feature.get("downloads_dir", f"gijiroku/{slug}/downloads")).strip()
+    index_json_rel = str(feature.get("index_json_path", f"gijiroku/{slug}/meetings_index.json")).strip()
     output_db_rel = str(feature.get("db_path", f"{data_dir_rel}/minutes.sqlite")).strip()
 
     return (
-        data_path(root, downloads_rel),
-        data_path(root, index_json_rel),
+        work_path(root, downloads_rel),
+        work_path(root, index_json_rel),
         data_path(root, output_db_rel),
     )
 
@@ -83,6 +84,7 @@ def municipality_gijiroku_paths(root: Path, slug: str) -> tuple[Path, Path, Path
 class SourceMeta:
     title: str
     year_label: str
+    meeting_name_hint: str | None
     source_url: str
     source_year: int | None
     source_fino: int | None
@@ -137,6 +139,8 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     root = project_root()
     args.slug = (args.slug or default_slug(root)).strip()
+    if args.slug == "":
+        parser.error("自治体slugを決定できませんでした。--slug を指定してください。")
     default_downloads, default_index_json, default_output_db = municipality_gijiroku_paths(root, args.slug)
     if args.downloads_dir is None:
         args.downloads_dir = default_downloads
@@ -174,6 +178,34 @@ def normalize_title(file_path: Path) -> str:
 
 def normalize_space(value: str) -> str:
     return re.sub(r"[ \t\u3000]+", " ", value).strip()
+
+
+def decode_query_component(value: str) -> str:
+    if not value:
+        return ""
+
+    try:
+        raw = unquote_to_bytes(value)
+    except Exception:
+        return ""
+
+    for encoding in ("cp932", "shift_jis", "utf-8"):
+        try:
+            return normalize_space(raw.decode(encoding))
+        except Exception:
+            continue
+
+    return normalize_space(raw.decode("utf-8", errors="ignore"))
+
+
+def raw_query_values(url: str) -> dict[str, list[str]]:
+    values: dict[str, list[str]] = {}
+    for part in urlsplit(url).query.split("&"):
+        if not part:
+            continue
+        key, _, value = part.partition("=")
+        values.setdefault(key, []).append(value)
+    return values
 
 
 def to_ascii_digits(value: str) -> str:
@@ -230,6 +262,18 @@ def extract_year_label(text: str, fallback: str | None = None) -> str | None:
     return fallback
 
 
+def normalize_year_label_candidate(value: str) -> str | None:
+    candidate = normalize_space(value)
+    match = YEAR_LABEL_PATTERN.fullmatch(candidate)
+    if not match:
+        return None
+
+    label = f"{match.group(1)}{to_ascii_digits(match.group(2))}年"
+    if match.group(3):
+        label += f"・{match.group(3)}元年"
+    return label
+
+
 def extract_held_on(text: str, title: str, source_year: int | None) -> tuple[str | None, int | None, int | None, int | None]:
     head = "\n".join(first_nonempty_lines(text, limit=20))
     match = DATE_PATTERN.search(head)
@@ -265,6 +309,33 @@ def extract_meeting_name(text: str) -> str | None:
     return None
 
 
+def trim_meta_meeting_name(label: str, title: str) -> str:
+    trimmed = normalize_space(label)
+    trimmed = re.sub(r"^(昭和|平成|令和)\s*[元\d０-９]+年\s*", "", trimmed)
+    title_pattern = re.escape(normalize_space(title))
+    trimmed = re.sub(rf"[｜|－-]\s*{title_pattern}$", "", trimmed).strip()
+    return normalize_space(trimmed)
+
+
+def extract_meta_meeting_name(source_url: str, title: str) -> str | None:
+    query = raw_query_values(source_url)
+    title_hint = decode_query_component((query.get("TITL") or [""])[0])
+    title_subt = decode_query_component((query.get("TITL_SUBT") or [""])[0])
+
+    candidates: list[str] = []
+    if title_hint:
+        candidates.append(title_hint)
+    if title_subt:
+        trimmed = trim_meta_meeting_name(title_subt, title)
+        if trimmed:
+            candidates.append(trimmed)
+
+    for candidate in candidates:
+        if candidate and candidate != normalize_space(title):
+            return candidate
+    return None
+
+
 def classify_doc_type(title: str, text: str) -> str:
     if title.endswith("目次"):
         return "toc"
@@ -274,7 +345,7 @@ def classify_doc_type(title: str, text: str) -> str:
     return "minutes"
 
 
-def parse_source_meta(index_json: Path) -> dict[tuple[str, str], SourceMeta]:
+def parse_source_meta(index_json: Path) -> dict[tuple[str, str, str], SourceMeta]:
     if not index_json.exists():
         return {}
 
@@ -283,7 +354,7 @@ def parse_source_meta(index_json: Path) -> dict[tuple[str, str], SourceMeta]:
     except Exception:
         return {}
 
-    metas: dict[tuple[str, str], SourceMeta] = {}
+    metas: dict[tuple[str, str, str], SourceMeta] = {}
     if not isinstance(rows, list):
         return metas
 
@@ -300,17 +371,19 @@ def parse_source_meta(index_json: Path) -> dict[tuple[str, str], SourceMeta]:
         query = parse_qs(urlsplit(source_url).query)
         source_year = parse_optional_int(query.get("YEAR", [None])[0])
         source_fino = parse_optional_int(query.get("FINO", [None])[0])
-        key = (year_label, title)
-        metas.setdefault(
-            key,
-            SourceMeta(
-                title=title,
-                year_label=year_label,
-                source_url=source_url,
-                source_year=source_year,
-                source_fino=source_fino,
-            ),
+        meeting_name_hint = extract_meta_meeting_name(source_url, title)
+        meta = SourceMeta(
+            title=title,
+            year_label=year_label,
+            meeting_name_hint=meeting_name_hint,
+            source_url=source_url,
+            source_year=source_year,
+            source_fino=source_fino,
         )
+        specific_key = (year_label, title, normalize_space(meeting_name_hint or ""))
+        metas.setdefault(specific_key, meta)
+        fallback_key = (year_label, title, "")
+        metas.setdefault(fallback_key, meta)
     return metas
 
 
@@ -335,7 +408,22 @@ def choose_source_files(downloads_dir: Path) -> list[Path]:
     return sorted(preferred.values())
 
 
-def build_record(file_path: Path, downloads_dir: Path, meta_map: dict[tuple[str, str], SourceMeta], indexed_at: str) -> MinuteRecord | None:
+def fallback_year_label_from_path(file_path: Path, downloads_dir: Path) -> str | None:
+    for parent in file_path.parents:
+        if parent == downloads_dir:
+            break
+        label = normalize_year_label_candidate(parent.name)
+        if label:
+            return label
+
+    if file_path.parent != downloads_dir:
+        candidate = normalize_space(file_path.parent.name)
+        return candidate or None
+
+    return None
+
+
+def build_record(file_path: Path, downloads_dir: Path, meta_map: dict[tuple[str, str, str], SourceMeta], indexed_at: str) -> MinuteRecord | None:
     ext = file_path.suffix.lower()
     title = normalize_title(file_path)
 
@@ -348,15 +436,17 @@ def build_record(file_path: Path, downloads_dir: Path, meta_map: dict[tuple[str,
     if not content:
         return None
 
-    fallback_year_label = file_path.parent.name if file_path.parent != downloads_dir else None
+    fallback_year_label = fallback_year_label_from_path(file_path, downloads_dir)
     extracted_year_label = extract_year_label(content, fallback=fallback_year_label)
     if extracted_year_label is None:
         extracted_year_label = fallback_year_label or "不明"
 
-    meta = meta_map.get((extracted_year_label, title))
+    meeting_name = extract_meeting_name(content)
+    meta = meta_map.get((extracted_year_label, title, normalize_space(meeting_name or "")))
+    if meta is None:
+        meta = meta_map.get((extracted_year_label, title, ""))
     year_label = meta.year_label if meta else extracted_year_label
     held_on, gregorian_year, month, day = extract_held_on(content, title, meta.source_year if meta else None)
-    meeting_name = extract_meeting_name(content)
     doc_type = classify_doc_type(title, content)
     rel_path = file_path.relative_to(downloads_dir).as_posix()
 

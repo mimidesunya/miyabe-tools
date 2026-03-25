@@ -1,0 +1,1090 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+const TAIKEI_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36';
+const TAIKEI_SLEEP_USEC = 120000;
+
+main($argv);
+
+function main(array $argv): void
+{
+    $options = getopt('', ['slug::', 'limit::', 'force', 'crawl-only']);
+    $slug = isset($options['slug']) && is_string($options['slug']) && trim($options['slug']) !== ''
+        ? trim($options['slug'])
+        : default_slug_for_system('taikei');
+    $limit = isset($options['limit']) ? max(0, (int)$options['limit']) : 0;
+    $force = array_key_exists('force', $options);
+    $crawlOnly = array_key_exists('crawl-only', $options);
+
+    $target = load_reiki_target($slug, 'taikei');
+    $dataRoot = (string)$target['data_root'];
+    $workRoot = (string)$target['work_root'];
+    $sourceDir = (string)$target['source_dir'];
+    $htmlDir = (string)$target['html_dir'];
+    $jsonDir = (string)$target['classification_dir'];
+    $imageDir = (string)$target['image_dir'];
+    $markdownDir = (string)$target['markdown_dir'];
+    $dbPath = (string)$target['db_path'];
+
+    ensure_dir($dataRoot);
+    ensure_dir($workRoot);
+    ensure_dir($sourceDir);
+    ensure_dir($htmlDir);
+    ensure_dir($jsonDir);
+    ensure_dir($imageDir);
+    ensure_dir($markdownDir);
+
+    echo "Crawling {$target['name']} reiki taxonomy...\n";
+    $crawl = crawl_taxonomy((string)$target['entry_url']);
+    $records = array_values($crawl['records']);
+    usort($records, static fn(array $a, array $b): int => strcmp((string)$a['code'], (string)$b['code']));
+
+    $manifestPath = $workRoot . DIRECTORY_SEPARATOR . 'source_manifest.json';
+    $taxonomyPath = $workRoot . DIRECTORY_SEPARATOR . 'taxonomy_pages.json';
+    write_json_file($taxonomyPath, array_values($crawl['pages']));
+
+    echo 'Found ' . count($records) . " ordinance pages across " . count($crawl['pages']) . " taxonomy pages.\n";
+    if ($crawlOnly) {
+        write_json_file($manifestPath, $records);
+        echo "Saved crawl manifest only: {$manifestPath}\n";
+        return;
+    }
+
+    $downloaded = 0;
+    $skipped = 0;
+    $parsed = 0;
+    $manifests = [];
+    $selectedRecords = $limit > 0 ? array_slice($records, 0, $limit) : $records;
+    $total = count($selectedRecords);
+
+    foreach ($selectedRecords as $index => $record) {
+        $sourceFileName = ordinance_file_name_from_url((string)$record['detail_url']);
+        $sourcePath = $sourceDir . DIRECTORY_SEPARATOR . $sourceFileName;
+        $htmlPath = $htmlDir . DIRECTORY_SEPARATOR . preg_replace('/\.html$/i', '.html', $sourceFileName);
+        $markdownPath = $markdownDir . DIRECTORY_SEPARATOR . preg_replace('/\.html$/i', '.md', $sourceFileName);
+
+        $sourceHtml = '';
+        if (!$force && is_file($sourcePath) && filesize($sourcePath) > 0) {
+            $sourceHtml = (string)file_get_contents($sourcePath);
+            $skipped++;
+        } else {
+            $sourceHtml = fetch_url((string)$record['detail_url']);
+            file_put_contents($sourcePath, $sourceHtml);
+            $downloaded++;
+            throttled_sleep();
+        }
+
+        $parsedRecord = parse_taikei_ordinance_html($sourceHtml, (string)$record['detail_url'], $record);
+        file_put_contents($htmlPath, $parsedRecord['clean_html']);
+        file_put_contents($markdownPath, $parsedRecord['markdown']);
+        unset($parsedRecord['clean_html'], $parsedRecord['markdown']);
+        $manifests[] = $parsedRecord;
+        $parsed++;
+
+        if ((($index + 1) % 25) === 0 || ($index + 1) === $total) {
+            echo sprintf(
+                "[%d/%d] downloaded=%d skipped=%d parsed=%d\n",
+                $index + 1,
+                $total,
+                $downloaded,
+                $skipped,
+                $parsed
+            );
+        }
+    }
+
+    write_json_file($manifestPath, $manifests);
+    build_ordinance_db($dbPath, $manifests);
+
+    echo "\nFinished {$target['name']} scrape.\n";
+    echo "  Source HTML: {$sourceDir}\n";
+    echo "  Clean HTML: {$htmlDir}\n";
+    echo "  SQLite: {$dbPath}\n";
+    echo "  Markdown: {$markdownDir}\n";
+    echo "  Manifest: {$manifestPath}\n";
+    echo "  Downloaded: {$downloaded}\n";
+    echo "  Skipped existing: {$skipped}\n";
+    echo "  Parsed: {$parsed}\n";
+}
+
+function crawl_taxonomy(string $entryUrl): array
+{
+    $queue = [$entryUrl];
+    $visited = [];
+    $pages = [];
+    $records = [];
+
+    while ($queue !== []) {
+        $url = array_shift($queue);
+        if (!is_string($url) || isset($visited[$url])) {
+            continue;
+        }
+
+        $visited[$url] = true;
+        $html = fetch_url($url);
+        $dom = create_dom($html);
+        $xpath = new DOMXPath($dom);
+        $currentPath = extract_taxonomy_path($xpath);
+
+        $pages[$url] = [
+            'url' => $url,
+            'path' => $currentPath,
+        ];
+
+        foreach (extract_taxonomy_links($xpath, $url) as $taxonomyUrl) {
+            if (!isset($visited[$taxonomyUrl])) {
+                $queue[] = $taxonomyUrl;
+            }
+        }
+
+        foreach (extract_ordinance_rows($xpath, $url, $currentPath) as $record) {
+            $detailUrl = (string)$record['detail_url'];
+            if (!isset($records[$detailUrl])) {
+                $records[$detailUrl] = $record;
+                continue;
+            }
+
+            $existingPaths = $records[$detailUrl]['taxonomy_paths'] ?? [];
+            $paths = array_values(array_unique(array_filter(array_merge(
+                is_array($existingPaths) ? $existingPaths : [],
+                is_array($record['taxonomy_paths'] ?? null) ? $record['taxonomy_paths'] : []
+            ))));
+            $records[$detailUrl]['taxonomy_paths'] = $paths;
+        }
+
+        throttled_sleep();
+    }
+
+    return [
+        'pages' => $pages,
+        'records' => $records,
+    ];
+}
+
+function extract_taxonomy_path(DOMXPath $xpath): string
+{
+    $node = $xpath->query('//table[contains(concat(" ", normalize-space(@class), " "), " scrollableA01 ")]//tbody/tr[1]/td[1]')->item(0);
+    if (!$node instanceof DOMNode) {
+        return '';
+    }
+
+    return normalize_whitespace($node->textContent ?? '');
+}
+
+function extract_taxonomy_links(DOMXPath $xpath, string $pageUrl): array
+{
+    $links = [];
+    foreach ($xpath->query('//ul[@id="navigation"]//a[@href]') as $node) {
+        if (!$node instanceof DOMElement) {
+            continue;
+        }
+
+        $href = trim($node->getAttribute('href'));
+        if ($href === '' || str_starts_with($href, 'javascript:')) {
+            continue;
+        }
+
+        $absolute = resolve_url($pageUrl, $href);
+        if (!str_contains($absolute, '/reiki_taikei/')) {
+            continue;
+        }
+
+        if (!preg_match('/\.html?(?:[#?].*)?$/i', $absolute)) {
+            continue;
+        }
+
+        $links[$absolute] = true;
+    }
+
+    return array_keys($links);
+}
+
+function extract_ordinance_rows(DOMXPath $xpath, string $pageUrl, string $currentPath): array
+{
+    $rows = [];
+    foreach ($xpath->query('//table[contains(concat(" ", normalize-space(@class), " "), " scrollableA01 ")]//tbody/tr[position() > 1]') as $tr) {
+        if (!$tr instanceof DOMElement) {
+            continue;
+        }
+
+        $cells = [];
+        foreach ($tr->getElementsByTagName('td') as $cell) {
+            $cells[] = $cell;
+        }
+        if (count($cells) < 3) {
+            continue;
+        }
+
+        $link = null;
+        foreach ($cells[0]->getElementsByTagName('a') as $anchor) {
+            if ($anchor instanceof DOMElement) {
+                $link = $anchor;
+                break;
+            }
+        }
+        if (!$link instanceof DOMElement) {
+            continue;
+        }
+
+        $href = trim($link->getAttribute('href'));
+        if ($href === '') {
+            continue;
+        }
+
+        $detailUrl = resolve_url($pageUrl, $href);
+        if (!str_contains($detailUrl, '/reiki_honbun/')) {
+            continue;
+        }
+
+        $title = normalize_whitespace($link->textContent ?? '');
+        $date = normalize_whitespace($cells[1]->textContent ?? '');
+        $date = ltrim($date, "◆ \t\n\r\0\x0B");
+        $number = normalize_whitespace($cells[2]->textContent ?? '');
+
+        $rows[] = [
+            'code' => ordinance_code_from_url($detailUrl),
+            'title' => $title,
+            'date' => $date,
+            'number' => $number,
+            'detail_url' => $detailUrl,
+            'source_file' => ordinance_file_name_from_url($detailUrl),
+            'taxonomy_path' => $currentPath,
+            'taxonomy_paths' => $currentPath !== '' ? [$currentPath] : [],
+            'taxonomy_url' => $pageUrl,
+        ];
+    }
+
+    return $rows;
+}
+
+function parse_taikei_ordinance_html(string $html, string $sourceUrl, array $record): array
+{
+    $dom = create_dom($html);
+    $xpath = new DOMXPath($dom);
+
+    $title = extract_xpath_text($xpath, '//p[contains(concat(" ", normalize-space(@class), " "), " title-irregular ")]');
+    if ($title === '') {
+        $title = extract_xpath_text($xpath, '//title');
+    }
+    $title = ltrim($title, '○');
+    $title = normalize_whitespace($title);
+
+    $date = normalize_whitespace(extract_xpath_text($xpath, '//p[contains(concat(" ", normalize-space(@class), " "), " date ")]'));
+    $number = normalize_whitespace(extract_xpath_text($xpath, '//p[contains(concat(" ", normalize-space(@class), " "), " number ")]'));
+    $scope = normalize_whitespace(extract_xpath_text($xpath, '//div[contains(concat(" ", normalize-space(@class), " "), " from-to ")]'));
+    $enactmentDate = wareki_to_seireki($date);
+
+    $primaryInner = $xpath->query('//div[@id="primaryInner2"]')->item(0);
+    $cleanHtml = '';
+    $markdown = '';
+    $attachmentUrls = [];
+
+    if ($primaryInner instanceof DOMElement) {
+        $contentDom = new DOMDocument('1.0', 'UTF-8');
+        $wrapper = $contentDom->createElement('div');
+        $wrapper->setAttribute('class', 'law-content');
+        $contentDom->appendChild($wrapper);
+
+        foreach ($primaryInner->childNodes as $child) {
+            $imported = $contentDom->importNode($child, true);
+            $wrapper->appendChild($imported);
+        }
+
+        $contentXpath = new DOMXPath($contentDom);
+
+        foreach ($contentXpath->query('//script|//style|//rt') as $node) {
+            if ($node instanceof DOMNode && $node->parentNode) {
+                $node->parentNode->removeChild($node);
+            }
+        }
+
+        foreach ($contentXpath->query('//*[contains(concat(" ", normalize-space(@class), " "), " eline ")]') as $lineNode) {
+            if (!$lineNode instanceof DOMElement) {
+                continue;
+            }
+            if (contains_xpath($contentXpath, './/p[contains(concat(" ", normalize-space(@class), " "), " title-irregular ")]', $lineNode)
+                || contains_xpath($contentXpath, './/p[contains(concat(" ", normalize-space(@class), " "), " date ")]', $lineNode)
+                || contains_xpath($contentXpath, './/p[contains(concat(" ", normalize-space(@class), " "), " number ")]', $lineNode)
+                || contains_xpath($contentXpath, './/div[contains(concat(" ", normalize-space(@class), " "), " from-to ")]', $lineNode)
+            ) {
+                if ($lineNode->parentNode) {
+                    $lineNode->parentNode->removeChild($lineNode);
+                }
+            }
+        }
+
+        foreach ($contentXpath->query('//a[@href]') as $anchor) {
+            if (!$anchor instanceof DOMElement) {
+                continue;
+            }
+            $href = trim($anchor->getAttribute('href'));
+            if ($href === '' || str_starts_with($href, '#') || str_starts_with(strtolower($href), 'javascript:')) {
+                continue;
+            }
+            $anchor->setAttribute('href', resolve_url($sourceUrl, $href));
+            $anchor->setAttribute('target', '_blank');
+            $anchor->setAttribute('rel', 'noopener noreferrer');
+        }
+
+        foreach ($contentXpath->query('//*[@onclick]') as $node) {
+            if (!$node instanceof DOMElement) {
+                continue;
+            }
+            $onclick = $node->getAttribute('onclick');
+            if (preg_match("/fileDownloadAction2\\('([^']+)'\\)/", $onclick, $m) === 1) {
+                $assetUrl = resolve_url($sourceUrl, $m[1]);
+                $attachmentUrls[$assetUrl] = true;
+                if (strtolower($node->tagName) === 'a') {
+                    $node->setAttribute('href', $assetUrl);
+                    $node->setAttribute('target', '_blank');
+                    $node->setAttribute('rel', 'noopener noreferrer');
+                }
+            }
+            $node->removeAttribute('onclick');
+        }
+
+        foreach ($contentXpath->query('//*[@tabindex]') as $node) {
+            if ($node instanceof DOMElement) {
+                $node->removeAttribute('tabindex');
+            }
+        }
+
+        $cleanParts = [];
+        $cleanParts[] = '<div class="law-title">' . h($title) . '</div>';
+        if ($date !== '') {
+            $dateLabel = $enactmentDate !== '' ? h($date . ' (' . $enactmentDate . ')') : h($date);
+            $cleanParts[] = '<div class="law-date">' . $dateLabel . '</div>';
+        }
+        if ($number !== '') {
+            $cleanParts[] = '<div class="law-number">' . h($number) . '</div>';
+        }
+        if ($scope !== '') {
+            $cleanParts[] = '<div class="law-scope">' . h($scope) . '</div>';
+        }
+        $cleanParts[] = $contentDom->saveHTML($wrapper) ?: '<div class="law-content"></div>';
+        $cleanHtml = implode("\n", $cleanParts);
+
+        $blocks = [];
+        foreach ($contentXpath->query('//div[contains(concat(" ", normalize-space(@class), " "), " eline ")]') as $lineNode) {
+            if (!$lineNode instanceof DOMElement) {
+                continue;
+            }
+
+            $lineText = normalize_block_text($lineNode->textContent ?? '');
+            if ($lineText === '') {
+                continue;
+            }
+
+            $lineAnchor = $contentXpath->query('.//a[@href]', $lineNode)->item(0);
+            if ($lineAnchor instanceof DOMElement) {
+                $href = trim($lineAnchor->getAttribute('href'));
+                if ($href !== '' && !str_starts_with($href, '#') && !str_starts_with(strtolower($href), 'javascript:')) {
+                    $lineText = '[' . $lineText . '](' . $href . ')';
+                }
+            }
+
+            if ($blocks === [] || end($blocks) !== $lineText) {
+                $blocks[] = $lineText;
+            }
+        }
+
+        $markdownLines = ['# ' . ($title !== '' ? $title : (string)($record['title'] ?? '無題')), ''];
+        if ($date !== '') {
+            $dateLine = '**日付:** ' . $date;
+            if ($enactmentDate !== '') {
+                $dateLine .= ' (' . $enactmentDate . ')';
+            }
+            $markdownLines[] = $dateLine;
+        }
+        if ($number !== '') {
+            $markdownLines[] = '**種別番号:** ' . $number;
+        }
+        if ($scope !== '') {
+            $markdownLines[] = '**対象:** ' . $scope;
+        }
+        if (count($markdownLines) > 2) {
+            $markdownLines[] = '';
+        }
+        $markdownLines[] = '---';
+        $markdownLines[] = '';
+        foreach ($blocks as $block) {
+            $markdownLines[] = $block;
+            $markdownLines[] = '';
+        }
+        $markdown = rtrim(implode("\n", $markdownLines)) . "\n";
+    }
+
+    return [
+        'code' => (string)($record['code'] ?? ordinance_code_from_url($sourceUrl)),
+        'title' => $title !== '' ? $title : (string)($record['title'] ?? ''),
+        'date' => $date !== '' ? $date : (string)($record['date'] ?? ''),
+        'enactment_date' => $enactmentDate,
+        'number' => $number !== '' ? $number : (string)($record['number'] ?? ''),
+        'scope' => $scope,
+        'detail_url' => $sourceUrl,
+        'source_file' => (string)($record['source_file'] ?? ordinance_file_name_from_url($sourceUrl)),
+        'taxonomy_path' => (string)($record['taxonomy_path'] ?? ''),
+        'taxonomy_paths' => array_values(array_unique(array_filter(is_array($record['taxonomy_paths'] ?? null) ? $record['taxonomy_paths'] : []))),
+        'taxonomy_url' => (string)($record['taxonomy_url'] ?? ''),
+        'attachment_urls' => array_keys($attachmentUrls),
+        'clean_html' => $cleanHtml,
+        'markdown' => $markdown,
+    ];
+}
+
+function fetch_url(string $url): string
+{
+    if (extension_loaded('curl')) {
+        [$body, $status, $error] = curl_fetch($url, true);
+        if (($body === false || $status >= 400) && should_retry_insecure($error)) {
+            static $warned = false;
+            if (!$warned) {
+                fwrite(STDERR, "Warning: SSL certificate verification failed in this environment; retrying without local CA verification.\n");
+                $warned = true;
+            }
+            [$body, $status, $error] = curl_fetch($url, false);
+        }
+
+        if ($body === false || $status >= 400) {
+            throw new RuntimeException("Failed to fetch {$url}: HTTP {$status} {$error}");
+        }
+        return ensure_utf8((string)$body);
+    }
+
+    $context = stream_context_create([
+        'http' => [
+            'method' => 'GET',
+            'header' => implode("\r\n", [
+                'User-Agent: ' . TAIKEI_USER_AGENT,
+                'Accept-Language: ja,en-US;q=0.9,en;q=0.8',
+            ]),
+            'timeout' => 120,
+            'follow_location' => 1,
+        ],
+        'ssl' => [
+            'verify_peer' => true,
+            'verify_peer_name' => true,
+        ],
+    ]);
+
+    $body = @file_get_contents($url, false, $context);
+    if ($body === false) {
+        $error = error_get_last();
+        $message = is_array($error) ? (string)($error['message'] ?? 'unknown error') : 'unknown error';
+        throw new RuntimeException("Failed to fetch {$url}: {$message}");
+    }
+    return ensure_utf8($body);
+}
+
+function curl_fetch(string $url, bool $verifySsl): array
+{
+    $ch = curl_init($url);
+    if ($ch === false) {
+        throw new RuntimeException("Failed to initialize curl for {$url}");
+    }
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS => 10,
+        CURLOPT_CONNECTTIMEOUT => 30,
+        CURLOPT_TIMEOUT => 120,
+        CURLOPT_USERAGENT => TAIKEI_USER_AGENT,
+        CURLOPT_ENCODING => '',
+        CURLOPT_HTTPHEADER => ['Accept-Language: ja,en-US;q=0.9,en;q=0.8'],
+        CURLOPT_SSL_VERIFYPEER => $verifySsl,
+        CURLOPT_SSL_VERIFYHOST => $verifySsl ? 2 : 0,
+    ]);
+    $body = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+    return [$body, $status, $error];
+}
+
+function should_retry_insecure(string $error): bool
+{
+    if ($error === '') {
+        return false;
+    }
+    $error = strtolower($error);
+    return str_contains($error, 'certificate')
+        || str_contains($error, 'issuer')
+        || str_contains($error, 'ssl');
+}
+
+function create_dom(string $html): DOMDocument
+{
+    $dom = new DOMDocument('1.0', 'UTF-8');
+    libxml_use_internal_errors(true);
+    $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+    libxml_clear_errors();
+    return $dom;
+}
+
+function extract_xpath_text(DOMXPath $xpath, string $query): string
+{
+    $node = $xpath->query($query)->item(0);
+    if (!$node instanceof DOMNode) {
+        return '';
+    }
+    return normalize_whitespace($node->textContent ?? '');
+}
+
+function contains_xpath(DOMXPath $xpath, string $query, DOMNode $context): bool
+{
+    $result = $xpath->query($query, $context);
+    return $result instanceof DOMNodeList && $result->length > 0;
+}
+
+function normalize_whitespace(string $text): string
+{
+    $text = str_replace(["\r\n", "\r"], "\n", $text);
+    $text = str_replace("\xc2\xa0", ' ', $text);
+    $text = preg_replace('/[ \t]+/u', ' ', $text) ?? $text;
+    $text = preg_replace('/\n{2,}/u', "\n", $text) ?? $text;
+    return trim($text);
+}
+
+function normalize_block_text(string $text): string
+{
+    $text = str_replace(["\r\n", "\r"], "\n", $text);
+    $text = str_replace("\xc2\xa0", ' ', $text);
+    $text = preg_replace('/[ \t]+/u', ' ', $text) ?? $text;
+    $text = preg_replace('/\n+/u', "\n", $text) ?? $text;
+    $text = preg_replace('/ *\n */u', "\n", $text) ?? $text;
+    return trim($text);
+}
+
+function ensure_utf8(string $text): string
+{
+    if (mb_check_encoding($text, 'UTF-8')) {
+        return $text;
+    }
+    return mb_convert_encoding($text, 'UTF-8', 'SJIS-win,CP932,EUC-JP,ISO-2022-JP,UTF-8');
+}
+
+function wareki_to_seireki(string $wareki): string
+{
+    $normalized = strtr($wareki, [
+        '０' => '0', '１' => '1', '２' => '2', '３' => '3', '４' => '4',
+        '５' => '5', '６' => '6', '７' => '7', '８' => '8', '９' => '9',
+        '元' => '1',
+    ]);
+    if (preg_match('/(明治|大正|昭和|平成|令和)\s*(\d+)年\s*(\d+)月\s*(\d+)日/u', $normalized, $m) !== 1) {
+        return '';
+    }
+
+    $baseYears = [
+        '明治' => 1867,
+        '大正' => 1911,
+        '昭和' => 1925,
+        '平成' => 1988,
+        '令和' => 2018,
+    ];
+    $era = $m[1];
+    $year = $baseYears[$era] + (int)$m[2];
+    return sprintf('%04d-%02d-%02d', $year, (int)$m[3], (int)$m[4]);
+}
+
+function ordinance_code_from_url(string $url): string
+{
+    $path = parse_url($url, PHP_URL_PATH);
+    if (!is_string($path)) {
+        return '';
+    }
+    $stem = pathinfo($path, PATHINFO_FILENAME);
+    return is_string($stem) ? $stem : '';
+}
+
+function ordinance_file_name_from_url(string $url): string
+{
+    $code = ordinance_code_from_url($url);
+    if ($code === '') {
+        return 'unknown_j.html';
+    }
+    return $code . '_j.html';
+}
+
+function resolve_url(string $baseUrl, string $relative): string
+{
+    if ($relative === '') {
+        return $baseUrl;
+    }
+    if (preg_match('#^https?://#i', $relative) === 1) {
+        return $relative;
+    }
+    if (str_starts_with($relative, '//')) {
+        $scheme = (string)(parse_url($baseUrl, PHP_URL_SCHEME) ?: 'https');
+        return $scheme . ':' . $relative;
+    }
+
+    $base = parse_url($baseUrl);
+    if (!is_array($base)) {
+        return $relative;
+    }
+    $scheme = (string)($base['scheme'] ?? 'https');
+    $host = (string)($base['host'] ?? '');
+    $port = isset($base['port']) ? ':' . $base['port'] : '';
+    $basePath = (string)($base['path'] ?? '/');
+
+    if (str_starts_with($relative, '/')) {
+        return $scheme . '://' . $host . $port . normalize_url_path($relative);
+    }
+
+    $dir = preg_replace('#/[^/]*$#', '/', $basePath);
+    if (!is_string($dir) || $dir === '') {
+        $dir = '/';
+    }
+    return $scheme . '://' . $host . $port . normalize_url_path($dir . $relative);
+}
+
+function normalize_url_path(string $path): string
+{
+    $query = '';
+    $fragment = '';
+
+    $hashPos = strpos($path, '#');
+    if ($hashPos !== false) {
+        $fragment = substr($path, $hashPos);
+        $path = substr($path, 0, $hashPos);
+    }
+    $queryPos = strpos($path, '?');
+    if ($queryPos !== false) {
+        $query = substr($path, $queryPos);
+        $path = substr($path, 0, $queryPos);
+    }
+
+    $parts = [];
+    foreach (explode('/', str_replace('\\', '/', $path)) as $part) {
+        if ($part === '' || $part === '.') {
+            continue;
+        }
+        if ($part === '..') {
+            array_pop($parts);
+            continue;
+        }
+        $parts[] = $part;
+    }
+
+    return '/' . implode('/', $parts) . $query . $fragment;
+}
+
+function project_root(): string
+{
+    return dirname(__DIR__, 2);
+}
+
+function normalize_relative_path(string $relative): string
+{
+    return trim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $relative), DIRECTORY_SEPARATOR);
+}
+
+function build_data_path(string $relative): string
+{
+    $normalized = normalize_relative_path($relative);
+    $dataRoot = project_root() . DIRECTORY_SEPARATOR . 'data';
+    if ($normalized === '') {
+        return $dataRoot;
+    }
+    return $dataRoot . DIRECTORY_SEPARATOR . $normalized;
+}
+
+function build_work_path(string $relative): string
+{
+    $normalized = normalize_relative_path($relative);
+    $workRoot = project_root() . DIRECTORY_SEPARATOR . 'work';
+    if ($normalized === '') {
+        return $workRoot;
+    }
+    return $workRoot . DIRECTORY_SEPARATOR . $normalized;
+}
+
+function load_project_config(): array
+{
+    static $config = null;
+    if (is_array($config)) {
+        return $config;
+    }
+
+    $dataRoot = project_root() . DIRECTORY_SEPARATOR . 'data';
+    $candidates = [
+        $dataRoot . DIRECTORY_SEPARATOR . 'config.json',
+        $dataRoot . DIRECTORY_SEPARATOR . 'config.example.json',
+    ];
+    foreach ($candidates as $candidate) {
+        if (!is_file($candidate)) {
+            continue;
+        }
+
+        $decoded = json_decode((string)file_get_contents($candidate), true);
+        $config = is_array($decoded) ? $decoded : [];
+        return $config;
+    }
+
+    $config = [];
+    return $config;
+}
+
+function load_local_reiki_url_index(): array
+{
+    static $index = null;
+    if (is_array($index)) {
+        return $index;
+    }
+
+    $path = project_root() . DIRECTORY_SEPARATOR . 'work' . DIRECTORY_SEPARATOR . 'municipalities' . DIRECTORY_SEPARATOR . 'reiki_system_urls.tsv';
+    if (!is_file($path)) {
+        throw new RuntimeException("Missing local reiki URL list: {$path}");
+    }
+
+    $handle = fopen($path, 'rb');
+    if ($handle === false) {
+        throw new RuntimeException("Failed to open {$path}");
+    }
+
+    $index = [];
+    $header = fgetcsv($handle, 0, "\t");
+    if (!is_array($header)) {
+        fclose($handle);
+        return $index;
+    }
+
+    $header = array_map(
+        static fn($value): string => trim((string)$value, "\xEF\xBB\xBF \t\n\r\0\x0B"),
+        $header
+    );
+
+    while (($row = fgetcsv($handle, 0, "\t")) !== false) {
+        if (!is_array($row) || count($row) === 0) {
+            continue;
+        }
+
+        $assoc = [];
+        foreach ($header as $offset => $column) {
+            if ($column === '') {
+                continue;
+            }
+            $assoc[$column] = isset($row[$offset]) ? trim((string)$row[$offset]) : '';
+        }
+
+        $code = trim((string)($assoc['jis_code'] ?? ''));
+        if ($code === '') {
+            continue;
+        }
+        $index[$code] = $assoc;
+    }
+
+    fclose($handle);
+    return $index;
+}
+
+function load_reiki_target(string $slug, string $expectedSystem): array
+{
+    $municipalities = load_project_config()['MUNICIPALITIES'] ?? [];
+    if (!is_array($municipalities) || !is_array($municipalities[$slug] ?? null)) {
+        throw new RuntimeException("Municipality slug not found in config: {$slug}");
+    }
+
+    $entry = $municipalities[$slug];
+    $reiki = is_array($entry['reiki'] ?? null) ? $entry['reiki'] : [];
+    $code = trim((string)($entry['code'] ?? ''));
+    if ($code === '') {
+        throw new RuntimeException("Municipality code is missing for slug: {$slug}");
+    }
+
+    $urlIndex = load_local_reiki_url_index();
+    $urlEntry = $urlIndex[$code] ?? null;
+    if (!is_array($urlEntry)) {
+        throw new RuntimeException("Municipality code {$code} is missing from work/municipalities/reiki_system_urls.tsv");
+    }
+
+    $systemType = trim((string)($urlEntry['system_type'] ?? ''));
+    if ($systemType !== $expectedSystem) {
+        throw new RuntimeException(
+            "Municipality slug {$slug} uses system_type={$systemType}, expected {$expectedSystem}"
+        );
+    }
+
+    $sourceDirRelative = trim((string)($reiki['source_dir'] ?? $reiki['data_dir'] ?? "reiki/{$slug}/source"));
+    $htmlDirRelative = trim((string)($reiki['clean_html_dir'] ?? "reiki/{$slug}/html"));
+    $classificationDirRelative = trim((string)($reiki['classification_dir'] ?? "reiki/{$slug}/json"));
+    $imageDirRelative = trim((string)($reiki['image_dir'] ?? "reiki/{$slug}/images"));
+    $markdownDirRelative = trim((string)($reiki['markdown_dir'] ?? "reiki/{$slug}/markdown"));
+    $dbPathRelative = trim((string)($reiki['db_path'] ?? "reiki/{$slug}/ordinances.sqlite"));
+
+    $sourceDir = build_work_path($sourceDirRelative);
+
+    return [
+        'slug' => $slug,
+        'name' => trim((string)($entry['name'] ?? $slug)) ?: $slug,
+        'code' => $code,
+        'system_type' => $systemType,
+        'source_url' => trim((string)($urlEntry['url'] ?? '')),
+        'entry_url' => derive_taikei_entry_url(trim((string)($urlEntry['url'] ?? ''))),
+        'data_root' => build_data_path("reiki/{$slug}"),
+        'work_root' => dirname($sourceDir),
+        'source_dir' => $sourceDir,
+        'html_dir' => build_data_path($htmlDirRelative),
+        'classification_dir' => build_data_path($classificationDirRelative),
+        'image_dir' => build_data_path($imageDirRelative),
+        'markdown_dir' => build_work_path($markdownDirRelative),
+        'db_path' => build_data_path($dbPathRelative),
+    ];
+}
+
+function default_slug_for_system(string $expectedSystem): string
+{
+    $config = load_project_config();
+    $municipalities = $config['MUNICIPALITIES'] ?? [];
+    if (!is_array($municipalities) || $municipalities === []) {
+        throw new RuntimeException('No municipalities are configured.');
+    }
+
+    $urlIndex = load_local_reiki_url_index();
+    $preferredSlug = trim((string)($config['DEFAULT_SLUG'] ?? ''));
+    if ($preferredSlug !== '' && municipality_matches_system($municipalities, $urlIndex, $preferredSlug, $expectedSystem)) {
+        return $preferredSlug;
+    }
+
+    foreach (array_keys($municipalities) as $slug) {
+        if (is_string($slug) && municipality_matches_system($municipalities, $urlIndex, $slug, $expectedSystem)) {
+            return trim($slug);
+        }
+    }
+
+    throw new RuntimeException("No municipality found for system_type={$expectedSystem}");
+}
+
+function municipality_matches_system(array $municipalities, array $urlIndex, string $slug, string $expectedSystem): bool
+{
+    $entry = $municipalities[$slug] ?? null;
+    if (!is_array($entry)) {
+        return false;
+    }
+
+    $code = trim((string)($entry['code'] ?? ''));
+    if ($code === '') {
+        return false;
+    }
+
+    return trim((string)($urlIndex[$code]['system_type'] ?? '')) === $expectedSystem;
+}
+
+function derive_taikei_entry_url(string $sourceUrl): string
+{
+    $sourceUrl = trim($sourceUrl);
+    if ($sourceUrl === '') {
+        throw new RuntimeException('Missing taikei source URL.');
+    }
+
+    $path = parse_url($sourceUrl, PHP_URL_PATH);
+    if (!is_string($path) || $path === '') {
+        return resolve_url($sourceUrl, 'reiki_taikei/taikei_default.html');
+    }
+
+    $lowerPath = strtolower($path);
+    if (str_contains($lowerPath, '/reiki_taikei/')) {
+        return $sourceUrl;
+    }
+    if (
+        str_ends_with($lowerPath, '/')
+        || preg_match('#/(reiki_menu|index)\.html?$#i', $path) === 1
+    ) {
+        return resolve_url($sourceUrl, 'reiki_taikei/taikei_default.html');
+    }
+
+    return $sourceUrl;
+}
+
+function write_json_file(string $path, array $data): void
+{
+    $json = json_encode(
+        $data,
+        JSON_PRETTY_PRINT
+        | JSON_UNESCAPED_UNICODE
+        | JSON_UNESCAPED_SLASHES
+        | JSON_INVALID_UTF8_SUBSTITUTE
+    );
+    if (!is_string($json)) {
+        throw new RuntimeException('Failed to encode JSON for ' . $path . ': ' . json_last_error_msg());
+    }
+    file_put_contents($path, $json);
+}
+
+function build_ordinance_db(string $dbPath, array $records): void
+{
+    if (!class_exists(PDO::class) || !in_array('sqlite', PDO::getAvailableDrivers(), true)) {
+        fwrite(STDERR, "Warning: PDO SQLite is not available; skipped ordinance DB generation.\n");
+        return;
+    }
+
+    ensure_dir(dirname($dbPath));
+    $pdo = new PDO('sqlite:' . $dbPath);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->exec('PRAGMA journal_mode = WAL');
+    $pdo->exec('PRAGMA synchronous = NORMAL');
+
+    $pdo->exec(<<<'SQL'
+CREATE TABLE IF NOT EXISTS ordinances (
+    filename TEXT PRIMARY KEY,
+    title TEXT,
+    reading_kana TEXT,
+    sortable_kana TEXT,
+    primary_class TEXT,
+    secondary_tags TEXT,
+    necessity_score INTEGER,
+    fiscal_impact_score REAL,
+    regulatory_burden_score REAL,
+    policy_effectiveness_score REAL,
+    lens_tags TEXT,
+    lens_a_stance TEXT,
+    lens_b_stance TEXT,
+    combined_stance TEXT,
+    combined_reason TEXT,
+    document_type TEXT,
+    responsible_department TEXT,
+    reason TEXT,
+    enactment_date TEXT,
+    analyzed_at TEXT,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+)
+SQL);
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_sortable_kana ON ordinances(sortable_kana)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_class ON ordinances(primary_class)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_necessity ON ordinances(necessity_score)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_date ON ordinances(enactment_date)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_combined_stance ON ordinances(combined_stance)');
+    $pdo->exec('DELETE FROM ordinances');
+
+    $stmt = $pdo->prepare(<<<'SQL'
+INSERT INTO ordinances (
+    filename,
+    title,
+    reading_kana,
+    sortable_kana,
+    primary_class,
+    secondary_tags,
+    necessity_score,
+    fiscal_impact_score,
+    regulatory_burden_score,
+    policy_effectiveness_score,
+    lens_tags,
+    lens_a_stance,
+    lens_b_stance,
+    combined_stance,
+    combined_reason,
+    document_type,
+    responsible_department,
+    reason,
+    enactment_date,
+    analyzed_at,
+    updated_at
+) VALUES (
+    :filename,
+    :title,
+    :reading_kana,
+    :sortable_kana,
+    :primary_class,
+    :secondary_tags,
+    :necessity_score,
+    :fiscal_impact_score,
+    :regulatory_burden_score,
+    :policy_effectiveness_score,
+    :lens_tags,
+    :lens_a_stance,
+    :lens_b_stance,
+    :combined_stance,
+    :combined_reason,
+    :document_type,
+    :responsible_department,
+    :reason,
+    :enactment_date,
+    :analyzed_at,
+    :updated_at
+)
+SQL);
+
+    $updatedAt = gmdate('Y-m-d H:i:s');
+    $pdo->beginTransaction();
+    foreach ($records as $record) {
+        $sourceFile = (string)($record['source_file'] ?? '');
+        if ($sourceFile === '') {
+            continue;
+        }
+
+        $filename = pathinfo($sourceFile, PATHINFO_FILENAME);
+        $title = html_entity_decode((string)($record['title'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $date = trim((string)($record['enactment_date'] ?? ''));
+        $number = html_entity_decode((string)($record['number'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        $stmt->execute([
+            ':filename' => $filename,
+            ':title' => $title,
+            ':reading_kana' => $title,
+            ':sortable_kana' => sortable_title($title),
+            ':primary_class' => '',
+            ':secondary_tags' => '',
+            ':necessity_score' => -1,
+            ':fiscal_impact_score' => 0,
+            ':regulatory_burden_score' => 0,
+            ':policy_effectiveness_score' => 0,
+            ':lens_tags' => '',
+            ':lens_a_stance' => '',
+            ':lens_b_stance' => '',
+            ':combined_stance' => '',
+            ':combined_reason' => '',
+            ':document_type' => detect_document_type($number, $title),
+            ':responsible_department' => '',
+            ':reason' => '',
+            ':enactment_date' => $date !== '' ? $date : null,
+            ':analyzed_at' => '',
+            ':updated_at' => $updatedAt,
+        ]);
+    }
+    $pdo->commit();
+}
+
+function sortable_title(string $title): string
+{
+    $normalized = preg_replace('/\s+/u', '', trim($title));
+    return $normalized === null ? trim($title) : $normalized;
+}
+
+function detect_document_type(string $number, string $title): string
+{
+    $candidates = [$number, $title];
+    foreach ($candidates as $candidate) {
+        if (preg_match('/条例/u', $candidate)) {
+            return '条例';
+        }
+        if (preg_match('/規則/u', $candidate)) {
+            return '規則';
+        }
+        if (preg_match('/(規程|訓令)/u', $candidate)) {
+            return '規程';
+        }
+        if (preg_match('/要綱/u', $candidate)) {
+            return '要綱';
+        }
+    }
+
+    return 'その他';
+}
+
+function ensure_dir(string $path): void
+{
+    if (!is_dir($path) && !mkdir($path, 0777, true) && !is_dir($path)) {
+        throw new RuntimeException("Failed to create directory: {$path}");
+    }
+}
+
+function throttled_sleep(): void
+{
+    usleep(TAIKEI_SLEEP_USEC);
+}
+
+function h(string $value): string
+{
+    return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}

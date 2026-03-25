@@ -1,23 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from __future__ import annotations
+
 import argparse
 import csv
 import html
 import json
 import re
+import sys
 import time
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterable
-from urllib.parse import parse_qs, urljoin, urlparse
+from urllib.parse import parse_qs, unquote_to_bytes, urljoin, urlparse, urlsplit
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
+sys.path.append(str(Path(__file__).parent))
+import gijiroku_targets
 
-BASE_URL = "https://www13.gijiroku.com/kawasaki_council/"
-ROBOTS_TXT_URL = "https://www13.gijiroku.com/robots.txt"
+
 DEFAULT_WAIT_MS = 10_000
 
 
@@ -26,6 +30,7 @@ class MeetingItem:
     title: str
     url: str
     year_label: str
+    meeting_group: str | None = None
 
 
 def now_ts() -> str:
@@ -55,6 +60,72 @@ def normalize_year_dir(year_label: str) -> str:
     if not label:
         return "unknown"
     return label
+
+
+def normalize_space(value: str) -> str:
+    return re.sub(r"[ \t\u3000]+", " ", value).strip()
+
+
+def decode_query_component(value: str) -> str:
+    if not value:
+        return ""
+
+    try:
+        raw = unquote_to_bytes(value)
+    except Exception:
+        return ""
+
+    for encoding in ("cp932", "shift_jis", "utf-8"):
+        try:
+            return normalize_space(raw.decode(encoding))
+        except Exception:
+            continue
+
+    return normalize_space(raw.decode("utf-8", errors="ignore"))
+
+
+def raw_query_values(url: str) -> dict[str, list[str]]:
+    values: dict[str, list[str]] = {}
+    for part in urlsplit(url).query.split("&"):
+        if not part:
+            continue
+        key, _, value = part.partition("=")
+        values.setdefault(key, []).append(value)
+    return values
+
+
+def trim_group_label(label: str, title: str) -> str:
+    trimmed = normalize_space(label)
+    trimmed = re.sub(r"^(昭和|平成|令和)\s*[元\d０-９]+年\s*", "", trimmed)
+    title_pattern = re.escape(normalize_space(title))
+    trimmed = re.sub(rf"[｜|－-]\s*{title_pattern}$", "", trimmed).strip()
+    return normalize_space(trimmed)
+
+
+def extract_meeting_group(item_title: str, url: str) -> str | None:
+    query = raw_query_values(url)
+    title_hint = decode_query_component((query.get("TITL") or [""])[0])
+    title_subt = decode_query_component((query.get("TITL_SUBT") or [""])[0])
+
+    candidates: list[str] = []
+    if title_hint:
+        candidates.append(title_hint)
+    if title_subt:
+        trimmed = trim_group_label(title_subt, item_title)
+        if trimmed:
+            candidates.append(trimmed)
+
+    normalized_title = normalize_space(item_title)
+    for candidate in candidates:
+        if candidate and candidate != normalized_title:
+            return candidate
+    return None
+
+
+def normalize_meeting_group_dir(meeting_group: str | None) -> str:
+    if not meeting_group:
+        return ""
+    return sanitize_filename(meeting_group, "meeting")
 
 
 def safe_inner_text(locator, timeout_ms: int = 1_500) -> str:
@@ -132,14 +203,20 @@ def resolve_act203_url(request_context, act100_url: str, timeout_ms: int) -> str
 
 
 def build_parser() -> argparse.ArgumentParser:
+    default_slug = gijiroku_targets.default_slug_for_system("gijiroku.com")
     parser = argparse.ArgumentParser(
-        description="川崎市議会会議録の年別一覧を巡回し、ダウンロード可能な記録を保存します。"
+        description="gijiroku.com 系の議会会議録一覧を巡回し、ダウンロード可能な記録を保存します。"
+    )
+    parser.add_argument(
+        "--slug",
+        default=default_slug,
+        help="自治体slug。data/config.json と work/municipalities/assembly_minutes_system_urls.tsv から対象を解決します。",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("data") / "gijiroku" / "kawasaki_council",
-        help="取得データの保存先ディレクトリ",
+        default=None,
+        help="取得データの保存先ディレクトリ（未指定時は config の gijiroku.data_dir）",
     )
     parser.add_argument(
         "--headful",
@@ -177,12 +254,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def discover_meeting_items(page, timeout_ms: int) -> list[MeetingItem]:
+def discover_meeting_items(page, base_url: str, timeout_ms: int) -> list[MeetingItem]:
     meetings: list[MeetingItem] = []
     year_pages: list[tuple[str, str]] = []
 
     for section_path in ["g08v_viewh.asp", "g08v_views.asp"]:
-        section_url = urljoin(BASE_URL, section_path)
+        section_url = urljoin(base_url, section_path)
         page.goto(section_url, wait_until="domcontentloaded", timeout=timeout_ms)
         try:
             page.wait_for_load_state("networkidle", timeout=3_000)
@@ -200,8 +277,6 @@ def discover_meeting_items(page, timeout_ms: int) -> list[MeetingItem]:
             if not re.search(r"(昭和|平成|令和|20\d{2}).{0,4}年", text):
                 continue
             year_pages.append((text, urljoin(page.url, href)))
-
-    year_pages = [(label, url) for (label, url) in year_pages]
 
     for year_label, year_url in year_pages:
         try:
@@ -229,20 +304,33 @@ def discover_meeting_items(page, timeout_ms: int) -> list[MeetingItem]:
             if "voiweb.exe?ACT=100" in href and "FINO=" in href:
                 abs_href = urljoin(frame.url, href)
                 if text:
-                    meetings.append(MeetingItem(title=text, url=abs_href, year_label=year_label))
+                    meetings.append(
+                        MeetingItem(
+                            title=text,
+                            url=abs_href,
+                            year_label=year_label,
+                            meeting_group=extract_meeting_group(text, abs_href),
+                        )
+                    )
                     pending_url = ""
                 else:
                     pending_url = abs_href
                 continue
 
             if pending_url and href.startswith("javascript") and text:
-                meetings.append(MeetingItem(title=text, url=pending_url, year_label=year_label))
+                meetings.append(
+                    MeetingItem(
+                        title=text,
+                        url=pending_url,
+                        year_label=year_label,
+                        meeting_group=extract_meeting_group(text, pending_url),
+                    )
+                )
                 pending_url = ""
 
     uniq: dict[tuple[str, str], MeetingItem] = {}
     for item in meetings:
-        key = (item.title, item.url)
-        uniq[key] = item
+        uniq[(item.title, item.url)] = item
     return list(uniq.values())
 
 
@@ -254,9 +342,9 @@ def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_
         pass
 
     select_all_selectors = [
-        'text=全ての発言を選択',
-        'text=すべての発言を選択',
-        'text=全選択',
+        "text=全ての発言を選択",
+        "text=すべての発言を選択",
+        "text=全選択",
         'input[value*="全ての発言"]',
     ]
     for selector in select_all_selectors:
@@ -270,9 +358,9 @@ def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_
                 continue
 
     download_targets = [
-        'text=テキスト',
-        'text=Word',
-        'text=ワード',
+        "text=テキスト",
+        "text=Word",
+        "text=ワード",
         'a[href*="ACT=201"]',
         'a[href*="ACT=202"]',
     ]
@@ -286,8 +374,7 @@ def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_
             with page.expect_download(timeout=5_000) as dl_info:
                 locator.click(timeout=2_000)
             download = dl_info.value
-            suggested = download.suggested_filename
-            ext = Path(suggested).suffix or ".dat"
+            ext = Path(download.suggested_filename).suffix or ".dat"
             filename = sanitize_filename(item.title, "meeting") + ext
             dest = output_dir / filename
             download.save_as(str(dest))
@@ -301,15 +388,14 @@ def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_
             full_html, _ = fetch_response_text(page.context.request, act203_url, timeout_ms)
             if full_html:
                 text = html_to_text(full_html)
-                filename = sanitize_filename(item.title, "meeting") + ".txt"
-                dest = output_dir / filename
+                dest = output_dir / (sanitize_filename(item.title, "meeting") + ".txt")
                 dest.write_text(text, encoding="utf-8")
                 return "saved_text", str(dest)
     except Exception:
         pass
 
-    html = page.content()
-    direct_links = re.findall(r"(https?://[^\"'\s>]+(?:wiweb|voiweb)\.exe\?[^\"'\s>]+)", html)
+    html_content = page.content()
+    direct_links = re.findall(r"(https?://[^\"'\s>]+(?:wiweb|voiweb)\.exe\?[^\"'\s>]+)", html_content)
     for link in unique_preserve_order(direct_links):
         try:
             response = page.context.request.get(link, timeout=timeout_ms)
@@ -321,8 +407,7 @@ def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_
                     ext = ".doc"
                 elif "html" in ctype:
                     ext = ".html"
-                filename = sanitize_filename(item.title, "meeting") + ext
-                dest = output_dir / filename
+                dest = output_dir / (sanitize_filename(item.title, "meeting") + ext)
                 dest.write_bytes(content)
                 return "downloaded_direct", str(dest)
         except Exception:
@@ -331,8 +416,7 @@ def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_
     try:
         response = page.context.request.get(item.url, timeout=timeout_ms)
         if response.ok:
-            filename = sanitize_filename(item.title, "meeting") + ".html"
-            dest = output_dir / filename
+            dest = output_dir / (sanitize_filename(item.title, "meeting") + ".html")
             dest.write_bytes(response.body())
             return "saved_html", str(dest)
     except Exception:
@@ -343,21 +427,36 @@ def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_
 
 def main() -> int:
     args = build_parser().parse_args()
+    target = gijiroku_targets.load_gijiroku_target(args.slug, expected_system="gijiroku.com")
+
     if not args.ack_robots:
         print("[ERROR] robots.txt / 利用規約確認のため --ack-robots を指定してください。")
-        print(f"        robots.txt: {ROBOTS_TXT_URL}")
+        print(f"        robots.txt: {target['robots_txt_url']}")
         return 2
 
-    output_dir: Path = args.output_dir
-    downloads_dir = output_dir / "downloads"
-    pages_dir = output_dir / "pages"
+    output_dir: Path = (args.output_dir or target["data_dir"]).resolve()
+    work_dir: Path = (args.output_dir or target["work_dir"]).resolve()
+    downloads_dir = (
+        (output_dir / "downloads").resolve()
+        if args.output_dir is not None
+        else Path(target["downloads_dir"]).resolve()
+    )
+    index_json = (
+        (output_dir / "meetings_index.json").resolve()
+        if args.output_dir is not None
+        else Path(target["index_json_path"]).resolve()
+    )
+    pages_dir = work_dir / "pages"
+    result_csv = work_dir / f"run_result_{now_ts()}.csv"
+
     output_dir.mkdir(parents=True, exist_ok=True)
     downloads_dir.mkdir(parents=True, exist_ok=True)
     if args.save_html:
         pages_dir.mkdir(parents=True, exist_ok=True)
 
-    index_json = output_dir / "meetings_index.json"
-    result_csv = output_dir / f"run_result_{now_ts()}.csv"
+    print(f"[INFO] Target: {target['name']} ({target['slug']}, {target['system_type']})")
+    print(f"[INFO] Source URL: {target['source_url']}")
+    print(f"[INFO] Base URL: {target['base_url']}")
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=not args.headful)
@@ -366,9 +465,10 @@ def main() -> int:
         page.set_default_timeout(args.timeout_ms)
 
         print("[INFO] 会議一覧を収集中...")
-        meeting_items = discover_meeting_items(page, args.timeout_ms)
+        meeting_items = discover_meeting_items(page, target["base_url"], args.timeout_ms)
         print(f"[INFO] 会議候補 {len(meeting_items)} 件")
 
+        index_json.parent.mkdir(parents=True, exist_ok=True)
         index_json.write_text(
             json.dumps([asdict(item) for item in meeting_items], ensure_ascii=False, indent=2),
             encoding="utf-8",
@@ -377,9 +477,9 @@ def main() -> int:
         if args.max_meetings > 0:
             meeting_items = meeting_items[: args.max_meetings]
 
-        with result_csv.open("w", encoding="utf-8", newline="") as f:
+        with result_csv.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(
-                f,
+                handle,
                 fieldnames=["title", "year", "url", "status", "output", "error"],
             )
             writer.writeheader()
@@ -390,7 +490,10 @@ def main() -> int:
                 output_path = ""
                 error_msg = ""
                 year_dir_name = normalize_year_dir(item.year_label)
+                meeting_group_dir = normalize_meeting_group_dir(item.meeting_group)
                 meeting_download_dir = downloads_dir / year_dir_name
+                if meeting_group_dir:
+                    meeting_download_dir = meeting_download_dir / meeting_group_dir
                 meeting_download_dir.mkdir(parents=True, exist_ok=True)
                 try:
                     status, output_path = try_download_from_detail(
@@ -401,15 +504,17 @@ def main() -> int:
                     )
                     if args.save_html and status == "not_found":
                         page_year_dir = pages_dir / year_dir_name
+                        if meeting_group_dir:
+                            page_year_dir = page_year_dir / meeting_group_dir
                         page_year_dir.mkdir(parents=True, exist_ok=True)
                         html_path = page_year_dir / (sanitize_filename(item.title, "meeting") + ".html")
                         html_path.write_text(page.content(), encoding="utf-8", errors="ignore")
-                except PlaywrightTimeoutError as e:
+                except PlaywrightTimeoutError as exc:
                     status = "timeout"
-                    error_msg = str(e)
-                except Exception as e:
+                    error_msg = str(exc)
+                except Exception as exc:
                     status = "error"
-                    error_msg = str(e)
+                    error_msg = str(exc)
 
                 writer.writerow(
                     {
@@ -421,7 +526,7 @@ def main() -> int:
                         "error": error_msg,
                     }
                 )
-                f.flush()
+                handle.flush()
                 time.sleep(max(args.delay_seconds, 0))
 
         context.close()

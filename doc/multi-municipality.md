@@ -5,7 +5,7 @@
 ## 基本方針
 
 - 自治体の定義は `data/config.json` の `MUNICIPALITIES` に集約する
-- 全国自治体コードの基礎マスタは `data/japan_local_governments.tsv` を使う
+- 全国自治体コードの基礎マスタは `work/municipalities/municipality_master.tsv` を使う
 - 画面は `slug` ごとにデータ参照先を切り替える
 - 未対応機能は別自治体のデータを流用せず、「準備中」と表示する
 
@@ -19,9 +19,9 @@
 
 ```json
 {
-  "DEFAULT_SLUG": "kawasaki",
+  "DEFAULT_SLUG": "kawasaki-shi",
   "MUNICIPALITIES": {
-    "kawasaki": {
+    "kawasaki-shi": {
       "name": "川崎市",
       "boards": {
         "enabled": true,
@@ -29,16 +29,16 @@
       },
       "reiki": {
         "enabled": true,
-        "data_dir": "reiki/kawasaki",
-        "classification_dir": "reiki/kawasaki_json",
-        "db_path": "reiki/kawasaki/ordinances.sqlite",
+        "source_dir": "reiki/kawasaki-shi/source",
+        "classification_dir": "reiki/kawasaki-shi/json",
+        "db_path": "reiki/kawasaki-shi/ordinances.sqlite",
         "legacy_db_path": "reiki/ordinances.sqlite"
       },
       "gijiroku": {
         "enabled": true,
         "assembly_name": "川崎市議会",
-        "data_dir": "gijiroku/kawasaki_council",
-        "db_path": "gijiroku/kawasaki_council/minutes.sqlite"
+        "data_dir": "gijiroku/kawasaki-shi",
+        "db_path": "gijiroku/kawasaki-shi/minutes.sqlite"
       }
     }
   }

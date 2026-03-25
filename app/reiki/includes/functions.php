@@ -175,7 +175,7 @@ function resolve_record_title(array $record, array &$cache): string {
     return $title;
 }
 
-function sanitize_law_html(string $html, string $imageBaseUrl = '/data/reiki/kawasaki_images'): string
+function sanitize_law_html(string $html, string $imageBaseUrl = '/data/reiki/kawasaki-shi/images'): string
 {
     $dom = new DOMDocument();
     libxml_use_internal_errors(true);
@@ -211,9 +211,22 @@ function sanitize_law_html(string $html, string $imageBaseUrl = '/data/reiki/kaw
 
     foreach ($xpath->query('//img[@src]') as $img) {
         if ($img instanceof DOMElement) {
-            $src = $img->getAttribute('src');
-            if ($src && !preg_match('#^(https?://|//)#i', $src)) {
-                $filename = basename($src);
+            $src = str_replace('\\', '/', $img->getAttribute('src'));
+            if ($src === '' || preg_match('#^(https?://|//)#i', $src)) {
+                continue;
+            }
+
+            $filename = basename($src);
+            if ($filename === '' || strtolower($filename) === 'download_default.gif') {
+                continue;
+            }
+
+            $shouldRewrite = !str_contains($src, '/')
+                || preg_match('#^\.\./(?:[a-z0-9_-]+_images|images)/#i', $src)
+                || preg_match('#^(?:[a-z0-9_-]+_images|images)/#i', $src)
+                || preg_match('#^/data/reiki/[a-z0-9_-]+(?:/images|_images)/#i', $src);
+
+            if ($shouldRewrite) {
                 $img->setAttribute('src', rtrim($imageBaseUrl, '/') . '/' . $filename);
             }
         }
@@ -222,7 +235,7 @@ function sanitize_law_html(string $html, string $imageBaseUrl = '/data/reiki/kaw
     return $dom->saveHTML() ?: '';
 }
 
-function extract_law_content_html(string $html, string $imageBaseUrl = '/data/reiki/kawasaki_images'): string
+function extract_law_content_html(string $html, string $imageBaseUrl = '/data/reiki/kawasaki-shi/images'): string
 {
     $dom = new DOMDocument();
     libxml_use_internal_errors(true);
@@ -244,24 +257,24 @@ function extract_law_content_html(string $html, string $imageBaseUrl = '/data/re
     return '';
 }
 
-function load_classification_for_record(array $record, string $dataDir, string $classificationDir): ?array
+function load_classification_for_record(array $record, string $htmlDir, string $classificationDir): ?array
 {
-    $sourcePath = (string)($record['path'] ?? '');
-    if ($sourcePath === '') {
+    $htmlPath = (string)($record['path'] ?? '');
+    if ($htmlPath === '') {
         return null;
     }
-    $sourceReal = realpath($sourcePath);
-    $dataReal = realpath($dataDir);
-    if ($sourceReal === false || $dataReal === false) {
-        return null;
-    }
-
-    $prefix = rtrim($dataReal, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-    if (!str_starts_with($sourceReal, $prefix)) {
+    $htmlReal = realpath($htmlPath);
+    $baseReal = realpath($htmlDir);
+    if ($htmlReal === false || $baseReal === false) {
         return null;
     }
 
-    $relative = substr($sourceReal, strlen($prefix));
+    $prefix = rtrim($baseReal, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    if (!str_starts_with($htmlReal, $prefix)) {
+        return null;
+    }
+
+    $relative = substr($htmlReal, strlen($prefix));
     if ($relative === false || $relative === '') {
         return null;
     }

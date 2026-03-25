@@ -34,8 +34,8 @@ python tools/boards/init_db.py <slug>
 
 使用例:
 ```bash
-# 川崎市 (tools/boards/data/kawasaki/data.tsv を使用)
-python tools/boards/init_db.py kawasaki
+# 川崎市 (tools/boards/data/kawasaki-shi/data.tsv を使用)
+python tools/boards/init_db.py kawasaki-shi
 ```
 
 作成されるファイル:
@@ -53,7 +53,7 @@ python tools/boards/import_tsv.py <slug>
 
 使用例:
 ```bash
-python tools/boards/import_tsv.py kawasaki
+python tools/boards/import_tsv.py kawasaki-shi
 ```
 
 ### 3. ジオコーディング (geocode_boards.py)

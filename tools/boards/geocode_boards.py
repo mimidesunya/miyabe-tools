@@ -4,6 +4,9 @@
 掲示板データ（TSV）に緯度経度を付加するプログラム
 Google Maps Geocoding APIを使用します。
 
+注: convert_kmz.py --geocode で KMZ変換時にまとめてジオコーディングできます。
+    本スクリプトは既存TSVに対して後からジオコーディングする場合に使います。
+
 使用方法:
 1. data/config.json に GOOGLE_MAPS_API_KEY を設定してください。
 2. python tools/boards/geocode_boards.py <入力TSV> <住所プレフィックス>

@@ -27,29 +27,65 @@
 
 代表的な構成:
 
-- ダウンロード済み会議録: `data/gijiroku/{municipality_dir}/downloads`
-- 収集結果一覧: `data/gijiroku/{municipality_dir}/meetings_index.json`
-- 検索DB: `data/gijiroku/{municipality_dir}/minutes.sqlite`
+本番データ (`data/`):
 
-`municipality_dir` は `slug` と同じでも、`kawasaki_council` のような別名でも構いません。実際の参照先は設定で決まります。
+- 検索DB: `data/gijiroku/{slug}/minutes.sqlite`
+
+ローカル作業データ (`work/`):
+
+- ダウンロード済み会議録: `work/gijiroku/{slug}/downloads`
+  - 例: `downloads/{year_label}/{meeting_name}/{title}.txt`
+- 収集結果一覧: `work/gijiroku/{slug}/meetings_index.json`
+- デバッグ用ページ: `work/gijiroku/{slug}/pages`
+- 収集結果CSV: `work/gijiroku/{slug}/run_result_*.csv`
+
+実際の参照先は設定で決まります。
 
 ## 関連スクリプト
 
-Kawasaki 向けのスクレイパ:
+現状のスクレイパ:
+
+- `tools/gijiroku/scrape_gijiroku_com.py`
+- `tools/gijiroku/scrape_kaigiroku_net.py`
+
+`work/municipalities/assembly_minutes_system_urls.tsv` の `system_type` に合わせて命名しています。現時点で実装済みなのは `gijiroku.com` 系と `kaigiroku.net` 系です。
 
 ```bash
-python tools/gijiroku/scrape_kawasaki_minutes.py --ack-robots
+python tools/gijiroku/scrape_gijiroku_com.py --slug kawasaki-shi --ack-robots
+```
+
+```bash
+python tools/gijiroku/scrape_kaigiroku_net.py --slug hakodate-01202 --ack-robots
+```
+
+`gijiroku.com` を使う自治体を全国一括で回したい場合:
+
+```bash
+python tools/gijiroku/scrape_all_gijiroku_com.py --ack-robots
+```
+
+まず 5 自治体を並列で回し、親プロセス側に進捗を表示する場合:
+
+```bash
+python tools/gijiroku/scrape_all_gijiroku_com.py --ack-robots --max-targets 5 --parallel 5
+```
+
+既存データの整理:
+
+```bash
+php tools/gijiroku/organize_minutes_data.php --slug kawasaki-shi
 ```
 
 全文検索 DB の生成:
 
 ```bash
-python tools/gijiroku/build_minutes_index.py --slug kawasaki
+python tools/gijiroku/build_minutes_index.py --slug kawasaki-shi
 ```
 
 `--slug` を付けると、`data/config.json` から対象自治体の出力先を解決します。
 
 ## メモ
 
-- スクレイパ自体は自治体ごとのサイト構造差分が大きいため、現時点では川崎市向けスクリプトを維持しています。
+- スクレイパは system_type ごとに分けています。自治体ごとの構造差分が大きい場合は、今後も system_type 単位で追加します。
 - 一方で、Web 画面と SQLite インデクサは自治体単位の切り替えを前提に整理しています。
+- `run_result_*.csv` や空の `pages/` は調査用の一時成果物なので、確認後に整理して構いません。

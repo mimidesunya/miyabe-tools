@@ -1,13 +1,11 @@
 
-# Local config
+# Production data (deployed to remote)
 /data/*
 !/data/config.example.json
-!/data/japan_local_governments.tsv
-!/data/kyoto_poster_board_urls.csv
-!/data/local_assembly_minutes_urls.tsv
-!/data/local_government_homepages.csv
-!/data/local_reiki_urls.tsv
 deploy.json
+
+# Local working data (scraping outputs, intermediate files)
+/work/
 
 # KMZ map files
 /kmzs/
@@ -15,6 +13,10 @@ deploy.json
 # Runtime
 /logs/
 /.venv/
+/.venv*/
 /.claude/
 __pycache__/
 *.py[cod]
+
+# Temporary files
+tmp_*.html

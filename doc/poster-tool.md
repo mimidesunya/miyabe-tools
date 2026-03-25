@@ -11,17 +11,19 @@
 
 例:
 
-- `/boards/kawasaki/`
-- `/boards/higashikurume/`
+- `/boards/kawasaki-shi/`
+- `/boards/higashikurume-shi/`
 
 ## データ構成
 
 - 掲示場マスタ: `data/boards/{slug}/boards.sqlite`
-- タスク状態: `data/boards/{slug}/tasks.sqlite`
+- タスク状態: `data/boards/{slug}/tasks.sqlite` (リモートでのみ作成)
 - 共通ユーザーDB: `data/users.sqlite`
 - 初期TSV: `tools/boards/data/{slug}/data.tsv`
 
-`users.sqlite` は全自治体で共有、`boards.sqlite` / `tasks.sqlite` は自治体ごとに分離されます。
+`users.sqlite` は全自治体で共有、`boards.sqlite` / `tasks.sqlite` は自治体ごとに分離されます。  
+`tasks.sqlite` はリモートサーバー上でのみ生成され、デプロイ時に転送・削除されません（rsync exclude）。  
+`boards.sqlite` もデプロイ時は転送されません。初回のみ手動で配置してください。
 
 ## 設定
 
@@ -36,14 +38,14 @@
 ## 初期化
 
 ```bash
-python tools/boards/init_db.py kawasaki
+python tools/boards/init_db.py kawasaki-shi
 python tools/boards/init_users_db.py
 ```
 
 TSV だけ更新したい場合:
 
 ```bash
-python tools/boards/import_tsv.py kawasaki
+python tools/boards/import_tsv.py kawasaki-shi
 ```
 
 ## メモ

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Initialize ordinance database from JSON metadata files.
-Creates data/reiki/ordinances.sqlite
+Creates data/reiki/{slug}/ordinances.sqlite
 """
 import argparse
 import html
@@ -36,7 +36,7 @@ def default_slug(root: Path) -> str:
         first = next(iter(municipalities.keys()), "")
         if isinstance(first, str):
             return first.strip()
-    return "kawasaki"
+    return ""
 
 def municipality_reiki_paths(root: Path, slug: str) -> tuple[Path, Path, Path]:
     config = load_config(root)
@@ -46,14 +46,9 @@ def municipality_reiki_paths(root: Path, slug: str) -> tuple[Path, Path, Path]:
     if not isinstance(feature, dict):
         feature = {}
 
-    if slug == "kawasaki":
-        default_json_dir = "reiki/kawasaki_json"
-        default_clean_html = "reiki/kawasaki_html"
-        default_db = "reiki/ordinances.sqlite"
-    else:
-        default_json_dir = f"reiki/{slug}_json"
-        default_clean_html = f"reiki/{slug}_html"
-        default_db = f"reiki/{slug}/ordinances.sqlite"
+    default_json_dir = f"reiki/{slug}/json"
+    default_clean_html = f"reiki/{slug}/html"
+    default_db = f"reiki/{slug}/ordinances.sqlite"
 
     json_dir_rel = str(feature.get("classification_dir", default_json_dir)).strip()
     clean_html_rel = str(feature.get("clean_html_dir", default_clean_html)).strip()
@@ -76,8 +71,6 @@ def sortable_prefixes(root: Path, slug: str) -> list[str]:
             values = [str(v).strip() for v in raw if str(v).strip()]
             if values:
                 return values
-    if slug == "kawasaki":
-        return ["かわさきし", "かわさき"]
     return []
 
 def normalize_kana(kana, prefixes=None):
@@ -232,9 +225,11 @@ def init_db(root: Path, slug: str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="自治体ごとの例規 JSON から SQLite を初期化します。")
-    parser.add_argument("--slug", default=None, help="自治体slug。未指定時は config の DEFAULT_SLUG を使います。")
+    parser.add_argument("--slug", default=None, help="自治体slug。未指定時は config の DEFAULT_SLUG または先頭の自治体を使います。")
     args = parser.parse_args()
 
     root = project_root()
     slug = (args.slug or default_slug(root)).strip()
+    if slug == "":
+        raise SystemExit("自治体 slug を決定できませんでした。--slug を指定してください。")
     init_db(root, slug)

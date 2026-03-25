@@ -17,12 +17,12 @@ from google.genai import types
 from openai import OpenAI
 from anthropic import Anthropic
 
+sys.path.append(str(Path(__file__).parent))
+import reiki_targets
+
 
 WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_PATH = WORKSPACE_ROOT / "data" / "config.json"
-DEFAULT_INPUT_DIR = WORKSPACE_ROOT / "data" / "reiki" / "kawasaki"
-DEFAULT_MARKDOWN_DIR = WORKSPACE_ROOT / "data" / "reiki" / "kawasaki_md"
-DEFAULT_OUTPUT_DIR = WORKSPACE_ROOT / "data" / "reiki" / "kawasaki_json"
 
 ALLOWED_PRIMARY_CLASSES = {
     "A_法定必須_維持前提",
@@ -101,13 +101,16 @@ class ClaudeConfig:
 
 
 def parse_args() -> argparse.Namespace:
+    default_slug = reiki_targets.default_slug_for_system()
     parser = argparse.ArgumentParser(
         description="例規（条例・規則・要項）をGemini/OpenAIで政策アクション指向に分類・評価します"
     )
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH, help="設定JSONのパス")
+    parser.add_argument("--slug", type=str, default=default_slug, help="data/config.json 上の自治体 slug")
     parser.add_argument("--limit", type=int, default=0, help="分析件数の上限（0は無制限）")
-    parser.add_argument("--markdown-dir", type=Path, default=DEFAULT_MARKDOWN_DIR, help="Markdown入力ディレクトリ（存在時はMDを優先）")
-    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR, help="例規ごとのJSON出力先ディレクトリ")
+    parser.add_argument("--input-dir", type=Path, default=None, help="元HTML入力ディレクトリ（未指定時は slug から自動決定）")
+    parser.add_argument("--markdown-dir", type=Path, default=None, help="Markdown入力ディレクトリ（未指定時は slug から自動決定）")
+    parser.add_argument("--output-dir", type=Path, default=None, help="例規ごとのJSON出力先ディレクトリ（未指定時は slug から自動決定）")
     parser.add_argument("--min-confidence", type=float, default=0.70, help="要確認判定のしきい値")
     parser.add_argument("--max-chars", type=int, default=30000, help="AIへ渡す最大文字数")
     parser.add_argument("--provider", type=str, default="gemini", choices=["gemini", "openai", "claude"], help="使用するAIプロバイダー")
@@ -839,7 +842,10 @@ def call_claude_single(cfg: ClaudeConfig, prompt: str) -> Dict[str, Any]:
 def main() -> int:
     args = parse_args()
 
-    input_dir = DEFAULT_INPUT_DIR.resolve()
+    target = reiki_targets.load_reiki_target(args.slug)
+    input_dir = (args.input_dir or target["source_dir"]).resolve()
+    markdown_dir = (args.markdown_dir or target["markdown_dir"]).resolve()
+    output_dir = (args.output_dir or target["classification_dir"]).resolve()
     if not input_dir.exists():
         print(f"Input directory not found: {input_dir}")
         return 1
@@ -873,25 +879,23 @@ def main() -> int:
         openai_cfg = None
         gemini_cfg = None
 
-    markdown_dir = args.markdown_dir.resolve()
     doc_items: List[Dict[str, Any]] = []
     skipped_count = 0
     
     for file_path in files:
         # Check if output already exists to skip
-        # Note: file_path is absolute path e.g. F:\...\data\reiki\kawasaki\H213902500001_j.html
+        # Note: file_path is absolute path under the selected municipality's reiki source dir.
         # We need to map it to output path to check existence
         try:
-             rel_path = file_path.relative_to(input_dir)
-             target_json = (args.output_dir / rel_path).with_suffix(".json")
-             if target_json.exists():
-                 # Load existing to maybe check validity? For now just skip.
-                 skipped_count += 1
-                 if skipped_count % 100 == 0:
-                     print(f"Skipping existing: {skipped_count} files...", end='\r')
-                 continue
+            rel_path = file_path.relative_to(input_dir)
+            target_json = (output_dir / rel_path).with_suffix(".json")
+            if target_json.exists():
+                skipped_count += 1
+                if skipped_count % 100 == 0:
+                    print(f"Skipping existing: {skipped_count} files...", end='\r')
+                continue
         except Exception:
-             pass
+            pass
 
         raw_text = read_text_auto(file_path)
         try:
@@ -975,7 +979,7 @@ def main() -> int:
             }
             
             # Write immediately after each file is processed
-            write_per_file_outputs([row], args.output_dir.resolve(), input_dir)
+            write_per_file_outputs([row], output_dir, input_dir)
             analyzed += 1
             print(f"  [{i + 1}/{len(doc_items)}] {item['fileName']} OK (analyzed={analyzed}, failed={failed})")
 
@@ -985,7 +989,7 @@ def main() -> int:
 
     print("Done.")
     print(f" analyzed={analyzed}, failed={failed}")
-    print(f" per-file-json-dir={args.output_dir.resolve()}")
+    print(f" per-file-json-dir={output_dir}")
     return 0 if failed == 0 else 2
 
 

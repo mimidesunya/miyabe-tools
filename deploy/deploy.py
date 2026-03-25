@@ -84,12 +84,12 @@ def ssh_copy_content(config, content, remote_path):
         print(f"Error in ssh_copy_content: {e}")
         sys.exit(1)
 
-def sync_files(config, dest_dir):
+def sync_files(config, dest_dir, dry_run=False):
     """Syncs app, lib, nginx, and data directories to remote."""
     print("=== Syncing Code and Config Files ===")
     
     # Ensure remote directories exist
-    ssh_exec(config, f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/nginx {dest_dir}/data/reiki {dest_dir}/data/gijiroku")
+    ssh_exec(config, f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/nginx {dest_dir}/data/reiki {dest_dir}/data/gijiroku {dest_dir}/data/boards")
 
     # Use rsync for better handling of large number of files
     # Note: rsync over ssh is more reliable for large directories
@@ -105,10 +105,17 @@ def sync_files(config, dest_dir):
         ("data/boards/", f"{dest_dir}/data/boards/"),
     ]
     
-    # Files that should never be deleted on remote (e.g. user-generated data)
-    rsync_excludes = {
-        "data/reiki/": ["feedback.sqlite"],
-        "data/boards/": ["tasks.sqlite"],
+    # Rsync filters per sync directory.
+    # - "protect:<pattern>": protect from --delete on remote
+    # - "exclude:<pattern>": never transfer, never delete
+    rsync_filters = {
+        "data/reiki/": [
+            "protect:feedback.sqlite",   # server-created: user votes
+        ],
+        "data/boards/": [
+            "exclude:tasks.sqlite",      # server-created: task progress
+            "protect:boards.sqlite",     # prevent --delete; normal transfer/overwrite OK
+        ],
     }
 
     # Sync data/config.json separately (rsync only handles directories above)
@@ -122,10 +129,17 @@ def sync_files(config, dest_dir):
         # -v: verbose
         # -z: compress during transfer
         # --delete: remove files on remote that don't exist locally
-        exclude_opts = ""
-        for pattern in rsync_excludes.get(local_path, []):
-            exclude_opts += f" --exclude='{pattern}'"
-        rsync_cmd = f"rsync -avz --delete{exclude_opts} -e '{ssh_base}' {local_path} {config['user']}@{config['host']}:{remote_path}"
+        filter_opts = ""
+        for rule in rsync_filters.get(local_path, []):
+            kind, pattern = rule.split(":", 1)
+            if kind == "protect":
+                # Protect from --delete, but still transfer if exists locally
+                filter_opts += f" --filter='P {pattern}'"
+            elif kind == "exclude":
+                # Never transfer, never delete (dev-only files)
+                filter_opts += f" --exclude='{pattern}'"
+        dry_flag = " --dry-run" if dry_run else ""
+        rsync_cmd = f"rsync -avz --delete{dry_flag}{filter_opts} -e '{ssh_base}' {local_path} {config['user']}@{config['host']}:{remote_path}"
         run_command(rsync_cmd, capture_output=False)
     
     print("Sync complete.")
@@ -134,6 +148,7 @@ def main():
     parser = argparse.ArgumentParser(description='Deploy script.')
     parser.add_argument('config_file', help='Path to configuration JSON file')
     parser.add_argument('--full', action='store_true', help='Perform full deployment including Docker build and push. Default is code-only sync.')
+    parser.add_argument('--dry-run', action='store_true', help='Show what would be synced without actually transferring files.')
     
     args = parser.parse_args()
 
@@ -168,7 +183,7 @@ def main():
     ssh_exec(config, f"mkdir -p {dest_dir}/data")
     
     # Always sync code now, to support volume mounts
-    sync_files(config, dest_dir)
+    sync_files(config, dest_dir, dry_run=args.dry_run)
 
     # Generate docker-compose.prod.yml
     # We mount app and lib to allow code updates without image rebuild

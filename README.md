@@ -38,6 +38,6 @@
 ## 公開中のWeb画面
 
 - トップ: https://tools.miya.be/
-- 川崎市ポスター掲示場: https://tools.miya.be/boards/kawasaki/
-- 川崎市例規集 AI評価ビューア: https://tools.miya.be/reiki/?slug=kawasaki
-- 川崎市議会 会議録 全文検索: https://tools.miya.be/gijiroku/?slug=kawasaki
+- 川崎市ポスター掲示場: https://tools.miya.be/boards/kawasaki-shi/
+- 川崎市例規集 AI評価ビューア: https://tools.miya.be/reiki/?slug=kawasaki-shi
+- 川崎市議会 会議録 全文検索: https://tools.miya.be/gijiroku/?slug=kawasaki-shi

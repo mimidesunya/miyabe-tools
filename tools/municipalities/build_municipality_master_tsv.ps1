@@ -1,7 +1,7 @@
 param(
     [string]$SourceUrl = 'https://www.gsi.go.jp/KOKUJYOHO/MENCHO/backnumber/R7_10_mencho.csv',
     [string]$SourceCsvPath,
-    [string]$OutFile = (Join-Path $PSScriptRoot '..\..\data\japan_local_governments.tsv')
+    [string]$OutFile = (Join-Path $PSScriptRoot '..\..\data\municipalities\municipality_master.tsv')
 )
 
 Set-StrictMode -Version Latest

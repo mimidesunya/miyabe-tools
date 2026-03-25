@@ -72,6 +72,7 @@ function open_users_pdo(): PDO {
  * 掲示場データベースをオープンする
  */
 function open_boards_pdo(string $slug): PDO {
+    $slug = canonical_municipality_slug($slug);
     return open_pdo(data_path("boards/{$slug}/boards.sqlite"));
 }
 
@@ -79,6 +80,7 @@ function open_boards_pdo(string $slug): PDO {
  * タスクデータベースをオープンし、ユーザーDBをアタッチする
  */
 function open_tasks_pdo(string $slug): PDO {
+    $slug = canonical_municipality_slug($slug);
     $pdo = open_pdo(data_path("boards/{$slug}/tasks.sqlite"));
     $usersPath = data_path('users.sqlite');
     if (file_exists($usersPath)) {
@@ -93,6 +95,7 @@ function open_tasks_pdo(string $slug): PDO {
  * tasks.sqlite が存在しない場合は自動的に作成する
  */
 function open_boards_with_tasks_pdo(string $slug): PDO {
+    $slug = canonical_municipality_slug($slug);
     $pdo = open_boards_pdo($slug);
 
     $tasksPath = data_path("boards/{$slug}/tasks.sqlite");

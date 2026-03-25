@@ -20,11 +20,10 @@ if ($municipality === null) {
 $reikiFeature = municipality_feature($slug, 'reiki') ?? [];
 $featureAvailable = (bool)($reikiFeature['enabled'] ?? false);
 $switcherItems = municipality_switcher_items('reiki');
-$dataDir = (string)($reikiFeature['data_dir'] ?? '');
 $cleanHtmlDir = (string)($reikiFeature['clean_html_dir'] ?? '');
 $classificationDir = (string)($reikiFeature['classification_dir'] ?? '');
 $dbPath = (string)($reikiFeature['db_path'] ?? '');
-$reikiImageUrl = (string)($reikiFeature['image_url'] ?? '/data/reiki/kawasaki_images');
+$reikiImageUrl = (string)($reikiFeature['image_url'] ?? '/data/reiki/kawasaki-shi/images');
 $pageTitle = (string)($reikiFeature['title'] ?? ($municipality['name'] . '例規集 AI評価ビューア'));
 $clearUrl = '/reiki/?slug=' . rawurlencode($slug);
 $featureNotice = $featureAvailable ? '' : ($municipality['name'] . 'の例規集は準備中です。');
@@ -175,7 +174,7 @@ if ($pdo) {
         $name = $row['filename'] . '.html';
         $records[] = [
             'name' => $name,
-            'path' => $dataDir . DIRECTORY_SEPARATOR . $name,
+            'path' => $cleanHtmlDir . DIRECTORY_SEPARATOR . $name,
             'mtime' => strtotime($row['updated_at']), 
             'title' => decode_html_text((string)($row['title'] ?? '')),
             'reading_kana' => $row['reading_kana'],
@@ -191,9 +190,9 @@ if ($pdo) {
     }
 } else {
     // Fallback to file scanning (Legacy)
-    if ($featureAvailable && is_dir($dataDir)) {
+    if ($featureAvailable && is_dir($cleanHtmlDir)) {
         $it = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($dataDir, FilesystemIterator::SKIP_DOTS)
+            new RecursiveDirectoryIterator($cleanHtmlDir, FilesystemIterator::SKIP_DOTS)
         );
         foreach ($it as $entry) {
             if (!$entry instanceof SplFileInfo || !$entry->isFile()) {
@@ -232,7 +231,7 @@ if ($file !== '') {
     if ($selectedRecord === null) {
         $selectedRecord = [
             'name' => $file,
-            'path' => $dataDir . DIRECTORY_SEPARATOR . $file,
+            'path' => $cleanHtmlDir . DIRECTORY_SEPARATOR . $file,
         ];
     }
 }
@@ -285,18 +284,13 @@ if ($selectedRecord !== null) {
         if (preg_match('/<div class="law-title">([^<]+)<\/div>/', $selectedContentHtml, $m)) {
             $selectedTitle = decode_html_text($m[1]);
         }
-    } else {
-        $selectedHtml = read_text_auto($selectedRecord['path']);
-        $selectedTitle = extract_title($selectedHtml, $selectedRecord['name']);
-        $selectedContentHtml = extract_law_content_html($selectedHtml, $reikiImageUrl);
     }
     
-    if (empty($selectedText)) {
-        $selectedHtml = $selectedHtml ?: read_text_auto($selectedRecord['path']);
-        $selectedText = normalize_text($selectedHtml);
+    if (empty($selectedText) && is_file($cleanHtmlPath)) {
+        $selectedText = normalize_text(read_text_auto($cleanHtmlPath));
     }
     
-    $selectedClassification = load_classification_for_record($selectedRecord, $dataDir, $classificationDir);
+    $selectedClassification = load_classification_for_record($selectedRecord, $cleanHtmlDir, $classificationDir);
 }
 
 foreach ($pagedRecords as $record) {

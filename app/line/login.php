@@ -14,7 +14,7 @@ if (!$clientId || !$redirectUri) {
 // クエリパラメータまたは Referer ヘッダーからスラッグを抽出
 $slug = $_GET['slug'] ?? '';
 if (!$slug && isset($_SERVER['HTTP_REFERER'])) {
-    // /boards/kawasaki/ のようなリファラー URL からスラッグの抽出を試みる
+    // /boards/kawasaki-shi/ のようなリファラー URL からスラッグの抽出を試みる
     if (preg_match('#/boards/([a-z0-9_-]+)/?#', $_SERVER['HTTP_REFERER'], $m)) {
         $slug = $m[1];
     }

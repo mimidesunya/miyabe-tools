@@ -1,10 +1,10 @@
 param(
-    [string]$MasterTsv = (Join-Path $PSScriptRoot '..\..\data\japan_local_governments.tsv'),
+    [string]$MasterTsv = (Join-Path $PSScriptRoot '..\..\data\municipalities\municipality_master.tsv'),
     [string]$MunicipalitySourceUrl = 'https://raw.githubusercontent.com/code4fukui/localgovjp/master/localgovjp-utf8.csv',
     [string]$PrefectureSourceUrl = 'https://raw.githubusercontent.com/code4fukui/localgovjp/master/prefjp-utf8.csv',
     [string]$MunicipalitySourceCsvPath,
     [string]$PrefectureSourceCsvPath,
-    [string]$OutFile = (Join-Path $PSScriptRoot '..\..\data\local_government_homepages.csv')
+    [string]$OutFile = (Join-Path $PSScriptRoot '..\..\data\municipalities\municipality_homepages.csv')
 )
 
 Set-StrictMode -Version Latest

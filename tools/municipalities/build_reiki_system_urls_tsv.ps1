@@ -1,7 +1,7 @@
 param(
-    [string]$MasterTsv = (Join-Path $PSScriptRoot '..\..\data\japan_local_governments.tsv'),
-    [string]$OutFile = (Join-Path $PSScriptRoot '..\..\data\local_reiki_urls.tsv'),
-    [string]$HomepageCsv = (Join-Path $PSScriptRoot '..\..\data\local_government_homepages.csv'),
+    [string]$MasterTsv = (Join-Path $PSScriptRoot '..\..\data\municipalities\municipality_master.tsv'),
+    [string]$OutFile = (Join-Path $PSScriptRoot '..\..\data\municipalities\reiki_system_urls.tsv'),
+    [string]$HomepageCsv = (Join-Path $PSScriptRoot '..\..\data\municipalities\municipality_homepages.csv'),
     [string]$IndexUrl = 'https://www.rilg.or.jp/htdocs/main/zenkoku_reiki/zenkoku_Link.html',
     [int]$DelayMilliseconds = 150
 )
