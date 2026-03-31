@@ -52,6 +52,21 @@ def load_municipality_master_index() -> dict[str, dict[str, str]]:
     return index
 
 
+def load_municipality_homepage_index() -> dict[str, str]:
+    index: dict[str, str] = {}
+    path = WORKSPACE_ROOT / "work" / "municipalities" / "municipality_homepages.csv"
+    with open(path, "r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            if not isinstance(row, dict):
+                continue
+            code = str(row.get("jis_code", "")).strip()
+            url = str(row.get("url", "")).strip()
+            if code and url and code not in index:
+                index[code] = url
+    return index
+
+
 def load_local_minutes_url_index() -> dict[str, dict[str, str]]:
     index: dict[str, dict[str, str]] = {}
     path = WORKSPACE_ROOT / "work" / "municipalities" / "assembly_minutes_system_urls.tsv"
@@ -105,6 +120,20 @@ def sanitize_slug_token(value: str) -> str:
     return token
 
 
+def homepage_slug_token(homepage_url: str) -> str:
+    host = (urlsplit(homepage_url).hostname or "").lower().strip(".")
+    labels = [label for label in host.split(".") if label]
+    while labels and re.fullmatch(r"www\d*", labels[0]):
+        labels = labels[1:]
+    if not labels:
+        return ""
+
+    generic_labels = {"city", "town", "village", "vill", "pref", "metro", "lg", "gov"}
+    if len(labels) >= 2 and labels[0] in generic_labels:
+        return sanitize_slug_token(labels[1])
+    return sanitize_slug_token(labels[0])
+
+
 def kaigiroku_tenant_slug_token(source_url: str) -> str:
     parts = urlsplit(source_url)
     path_parts = [part for part in parts.path.split("/") if part]
@@ -113,16 +142,53 @@ def kaigiroku_tenant_slug_token(source_url: str) -> str:
     return ""
 
 
-def fallback_slug_for_minutes(code: str, source_url: str) -> str:
+def dbsr_host_slug_token(source_url: str) -> str:
+    host = (urlsplit(source_url).hostname or "").lower().strip(".")
+    if not host.endswith(".dbsr.jp"):
+        return ""
+
+    labels = [label for label in host.split(".") if label]
+    if len(labels) < 3:
+        return ""
+
+    core = labels[:-2]
+    while core and re.fullmatch(r"www\d*", core[0]):
+        core = core[1:]
+    if not core:
+        return ""
+
+    if core[0] in {"city", "town", "village", "pref", "ward"} and len(core) >= 2:
+        return sanitize_slug_token(core[1])
+    return sanitize_slug_token(core[0])
+
+
+def preferred_slug_token(
+    code: str,
+    source_url: str,
+    homepage_url: str = "",
+) -> str:
+    homepage_token = homepage_slug_token(homepage_url)
+    if homepage_token:
+        return homepage_token
+
     tenant_token = kaigiroku_tenant_slug_token(source_url)
     if tenant_token:
-        return f"{tenant_token}-{code}"
+        return tenant_token
+
+    dbsr_token = dbsr_host_slug_token(source_url)
+    if dbsr_token:
+        return dbsr_token
 
     host = (urlsplit(source_url).hostname or "").lower()
     host_label = sanitize_slug_token(host.split(".", 1)[0])
     if host_label == "" or re.fullmatch(r"www\d*", host_label):
-        return f"jis-{code}"
-    return f"{host_label}-{code}"
+        return "jis"
+    return host_label
+
+
+def fallback_slug_for_minutes(code: str, source_url: str, homepage_url: str = "") -> str:
+    token = preferred_slug_token(code, source_url, homepage_url)
+    return f"{token}-{code}"
 
 
 def build_target_entry(
@@ -174,6 +240,7 @@ def iter_gijiroku_targets(expected_system: str | None = None, configured_only: b
     municipalities = load_configured_municipalities()
     url_index = load_local_minutes_url_index()
     master_index = load_municipality_master_index()
+    homepage_index = load_municipality_homepage_index()
     slugs_by_code = configured_slug_by_code()
     targets: list[dict] = []
     seen_codes: set[str] = set()
@@ -194,7 +261,7 @@ def iter_gijiroku_targets(expected_system: str | None = None, configured_only: b
         else:
             if configured_only:
                 continue
-            slug = fallback_slug_for_minutes(code, source_url)
+            slug = fallback_slug_for_minutes(code, source_url, homepage_index.get(code, ""))
             municipality_entry = None
 
         master_entry = master_index.get(code)

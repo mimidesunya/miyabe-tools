@@ -38,7 +38,11 @@ try {
         $params = [];
 
         if ($selectedStatus !== '') {
-            $whereParts[] = 'ts.status = :status';
+            if ($selectedStatus === 'pending') {
+                $whereParts[] = '(ts.status = :status OR ts.status IS NULL)';
+            } else {
+                $whereParts[] = 'ts.status = :status';
+            }
             $params[':status'] = $selectedStatus;
         }
 
@@ -66,7 +70,7 @@ try {
         $sql = "SELECT b.code,
                        b.address,
                        b.place,
-                       ts.status,
+                       COALESCE(ts.status, 'pending') AS status,
                        ts.updated_at
                   FROM boards b
              LEFT JOIN tasks.task_status ts

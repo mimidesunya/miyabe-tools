@@ -47,8 +47,9 @@
 
 - `tools/gijiroku/scrape_gijiroku_com.py`
 - `tools/gijiroku/scrape_kaigiroku_net.py`
+- `tools/gijiroku/scrape_dbsr.py`
 
-`work/municipalities/assembly_minutes_system_urls.tsv` の `system_type` に合わせて命名しています。現時点で実装済みなのは `gijiroku.com` 系と `kaigiroku.net` 系です。
+`work/municipalities/assembly_minutes_system_urls.tsv` の `system_type` に合わせて命名しています。現時点で実装済みなのは `gijiroku.com` 系、`kaigiroku.net` 系、`dbsr` 系です。
 
 ```bash
 python tools/gijiroku/scrape_gijiroku_com.py --slug kawasaki-shi --ack-robots
@@ -56,6 +57,10 @@ python tools/gijiroku/scrape_gijiroku_com.py --slug kawasaki-shi --ack-robots
 
 ```bash
 python tools/gijiroku/scrape_kaigiroku_net.py --slug hakodate-01202 --ack-robots
+```
+
+```bash
+python tools/gijiroku/scrape_dbsr.py --slug hino-shi --ack-robots
 ```
 
 `gijiroku.com` を使う自治体を全国一括で回したい場合:
@@ -87,5 +92,6 @@ python tools/gijiroku/build_minutes_index.py --slug kawasaki-shi
 ## メモ
 
 - スクレイパは system_type ごとに分けています。自治体ごとの構造差分が大きい場合は、今後も system_type 単位で追加します。
+- `dbsr` 系は年別一覧から `Template=list` をたどり、検索結果一覧のページ送りを巡回して日付単位の本文テキストを保存します。
 - 一方で、Web 画面と SQLite インデクサは自治体単位の切り替えを前提に整理しています。
 - `run_result_*.csv` や空の `pages/` は調査用の一時成果物なので、確認後に整理して構いません。

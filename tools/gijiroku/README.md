@@ -37,6 +37,13 @@ python tools/gijiroku/scrape_kaigiroku_net.py \
   --max-meetings 10
 ```
 
+```bash
+python tools/gijiroku/scrape_dbsr.py \
+  --slug hino-shi \
+  --ack-robots \
+  --max-meetings 10
+```
+
 `gijiroku.com` を全件取得（時間がかかります）:
 
 ```bash
@@ -117,3 +124,6 @@ php tools/gijiroku/organize_minutes_data.php --slug kawasaki-shi
 その場合は `--headful --save-html` で挙動確認し、`scrape_gijiroku_com.py` 内のセレクタを調整してください。
 
 `kaigiroku.net` 系は一覧・本文とも `/dnp/search/` API を使っています。UI 変更よりも API 仕様変更の影響を受けやすいので、異常時は `--save-debug-json` 付きでレスポンスを確認してください。
+
+`dbsr` 系は年別一覧から `Template=list` をたどり、検索結果一覧のページ送りを巡回して日付ごとに `本文` を抽出します。  
+`--max-meetings` は候補列挙の途中でも効くので、最初の動作確認を短く回したいときに便利です。

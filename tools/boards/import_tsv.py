@@ -74,7 +74,7 @@ def main() -> int:
                 except ValueError:
                     lon = None
 
-                if not code or not address:
+                if not code:
                     continue
 
                 conn.execute(
