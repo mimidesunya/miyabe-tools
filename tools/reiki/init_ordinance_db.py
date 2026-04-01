@@ -8,7 +8,11 @@ import html
 import json
 import sqlite3
 import re
+import sys
 from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent))
+import reiki_io
 
 def project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent
@@ -17,7 +21,7 @@ def load_config(root: Path) -> dict:
     for candidate in (root / "data" / "config.json", root / "data" / "config.example.json"):
         if candidate.exists():
             try:
-                data = json.loads(candidate.read_text(encoding="utf-8"))
+                data = json.loads(reiki_io.read_text_auto(candidate))
             except Exception:
                 return {}
             return data if isinstance(data, dict) else {}
@@ -129,17 +133,16 @@ def init_db(root: Path, slug: str):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_date ON ordinances(enactment_date)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_combined_stance ON ordinances(combined_stance)")
     
-    files = list(json_dir.glob("*.json"))
+    files = reiki_io.collect_matching_files(json_dir, ["*.json", "*.json.gz"])
     print(f"Found {len(files)} JSON files. Importing...")
     prefixes = sortable_prefixes(root, slug)
     
     count = 0
     for json_file in files:
         try:
-            with open(json_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            data = json.loads(reiki_io.read_text_auto(json_file))
                 
-            filename = json_file.stem  # e.g., "H213902500001_j"
+            filename = reiki_io.logical_path(json_file).stem  # e.g., "H213902500001_j"
             
             # Extract fields
             title = html.unescape(data.get("title", ""))

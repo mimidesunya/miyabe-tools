@@ -102,6 +102,13 @@ function read_text_auto(string $path): string
     if ($raw === false) {
         return '';
     }
+    if (str_ends_with(strtolower($path), '.gz')) {
+        $decoded = @gzdecode($raw);
+        if ($decoded === false) {
+            return '';
+        }
+        $raw = $decoded;
+    }
 
     foreach ($encodings as $enc) {
         $converted = @mb_convert_encoding($raw, 'UTF-8', $enc);
@@ -175,7 +182,7 @@ function resolve_record_title(array $record, array &$cache): string {
     return $title;
 }
 
-function sanitize_law_html(string $html, string $imageBaseUrl = '/data/reiki/kawasaki-shi/images'): string
+function sanitize_law_html(string $html, string $imageBaseUrl = '/data/reiki/14130-kawasaki-shi/images'): string
 {
     $dom = new DOMDocument();
     libxml_use_internal_errors(true);
@@ -235,7 +242,7 @@ function sanitize_law_html(string $html, string $imageBaseUrl = '/data/reiki/kaw
     return $dom->saveHTML() ?: '';
 }
 
-function extract_law_content_html(string $html, string $imageBaseUrl = '/data/reiki/kawasaki-shi/images'): string
+function extract_law_content_html(string $html, string $imageBaseUrl = '/data/reiki/14130-kawasaki-shi/images'): string
 {
     $dom = new DOMDocument();
     libxml_use_internal_errors(true);
@@ -284,7 +291,10 @@ function load_classification_for_record(array $record, string $htmlDir, string $
         return null;
     }
 
-    $classificationPath = rtrim($classificationDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $relativeJson;
+    $classificationBasePath = rtrim($classificationDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $relativeJson;
+    $classificationPath = is_file($classificationBasePath . '.gz')
+        ? $classificationBasePath . '.gz'
+        : $classificationBasePath;
     if (!is_file($classificationPath)) {
         return null;
     }

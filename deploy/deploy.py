@@ -44,6 +44,25 @@ def load_config(config_path):
     with open(config_path, 'r') as f:
         return json.load(f)
 
+def resolve_remote_dest_dir(path):
+    remote_dir = str(path).strip()
+    if not remote_dir:
+        print("Error: dest_dir must not be empty")
+        sys.exit(1)
+    if remote_dir.startswith('/'):
+        return remote_dir
+    return f"~/{remote_dir.lstrip('~/')}"
+
+def resolve_remote_shared_data_dir(config):
+    shared_data_dir = str(config.get('shared_data_dir', '/mnt/big/miyabe-tools')).strip()
+    if not shared_data_dir:
+        print("Error: shared_data_dir must not be empty")
+        sys.exit(1)
+    if not shared_data_dir.startswith('/'):
+        print("Error: shared_data_dir must be an absolute path on the remote host")
+        sys.exit(1)
+    return shared_data_dir
+
 def run_command(cmd, capture_output=True, ignore_error=False):
     """Executes a shell command."""
     print(f"Running: {cmd}")
@@ -84,12 +103,68 @@ def ssh_copy_content(config, content, remote_path):
         print(f"Error in ssh_copy_content: {e}")
         sys.exit(1)
 
-def sync_files(config, dest_dir, dry_run=False):
+def ensure_remote_shared_data_permissions(config, shared_data_dir):
+    """Ensures shared non-boards directories support app writes."""
+    web_group = str(config.get('web_group', 'www-data')).strip() or 'www-data'
+    permission_cmd = f"""
+mkdir -p {shared_data_dir}
+mkdir -p {shared_data_dir}/reiki {shared_data_dir}/gijiroku
+chgrp {web_group} {shared_data_dir}
+chgrp {web_group} {shared_data_dir}/reiki {shared_data_dir}/gijiroku
+chmod 2775 {shared_data_dir}
+chmod 2775 {shared_data_dir}/reiki {shared_data_dir}/gijiroku
+"""
+    ssh_exec(config, permission_cmd)
+
+def ensure_remote_service_data_permissions(config, dest_dir):
+    """Ensures service-local boards data and shared user DB remain writable."""
+    web_group = str(config.get('web_group', 'www-data')).strip() or 'www-data'
+    permission_cmd = f"""
+mkdir -p {dest_dir}/data {dest_dir}/data/boards
+chgrp {web_group} {dest_dir}/data {dest_dir}/data/boards
+chmod 2775 {dest_dir}/data {dest_dir}/data/boards
+if [ -d {dest_dir}/data/boards ]; then find {dest_dir}/data/boards -type d -exec chgrp {web_group} {{}} + -exec chmod 2775 {{}} +; fi
+if [ -f {dest_dir}/data/users.sqlite ]; then chgrp {web_group} {dest_dir}/data/users.sqlite && chmod 664 {dest_dir}/data/users.sqlite; fi
+if [ -f {dest_dir}/data/config.json ]; then chgrp {web_group} {dest_dir}/data/config.json && chmod 664 {dest_dir}/data/config.json; fi
+"""
+    ssh_exec(config, permission_cmd)
+
+def migrate_remote_data_layout(config, dest_dir, shared_data_dir):
+    """Copies existing remote non-boards data to the shared data directory once."""
+    print("=== Migrating Existing Remote Data Layout ===")
+    migration_cmd = f"""
+mkdir -p {dest_dir}/data {dest_dir}/data/boards {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku
+if [ -f {shared_data_dir}/config.json ] && [ ! -f {dest_dir}/data/config.json ]; then cp -a {shared_data_dir}/config.json {dest_dir}/data/config.json; fi
+if [ -f {shared_data_dir}/users.sqlite ] && [ ! -f {dest_dir}/data/users.sqlite ]; then cp -a {shared_data_dir}/users.sqlite {dest_dir}/data/users.sqlite; fi
+if [ -d {dest_dir}/data/reiki ]; then rsync -a --ignore-existing {dest_dir}/data/reiki/ {shared_data_dir}/reiki/; fi
+if [ -d {dest_dir}/data/gijiroku ]; then rsync -a --ignore-existing {dest_dir}/data/gijiroku/ {shared_data_dir}/gijiroku/; fi
+"""
+    ssh_exec(config, migration_cmd)
+
+def sync_single_file(config, ssh_base, local_path, remote_path, dry_run=False, required=True, ignore_existing_remote=False):
+    """Syncs a single file to the remote server using rsync."""
+    if not os.path.exists(local_path):
+        if required:
+            print(f"Error: required file not found: {local_path}")
+            sys.exit(1)
+        print(f"Skipping {local_path} (not found locally)")
+        return
+
+    print(f"Syncing {local_path}...")
+    dry_flag = " --dry-run" if dry_run else ""
+    ignore_flag = " --ignore-existing" if ignore_existing_remote else ""
+    rsync_cmd = f"rsync -avz{ignore_flag}{dry_flag} -e '{ssh_base}' {local_path} {config['user']}@{config['host']}:{remote_path}"
+    run_command(rsync_cmd, capture_output=False)
+
+def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
     """Syncs app, lib, nginx, and data directories to remote."""
     print("=== Syncing Code and Config Files ===")
     
     # Ensure remote directories exist
-    ssh_exec(config, f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/nginx {dest_dir}/data/reiki {dest_dir}/data/gijiroku {dest_dir}/data/boards")
+    ssh_exec(
+        config,
+        f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/nginx {dest_dir}/data {dest_dir}/data/boards {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku"
+    )
 
     # Use rsync for better handling of large number of files
     # Note: rsync over ssh is more reliable for large directories
@@ -100,8 +175,8 @@ def sync_files(config, dest_dir, dry_run=False):
         ("app/", f"{dest_dir}/app/"),
         ("lib/", f"{dest_dir}/lib/"),
         ("nginx/", f"{dest_dir}/nginx/"),
-        ("data/reiki/", f"{dest_dir}/data/reiki/"),
-        ("data/gijiroku/", f"{dest_dir}/data/gijiroku/"),
+        ("data/reiki/", f"{shared_data_dir}/reiki/"),
+        ("data/gijiroku/", f"{shared_data_dir}/gijiroku/"),
         ("data/boards/", f"{dest_dir}/data/boards/"),
     ]
     
@@ -118,10 +193,17 @@ def sync_files(config, dest_dir, dry_run=False):
         ],
     }
 
-    # Sync data/config.json separately (rsync only handles directories above)
-    print("Syncing data/config.json...")
-    ssh_base_scp = f"scp -i {config['key_path']} -P {config.get('port', 22)} -o StrictHostKeyChecking=no"
-    run_command(f"{ssh_base_scp} data/config.json {config['user']}@{config['host']}:{dest_dir}/data/config.json", capture_output=False)
+    # Sync root data files separately (rsync only handles directories above)
+    sync_single_file(config, ssh_base, "data/config.json", f"{dest_dir}/data/config.json", dry_run=dry_run, required=True)
+    sync_single_file(
+        config,
+        ssh_base,
+        "data/users.sqlite",
+        f"{dest_dir}/data/users.sqlite",
+        dry_run=dry_run,
+        required=False,
+        ignore_existing_remote=True,
+    )
 
     for local_path, remote_path in dirs_to_sync:
         print(f"Syncing {local_path}...")
@@ -163,9 +245,8 @@ def main():
     img_web = f"{registry}/miyabe-tools-web:latest"
     img_php = f"{registry}/miyabe-tools-php:latest"
 
-    dest_dir = config['dest_dir']
-    if not dest_dir.startswith('/'):
-        dest_dir = f"~/{dest_dir}"
+    dest_dir = resolve_remote_dest_dir(config['dest_dir'])
+    shared_data_dir = resolve_remote_shared_data_dir(config)
 
     if args.full:
         print("=== 1. Docker Login ===")
@@ -180,13 +261,26 @@ def main():
         run_command(f"docker push {img_php}", capture_output=False)
 
     print("=== 3. Prepare Remote Environment ===")
-    ssh_exec(config, f"mkdir -p {dest_dir}/data")
+    ssh_exec(config, f"mkdir -p {dest_dir}/data {dest_dir}/data/boards {shared_data_dir}")
+    if args.dry_run:
+        print("Skipping remote data migration in dry-run mode.")
+    else:
+        ensure_remote_shared_data_permissions(config, shared_data_dir)
+        ensure_remote_service_data_permissions(config, dest_dir)
+        migrate_remote_data_layout(config, dest_dir, shared_data_dir)
     
     # Always sync code now, to support volume mounts
-    sync_files(config, dest_dir, dry_run=args.dry_run)
+    sync_files(config, dest_dir, shared_data_dir, dry_run=args.dry_run)
+    if args.dry_run:
+        print("=== Dry-run complete; skipping docker-compose update and service restart ===")
+        return
+
+    ensure_remote_shared_data_permissions(config, shared_data_dir)
+    ensure_remote_service_data_permissions(config, dest_dir)
 
     # Generate docker-compose.prod.yml
-    # We mount app and lib to allow code updates without image rebuild
+    # Keep the service's data directory mounted as before,
+    # then overlay only large non-boards datasets from external storage.
     docker_compose_prod = f"""version: '3'
 services:
   web:
@@ -196,6 +290,8 @@ services:
       - "{config.get('app_port', 8301)}:80"
     volumes:
       - ./data:/var/www/data
+      - {shared_data_dir}/reiki:/var/www/data/reiki
+      - {shared_data_dir}/gijiroku:/var/www/data/gijiroku
       - ./app:/var/www/html
       - ./lib:/var/www/lib
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
@@ -207,6 +303,8 @@ services:
     restart: always
     volumes:
       - ./data:/var/www/data
+      - {shared_data_dir}/reiki:/var/www/data/reiki
+      - {shared_data_dir}/gijiroku:/var/www/data/gijiroku
       - ./app:/var/www/html
       - ./lib:/var/www/lib
 """

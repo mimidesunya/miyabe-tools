@@ -12,6 +12,7 @@
 - [ポスター支援ツール](doc/poster-tool.md)
 - [例規集ツール](doc/reiki.md)
 - [会議録ツール](doc/gijiroku.md)
+- [リモートスクレイピング](doc/remote-scraping.md)
 
 ## ツール一覧
 
@@ -41,3 +42,8 @@
 - 川崎市ポスター掲示場: https://tools.miya.be/boards/kawasaki-shi/
 - 川崎市例規集 AI評価ビューア: https://tools.miya.be/reiki/?slug=kawasaki-shi
 - 川崎市議会 会議録 全文検索: https://tools.miya.be/gijiroku/?slug=kawasaki-shi
+
+## リモート配置
+
+本番デプロイではサービスディレクトリ配下の `data` をそのまま `/var/www/data` にマウントし、`data/boards`・`data/users.sqlite`・`data/config.json` は従来どおりその場所に置きます。  
+容量の大きい `data/reiki` と `data/gijiroku` だけを `/mnt/big/miyabe-tools/reiki` と `/mnt/big/miyabe-tools/gijiroku` から重ねて見せます。

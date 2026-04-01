@@ -11,6 +11,7 @@ import requests
 
 sys.path.append(str(Path(__file__).parent))
 import parse_d1_law
+import reiki_io
 import reiki_targets
 
 
@@ -18,30 +19,33 @@ USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 DELAY = 0.5
 
 
-def download_file(url, dest_path, force=False):
-    if not force and dest_path.exists() and dest_path.stat().st_size > 0:
-        return False
+def download_file(url, dest_path, force=False, check_updates=False):
+    existing_path = reiki_io.existing_path(dest_path)
+    if not force and existing_path and existing_path.stat().st_size > 0 and not check_updates:
+        return False, existing_path, reiki_io.sha256_path(existing_path)
 
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         response = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=15)
         response.raise_for_status()
-        with open(dest_path, "wb") as handle:
-            handle.write(response.content)
+        source_hash = reiki_io.sha256_bytes(response.content)
+        if existing_path and reiki_io.sha256_path(existing_path) == source_hash and not force:
+            return False, existing_path, source_hash
+        written_path = reiki_io.write_bytes(dest_path, response.content, compress=True)
         print(f"Downloaded: {url}")
         time.sleep(DELAY)
-        return True
+        return True, written_path, source_hash
     except Exception as exc:
         print(f"Failed to download {url}: {exc}")
-        return False
+        return False, existing_path or dest_path, ""
 
 
-def get_hno_list(base_url, data_dir, force=False):
+def get_hno_list(base_url, data_dir, force=False, check_updates=False):
     hno_set = set()
 
     print("Fetching index pages...")
-    download_file(base_url + "mokuji_index_index.html", data_dir / "mokuji_index_index.html", force=force)
-    download_file(base_url + "mokuji_bunya_index.html", data_dir / "mokuji_bunya_index.html", force=force)
+    download_file(base_url + "mokuji_index_index.html", data_dir / "mokuji_index_index.html", force=force, check_updates=check_updates)
+    download_file(base_url + "mokuji_bunya_index.html", data_dir / "mokuji_bunya_index.html", force=force, check_updates=check_updates)
 
     to_scan = ["mokuji_index_index.html", "mokuji_bunya_index.html"]
     scanned = set()
@@ -53,16 +57,16 @@ def get_hno_list(base_url, data_dir, force=False):
         scanned.add(current)
 
         file_path = data_dir / current
-        if not file_path.exists():
-            download_file(base_url + current, file_path)
-        if not file_path.exists():
+        stored_path = reiki_io.existing_path(file_path)
+        if stored_path is None:
+            _, stored_path, _ = download_file(base_url + current, file_path, check_updates=check_updates)
+        if stored_path is None or not stored_path.exists():
             continue
 
         try:
-            with open(file_path, "r", encoding="cp932", errors="ignore") as handle:
-                content = handle.read()
+            content = reiki_io.read_text_auto(stored_path)
         except Exception as exc:
-            print(f"Error reading {file_path}: {exc}")
+            print(f"Error reading {stored_path}: {exc}")
             continue
 
         for link in re.findall(r"(index_\d+\.html|bunya_\d+\.html)", content):
@@ -80,6 +84,7 @@ def main():
     parser = argparse.ArgumentParser(description="Download ordinances from D1-Law systems.")
     parser.add_argument("--slug", default=default_slug, help="Municipality slug in data/config.json")
     parser.add_argument("--force", action="store_true", help="Redownload source HTML and rebuild outputs")
+    parser.add_argument("--check-updates", action="store_true", help="既存条例も再取得して更新を確認する")
     args = parser.parse_args()
 
     target = reiki_targets.load_reiki_target(args.slug, expected_system="d1-law")
@@ -89,6 +94,8 @@ def main():
     html_dir = target["html_dir"]
     images_dir = target["image_dir"]
     image_public_url = target["image_public_url"]
+    work_root = Path(target["work_root"])
+    manifest_path = work_root / "source_manifest.json.gz"
 
     print(f"Target: {target['name']} ({target['slug']}, {target['system_type']})")
     print(f"Source URL: {target['source_url']}")
@@ -96,22 +103,42 @@ def main():
     print(f"Target directory: {source_dir}")
     source_dir.mkdir(parents=True, exist_ok=True)
 
-    hno_list = get_hno_list(base_url, source_dir, force=args.force)
+    hno_list = get_hno_list(base_url, source_dir, force=args.force, check_updates=args.check_updates)
     print(f"Found {len(hno_list)} unique regulation IDs.")
 
     downloaded_count = 0
+    checked_count = 0
+    parsed_count = 0
+    manifest_entries = []
     for index, hno in enumerate(hno_list):
         filename = f"{hno}_j.html"
         url = f"{base_url}{hno}/{filename}"
         dest_path = source_dir / filename
+        source_file_path = reiki_io.existing_path(dest_path) or reiki_io.gzip_path(dest_path)
 
-        downloaded = download_file(url, dest_path, force=args.force)
+        downloaded, source_file_path, source_hash = download_file(
+            url,
+            dest_path,
+            force=args.force,
+            check_updates=args.check_updates,
+        )
         if downloaded:
             downloaded_count += 1
+        elif args.check_updates:
+            checked_count += 1
 
-        if dest_path.exists():
+        logical_source = reiki_io.logical_path(source_file_path)
+        html_output = html_dir / f"{logical_source.stem}.html"
+        markdown_output = reiki_io.existing_path(markdown_dir / f"{logical_source.stem}.md")
+
+        if source_file_path.exists() and (
+            downloaded
+            or args.force
+            or not html_output.exists()
+            or markdown_output is None
+        ):
             parse_d1_law.process_file(
-                dest_path,
+                source_file_path,
                 markdown_dir,
                 html_dir,
                 base_url=base_url,
@@ -119,11 +146,27 @@ def main():
                 image_public_url=image_public_url,
                 force=args.force,
             )
+            parsed_count += 1
+
+        manifest_entries.append(
+            {
+                "code": hno,
+                "detail_url": url,
+                "source_file": logical_source.name,
+                "stored_source_file": source_file_path.name,
+                "source_sha256": source_hash or (reiki_io.sha256_path(source_file_path) if source_file_path.exists() else ""),
+                "checked_updates": bool(args.check_updates),
+            }
+        )
 
         if (index + 1) % 10 == 0:
             print(f"Progress: {index + 1}/{len(hno_list)} IDs processed...")
 
+    reiki_io.write_json(manifest_path, manifest_entries, compress=True)
     print(f"Finished. Downloaded {downloaded_count} files.")
+    print(f"Checked existing: {checked_count}")
+    print(f"Parsed outputs: {parsed_count}")
+    print(f"Manifest: {manifest_path}")
 
 
 if __name__ == "__main__":

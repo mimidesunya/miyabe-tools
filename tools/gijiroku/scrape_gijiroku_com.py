@@ -19,6 +19,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 sys.path.append(str(Path(__file__).parent))
+import gijiroku_storage
 import gijiroku_targets
 
 
@@ -251,6 +252,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="ダウンロード失敗時に会議詳細HTMLを保存する",
     )
+    parser.add_argument(
+        "--no-resume",
+        action="store_true",
+        help="既存の保存結果を無視して最初から取り直す",
+    )
     return parser
 
 
@@ -388,8 +394,11 @@ def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_
             full_html, _ = fetch_response_text(page.context.request, act203_url, timeout_ms)
             if full_html:
                 text = html_to_text(full_html)
-                dest = output_dir / (sanitize_filename(item.title, "meeting") + ".txt")
-                dest.write_text(text, encoding="utf-8")
+                dest = gijiroku_storage.write_text(
+                    output_dir / (sanitize_filename(item.title, "meeting") + ".txt"),
+                    text,
+                    compress=True,
+                )
                 return "saved_text", str(dest)
     except Exception:
         pass
@@ -407,8 +416,11 @@ def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_
                     ext = ".doc"
                 elif "html" in ctype:
                     ext = ".html"
-                dest = output_dir / (sanitize_filename(item.title, "meeting") + ext)
-                dest.write_bytes(content)
+                dest = gijiroku_storage.write_bytes(
+                    output_dir / (sanitize_filename(item.title, "meeting") + ext),
+                    content,
+                    compress=ext in {".html", ".htm", ".txt"},
+                )
                 return "downloaded_direct", str(dest)
         except Exception:
             continue
@@ -416,8 +428,11 @@ def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_
     try:
         response = page.context.request.get(item.url, timeout=timeout_ms)
         if response.ok:
-            dest = output_dir / (sanitize_filename(item.title, "meeting") + ".html")
-            dest.write_bytes(response.body())
+            dest = gijiroku_storage.write_bytes(
+                output_dir / (sanitize_filename(item.title, "meeting") + ".html"),
+                response.body(),
+                compress=True,
+            )
             return "saved_html", str(dest)
     except Exception:
         pass
@@ -448,6 +463,8 @@ def main() -> int:
     )
     pages_dir = work_dir / "pages"
     result_csv = work_dir / f"run_result_{now_ts()}.csv"
+    state_path = work_dir / "scrape_state.json"
+    state = gijiroku_storage.load_state(state_path)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     downloads_dir.mkdir(parents=True, exist_ok=True)
@@ -495,6 +512,33 @@ def main() -> int:
                 if meeting_group_dir:
                     meeting_download_dir = meeting_download_dir / meeting_group_dir
                 meeting_download_dir.mkdir(parents=True, exist_ok=True)
+                stem = sanitize_filename(item.title, "meeting")
+                resume_key = gijiroku_storage.item_signature(asdict(item))
+                existing_outputs = gijiroku_storage.existing_named_outputs(meeting_download_dir, stem)
+                if not args.no_resume and existing_outputs:
+                    output_path = str(existing_outputs[0])
+                    status = "skipped_existing"
+                    state["items"][resume_key] = {
+                        "title": item.title,
+                        "year_label": item.year_label,
+                        "url": item.url,
+                        "status": "saved",
+                        "output_rel_path": str(existing_outputs[0].relative_to(downloads_dir)),
+                        "updated_at": now_ts(),
+                    }
+                    gijiroku_storage.save_state(state_path, state)
+                    writer.writerow(
+                        {
+                            "title": item.title,
+                            "year": item.year_label,
+                            "url": item.url,
+                            "status": status,
+                            "output": output_path,
+                            "error": "",
+                        }
+                    )
+                    handle.flush()
+                    continue
                 try:
                     status, output_path = try_download_from_detail(
                         page,
@@ -507,14 +551,27 @@ def main() -> int:
                         if meeting_group_dir:
                             page_year_dir = page_year_dir / meeting_group_dir
                         page_year_dir.mkdir(parents=True, exist_ok=True)
-                        html_path = page_year_dir / (sanitize_filename(item.title, "meeting") + ".html")
-                        html_path.write_text(page.content(), encoding="utf-8", errors="ignore")
+                        gijiroku_storage.write_text(
+                            page_year_dir / (sanitize_filename(item.title, "meeting") + ".html"),
+                            page.content(),
+                            compress=True,
+                        )
                 except PlaywrightTimeoutError as exc:
                     status = "timeout"
                     error_msg = str(exc)
                 except Exception as exc:
                     status = "error"
                     error_msg = str(exc)
+
+                state["items"][resume_key] = {
+                    "title": item.title,
+                    "year_label": item.year_label,
+                    "url": item.url,
+                    "status": status,
+                    "output_rel_path": str(Path(output_path).relative_to(downloads_dir)) if output_path else "",
+                    "updated_at": now_ts(),
+                }
+                gijiroku_storage.save_state(state_path, state)
 
                 writer.writerow(
                     {

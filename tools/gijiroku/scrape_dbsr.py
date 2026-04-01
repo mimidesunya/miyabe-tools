@@ -18,6 +18,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 sys.path.append(str(Path(__file__).parent))
+import gijiroku_storage
 import gijiroku_targets
 
 
@@ -629,6 +630,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="取得失敗時や調査用に HTML を保存する",
     )
+    parser.add_argument(
+        "--no-resume",
+        action="store_true",
+        help="既存の保存結果を無視して最初から取り直す",
+    )
     return parser
 
 
@@ -655,6 +661,8 @@ def main() -> int:
     )
     pages_dir = work_dir / "pages"
     result_csv = work_dir / f"run_result_{now_ts()}.csv"
+    state_path = work_dir / "scrape_state.json"
+    state = gijiroku_storage.load_state(state_path)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     downloads_dir.mkdir(parents=True, exist_ok=True)
@@ -701,14 +709,43 @@ def main() -> int:
                 if meeting_group_dir:
                     meeting_download_dir = meeting_download_dir / meeting_group_dir
                 meeting_download_dir.mkdir(parents=True, exist_ok=True)
+                dest_base = meeting_download_dir / (sanitize_filename(item.title, "meeting") + ".txt")
+                resume_key = gijiroku_storage.item_signature(asdict(item))
+                existing_output = gijiroku_storage.existing_output(dest_base)
+
+                if not args.no_resume and existing_output is not None:
+                    output_path = str(existing_output)
+                    status = "skipped_existing"
+                    state["items"][resume_key] = {
+                        "title": item.title,
+                        "year_label": item.year_label,
+                        "url": item.url,
+                        "status": "saved_text",
+                        "output_rel_path": str(existing_output.relative_to(downloads_dir)),
+                        "updated_at": now_ts(),
+                    }
+                    gijiroku_storage.save_state(state_path, state)
+                    writer.writerow(
+                        {
+                            "title": item.title,
+                            "year": item.year_label,
+                            "url": item.url,
+                            "status": status,
+                            "output": output_path,
+                            "error": "",
+                            "documents": len(item.doc_urls or []),
+                            "fragments": 0,
+                        }
+                    )
+                    handle.flush()
+                    continue
 
                 try:
                     fragment_count, meeting_text = fetch_meeting_text(context.request, item, args.timeout_ms)
                     if not meeting_text:
                         status = "not_found"
                     else:
-                        dest = meeting_download_dir / (sanitize_filename(item.title, "meeting") + ".txt")
-                        dest.write_text(meeting_text, encoding="utf-8")
+                        dest = gijiroku_storage.write_text(dest_base, meeting_text, compress=True)
                         output_path = str(dest)
                         status = "saved_text"
                 except PlaywrightTimeoutError as exc:
@@ -723,12 +760,23 @@ def main() -> int:
                             debug_path = debug_path / meeting_group_dir
                         try:
                             sample_html = request_text(context.request, item.doc_urls[0], args.timeout_ms, referer=item.url)
-                            save_debug_html(
+                            gijiroku_storage.write_text(
                                 debug_path / (sanitize_filename(item.title, "meeting") + ".html"),
                                 sample_html,
+                                compress=True,
                             )
                         except Exception:
                             pass
+
+                state["items"][resume_key] = {
+                    "title": item.title,
+                    "year_label": item.year_label,
+                    "url": item.url,
+                    "status": status,
+                    "output_rel_path": str(Path(output_path).relative_to(downloads_dir)) if output_path else "",
+                    "updated_at": now_ts(),
+                }
+                gijiroku_storage.save_state(state_path, state)
 
                 writer.writerow(
                     {

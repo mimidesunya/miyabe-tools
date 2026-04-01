@@ -7,10 +7,14 @@ import argparse
 import json
 import re
 import sqlite3
+import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, unquote_to_bytes, urlsplit
+
+sys.path.append(str(Path(__file__).parent))
+import gijiroku_storage
 
 
 FULLWIDTH_DIGITS = str.maketrans("０１２３４５６７８９", "0123456789")
@@ -152,13 +156,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def read_text_auto(path: Path) -> str:
-    raw = path.read_bytes()
-    for encoding in ("utf-8", "cp932", "shift_jis", "euc_jp"):
-        try:
-            return raw.decode(encoding)
-        except UnicodeDecodeError:
-            continue
-    return raw.decode("utf-8", errors="ignore")
+    return gijiroku_storage.read_text_auto(path)
 
 
 def html_to_text(html: str) -> str:
@@ -393,17 +391,17 @@ def choose_source_files(downloads_dir: Path) -> list[Path]:
         if not file_path.is_file():
             continue
 
-        ext = file_path.suffix.lower()
+        ext = gijiroku_storage.logical_suffix(file_path)
         if ext not in {".txt", ".html", ".htm"}:
             continue
 
-        rel_stem = file_path.relative_to(downloads_dir).with_suffix("").as_posix()
+        rel_stem = gijiroku_storage.source_key(file_path, downloads_dir)
         current = preferred.get(rel_stem)
         if current is None:
             preferred[rel_stem] = file_path
             continue
 
-        if current.suffix.lower() != ".txt" and ext == ".txt":
+        if gijiroku_storage.logical_suffix(current) != ".txt" and ext == ".txt":
             preferred[rel_stem] = file_path
     return sorted(preferred.values())
 
@@ -424,7 +422,7 @@ def fallback_year_label_from_path(file_path: Path, downloads_dir: Path) -> str |
 
 
 def build_record(file_path: Path, downloads_dir: Path, meta_map: dict[tuple[str, str, str], SourceMeta], indexed_at: str) -> MinuteRecord | None:
-    ext = file_path.suffix.lower()
+    ext = gijiroku_storage.logical_suffix(file_path)
     title = normalize_title(file_path)
 
     try:

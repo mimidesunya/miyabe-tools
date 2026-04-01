@@ -9,15 +9,24 @@ main($argv);
 
 function main(array $argv): void
 {
-    $options = getopt('', ['slug::', 'limit::', 'force', 'crawl-only']);
+    $options = getopt('', ['slug::', 'code::', 'name::', 'source-url::', 'limit::', 'force', 'crawl-only', 'check-updates']);
     $slug = isset($options['slug']) && is_string($options['slug']) && trim($options['slug']) !== ''
         ? trim($options['slug'])
         : default_slug_for_system('taikei');
     $limit = isset($options['limit']) ? max(0, (int)$options['limit']) : 0;
     $force = array_key_exists('force', $options);
     $crawlOnly = array_key_exists('crawl-only', $options);
+    $checkUpdates = array_key_exists('check-updates', $options);
 
-    $target = load_reiki_target($slug, 'taikei');
+    $target = load_reiki_target_from_cli(
+        $slug,
+        'taikei',
+        [
+            'code' => is_string($options['code'] ?? null) ? trim((string)$options['code']) : '',
+            'name' => is_string($options['name'] ?? null) ? trim((string)$options['name']) : '',
+            'source_url' => is_string($options['source-url'] ?? null) ? trim((string)$options['source-url']) : '',
+        ]
+    );
     $dataRoot = (string)$target['data_root'];
     $workRoot = (string)$target['work_root'];
     $sourceDir = (string)$target['source_dir'];
@@ -40,20 +49,23 @@ function main(array $argv): void
     $records = array_values($crawl['records']);
     usort($records, static fn(array $a, array $b): int => strcmp((string)$a['code'], (string)$b['code']));
 
-    $manifestPath = $workRoot . DIRECTORY_SEPARATOR . 'source_manifest.json';
-    $taxonomyPath = $workRoot . DIRECTORY_SEPARATOR . 'taxonomy_pages.json';
-    write_json_file($taxonomyPath, array_values($crawl['pages']));
+    $manifestPath = $workRoot . DIRECTORY_SEPARATOR . 'source_manifest.json.gz';
+    $taxonomyPath = $workRoot . DIRECTORY_SEPARATOR . 'taxonomy_pages.json.gz';
+    $previousManifestBySource = index_manifest_by_source(load_json_file($manifestPath, []));
+    write_json_file($taxonomyPath, array_values($crawl['pages']), true);
 
     echo 'Found ' . count($records) . " ordinance pages across " . count($crawl['pages']) . " taxonomy pages.\n";
     if ($crawlOnly) {
-        write_json_file($manifestPath, $records);
+        write_json_file($manifestPath, $records, true);
         echo "Saved crawl manifest only: {$manifestPath}\n";
         return;
     }
 
     $downloaded = 0;
+    $checked = 0;
     $skipped = 0;
     $parsed = 0;
+    $reused = 0;
     $manifests = [];
     $selectedRecords = $limit > 0 ? array_slice($records, 0, $limit) : $records;
     $total = count($selectedRecords);
@@ -63,38 +75,80 @@ function main(array $argv): void
         $sourcePath = $sourceDir . DIRECTORY_SEPARATOR . $sourceFileName;
         $htmlPath = $htmlDir . DIRECTORY_SEPARATOR . preg_replace('/\.html$/i', '.html', $sourceFileName);
         $markdownPath = $markdownDir . DIRECTORY_SEPARATOR . preg_replace('/\.html$/i', '.md', $sourceFileName);
+        $existingSourcePath = existing_path($sourcePath);
+        $storedSourcePath = $existingSourcePath ?? gzip_path($sourcePath);
+        $previousManifest = $previousManifestBySource[$sourceFileName] ?? null;
 
         $sourceHtml = '';
-        if (!$force && is_file($sourcePath) && filesize($sourcePath) > 0) {
-            $sourceHtml = (string)file_get_contents($sourcePath);
+        $sourceHash = $existingSourcePath !== null ? sha256_file_auto($existingSourcePath) : '';
+        $sourceChanged = false;
+
+        if (!$force && $existingSourcePath !== null && filesize($existingSourcePath) > 0 && !$checkUpdates) {
             $skipped++;
         } else {
-            $sourceHtml = fetch_url((string)$record['detail_url']);
-            file_put_contents($sourcePath, $sourceHtml);
-            $downloaded++;
+            $fetchedHtml = fetch_url((string)$record['detail_url']);
+            $fetchedHash = sha256_string($fetchedHtml);
+
+            if (!$force && $existingSourcePath !== null && $sourceHash === $fetchedHash) {
+                $storedSourcePath = $existingSourcePath;
+                $sourceHash = $fetchedHash;
+                $checked++;
+            } else {
+                $storedSourcePath = write_text_file($sourcePath, $fetchedHtml, true);
+                $sourceHtml = $fetchedHtml;
+                $sourceHash = $fetchedHash;
+                $sourceChanged = true;
+                $downloaded++;
+            }
+
             throttled_sleep();
         }
 
-        $parsedRecord = parse_taikei_ordinance_html($sourceHtml, (string)$record['detail_url'], $record);
-        file_put_contents($htmlPath, $parsedRecord['clean_html']);
-        file_put_contents($markdownPath, $parsedRecord['markdown']);
-        unset($parsedRecord['clean_html'], $parsedRecord['markdown']);
-        $manifests[] = $parsedRecord;
-        $parsed++;
+        $storedMarkdownPath = existing_path($markdownPath);
+        $needsParse = $force
+            || $sourceChanged
+            || !is_file($htmlPath)
+            || $storedMarkdownPath === null
+            || !is_array($previousManifest);
+
+        if ($needsParse) {
+            if ($sourceHtml === '') {
+                $sourceHtml = read_text_file_auto($storedSourcePath);
+            }
+
+            $parsedRecord = parse_taikei_ordinance_html($sourceHtml, (string)$record['detail_url'], $record);
+            write_text_file($htmlPath, $parsedRecord['clean_html']);
+            write_text_file($markdownPath, $parsedRecord['markdown'], true);
+            unset($parsedRecord['clean_html'], $parsedRecord['markdown']);
+            $manifestEntry = $parsedRecord;
+            $parsed++;
+        } else {
+            $manifestEntry = merge_manifest_record($previousManifest, $record, $sourceFileName);
+            $reused++;
+        }
+
+        $manifestEntry['source_file'] = $sourceFileName;
+        $manifestEntry['stored_source_file'] = basename($storedSourcePath);
+        $manifestEntry['source_sha256'] = $sourceHash !== '' ? $sourceHash : sha256_file_auto($storedSourcePath);
+        $manifestEntry['checked_updates'] = $checkUpdates;
+        $manifestEntry['updated_at'] = gmdate('c');
+        $manifests[] = $manifestEntry;
 
         if ((($index + 1) % 25) === 0 || ($index + 1) === $total) {
             echo sprintf(
-                "[%d/%d] downloaded=%d skipped=%d parsed=%d\n",
+                "[%d/%d] downloaded=%d checked=%d skipped=%d parsed=%d reused=%d\n",
                 $index + 1,
                 $total,
                 $downloaded,
+                $checked,
                 $skipped,
-                $parsed
+                $parsed,
+                $reused
             );
         }
     }
 
-    write_json_file($manifestPath, $manifests);
+    write_json_file($manifestPath, $manifests, true);
     build_ordinance_db($dbPath, $manifests);
 
     echo "\nFinished {$target['name']} scrape.\n";
@@ -104,8 +158,10 @@ function main(array $argv): void
     echo "  Markdown: {$markdownDir}\n";
     echo "  Manifest: {$manifestPath}\n";
     echo "  Downloaded: {$downloaded}\n";
+    echo "  Checked existing: {$checked}\n";
     echo "  Skipped existing: {$skipped}\n";
     echo "  Parsed: {$parsed}\n";
+    echo "  Reused manifest: {$reused}\n";
 }
 
 function crawl_taxonomy(string $entryUrl): array
@@ -833,6 +889,67 @@ function load_reiki_target(string $slug, string $expectedSystem): array
     ];
 }
 
+function load_reiki_target_from_cli(string $slug, string $expectedSystem, array $overrides): array
+{
+    $code = trim((string)($overrides['code'] ?? ''));
+    $nameOverride = trim((string)($overrides['name'] ?? ''));
+    $sourceUrlOverride = trim((string)($overrides['source_url'] ?? ''));
+
+    if ($code === '' && $nameOverride === '' && $sourceUrlOverride === '') {
+        return load_reiki_target($slug, $expectedSystem);
+    }
+
+    if ($code === '' || $sourceUrlOverride === '') {
+        throw new RuntimeException('--code と --source-url を一緒に指定してください。');
+    }
+
+    $municipalities = load_project_config()['MUNICIPALITIES'] ?? [];
+    $entry = is_array($municipalities[$slug] ?? null) ? $municipalities[$slug] : [];
+    $reiki = is_array($entry['reiki'] ?? null) ? $entry['reiki'] : [];
+
+    $urlIndex = load_local_reiki_url_index();
+    $urlEntry = $urlIndex[$code] ?? null;
+    if (!is_array($urlEntry)) {
+        throw new RuntimeException("Municipality code {$code} is missing from work/municipalities/reiki_system_urls.tsv");
+    }
+
+    $systemType = trim((string)($urlEntry['system_type'] ?? ''));
+    if ($systemType !== $expectedSystem) {
+        throw new RuntimeException(
+            "Municipality slug {$slug} uses system_type={$systemType}, expected {$expectedSystem}"
+        );
+    }
+
+    $sourceDirRelative = trim((string)($reiki['source_dir'] ?? $reiki['data_dir'] ?? "reiki/{$slug}/source"));
+    $htmlDirRelative = trim((string)($reiki['clean_html_dir'] ?? "reiki/{$slug}/html"));
+    $classificationDirRelative = trim((string)($reiki['classification_dir'] ?? "reiki/{$slug}/json"));
+    $imageDirRelative = trim((string)($reiki['image_dir'] ?? "reiki/{$slug}/images"));
+    $markdownDirRelative = trim((string)($reiki['markdown_dir'] ?? "reiki/{$slug}/markdown"));
+    $dbPathRelative = trim((string)($reiki['db_path'] ?? "reiki/{$slug}/ordinances.sqlite"));
+
+    $sourceDir = build_work_path($sourceDirRelative);
+    $name = $nameOverride !== ''
+        ? $nameOverride
+        : (trim((string)($entry['name'] ?? $slug)) ?: $slug);
+
+    return [
+        'slug' => $slug,
+        'name' => $name,
+        'code' => $code,
+        'system_type' => $systemType,
+        'source_url' => $sourceUrlOverride,
+        'entry_url' => derive_taikei_entry_url($sourceUrlOverride),
+        'data_root' => build_data_path("reiki/{$slug}"),
+        'work_root' => dirname($sourceDir),
+        'source_dir' => $sourceDir,
+        'html_dir' => build_data_path($htmlDirRelative),
+        'classification_dir' => build_data_path($classificationDirRelative),
+        'image_dir' => build_data_path($imageDirRelative),
+        'markdown_dir' => build_work_path($markdownDirRelative),
+        'db_path' => build_data_path($dbPathRelative),
+    ];
+}
+
 function default_slug_for_system(string $expectedSystem): string
 {
     $config = load_project_config();
@@ -897,7 +1014,161 @@ function derive_taikei_entry_url(string $sourceUrl): string
     return $sourceUrl;
 }
 
-function write_json_file(string $path, array $data): void
+function gzip_path(string $path): string
+{
+    return str_ends_with(strtolower($path), '.gz') ? $path : $path . '.gz';
+}
+
+function logical_path(string $path): string
+{
+    if (!str_ends_with(strtolower($path), '.gz')) {
+        return $path;
+    }
+    return substr($path, 0, -3);
+}
+
+function existing_path(string $path): ?string
+{
+    $candidates = [];
+    if (str_ends_with(strtolower($path), '.gz')) {
+        $candidates[] = $path;
+        $candidates[] = logical_path($path);
+    } else {
+        $candidates[] = gzip_path($path);
+        $candidates[] = $path;
+    }
+
+    foreach ($candidates as $candidate) {
+        if (is_file($candidate)) {
+            return $candidate;
+        }
+    }
+
+    return null;
+}
+
+function read_file_bytes_auto(string $path): string
+{
+    $raw = file_get_contents($path);
+    if (!is_string($raw)) {
+        throw new RuntimeException("Failed to read {$path}");
+    }
+    if (!str_ends_with(strtolower($path), '.gz')) {
+        return $raw;
+    }
+
+    $decoded = gzdecode($raw);
+    if (!is_string($decoded)) {
+        throw new RuntimeException("Failed to decode gzip file: {$path}");
+    }
+    return $decoded;
+}
+
+function read_text_file_auto(string $path): string
+{
+    return ensure_utf8(read_file_bytes_auto($path));
+}
+
+function write_text_file(string $path, string $content, bool $compress = false): string
+{
+    $finalPath = $compress ? gzip_path($path) : $path;
+    ensure_dir(dirname($finalPath));
+
+    if ($compress) {
+        $encoded = gzencode($content, 6, ZLIB_ENCODING_GZIP);
+        if (!is_string($encoded)) {
+            throw new RuntimeException("Failed to gzip content for {$finalPath}");
+        }
+        file_put_contents($finalPath, $encoded);
+
+        $plainPath = logical_path($finalPath);
+        if ($plainPath !== $finalPath && is_file($plainPath)) {
+            unlink($plainPath);
+        }
+    } else {
+        file_put_contents($finalPath, $content);
+
+        $gzPath = gzip_path($finalPath);
+        if ($gzPath !== $finalPath && is_file($gzPath)) {
+            unlink($gzPath);
+        }
+    }
+
+    return $finalPath;
+}
+
+function sha256_string(string $content): string
+{
+    return hash('sha256', $content);
+}
+
+function sha256_file_auto(string $path): string
+{
+    return sha256_string(read_file_bytes_auto($path));
+}
+
+function load_json_file(string $path, array $default = []): array
+{
+    $existingPath = existing_path($path);
+    if ($existingPath === null) {
+        return $default;
+    }
+
+    $decoded = json_decode(read_text_file_auto($existingPath), true);
+    return is_array($decoded) ? $decoded : $default;
+}
+
+function index_manifest_by_source(array $records): array
+{
+    $indexed = [];
+    foreach ($records as $record) {
+        if (!is_array($record)) {
+            continue;
+        }
+
+        $sourceFile = trim((string)($record['source_file'] ?? ''));
+        if ($sourceFile === '') {
+            $storedSourceFile = trim((string)($record['stored_source_file'] ?? ''));
+            if ($storedSourceFile !== '') {
+                $sourceFile = basename(logical_path($storedSourceFile));
+            }
+        }
+        if ($sourceFile === '') {
+            continue;
+        }
+
+        $indexed[$sourceFile] = $record;
+    }
+
+    return $indexed;
+}
+
+function merge_manifest_record(array $manifestRecord, array $crawlRecord, string $sourceFile): array
+{
+    $merged = $manifestRecord;
+    $merged['code'] = (string)($crawlRecord['code'] ?? $merged['code'] ?? '');
+    $merged['title'] = trim((string)($merged['title'] ?? '')) !== ''
+        ? (string)$merged['title']
+        : (string)($crawlRecord['title'] ?? '');
+    $merged['date'] = trim((string)($merged['date'] ?? '')) !== ''
+        ? (string)$merged['date']
+        : (string)($crawlRecord['date'] ?? '');
+    $merged['number'] = trim((string)($merged['number'] ?? '')) !== ''
+        ? (string)$merged['number']
+        : (string)($crawlRecord['number'] ?? '');
+    $merged['detail_url'] = (string)($crawlRecord['detail_url'] ?? $merged['detail_url'] ?? '');
+    $merged['taxonomy_url'] = (string)($crawlRecord['taxonomy_url'] ?? $merged['taxonomy_url'] ?? '');
+    $merged['taxonomy_path'] = (string)($crawlRecord['taxonomy_path'] ?? $merged['taxonomy_path'] ?? '');
+
+    $existingPaths = is_array($merged['taxonomy_paths'] ?? null) ? $merged['taxonomy_paths'] : [];
+    $currentPaths = is_array($crawlRecord['taxonomy_paths'] ?? null) ? $crawlRecord['taxonomy_paths'] : [];
+    $merged['taxonomy_paths'] = array_values(array_unique(array_filter(array_merge($existingPaths, $currentPaths))));
+    $merged['source_file'] = $sourceFile;
+
+    return $merged;
+}
+
+function write_json_file(string $path, array $data, bool $compress = false): string
 {
     $json = json_encode(
         $data,
@@ -909,7 +1180,7 @@ function write_json_file(string $path, array $data): void
     if (!is_string($json)) {
         throw new RuntimeException('Failed to encode JSON for ' . $path . ': ' . json_last_error_msg());
     }
-    file_put_contents($path, $json);
+    return write_text_file($path, $json, $compress);
 }
 
 function build_ordinance_db(string $dbPath, array $records): void

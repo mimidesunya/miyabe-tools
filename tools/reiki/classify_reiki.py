@@ -18,6 +18,7 @@ from openai import OpenAI
 from anthropic import Anthropic
 
 sys.path.append(str(Path(__file__).parent))
+import reiki_io
 import reiki_targets
 
 
@@ -200,21 +201,11 @@ def load_claude_config(config_path: Path) -> ClaudeConfig:
 
 
 def collect_files(input_dir: Path) -> List[Path]:
-    files: List[Path] = []
-    iterator = input_dir.rglob("*_j.html")
-    files.extend([p for p in iterator if p.is_file()])
-    unique = sorted(set(files))
-    return unique
+    return reiki_io.collect_matching_files(input_dir, ["*_j.html", "*_j.html.gz"])
 
 
 def read_text_auto(path: Path) -> str:
-    encodings = ["utf-8", "utf-8-sig", "cp932", "shift_jis", "euc_jp"]
-    for enc in encodings:
-        try:
-            return path.read_text(encoding=enc)
-        except UnicodeDecodeError:
-            continue
-    return path.read_text(encoding="utf-8", errors="replace")
+    return reiki_io.read_text_auto(path)
 
 
 def detect_title(text: str) -> str:
@@ -417,10 +408,9 @@ def sanitize_department(text: str) -> str:
 
 
 def load_ai_input_text(html_path: Path, markdown_dir: Path) -> Optional[Dict[str, str]]:
-    # IDベースのファイル名を使用 (例: H213902500001_j.md)
-    md_filename = f"{html_path.stem}.md"
-    md_path = markdown_dir / md_filename
-    if md_path.exists() and md_path.is_file():
+    logical_html_path = reiki_io.logical_path(html_path)
+    md_path = reiki_io.existing_path(markdown_dir / f"{logical_html_path.stem}.md")
+    if md_path and md_path.is_file():
         md_text = read_text_auto(md_path)
         if md_text.strip():
             return {"text": md_text, "inputFormat": "markdown", "inputPath": str(md_path.resolve())}
@@ -717,10 +707,9 @@ def write_per_file_outputs(rows: List[Dict[str, Any]], output_dir: Path, input_d
             # Fallback to just filename if not relative
             relative_path = Path(source_path.name)
 
-        target_path = (output_dir / relative_path).with_suffix(".json")
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(target_path, "w", encoding="utf-8") as f:
-            json.dump(output_row, f, ensure_ascii=False, indent=2)
+        logical_relative_path = reiki_io.logical_path(relative_path)
+        target_path = (output_dir / logical_relative_path).with_suffix(".json")
+        reiki_io.write_json(target_path, output_row, compress=True)
 
 
 def build_sync_generate_endpoint(base_url: str, model: str, api_key: str) -> str:
@@ -857,7 +846,7 @@ def main() -> int:
     if args.limit and args.limit > 0:
         files = files[: args.limit]
 
-    print(f"Found {len(files)} files in {input_dir} (pattern: *_j.html).")
+    print(f"Found {len(files)} files in {input_dir} (pattern: *_j.html / *_j.html.gz).")
     if not args.execute:
         print("Preview mode: Gemini APIは呼び出しません。実行するには --execute を付けてください。")
         for sample in files[:10]:
@@ -888,8 +877,10 @@ def main() -> int:
         # We need to map it to output path to check existence
         try:
             rel_path = file_path.relative_to(input_dir)
-            target_json = (output_dir / rel_path).with_suffix(".json")
-            if target_json.exists():
+            target_json = reiki_io.existing_path(
+                (output_dir / reiki_io.logical_path(rel_path)).with_suffix(".json")
+            )
+            if target_json is not None:
                 skipped_count += 1
                 if skipped_count % 100 == 0:
                     print(f"Skipping existing: {skipped_count} files...", end='\r')

@@ -7,6 +7,7 @@
 - 自治体の定義は `data/config.json` の `MUNICIPALITIES` に集約する
 - 全国自治体コードの基礎マスタは `work/municipalities/municipality_master.tsv` を使う
 - 画面は `slug` ごとにデータ参照先を切り替える
+- 新しく追加する `slug` は `自治体コード-ローマ字名称` を推奨する
 - 未対応機能は別自治体のデータを流用せず、「準備中」と表示する
 
 ## URL ルール
@@ -29,16 +30,16 @@
       },
       "reiki": {
         "enabled": true,
-        "source_dir": "reiki/kawasaki-shi/source",
-        "classification_dir": "reiki/kawasaki-shi/json",
-        "db_path": "reiki/kawasaki-shi/ordinances.sqlite",
+        "source_dir": "reiki/14130-kawasaki-shi/source",
+        "classification_dir": "reiki/14130-kawasaki-shi/json",
+        "db_path": "reiki/14130-kawasaki-shi/ordinances.sqlite",
         "legacy_db_path": "reiki/ordinances.sqlite"
       },
       "gijiroku": {
         "enabled": true,
         "assembly_name": "川崎市議会",
-        "data_dir": "gijiroku/kawasaki-shi",
-        "db_path": "gijiroku/kawasaki-shi/minutes.sqlite"
+        "data_dir": "gijiroku/14130-kawasaki-shi",
+        "db_path": "gijiroku/14130-kawasaki-shi/minutes.sqlite"
       }
     }
   }
@@ -48,6 +49,7 @@
 ## 追加手順
 
 1. `MUNICIPALITIES` に新しい `slug` を追加する
+   例: `01202-hakodate`
 2. `boards` / `reiki` / `gijiroku` の各機能で `enabled` とデータパスを定義する
 3. 必要なデータファイルを `data/` 配下に配置する
 4. 例規集や会議録は対応する初期化スクリプトを `--slug` 付きで実行する

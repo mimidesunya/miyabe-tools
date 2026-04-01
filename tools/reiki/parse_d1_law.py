@@ -12,6 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 
 sys.path.append(str(Path(__file__).parent))
+import reiki_io
 import reiki_targets
 
 
@@ -85,10 +86,10 @@ def download_image(img_filename, kno, images_dir, base_url, stats=None):
 
 
 def parse_html(file_path, *, base_url, images_dir, image_public_url, stats=None):
-    with open(file_path, "r", encoding="utf-8") as handle:
-        soup = BeautifulSoup(handle, "html.parser")
+    soup = BeautifulSoup(reiki_io.read_text_auto(file_path), "html.parser")
 
-    kno = file_path.stem.replace("_j", "")
+    logical_source = reiki_io.logical_path(Path(file_path))
+    kno = logical_source.stem.replace("_j", "")
 
     for img in soup.find_all("img"):
         src = img.get("src")
@@ -178,7 +179,8 @@ def process_file(
         md_output_dir.mkdir(parents=True, exist_ok=True)
         html_output_dir.mkdir(parents=True, exist_ok=True)
 
-        html_output_path = html_output_dir / f"{file_path.stem}.html"
+        logical_source = reiki_io.logical_path(Path(file_path))
+        html_output_path = html_output_dir / f"{logical_source.stem}.html"
         if not force and html_output_path.exists():
             if html_output_path.stat().st_mtime >= file_path.stat().st_mtime:
                 return True
@@ -191,8 +193,7 @@ def process_file(
             stats=stats,
         )
 
-        with open(md_output_dir / f"{file_path.stem}.md", "w", encoding="utf-8") as handle:
-            handle.write(markdown)
+        reiki_io.write_text(md_output_dir / f"{logical_source.stem}.md", markdown, compress=True)
         with open(html_output_path, "w", encoding="utf-8") as handle:
             handle.write(clean_html)
         return True
@@ -216,7 +217,7 @@ def main():
     images_dir = target["image_dir"]
     image_public_url = target["image_public_url"]
 
-    files = list(source_dir.glob("*_j.html"))
+    files = reiki_io.collect_matching_files(source_dir, ["*_j.html", "*_j.html.gz"])
     print(f"Target: {target['name']} ({target['slug']}, {target['system_type']})")
     print(f"Found {len(files)} files to process.")
 
@@ -229,7 +230,8 @@ def main():
     }
 
     for index, file_path in enumerate(files):
-        html_output = html_dir / f"{file_path.stem}.html"
+        logical_source = reiki_io.logical_path(file_path)
+        html_output = html_dir / f"{logical_source.stem}.html"
         if not args.force and html_output.exists():
             if html_output.stat().st_mtime >= file_path.stat().st_mtime:
                 skipped += 1

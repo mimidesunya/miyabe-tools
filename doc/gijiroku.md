@@ -34,10 +34,11 @@
 ローカル作業データ (`work/`):
 
 - ダウンロード済み会議録: `work/gijiroku/{slug}/downloads`
-  - 例: `downloads/{year_label}/{meeting_name}/{title}.txt`
+  - 例: `downloads/{year_label}/{meeting_name}/{title}.txt.gz`
 - 収集結果一覧: `work/gijiroku/{slug}/meetings_index.json`
 - デバッグ用ページ: `work/gijiroku/{slug}/pages`
 - 収集結果CSV: `work/gijiroku/{slug}/run_result_*.csv`
+- レジューム状態: `work/gijiroku/{slug}/scrape_state.json`
 
 実際の参照先は設定で決まります。
 
@@ -56,7 +57,7 @@ python tools/gijiroku/scrape_gijiroku_com.py --slug kawasaki-shi --ack-robots
 ```
 
 ```bash
-python tools/gijiroku/scrape_kaigiroku_net.py --slug hakodate-01202 --ack-robots
+python tools/gijiroku/scrape_kaigiroku_net.py --slug 01202-hakodate --ack-robots
 ```
 
 ```bash
@@ -75,6 +76,12 @@ python tools/gijiroku/scrape_all_gijiroku_com.py --ack-robots
 python tools/gijiroku/scrape_all_gijiroku_com.py --ack-robots --max-targets 5 --parallel 5
 ```
 
+実装済みの `gijiroku.com` / `kaigiroku.net` / `dbsr` をまとめて回す場合:
+
+```bash
+python tools/gijiroku/scrape_all_minutes.py --ack-robots --parallel 4 --per-host-parallel 1
+```
+
 既存データの整理:
 
 ```bash
@@ -88,6 +95,12 @@ python tools/gijiroku/build_minutes_index.py --slug kawasaki-shi
 ```
 
 `--slug` を付けると、`data/config.json` から対象自治体の出力先を解決します。
+
+補足:
+
+- 本文・調査用HTML・デバッグJSONは gzip を優先して保存し、同じ論理ファイルの平文重複を避けます。
+- スクレイパは既存ダウンロードと `scrape_state.json` を見て中断箇所から再開します。完全に最初からやり直したい場合は `--no-resume` を使います。
+- 新規追加の `slug` は `自治体コード-ローマ字名称` を推奨します。
 
 ## メモ
 

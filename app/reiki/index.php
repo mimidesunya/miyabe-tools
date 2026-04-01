@@ -23,7 +23,7 @@ $switcherItems = municipality_switcher_items('reiki');
 $cleanHtmlDir = (string)($reikiFeature['clean_html_dir'] ?? '');
 $classificationDir = (string)($reikiFeature['classification_dir'] ?? '');
 $dbPath = (string)($reikiFeature['db_path'] ?? '');
-$reikiImageUrl = (string)($reikiFeature['image_url'] ?? '/data/reiki/kawasaki-shi/images');
+$reikiImageUrl = (string)($reikiFeature['image_url'] ?? '/data/reiki/14130-kawasaki-shi/images');
 $pageTitle = (string)($reikiFeature['title'] ?? ($municipality['name'] . '例規集 AI評価ビューア'));
 $clearUrl = '/reiki/?slug=' . rawurlencode($slug);
 $featureNotice = $featureAvailable ? '' : ($municipality['name'] . 'の例規集は準備中です。');

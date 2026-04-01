@@ -24,6 +24,7 @@
 `users.sqlite` は全自治体で共有、`boards.sqlite` / `tasks.sqlite` は自治体ごとに分離されます。  
 `tasks.sqlite` はリモートサーバー上でのみ生成され、デプロイ時に転送・削除されません（rsync exclude）。  
 `boards.sqlite` もデプロイ時は転送されません。初回のみ手動で配置してください。
+本番でも `data/boards` と `data/users.sqlite` はサービスディレクトリ配下に置いたまま運用します。
 
 ## 設定
 

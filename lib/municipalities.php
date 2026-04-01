@@ -135,12 +135,12 @@ function legacy_reiki_defaults(string $slug): array
     if ($slug === 'kawasaki-shi') {
         return [
             'title' => '川崎市例規集 AI評価ビューア',
-            'source_dir' => 'reiki/kawasaki-shi/source',
-            'clean_html_dir' => 'reiki/kawasaki-shi/html',
-            'classification_dir' => 'reiki/kawasaki-shi/json',
-            'image_dir' => 'reiki/kawasaki-shi/images',
-            'markdown_dir' => 'reiki/kawasaki-shi/markdown',
-            'db_path' => 'reiki/kawasaki-shi/ordinances.sqlite',
+            'source_dir' => 'reiki/14130-kawasaki-shi/source',
+            'clean_html_dir' => 'reiki/14130-kawasaki-shi/html',
+            'classification_dir' => 'reiki/14130-kawasaki-shi/json',
+            'image_dir' => 'reiki/14130-kawasaki-shi/images',
+            'markdown_dir' => 'reiki/14130-kawasaki-shi/markdown',
+            'db_path' => 'reiki/14130-kawasaki-shi/ordinances.sqlite',
             'legacy_db_path' => 'reiki/ordinances.sqlite',
             'sortable_prefixes' => ['かわさきし', 'かわさき'],
         ];
@@ -164,10 +164,10 @@ function legacy_gijiroku_defaults(string $slug, string $name): array
         return [
             'title' => '川崎市議会 会議録 全文検索',
             'assembly_name' => '川崎市議会',
-            'data_dir' => 'gijiroku/kawasaki-shi',
-            'downloads_dir' => 'gijiroku/kawasaki-shi/downloads',
-            'index_json_path' => 'gijiroku/kawasaki-shi/meetings_index.json',
-            'db_path' => 'gijiroku/kawasaki-shi/minutes.sqlite',
+            'data_dir' => 'gijiroku/14130-kawasaki-shi',
+            'downloads_dir' => 'gijiroku/14130-kawasaki-shi/downloads',
+            'index_json_path' => 'gijiroku/14130-kawasaki-shi/meetings_index.json',
+            'db_path' => 'gijiroku/14130-kawasaki-shi/minutes.sqlite',
         ];
     }
 

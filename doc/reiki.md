@@ -35,15 +35,16 @@
 本番データ (`data/`):
 
 - 整形HTML: `data/reiki/{slug}/html`
-- AI評価JSON: `data/reiki/{slug}/json`
+- AI評価JSON: `data/reiki/{slug}/json` (`.json.gz`)
 - 画像: `data/reiki/{slug}/images`
 - 一覧SQLite: `data/reiki/{slug}/ordinances.sqlite`
 
 ローカル作業データ (`work/`):
 
-- 元HTML: `work/reiki/{slug}/source`
-- Markdown: `work/reiki/{slug}/markdown`
-- クロールマニフェスト: `work/reiki/{slug}/source_manifest.json`
+- 元HTML: `work/reiki/{slug}/source` (`*_j.html.gz`)
+- Markdown: `work/reiki/{slug}/markdown` (`*.md.gz`)
+- クロールマニフェスト: `work/reiki/{slug}/source_manifest.json.gz`
+- 体系ページ一覧: `work/reiki/{slug}/taxonomy_pages.json.gz` (`taikei` 系)
 
 ## 関連スクリプト
 
@@ -56,7 +57,7 @@
 
 スクレイパ名は `work/municipalities/reiki_system_urls.tsv` の `system_type` に合わせています。`d1-law` と `taikei` は `--slug` で対象自治体を切り替えます。
 
-京都府のような `taikei` 系スクレイパは `https://www.pref.kyoto.jp/reiki/` の体系ページを巡回し、元HTML・Markdown・マニフェストを `work/reiki/kyoto-fu` に、整形HTML・SQLite を `data/reiki/kyoto-fu` に出力します。
+京都府のような `taikei` 系スクレイパは `https://www.pref.kyoto.jp/reiki/` の体系ページを巡回し、元HTML・Markdown・マニフェストを `work/reiki/26000-kyoto-fu` に、整形HTML・SQLite を `data/reiki/26000-kyoto-fu` に出力します。
 
 ```bash
 php tools/reiki/download_taikei.php --slug kyoto-fu
@@ -68,10 +69,28 @@ php tools/reiki/download_taikei.php --slug kyoto-fu
 php tools/reiki/download_taikei.php --slug kyoto-fu --limit=10 --force
 ```
 
+更新確認付きで再実行する場合:
+
+```bash
+php tools/reiki/download_taikei.php --slug kyoto-fu --check-updates
+```
+
 `d1-law` 系の取得例:
 
 ```bash
 python tools/reiki/download_d1_law.py --slug kawasaki-shi
+```
+
+既存の条例も取り直して更新を反映したい場合:
+
+```bash
+python tools/reiki/download_d1_law.py --slug kawasaki-shi --check-updates
+```
+
+実装済みの `d1-law` / `taikei` をまとめて回す場合:
+
+```bash
+python tools/reiki/scrape_all_reiki.py --parallel 4 --per-host-parallel 1 --check-updates
 ```
 
 自治体別 SQLite の生成は共通化しています。
@@ -79,6 +98,12 @@ python tools/reiki/download_d1_law.py --slug kawasaki-shi
 ```bash
 python tools/reiki/init_ordinance_db.py --slug kawasaki-shi
 ```
+
+補足:
+
+- スクレイパは gzip された元HTML/Markdown/JSON を優先し、同じ論理ファイルの平文重複は新規実行時に整理します。
+- ダウンロード途中で止まっても、既存ソースと生成済み出力を見て不足分だけ再開します。
+- 既存 `slug` は互換性のためそのまま使えますが、新規追加時は `自治体コード-ローマ字名称` を推奨します。
 
 ## 画面側の挙動
 
