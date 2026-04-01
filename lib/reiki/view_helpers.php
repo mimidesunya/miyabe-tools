@@ -2,10 +2,10 @@
 declare(strict_types=1);
 
 /**
- * Shared utility functions for the Reiki (ordinance) viewer.
+ * 例規集ページで使う表示補助と HTML 整形の共通関数。
  */
 
-// Shared logic for score display (Color and Label)
+// 各スコアの色と補助ラベルを UI 用に決める。
 function get_score_style_and_label(string $key, float|int $val): array {
     $style = '';
     $suffix = '';
@@ -95,6 +95,7 @@ function normalize_document_type(?string $documentType): string
     };
 }
 
+// 既存データは UTF-8 / CP932 / gzipped HTML が混在するため、可能な範囲で自動判定する。
 function read_text_auto(string $path): string
 {
     $encodings = ['UTF-8', 'SJIS-win', 'CP932', 'EUC-JP', 'ISO-2022-JP'];
@@ -164,6 +165,7 @@ function inner_html(DOMNode $node): string {
     return $html;
 }
 
+// DB に題名が無い旧データでも、HTML から題名を拾って一覧表示を破綻させない。
 function resolve_record_title(array $record, array &$cache): string {
     $name = (string)($record['name'] ?? '');
     if ($name !== '' && isset($cache[$name])) {
@@ -182,7 +184,8 @@ function resolve_record_title(array $record, array &$cache): string {
     return $title;
 }
 
-function sanitize_law_html(string $html, string $imageBaseUrl = '/data/reiki/14130-kawasaki-shi/images'): string
+// 配信前に危険な属性を落とし、画像パスだけ自治体ごとの公開 URL へ寄せる。
+function sanitize_law_html(string $html, string $imageBaseUrl = '/data/reiki/images'): string
 {
     $dom = new DOMDocument();
     libxml_use_internal_errors(true);
@@ -242,7 +245,8 @@ function sanitize_law_html(string $html, string $imageBaseUrl = '/data/reiki/141
     return $dom->saveHTML() ?: '';
 }
 
-function extract_law_content_html(string $html, string $imageBaseUrl = '/data/reiki/14130-kawasaki-shi/images'): string
+// ベンダーごとに HTML の外枠が違うため、本文相当だけを優先的に抜き出す。
+function extract_law_content_html(string $html, string $imageBaseUrl = '/data/reiki/images'): string
 {
     $dom = new DOMDocument();
     libxml_use_internal_errors(true);

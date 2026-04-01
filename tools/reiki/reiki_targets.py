@@ -51,6 +51,7 @@ def load_municipality_master_index() -> dict[str, dict[str, str]]:
                 "pref_name": str(row.get("pref_name", "")).strip(),
                 "name": str(row.get("name", "")).strip(),
                 "full_name": str(row.get("full_name", "")).strip(),
+                "name_romaji": str(row.get("name_romaji", "")).strip(),
             }
     return index
 
@@ -124,8 +125,22 @@ def configured_slug_by_code() -> dict[str, str]:
     return slug_map
 
 
-def fallback_slug_for_reiki(code: str, source_url: str, homepage_url: str = "") -> str:
-    return code_name_slug(code, source_url, homepage_url)
+def fallback_slug_for_reiki(
+    code: str,
+    source_url: str,
+    homepage_url: str = "",
+    *,
+    master_entry: dict[str, str] | None = None,
+) -> str:
+    entry = master_entry or {}
+    return code_name_slug(
+        code,
+        source_url,
+        homepage_url,
+        name=str(entry.get("name", "")).strip(),
+        entity_type=str(entry.get("entity_type", "")).strip(),
+        name_romaji=str(entry.get("name_romaji", "")).strip(),
+    )
 
 
 def derive_taikei_entry_url(source_url: str) -> str:
@@ -223,10 +238,18 @@ def iter_reiki_targets(expected_system: str | None = None, configured_only: bool
         else:
             if configured_only:
                 continue
-            slug = fallback_slug_for_reiki(code, source_url, homepage_index.get(code, ""))
             municipality_entry = None
 
         master_entry = master_index.get(code)
+        if configured_slug:
+            slug = configured_slug
+        else:
+            slug = fallback_slug_for_reiki(
+                code,
+                source_url,
+                homepage_index.get(code, ""),
+                master_entry=master_entry,
+            )
         targets.append(
             build_target_entry(
                 slug=slug,

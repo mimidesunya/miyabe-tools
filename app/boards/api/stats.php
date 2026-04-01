@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-require '/var/www/lib/session.php';
+require_once dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'session.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');

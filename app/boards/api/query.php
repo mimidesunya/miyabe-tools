@@ -9,7 +9,7 @@
 
 declare(strict_types=1);
 
-require '/var/www/lib/session.php';
+require_once dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'session.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -55,6 +55,8 @@ $useBbox = ($minLat !== null && $maxLat !== null && $minLon !== null && $maxLon 
         $join
         WHERE r.min_lon <= :max_lon AND r.max_lon >= :min_lon
           AND r.min_lat <= :max_lat AND r.max_lat >= :min_lat
+          AND b.lat IS NOT NULL AND b.lat != ''
+          AND b.lon IS NOT NULL AND b.lon != ''
         ORDER BY b.code ASC
         LIMIT :limit
     SQL;
@@ -74,6 +76,8 @@ $useBbox = ($minLat !== null && $maxLat !== null && $minLon !== null && $maxLon 
         SELECT b.code, b.address, b.place, b.lat, b.lon, $selectStatus
         FROM boards b
         $join
+        WHERE b.lat IS NOT NULL AND b.lat != ''
+          AND b.lon IS NOT NULL AND b.lon != ''
         ORDER BY b.code ASC
         LIMIT :limit
     SQL;

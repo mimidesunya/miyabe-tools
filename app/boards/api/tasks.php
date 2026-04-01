@@ -13,7 +13,7 @@
 
 declare(strict_types=1);
 
-require '/var/www/lib/session.php';
+require_once dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'session.php';
 header('Content-Type: application/json; charset=UTF-8');
 
 // 掲示場の座標を設定する

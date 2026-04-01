@@ -3,6 +3,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -96,3 +97,24 @@ def collect_matching_files(root: Path, patterns: list[str]) -> list[Path]:
             if path.is_file():
                 found[path] = None
     return sorted(found.keys())
+
+
+def save_state(path: Path, payload: dict[str, Any]) -> None:
+    # 進捗 JSON は親バッチがポーリングで読むので、途中の壊れた内容を見せないよう原子的に差し替える。
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_suffix(path.suffix + ".tmp")
+    text = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    temp_path.write_text(text, encoding="utf-8")
+    os.replace(temp_path, path)
+
+
+def update_progress_state(path: Path, *, current: int, total: int, unit: str = "ordinance") -> None:
+    save_state(
+        path,
+        {
+            "version": 1,
+            "progress_current": max(0, int(current)),
+            "progress_total": max(0, int(total)),
+            "progress_unit": str(unit).strip() or "ordinance",
+        },
+    )

@@ -2,6 +2,8 @@
 <?php
 declare(strict_types=1);
 
+require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'japanese_search.php';
+
 const TAIKEI_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36';
 const TAIKEI_SLEEP_USEC = 120000;
 
@@ -35,6 +37,7 @@ function main(array $argv): void
     $imageDir = (string)$target['image_dir'];
     $markdownDir = (string)$target['markdown_dir'];
     $dbPath = (string)$target['db_path'];
+    $statePath = $workRoot . DIRECTORY_SEPARATOR . 'scrape_state.json';
 
     ensure_dir($dataRoot);
     ensure_dir($workRoot);
@@ -43,6 +46,7 @@ function main(array $argv): void
     ensure_dir($jsonDir);
     ensure_dir($imageDir);
     ensure_dir($markdownDir);
+    $indexPdo = open_ordinance_index($dbPath);
 
     echo "Crawling {$target['name']} reiki taxonomy...\n";
     $crawl = crawl_taxonomy((string)$target['entry_url']);
@@ -56,6 +60,7 @@ function main(array $argv): void
 
     echo 'Found ' . count($records) . " ordinance pages across " . count($crawl['pages']) . " taxonomy pages.\n";
     if ($crawlOnly) {
+        emit_progress(count($records), count($records), $statePath);
         write_json_file($manifestPath, $records, true);
         echo "Saved crawl manifest only: {$manifestPath}\n";
         return;
@@ -69,6 +74,7 @@ function main(array $argv): void
     $manifests = [];
     $selectedRecords = $limit > 0 ? array_slice($records, 0, $limit) : $records;
     $total = count($selectedRecords);
+    emit_progress(0, $total, $statePath);
 
     foreach ($selectedRecords as $index => $record) {
         $sourceFileName = ordinance_file_name_from_url((string)$record['detail_url']);
@@ -118,7 +124,7 @@ function main(array $argv): void
 
             $parsedRecord = parse_taikei_ordinance_html($sourceHtml, (string)$record['detail_url'], $record);
             write_text_file($htmlPath, $parsedRecord['clean_html']);
-            write_text_file($markdownPath, $parsedRecord['markdown'], true);
+            $storedMarkdownPath = write_text_file($markdownPath, $parsedRecord['markdown'], true);
             unset($parsedRecord['clean_html'], $parsedRecord['markdown']);
             $manifestEntry = $parsedRecord;
             $parsed++;
@@ -133,8 +139,15 @@ function main(array $argv): void
         $manifestEntry['checked_updates'] = $checkUpdates;
         $manifestEntry['updated_at'] = gmdate('c');
         $manifests[] = $manifestEntry;
+        if ($indexPdo instanceof PDO) {
+            // 再利用した既存 HTML もここで拾うことで、DB の取りこぼしを次の完了待ちなしで埋める。
+            upsert_ordinance_index_row($indexPdo, $manifestEntry, $htmlPath, $storedMarkdownPath);
+        }
+        emit_progress($index + 1, $total, $statePath);
 
         if ((($index + 1) % 25) === 0 || ($index + 1) === $total) {
+            // 中断後の補完でも detail_url や taxonomy を拾えるよう、manifest を途中でも保存する。
+            write_json_file($manifestPath, $manifests, true);
             echo sprintf(
                 "[%d/%d] downloaded=%d checked=%d skipped=%d parsed=%d reused=%d\n",
                 $index + 1,
@@ -149,7 +162,6 @@ function main(array $argv): void
     }
 
     write_json_file($manifestPath, $manifests, true);
-    build_ordinance_db($dbPath, $manifests);
 
     echo "\nFinished {$target['name']} scrape.\n";
     echo "  Source HTML: {$sourceDir}\n";
@@ -1183,23 +1195,140 @@ function write_json_file(string $path, array $data, bool $compress = false): str
     return write_text_file($path, $json, $compress);
 }
 
-function build_ordinance_db(string $dbPath, array $records): void
+function open_ordinance_index(string $dbPath): ?PDO
 {
+    static $warnedUnavailable = false;
+
     if (!class_exists(PDO::class) || !in_array('sqlite', PDO::getAvailableDrivers(), true)) {
-        fwrite(STDERR, "Warning: PDO SQLite is not available; skipped ordinance DB generation.\n");
-        return;
+        if (!$warnedUnavailable) {
+            fwrite(STDERR, "Warning: PDO SQLite is not available; skipped ordinance DB updates.\n");
+            $warnedUnavailable = true;
+        }
+        return null;
     }
 
     ensure_dir(dirname($dbPath));
+    $pdo = open_sqlite_pdo($dbPath);
+    if (!ordinance_index_schema_compatible($pdo)) {
+        // 旧 taikei の簡易 DB は列が足りないので、途中更新へ切り替える前に空で作り直す。
+        $pdo = null;
+        if (is_file($dbPath)) {
+            unlink($dbPath);
+        }
+        $pdo = open_sqlite_pdo($dbPath);
+    }
+    ensure_ordinance_index_schema($pdo);
+    return $pdo;
+}
+
+function open_sqlite_pdo(string $dbPath): PDO
+{
     $pdo = new PDO('sqlite:' . $dbPath);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->exec('PRAGMA journal_mode = WAL');
     $pdo->exec('PRAGMA synchronous = NORMAL');
+    return $pdo;
+}
 
+function ordinance_index_schema_compatible(PDO $pdo): bool
+{
+    try {
+        $rows = $pdo->query('PRAGMA table_info(ordinances)');
+        if (!$rows instanceof PDOStatement) {
+            return false;
+        }
+        $columns = [];
+        foreach ($rows->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $name = trim((string)($row['name'] ?? ''));
+            if ($name !== '') {
+                $columns[$name] = true;
+            }
+        }
+    } catch (Throwable) {
+        return false;
+    }
+
+    if ($columns === []) {
+        return true;
+    }
+
+    $required = [
+        'id',
+        'filename',
+        'title',
+        'reading_kana',
+        'sortable_kana',
+        'primary_class',
+        'secondary_tags',
+        'necessity_score',
+        'fiscal_impact_score',
+        'regulatory_burden_score',
+        'policy_effectiveness_score',
+        'lens_tags',
+        'lens_a_stance',
+        'lens_b_stance',
+        'combined_stance',
+        'combined_reason',
+        'document_type',
+        'responsible_department',
+        'reason',
+        'enactment_date',
+        'analyzed_at',
+        'updated_at',
+        'source_url',
+        'source_file',
+        'taxonomy_path',
+        'taxonomy_paths',
+        'content_text',
+        'content_length',
+    ];
+    foreach ($required as $column) {
+        if (!isset($columns[$column])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function ordinance_index_fts_columns(PDO $pdo): array
+{
+    try {
+        $rows = $pdo->query('PRAGMA table_info(ordinances_fts)');
+        if (!$rows instanceof PDOStatement) {
+            return [];
+        }
+        return array_values(array_map(
+            static fn(array $row): string => trim((string)($row['name'] ?? '')),
+            $rows->fetchAll(PDO::FETCH_ASSOC)
+        ));
+    } catch (Throwable) {
+        return [];
+    }
+}
+
+function ordinance_index_fts_schema_matches(PDO $pdo): bool
+{
+    return ordinance_index_fts_columns($pdo) === [
+        'title_terms',
+        'reading_terms',
+        'content_terms',
+        'department_terms',
+        'combined_reason_terms',
+        'reason_terms',
+        'secondary_terms',
+        'lens_terms',
+        'taxonomy_terms',
+    ];
+}
+
+function ensure_ordinance_index_schema(PDO $pdo): void
+{
     $pdo->exec(<<<'SQL'
 CREATE TABLE IF NOT EXISTS ordinances (
-    filename TEXT PRIMARY KEY,
-    title TEXT,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    filename TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
     reading_kana TEXT,
     sortable_kana TEXT,
     primary_class TEXT,
@@ -1218,102 +1347,247 @@ CREATE TABLE IF NOT EXISTS ordinances (
     reason TEXT,
     enactment_date TEXT,
     analyzed_at TEXT,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    updated_at TEXT,
+    source_url TEXT,
+    source_file TEXT,
+    taxonomy_path TEXT,
+    taxonomy_paths TEXT,
+    content_text TEXT NOT NULL,
+    content_length INTEGER NOT NULL DEFAULT 0
 )
 SQL);
-    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_sortable_kana ON ordinances(sortable_kana)');
-    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_class ON ordinances(primary_class)');
-    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_necessity ON ordinances(necessity_score)');
-    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_date ON ordinances(enactment_date)');
-    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_combined_stance ON ordinances(combined_stance)');
-    $pdo->exec('DELETE FROM ordinances');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_ordinances_sortable_kana ON ordinances(sortable_kana)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_ordinances_class ON ordinances(primary_class)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_ordinances_necessity ON ordinances(necessity_score)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_ordinances_date ON ordinances(enactment_date)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_ordinances_combined_stance ON ordinances(combined_stance)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_ordinances_document_type ON ordinances(document_type)');
+    if (!ordinance_index_fts_schema_matches($pdo)) {
+        $pdo->exec('DROP TABLE IF EXISTS ordinances_fts');
+        $pdo->exec(<<<'SQL'
+CREATE VIRTUAL TABLE IF NOT EXISTS ordinances_fts USING fts5(
+    title_terms,
+    reading_terms,
+    content_terms,
+    department_terms,
+    combined_reason_terms,
+    reason_terms,
+    secondary_terms,
+    lens_terms,
+    taxonomy_terms,
+    tokenize = 'unicode61'
+)
+SQL);
+        rebuild_ordinance_index_fts($pdo);
+        return;
+    }
 
-    $stmt = $pdo->prepare(<<<'SQL'
-INSERT INTO ordinances (
-    filename,
+    $pdo->exec(<<<'SQL'
+CREATE VIRTUAL TABLE IF NOT EXISTS ordinances_fts USING fts5(
+    title_terms,
+    reading_terms,
+    content_terms,
+    department_terms,
+    combined_reason_terms,
+    reason_terms,
+    secondary_terms,
+    lens_terms,
+    taxonomy_terms,
+    tokenize = 'unicode61'
+)
+SQL);
+}
+
+function rebuild_ordinance_index_fts(PDO $pdo): void
+{
+    $stmt = $pdo->query(<<<'SQL'
+SELECT
+    id,
     title,
     reading_kana,
-    sortable_kana,
-    primary_class,
-    secondary_tags,
-    necessity_score,
-    fiscal_impact_score,
-    regulatory_burden_score,
-    policy_effectiveness_score,
-    lens_tags,
-    lens_a_stance,
-    lens_b_stance,
-    combined_stance,
-    combined_reason,
-    document_type,
+    content_text,
     responsible_department,
+    combined_reason,
     reason,
-    enactment_date,
-    analyzed_at,
-    updated_at
+    secondary_tags,
+    lens_tags,
+    taxonomy_path
+FROM ordinances
+SQL);
+    if (!$stmt instanceof PDOStatement) {
+        return;
+    }
+
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $terms = japanese_search_document_terms_map([
+            'title_terms' => (string)($row['title'] ?? ''),
+            'reading_terms' => (string)($row['reading_kana'] ?? ''),
+            'content_terms' => (string)($row['content_text'] ?? ''),
+            'department_terms' => (string)($row['responsible_department'] ?? ''),
+            'combined_reason_terms' => (string)($row['combined_reason'] ?? ''),
+            'reason_terms' => (string)($row['reason'] ?? ''),
+            'secondary_terms' => (string)($row['secondary_tags'] ?? ''),
+            'lens_terms' => (string)($row['lens_tags'] ?? ''),
+            'taxonomy_terms' => (string)($row['taxonomy_path'] ?? ''),
+        ]);
+        insert_ordinance_fts_row($pdo, (int)($row['id'] ?? 0), $terms);
+    }
+}
+
+function insert_ordinance_fts_row(PDO $pdo, int $rowId, array $terms): void
+{
+    $stmt = $pdo->prepare(<<<'SQL'
+INSERT INTO ordinances_fts (
+    rowid, title_terms, reading_terms, content_terms, department_terms,
+    combined_reason_terms, reason_terms, secondary_terms, lens_terms, taxonomy_terms
 ) VALUES (
-    :filename,
-    :title,
-    :reading_kana,
-    :sortable_kana,
-    :primary_class,
-    :secondary_tags,
-    :necessity_score,
-    :fiscal_impact_score,
-    :regulatory_burden_score,
-    :policy_effectiveness_score,
-    :lens_tags,
-    :lens_a_stance,
-    :lens_b_stance,
-    :combined_stance,
-    :combined_reason,
-    :document_type,
-    :responsible_department,
-    :reason,
-    :enactment_date,
-    :analyzed_at,
-    :updated_at
+    :rowid, :title_terms, :reading_terms, :content_terms, :department_terms,
+    :combined_reason_terms, :reason_terms, :secondary_terms, :lens_terms, :taxonomy_terms
 )
 SQL);
+    $stmt->execute([
+        ':rowid' => $rowId,
+        ':title_terms' => (string)($terms['title_terms'] ?? ''),
+        ':reading_terms' => (string)($terms['reading_terms'] ?? ''),
+        ':content_terms' => (string)($terms['content_terms'] ?? ''),
+        ':department_terms' => (string)($terms['department_terms'] ?? ''),
+        ':combined_reason_terms' => (string)($terms['combined_reason_terms'] ?? ''),
+        ':reason_terms' => (string)($terms['reason_terms'] ?? ''),
+        ':secondary_terms' => (string)($terms['secondary_terms'] ?? ''),
+        ':lens_terms' => (string)($terms['lens_terms'] ?? ''),
+        ':taxonomy_terms' => (string)($terms['taxonomy_terms'] ?? ''),
+    ]);
+}
 
-    $updatedAt = gmdate('Y-m-d H:i:s');
-    $pdo->beginTransaction();
-    foreach ($records as $record) {
-        $sourceFile = (string)($record['source_file'] ?? '');
-        if ($sourceFile === '') {
-            continue;
-        }
-
-        $filename = pathinfo($sourceFile, PATHINFO_FILENAME);
-        $title = html_entity_decode((string)($record['title'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $date = trim((string)($record['enactment_date'] ?? ''));
-        $number = html_entity_decode((string)($record['number'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-
-        $stmt->execute([
-            ':filename' => $filename,
-            ':title' => $title,
-            ':reading_kana' => $title,
-            ':sortable_kana' => sortable_title($title),
-            ':primary_class' => '',
-            ':secondary_tags' => '',
-            ':necessity_score' => -1,
-            ':fiscal_impact_score' => 0,
-            ':regulatory_burden_score' => 0,
-            ':policy_effectiveness_score' => 0,
-            ':lens_tags' => '',
-            ':lens_a_stance' => '',
-            ':lens_b_stance' => '',
-            ':combined_stance' => '',
-            ':combined_reason' => '',
-            ':document_type' => detect_document_type($number, $title),
-            ':responsible_department' => '',
-            ':reason' => '',
-            ':enactment_date' => $date !== '' ? $date : null,
-            ':analyzed_at' => '',
-            ':updated_at' => $updatedAt,
-        ]);
+function upsert_ordinance_index_row(PDO $pdo, array $record, string $htmlPath, ?string $markdownPath): void
+{
+    $storedHtmlPath = existing_path($htmlPath) ?? $htmlPath;
+    if (!is_file($storedHtmlPath)) {
+        return;
     }
-    $pdo->commit();
+
+    $cleanHtml = read_text_file_auto($storedHtmlPath);
+    $markdown = is_string($markdownPath) && is_file($markdownPath) ? read_text_file_auto($markdownPath) : '';
+    $contentText = ordinance_index_content_text($cleanHtml, $markdown);
+    if ($contentText === '') {
+        return;
+    }
+
+    $sourceFile = trim((string)($record['source_file'] ?? ''));
+    if ($sourceFile === '') {
+        return;
+    }
+
+    $filename = (string)pathinfo($sourceFile, PATHINFO_FILENAME);
+    $title = html_entity_decode((string)($record['title'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    if ($title === '') {
+        $title = $filename;
+    }
+    $number = html_entity_decode((string)($record['number'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $date = trim((string)($record['enactment_date'] ?? ''));
+    $taxonomyPaths = array_values(array_filter(is_array($record['taxonomy_paths'] ?? null) ? $record['taxonomy_paths'] : []));
+    $updatedAt = ordinance_index_updated_at($storedHtmlPath, $markdownPath);
+    $terms = japanese_search_document_terms_map([
+        'title_terms' => $title,
+        'reading_terms' => $title,
+        'content_terms' => $contentText,
+        'department_terms' => '',
+        'combined_reason_terms' => '',
+        'reason_terms' => '',
+        'secondary_terms' => '',
+        'lens_terms' => '',
+        'taxonomy_terms' => trim((string)($record['taxonomy_path'] ?? '')),
+    ]);
+
+    $params = [
+        ':filename' => $filename,
+        ':title' => $title,
+        ':reading_kana' => $title,
+        ':sortable_kana' => sortable_title($title),
+        ':primary_class' => '',
+        ':secondary_tags' => '',
+        ':necessity_score' => -1,
+        ':fiscal_impact_score' => 0,
+        ':regulatory_burden_score' => 0,
+        ':policy_effectiveness_score' => 0,
+        ':lens_tags' => '',
+        ':lens_a_stance' => '',
+        ':lens_b_stance' => '',
+        ':combined_stance' => '',
+        ':combined_reason' => '',
+        ':document_type' => detect_document_type($number, $title),
+        ':responsible_department' => '',
+        ':reason' => '',
+        ':enactment_date' => $date !== '' ? $date : null,
+        ':analyzed_at' => '',
+        ':updated_at' => $updatedAt,
+        ':source_url' => trim((string)($record['detail_url'] ?? '')),
+        ':source_file' => $sourceFile,
+        ':taxonomy_path' => trim((string)($record['taxonomy_path'] ?? '')),
+        ':taxonomy_paths' => implode(',', $taxonomyPaths),
+        ':content_text' => $contentText,
+        ':content_length' => text_length($contentText),
+    ];
+
+    $select = $pdo->prepare('SELECT id FROM ordinances WHERE filename = :filename');
+    $select->execute([':filename' => $filename]);
+    $rowId = $select->fetchColumn();
+
+    if ($rowId === false) {
+        $stmt = $pdo->prepare(<<<'SQL'
+INSERT INTO ordinances (
+    filename, title, reading_kana, sortable_kana, primary_class, secondary_tags,
+    necessity_score, fiscal_impact_score, regulatory_burden_score, policy_effectiveness_score,
+    lens_tags, lens_a_stance, lens_b_stance, combined_stance, combined_reason,
+    document_type, responsible_department, reason, enactment_date, analyzed_at,
+    updated_at, source_url, source_file, taxonomy_path, taxonomy_paths, content_text, content_length
+) VALUES (
+    :filename, :title, :reading_kana, :sortable_kana, :primary_class, :secondary_tags,
+    :necessity_score, :fiscal_impact_score, :regulatory_burden_score, :policy_effectiveness_score,
+    :lens_tags, :lens_a_stance, :lens_b_stance, :combined_stance, :combined_reason,
+    :document_type, :responsible_department, :reason, :enactment_date, :analyzed_at,
+    :updated_at, :source_url, :source_file, :taxonomy_path, :taxonomy_paths, :content_text, :content_length
+)
+SQL);
+        $stmt->execute($params);
+        $rowId = (int)$pdo->lastInsertId();
+    } else {
+        $rowId = (int)$rowId;
+        $pdo->prepare('DELETE FROM ordinances_fts WHERE rowid = :rowid')->execute([':rowid' => $rowId]);
+        $stmt = $pdo->prepare(<<<'SQL'
+UPDATE ordinances
+   SET title = :title,
+       reading_kana = :reading_kana,
+       sortable_kana = :sortable_kana,
+       primary_class = :primary_class,
+       secondary_tags = :secondary_tags,
+       necessity_score = :necessity_score,
+       fiscal_impact_score = :fiscal_impact_score,
+       regulatory_burden_score = :regulatory_burden_score,
+       policy_effectiveness_score = :policy_effectiveness_score,
+       lens_tags = :lens_tags,
+       lens_a_stance = :lens_a_stance,
+       lens_b_stance = :lens_b_stance,
+       combined_stance = :combined_stance,
+       combined_reason = :combined_reason,
+       document_type = :document_type,
+       responsible_department = :responsible_department,
+       reason = :reason,
+       enactment_date = :enactment_date,
+       analyzed_at = :analyzed_at,
+       updated_at = :updated_at,
+       source_url = :source_url,
+       source_file = :source_file,
+       taxonomy_path = :taxonomy_path,
+       taxonomy_paths = :taxonomy_paths,
+       content_text = :content_text,
+       content_length = :content_length
+ WHERE id = :rowid
+SQL);
+        $stmt->execute($params + [':rowid' => $rowId]);
+    }
+
+    insert_ordinance_fts_row($pdo, $rowId, $terms);
 }
 
 function sortable_title(string $title): string
@@ -1343,6 +1617,64 @@ function detect_document_type(string $number, string $title): string
     return 'その他';
 }
 
+function ordinance_index_content_text(string $cleanHtml, string $markdown): string
+{
+    $text = clean_html_to_text($cleanHtml);
+    if ($text === '' && $markdown !== '') {
+        $text = markdown_to_text_for_index($markdown);
+    }
+    return trim($text);
+}
+
+function clean_html_to_text(string $html): string
+{
+    $text = preg_replace('/<script[\s\S]*?<\/script>/iu', '', $html) ?? $html;
+    $text = preg_replace('/<style[\s\S]*?<\/style>/iu', '', $text) ?? $text;
+    $text = preg_replace('/<br\s*\/?>/iu', "\n", $text) ?? $text;
+    $text = preg_replace('/<\/(div|p|li|tr|table|section|article|h[1-6])>/iu', "\n", $text) ?? $text;
+    $text = strip_tags($text);
+    $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $text = str_replace(["\r\n", "\r"], "\n", $text);
+    $text = preg_replace('/\n{3,}/u', "\n\n", $text) ?? $text;
+    return normalize_whitespace($text);
+}
+
+function markdown_to_text_for_index(string $markdown): string
+{
+    $text = preg_replace('/!\[[^\]]*\]\([^)]+\)/u', '', $markdown) ?? $markdown;
+    $text = preg_replace('/\[([^\]]+)\]\([^)]+\)/u', '$1', $text) ?? $text;
+    $text = preg_replace('/^[#>*`\-\+\s]+/mu', '', $text) ?? $text;
+    $text = preg_replace('/\*{1,2}([^*]+)\*{1,2}/u', '$1', $text) ?? $text;
+    $text = preg_replace('/`([^`]+)`/u', '$1', $text) ?? $text;
+    $text = str_replace(["\r\n", "\r"], "\n", $text);
+    $text = preg_replace('/\n{3,}/u', "\n\n", $text) ?? $text;
+    return normalize_whitespace($text);
+}
+
+function ordinance_index_updated_at(string $htmlPath, ?string $markdownPath): string
+{
+    $mtimes = [];
+    if (is_file($htmlPath)) {
+        $mtime = filemtime($htmlPath);
+        if (is_int($mtime) || is_float($mtime)) {
+            $mtimes[] = (int)$mtime;
+        }
+    }
+    if (is_string($markdownPath) && is_file($markdownPath)) {
+        $mtime = filemtime($markdownPath);
+        if (is_int($mtime) || is_float($mtime)) {
+            $mtimes[] = (int)$mtime;
+        }
+    }
+    $ts = $mtimes !== [] ? max($mtimes) : time();
+    return gmdate('Y-m-d H:i:s', $ts);
+}
+
+function text_length(string $text): int
+{
+    return function_exists('mb_strlen') ? (int)mb_strlen($text, 'UTF-8') : strlen($text);
+}
+
 function ensure_dir(string $path): void
 {
     if (!is_dir($path) && !mkdir($path, 0777, true) && !is_dir($path)) {
@@ -1353,6 +1685,33 @@ function ensure_dir(string $path): void
 function throttled_sleep(): void
 {
     usleep(TAIKEI_SLEEP_USEC);
+}
+
+function emit_progress(int $current, int $total, string $statePath = ''): void
+{
+    if ($statePath !== '') {
+        write_progress_state($statePath, $current, $total);
+    }
+    echo sprintf("[PROGRESS] unit=ordinance current=%d total=%d\n", max(0, $current), max(0, $total));
+    flush();
+}
+
+function write_progress_state(string $path, int $current, int $total): void
+{
+    $payload = [
+        'version' => 1,
+        'progress_current' => max(0, $current),
+        'progress_total' => max(0, $total),
+        'progress_unit' => 'ordinance',
+    ];
+    $tempPath = $path . '.tmp';
+    $json = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if (!is_string($json)) {
+        return;
+    }
+    ensure_dir(dirname($path));
+    file_put_contents($tempPath, $json . "\n");
+    rename($tempPath, $path);
 }
 
 function h(string $value): string

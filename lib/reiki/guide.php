@@ -1,3 +1,6 @@
+<?php
+// 初回訪問時に表示する例規集ページの利用ガイド。
+?>
 <section class="card guide" id="guide-section">
     <h2 class="title guide-toggle">📖 このページの見方（はじめての方向け）<span class="guide-arrow"></span></h2>
     <div class="guide-body">

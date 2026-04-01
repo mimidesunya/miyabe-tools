@@ -18,6 +18,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 sys.path.append(str(Path(__file__).parent))
+import build_minutes_index as minutes_index_builder
 import gijiroku_storage
 import gijiroku_targets
 
@@ -69,6 +70,23 @@ class DocumentRow:
 
 def now_ts() -> str:
     return time.strftime("%Y%m%d_%H%M%S")
+
+
+def emit_progress(
+    current: int,
+    total: int,
+    state_path: Path | None = None,
+    state: dict | None = None,
+) -> None:
+    print(f"[PROGRESS] unit=meeting current={max(0, current)} total={max(0, total)}", flush=True)
+    if state_path is not None:
+        if state is not None:
+            state["progress_current"] = max(0, int(current))
+            state["progress_total"] = max(0, int(total))
+            state["progress_unit"] = "meeting"
+            gijiroku_storage.save_state(state_path, state)
+        else:
+            gijiroku_storage.update_progress_state(state_path, current=current, total=total, unit="meeting")
 
 
 def normalize_space(value: str) -> str:
@@ -198,9 +216,14 @@ def find_search_library_url(page, source_url: str) -> str:
 
 def held_on_from_text(value: str) -> str | None:
     match = re.search(r"(\d{4})-(\d{2})-(\d{2})", value)
-    if not match:
-        return None
-    return f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
+    if match:
+        return f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
+
+    match = re.search(r"(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日", value)
+    if match:
+        return f"{match.group(1)}-{int(match.group(2)):02d}-{int(match.group(3)):02d}"
+
+    return None
 
 
 def japanese_date_label(year_label: str, held_on: str | None) -> str | None:
@@ -228,6 +251,50 @@ def detect_meeting_group(text: str, title_text: str) -> str:
     return normalize_space(page_title) or "会議録"
 
 
+def collect_list_page_entries(page, entries, year_label: str, items: dict[str, ListPage]) -> None:
+    for entry_index in range(entries.count()):
+        entry = entries.nth(entry_index)
+        anchors = entry.locator("a")
+        list_url = ""
+        meeting_group = ""
+        auxiliary_docs: list[dict[str, str]] = []
+
+        for anchor_index in range(anchors.count()):
+            anchor = anchors.nth(anchor_index)
+            text = safe_inner_text(anchor)
+            href = safe_href(anchor)
+            if not href:
+                continue
+            absolute_url = canonicalize_template_url(urljoin(page.url, href))
+
+            if "Template=list" in href and list_url == "":
+                list_url = absolute_url
+                meeting_group = detect_meeting_group(text, page.title())
+                continue
+
+            if "Template=mokuji" in href:
+                auxiliary_docs.append(
+                    {
+                        "title": normalize_space(text) or "補助資料",
+                        "url": absolute_url,
+                    }
+                )
+
+        if not list_url:
+            continue
+
+        items.setdefault(
+            list_url,
+            ListPage(
+                title=meeting_group,
+                year_label=year_label,
+                url=list_url,
+                meeting_group=meeting_group,
+                auxiliary_docs=auxiliary_docs,
+            ),
+        )
+
+
 def discover_list_pages(page, target: dict, timeout_ms: int) -> list[ListPage]:
     page.goto(str(target["source_url"]), wait_until="domcontentloaded", timeout=timeout_ms)
     try:
@@ -244,51 +311,28 @@ def discover_list_pages(page, target: dict, timeout_ms: int) -> list[ListPage]:
 
     items: dict[str, ListPage] = {}
     cells = page.locator("div.LibraryTable dl.cell")
+    if cells.count() > 0:
+        for cell_index in range(cells.count()):
+            cell = cells.nth(cell_index)
+            year_label = safe_inner_text(cell.locator("dt.cell__title").first) or "不明"
+            collect_list_page_entries(page, cell.locator("dd.cell__item"), year_label, items)
+        return list(items.values())
+
+    cells = page.locator("div.LibraryTable dl")
+    if cells.count() > 0:
+        for cell_index in range(cells.count()):
+            cell = cells.nth(cell_index)
+            year_label = safe_inner_text(cell.locator("dt").first) or "不明"
+            collect_list_page_entries(page, cell.locator("dd"), year_label, items)
+        return list(items.values())
+
+    cells = page.locator("ul.table.table--all > li.table__cell")
     for cell_index in range(cells.count()):
         cell = cells.nth(cell_index)
-        year_label = safe_inner_text(cell.locator("dt.cell__title").first) or "不明"
-        entries = cell.locator("dd.cell__item")
-        for entry_index in range(entries.count()):
-            entry = entries.nth(entry_index)
-            anchors = entry.locator("a")
-            list_url = ""
-            meeting_group = ""
-            auxiliary_docs: list[dict[str, str]] = []
-
-            for anchor_index in range(anchors.count()):
-                anchor = anchors.nth(anchor_index)
-                text = safe_inner_text(anchor)
-                href = safe_href(anchor)
-                if not href:
-                    continue
-                absolute_url = canonicalize_template_url(urljoin(page.url, href))
-
-                if "Template=list" in href and list_url == "":
-                    list_url = absolute_url
-                    meeting_group = detect_meeting_group(text, page.title())
-                    continue
-
-                if "Template=mokuji" in href:
-                    auxiliary_docs.append(
-                        {
-                            "title": normalize_space(text) or "補助資料",
-                            "url": absolute_url,
-                        }
-                    )
-
-            if not list_url:
-                continue
-
-            items.setdefault(
-                list_url,
-                ListPage(
-                    title=meeting_group,
-                    year_label=year_label,
-                    url=list_url,
-                    meeting_group=meeting_group,
-                    auxiliary_docs=auxiliary_docs,
-                ),
-            )
+        year_label = safe_inner_text(cell.locator("dt.table__header:not(.visually-hidden)").first)
+        if not year_label:
+            year_label = safe_inner_text(cell.locator("dt.table__header").first) or "不明"
+        collect_list_page_entries(page, cell.locator("dd.table__item"), year_label, items)
 
     return list(items.values())
 
@@ -347,6 +391,30 @@ def extract_document_rows_from_page(page) -> list[DocumentRow]:
                 held_on=held_on,
             )
         )
+    if rows:
+        return rows
+
+    items = page.locator("div.recordcol div.title")
+    for index in range(items.count()):
+        item = items.nth(index)
+        anchor = item.locator("a").first
+        title = safe_inner_text(anchor)
+        href = safe_href(anchor)
+        if not title or not href:
+            continue
+
+        date_text = safe_inner_text(item.locator("span.date").first)
+        held_on = held_on_from_text(date_text or title)
+        if not held_on:
+            continue
+
+        rows.append(
+            DocumentRow(
+                title=title,
+                url=canonicalize_template_url(urljoin(page.url, href)),
+                held_on=held_on,
+            )
+        )
     return rows
 
 
@@ -375,12 +443,32 @@ def collect_list_page_documents(page, list_url: str, timeout_ms: int) -> list[Do
             collected.append(row)
 
         next_button = page.locator("nav.pagination button[aria-label='次のページ']").first
-        if next_button.count() == 0 or is_disabled(next_button):
+        if next_button.count() > 0 and not is_disabled(next_button):
+            try:
+                next_button.click(timeout=timeout_ms)
+                page.wait_for_load_state("domcontentloaded", timeout=timeout_ms)
+                try:
+                    page.wait_for_load_state("networkidle", timeout=3_000)
+                except Exception:
+                    pass
+                continue
+            except Exception:
+                break
+
+        next_url = ""
+        links = page.locator("div.pagination a")
+        for index in range(links.count()):
+            link = links.nth(index)
+            text = safe_inner_text(link)
+            href = safe_href(link)
+            if href and "次" in text:
+                next_url = canonicalize_template_url(urljoin(page.url, href))
+                break
+        if next_url == "":
             break
 
         try:
-            next_button.click(timeout=timeout_ms)
-            page.wait_for_load_state("domcontentloaded", timeout=timeout_ms)
+            page.goto(next_url, wait_until="domcontentloaded", timeout=timeout_ms)
             try:
                 page.wait_for_load_state("networkidle", timeout=3_000)
             except Exception:
@@ -584,7 +672,7 @@ def save_debug_html(path: Path, text: str) -> None:
 def build_parser() -> argparse.ArgumentParser:
     default_slug = gijiroku_targets.default_slug_for_system("dbsr")
     parser = argparse.ArgumentParser(
-        description="dbsr 系の議会会議録一覧を巡回し、日程単位の本文テキストを保存します。"
+        description="dbsr / db-search / kaigiroku-indexphp 系の議会会議録一覧を巡回し、日程単位の本文テキストを保存します。"
     )
     parser.add_argument(
         "--slug",
@@ -659,6 +747,11 @@ def main() -> int:
         if args.output_dir is not None
         else Path(target["index_json_path"]).resolve()
     )
+    output_db = (
+        (output_dir / "minutes.sqlite").resolve()
+        if args.output_dir is not None
+        else Path(target["db_path"]).resolve()
+    )
     pages_dir = work_dir / "pages"
     result_csv = work_dir / f"run_result_{now_ts()}.csv"
     state_path = work_dir / "scrape_state.json"
@@ -688,6 +781,9 @@ def main() -> int:
             json.dumps([asdict(item) for item in meeting_items], ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+        minutes_meta_map = minutes_index_builder.parse_source_meta(index_json)
+        minutes_index_builder.ensure_output_db(output_db)
+        emit_progress(0, len(meeting_items), state_path, state)
 
         with result_csv.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(
@@ -725,6 +821,12 @@ def main() -> int:
                         "updated_at": now_ts(),
                     }
                     gijiroku_storage.save_state(state_path, state)
+                    minutes_index_builder.upsert_source_file(
+                        output_db,
+                        downloads_dir,
+                        existing_output,
+                        meta_map=minutes_meta_map,
+                    )
                     writer.writerow(
                         {
                             "title": item.title,
@@ -738,6 +840,7 @@ def main() -> int:
                         }
                     )
                     handle.flush()
+                    emit_progress(idx, len(meeting_items), state_path, state)
                     continue
 
                 try:
@@ -777,6 +880,15 @@ def main() -> int:
                     "updated_at": now_ts(),
                 }
                 gijiroku_storage.save_state(state_path, state)
+                if output_path:
+                    indexed_output = Path(output_path)
+                    if gijiroku_storage.logical_suffix(indexed_output) in {".txt", ".html", ".htm"}:
+                        minutes_index_builder.upsert_source_file(
+                            output_db,
+                            downloads_dir,
+                            indexed_output,
+                            meta_map=minutes_meta_map,
+                        )
 
                 writer.writerow(
                     {
@@ -791,6 +903,7 @@ def main() -> int:
                     }
                 )
                 handle.flush()
+                emit_progress(idx, len(meeting_items), state_path, state)
                 if args.delay_seconds > 0 and idx < len(meeting_items):
                     time.sleep(args.delay_seconds)
 

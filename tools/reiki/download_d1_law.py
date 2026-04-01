@@ -10,6 +10,7 @@ from pathlib import Path
 import requests
 
 sys.path.append(str(Path(__file__).parent))
+import build_ordinance_index as ordinance_index_builder
 import parse_d1_law
 import reiki_io
 import reiki_targets
@@ -17,6 +18,12 @@ import reiki_targets
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 DELAY = 0.5
+
+
+def emit_progress(current: int, total: int, state_path: Path | None = None) -> None:
+    if state_path is not None:
+        reiki_io.update_progress_state(state_path, current=current, total=total, unit="ordinance")
+    print(f"[PROGRESS] unit=ordinance current={max(0, current)} total={max(0, total)}", flush=True)
 
 
 def download_file(url, dest_path, force=False, check_updates=False):
@@ -96,6 +103,9 @@ def main():
     image_public_url = target["image_public_url"]
     work_root = Path(target["work_root"])
     manifest_path = work_root / "source_manifest.json.gz"
+    state_path = work_root / "scrape_state.json"
+    classification_dir = target["classification_dir"]
+    output_db = Path(target["db_path"])
 
     print(f"Target: {target['name']} ({target['slug']}, {target['system_type']})")
     print(f"Source URL: {target['source_url']}")
@@ -105,6 +115,8 @@ def main():
 
     hno_list = get_hno_list(base_url, source_dir, force=args.force, check_updates=args.check_updates)
     print(f"Found {len(hno_list)} unique regulation IDs.")
+    emit_progress(0, len(hno_list), state_path)
+    ordinance_index_builder.ensure_output_db(output_db)
 
     downloaded_count = 0
     checked_count = 0
@@ -159,8 +171,22 @@ def main():
             }
         )
 
-        if (index + 1) % 10 == 0:
-            print(f"Progress: {index + 1}/{len(hno_list)} IDs processed...")
+        logical_key = Path(logical_source.name).with_suffix("").as_posix()
+        # 既存 HTML の再利用時も含め、検索 DB 側は 1 件ずつ取りこぼしなく更新する。
+        ordinance_index_builder.upsert_source_key(
+            slug=str(target["slug"]),
+            clean_html_dir=html_dir,
+            classification_dir=classification_dir,
+            markdown_dir=markdown_dir,
+            output_db=output_db,
+            key=logical_key,
+            manifest=manifest_entries[-1],
+        )
+
+        if ((index + 1) % 25) == 0 or (index + 1) == len(hno_list):
+            # 途中停止しても後追い補完が source_url 等を復元できるよう、manifest を定期保存する。
+            reiki_io.write_json(manifest_path, manifest_entries, compress=True)
+        emit_progress(index + 1, len(hno_list), state_path)
 
     reiki_io.write_json(manifest_path, manifest_entries, compress=True)
     print(f"Finished. Downloaded {downloaded_count} files.")

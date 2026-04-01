@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+# system_type ごとの子スクレイパを束ね、全国一括実行と進捗記録を担当する。
+
 import argparse
 import csv
+import json
 import os
 import re
 import shlex
@@ -22,7 +25,13 @@ SUPPORTED_SYSTEMS = {
     "gijiroku.com": "scrape_gijiroku_com.py",
     "kaigiroku.net": "scrape_kaigiroku_net.py",
     "dbsr": "scrape_dbsr.py",
+    "kensakusystem": "scrape_kensakusystem.py",
 }
+SUPPORTED_INPUT_SYSTEMS = set(SUPPORTED_SYSTEMS.keys()) | {"voices", "db-search", "kaigiroku-indexphp"}
+# 子スクレイパ標準出力の [PROGRESS] 行だけを拾い、自治体単位の current/total へ反映する。
+PROGRESS_RE = re.compile(
+    r"^\[PROGRESS\]\s+unit=(?P<unit>[a-z_]+)\s+current=(?P<current>\d+)\s+total=(?P<total>\d+)\s*$"
+)
 
 
 def now_ts() -> str:
@@ -101,7 +110,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--parallel",
         type=int,
-        default=4,
+        default=6,
         help="同時に走らせる自治体数",
     )
     parser.add_argument(
@@ -113,7 +122,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--per-host-start-interval",
         type=float,
-        default=5.0,
+        default=2.0,
         help="同一ホストで次の自治体を起動するまでの最小待機秒数",
     )
     parser.add_argument(
@@ -131,6 +140,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--python-command",
         default=sys.executable,
         help="子スクレイパ起動に使う Python コマンド",
+    )
+    parser.add_argument(
+        "--no-build-index",
+        action="store_true",
+        help="自治体ごとのスクレイプ完了後に minutes.sqlite を更新しない",
     )
     parser.add_argument(
         "--list-targets",
@@ -169,12 +183,20 @@ def parse_requested_systems(value: str) -> list[str]:
     systems = [item.strip() for item in str(value).split(",") if item.strip()]
     if not systems:
         return list(SUPPORTED_SYSTEMS.keys())
-    unsupported = [system for system in systems if system not in SUPPORTED_SYSTEMS]
+    requested_systems: list[str] = []
+    unsupported: list[str] = []
+    for system in systems:
+        if system not in SUPPORTED_INPUT_SYSTEMS:
+            unsupported.append(system)
+            continue
+        if system not in requested_systems:
+            requested_systems.append(system)
     if unsupported:
         raise ValueError(f"Unsupported system_type: {', '.join(unsupported)}")
-    return systems
+    return requested_systems
 
 
+# 同一ホストへ過剰集中しないよう、source_url の host 単位で並列数を絞る。
 def target_host(target: dict) -> str:
     source_url = str(target.get("source_url", "")).strip()
     host = (urlsplit(source_url).hostname or "").strip().lower()
@@ -182,12 +204,14 @@ def target_host(target: dict) -> str:
 
 
 def child_script_path(system_type: str) -> str:
-    script_name = SUPPORTED_SYSTEMS[system_type]
+    system_family = gijiroku_targets.canonical_minutes_system_type(system_type)
+    script_name = SUPPORTED_SYSTEMS[system_family]
     return str(Path("tools") / "gijiroku" / script_name)
 
 
 def build_child_command(args: argparse.Namespace, target: dict) -> list[str]:
     system_type = str(target["system_type"])
+    system_family = str(target.get("system_family", "")).strip() or gijiroku_targets.canonical_minutes_system_type(system_type)
     slug = str(target["slug"])
     cmd = shlex.split(str(args.python_command))
     cmd.extend(
@@ -204,11 +228,11 @@ def build_child_command(args: argparse.Namespace, target: dict) -> list[str]:
     )
     if args.per_target_max_meetings > 0:
         cmd.extend(["--max-meetings", str(args.per_target_max_meetings)])
-    if system_type == "kaigiroku.net" and args.per_target_max_years > 0:
+    if system_family == "kaigiroku.net" and args.per_target_max_years > 0:
         cmd.extend(["--max-years", str(args.per_target_max_years)])
-    if args.save_html and system_type in {"gijiroku.com", "dbsr"}:
+    if args.save_html and system_family in {"gijiroku.com", "dbsr", "kensakusystem"}:
         cmd.append("--save-html")
-    if args.save_debug_json and system_type == "kaigiroku.net":
+    if args.save_debug_json and system_family == "kaigiroku.net":
         cmd.append("--save-debug-json")
     if args.headful:
         cmd.append("--headful")
@@ -247,10 +271,67 @@ def summarize_worker(stdout_path: Path, stderr_path: Path) -> str:
             return stripped[7:]
         if stripped.startswith("[ERROR] "):
             return stripped
+        if stripped.startswith("[PROGRESS] "):
+            continue
         if re.match(r"^\[\d+/\d+\]", stripped):
             return stripped
         return stripped
     return "starting..."
+
+
+def extract_worker_progress(stdout_path: Path) -> dict[str, object] | None:
+    return extract_worker_progress_from_log(stdout_path)
+
+
+def extract_worker_progress_from_state(state_path: Path) -> dict[str, object] | None:
+    if not state_path.exists():
+        return None
+    try:
+        payload = json.loads(state_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    current = payload.get("progress_current")
+    total = payload.get("progress_total")
+    if current is None or total is None:
+        return None
+    try:
+        progress_current = int(current)
+        progress_total = int(total)
+    except Exception:
+        return None
+    if progress_total < 0:
+        return None
+    return {
+        "progress_current": max(0, progress_current),
+        "progress_total": max(0, progress_total),
+        "progress_unit": str(payload.get("progress_unit", "meeting")).strip() or "meeting",
+    }
+
+
+def extract_worker_progress_from_log(stdout_path: Path) -> dict[str, object] | None:
+    lines = tail_text_lines(stdout_path, max_bytes=16_384)
+    for line in reversed(lines):
+        match = PROGRESS_RE.match(line.strip())
+        if not match:
+            continue
+        return {
+            "progress_current": int(match.group("current")),
+            "progress_total": int(match.group("total")),
+            "progress_unit": match.group("unit"),
+        }
+    return None
+
+
+def extract_worker_progress_for_display(worker: dict) -> dict[str, object] | None:
+    state_path = worker.get("state_path")
+    if isinstance(state_path, Path):
+        progress = extract_worker_progress_from_state(state_path)
+        if progress is not None:
+            return progress
+    return extract_worker_progress_from_log(worker["stdout_path"])
 
 
 def launch_worker(
@@ -283,6 +364,53 @@ def launch_worker(
         "stdout_handle": stdout_handle,
         "stderr_handle": stderr_handle,
         "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "state_path": Path(target["work_dir"]) / "scrape_state.json",
+    }
+
+
+def build_index_command(args: argparse.Namespace, target: dict) -> list[str]:
+    cmd = shlex.split(str(args.python_command))
+    cmd.extend(
+        [
+            str(Path("tools") / "gijiroku" / "build_minutes_index.py"),
+            "--slug",
+            str(target["slug"]),
+            "--downloads-dir",
+            str(target["downloads_dir"]),
+            "--index-json",
+            str(target["index_json_path"]),
+            "--output-db",
+            str(target["db_path"]),
+        ]
+    )
+    return cmd
+
+
+def run_index_builder(
+    target: dict,
+    *,
+    args: argparse.Namespace,
+    run_logs_dir: Path,
+) -> dict:
+    slug = str(target["slug"])
+    stdout_path = run_logs_dir / f"{slug}.index.log"
+    stderr_path = run_logs_dir / f"{slug}.index.err.log"
+    with stdout_path.open("w", encoding="utf-8", newline="") as stdout_handle, stderr_path.open(
+        "w", encoding="utf-8", newline=""
+    ) as stderr_handle:
+        result = subprocess.run(
+            build_index_command(args, target),
+            cwd=str(gijiroku_targets.project_root()),
+            stdout=stdout_handle,
+            stderr=stderr_handle,
+        )
+
+    return {
+        "status": "ok" if result.returncode == 0 else "failed",
+        "returncode": int(result.returncode),
+        "stdout_path": stdout_path,
+        "stderr_path": stderr_path,
+        "summary": summarize_worker(stdout_path, stderr_path),
     }
 
 
@@ -349,7 +477,14 @@ def main() -> int:
     targets = [
         target
         for target in gijiroku_targets.iter_gijiroku_targets(configured_only=args.configured_only)
-        if str(target.get("system_type", "")) in requested_systems
+        if (
+            str(target.get("system_type", "")).strip() in requested_systems
+            or (
+                str(target.get("system_family", "")).strip()
+                or gijiroku_targets.canonical_minutes_system_type(str(target.get("system_type", "")))
+            )
+            in requested_systems
+        )
     ]
 
     keyword = str(args.filter or "").strip().lower()
@@ -397,10 +532,15 @@ def main() -> int:
                 "source_url",
                 "status",
                 "returncode",
+                "scrape_returncode",
+                "index_status",
+                "index_returncode",
                 "started_at",
                 "finished_at",
                 "stdout_log",
                 "stderr_log",
+                "index_stdout_log",
+                "index_stderr_log",
             ],
         )
         writer.writeheader()
@@ -464,10 +604,36 @@ def main() -> int:
                     continue
 
                 close_worker_streams(worker)
-                completed_count += 1
                 target = worker["target"]
                 finished_at = time.strftime("%Y-%m-%d %H:%M:%S")
-                status = "ok" if returncode == 0 else "failed"
+                scrape_status = "ok" if returncode == 0 else "failed"
+                summary = summarize_worker(worker["stdout_path"], worker["stderr_path"])
+                overall_status = scrape_status
+                overall_returncode = int(returncode)
+                index_status = "skipped"
+                index_returncode = ""
+                index_stdout_log = ""
+                index_stderr_log = ""
+
+                if returncode == 0 and not args.no_build_index:
+                    batch_status.update_item(
+                        status_state,
+                        str(target["slug"]),
+                        status="running",
+                        message="インデックス更新中",
+                    )
+                    batch_status.write_state("gijiroku", status_state)
+                    print(f"[INDEX] {target['slug']} minutes.sqlite を更新中", flush=True)
+                    index_result = run_index_builder(target, args=args, run_logs_dir=run_logs_dir)
+                    index_status = str(index_result["status"])
+                    index_returncode = int(index_result["returncode"])
+                    index_stdout_log = str(index_result["stdout_path"])
+                    index_stderr_log = str(index_result["stderr_path"])
+                    summary = f"{summary} / {index_result['summary']}"
+                    if index_result["returncode"] != 0:
+                        overall_status = "failed"
+                        overall_returncode = int(index_result["returncode"])
+
                 writer.writerow(
                     {
                         "slug": str(target["slug"]),
@@ -476,32 +642,43 @@ def main() -> int:
                         "system_type": str(target["system_type"]),
                         "host": str(worker["host"]),
                         "source_url": str(target["source_url"]),
-                        "status": status,
-                        "returncode": returncode,
+                        "status": overall_status,
+                        "returncode": overall_returncode,
+                        "scrape_returncode": int(returncode),
+                        "index_status": index_status,
+                        "index_returncode": index_returncode,
                         "started_at": worker["started_at"],
                         "finished_at": finished_at,
                         "stdout_log": str(worker["stdout_path"]),
                         "stderr_log": str(worker["stderr_path"]),
+                        "index_stdout_log": index_stdout_log,
+                        "index_stderr_log": index_stderr_log,
                     }
                 )
                 handle.flush()
-                summary = summarize_worker(worker["stdout_path"], worker["stderr_path"])
+                update_kwargs = {
+                    "status": overall_status,
+                    "message": summary,
+                    "finished_at": finished_at,
+                    "returncode": int(overall_returncode),
+                }
+                progress = extract_worker_progress_for_display(worker)
+                if progress is not None:
+                    update_kwargs.update(progress)
                 batch_status.update_item(
                     status_state,
                     str(target["slug"]),
-                    status=status,
-                    message=summary,
-                    finished_at=finished_at,
-                    returncode=int(returncode),
+                    **update_kwargs,
                 )
                 batch_status.write_state("gijiroku", status_state)
+                completed_count += 1
                 print(
                     f"[DONE {completed_count}/{len(targets)}] {target['slug']} "
-                    f"[{target['system_type']}] returncode={returncode} {summary}",
+                    f"[{target['system_type']}] returncode={overall_returncode} {summary}",
                     flush=True,
                 )
-                if returncode != 0:
-                    print(f"[WARN] {target['slug']} は returncode={returncode} で終了しました。", flush=True)
+                if overall_returncode != 0:
+                    print(f"[WARN] {target['slug']} は returncode={overall_returncode} で終了しました。", flush=True)
 
             active_workers = still_running
 
@@ -509,10 +686,16 @@ def main() -> int:
             if active_workers and (last_status_at == 0.0 or now - last_status_at >= args.refresh_seconds):
                 for worker in active_workers:
                     target = worker["target"]
+                    update_kwargs = {
+                        "message": summarize_worker(worker["stdout_path"], worker["stderr_path"]),
+                    }
+                    progress = extract_worker_progress_for_display(worker)
+                    if progress is not None:
+                        update_kwargs.update(progress)
                     batch_status.update_item(
                         status_state,
                         str(target["slug"]),
-                        message=summarize_worker(worker["stdout_path"], worker["stderr_path"]),
+                        **update_kwargs,
                     )
                 batch_status.write_state("gijiroku", status_state)
                 print_status(active_workers, completed_count, len(targets))

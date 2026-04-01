@@ -1,11 +1,13 @@
 # 会議録ツール
 
 議会会議録のスクレイピング結果を SQLite FTS5 に登録し、Web 上で検索するためのツールです。  
+日本語の分かち書きと語形正規化には `SudachiPy` を使います。
 ビューアは自治体切り替えに対応し、利用可能な自治体だけ検索画面を有効化します。
 
 ## 画面
 
 - 会議録検索: `/gijiroku/?slug={slug}`
+- 会議録横断検索: `/gijiroku/cross.php`
 
 未対応の自治体では「準備中」を表示します。
 
@@ -49,8 +51,9 @@
 - `tools/gijiroku/scrape_gijiroku_com.py`
 - `tools/gijiroku/scrape_kaigiroku_net.py`
 - `tools/gijiroku/scrape_dbsr.py`
+- `tools/gijiroku/scrape_kensakusystem.py`
 
-`work/municipalities/assembly_minutes_system_urls.tsv` の `system_type` に合わせて命名しています。現時点で実装済みなのは `gijiroku.com` 系、`kaigiroku.net` 系、`dbsr` 系です。
+`work/municipalities/assembly_minutes_system_urls.tsv` の `system_type` に合わせて命名しています。現時点で実装済みなのは `gijiroku.com` / `voices` 系、`kaigiroku.net` 系、`dbsr` / `db-search` / `kaigiroku-indexphp` 系、`kensakusystem` 系です。
 
 ```bash
 python tools/gijiroku/scrape_gijiroku_com.py --slug kawasaki-shi --ack-robots
@@ -64,23 +67,30 @@ python tools/gijiroku/scrape_kaigiroku_net.py --slug 01202-hakodate --ack-robots
 python tools/gijiroku/scrape_dbsr.py --slug hino-shi --ack-robots
 ```
 
-`gijiroku.com` を使う自治体を全国一括で回したい場合:
-
 ```bash
-python tools/gijiroku/scrape_all_gijiroku_com.py --ack-robots
+python tools/gijiroku/scrape_kensakusystem.py --slug 02202-hirosaki --ack-robots
 ```
 
-まず 5 自治体を並列で回し、親プロセス側に進捗を表示する場合:
+`gijiroku.com` / `voices` を使う自治体を既定設定（6 並列・自治体起動間隔 2 秒）で全国一括実行したい場合:
 
 ```bash
-python tools/gijiroku/scrape_all_gijiroku_com.py --ack-robots --max-targets 5 --parallel 5
+python tools/gijiroku/scrape_all_gijiroku_com.py --ack-robots --parallel 6 --delay-between-targets 2
 ```
 
-実装済みの `gijiroku.com` / `kaigiroku.net` / `dbsr` をまとめて回す場合:
+まず 5 自治体だけに絞って、親プロセス側に進捗を表示する場合:
 
 ```bash
-python tools/gijiroku/scrape_all_minutes.py --ack-robots --parallel 4 --per-host-parallel 1
+python tools/gijiroku/scrape_all_gijiroku_com.py --ack-robots --max-targets 5 --parallel 5 --delay-between-targets 2
 ```
+
+実装済みの `gijiroku.com` / `voices` / `kaigiroku.net` / `dbsr` / `db-search` / `kaigiroku-indexphp` / `kensakusystem` をまとめて回す場合:
+
+```bash
+python tools/gijiroku/scrape_all_minutes.py --ack-robots --parallel 6 --per-host-parallel 1 --per-host-start-interval 2
+```
+
+この一括実行では、自治体ごとのスクレイプ完了直後に `minutes.sqlite` も更新されるため、全国バッチの途中でも完了済み自治体から順に Web 検索可能になります。  
+自動更新を止めたい場合は `--no-build-index` を付けます。
 
 既存データの整理:
 
@@ -88,13 +98,18 @@ python tools/gijiroku/scrape_all_minutes.py --ack-robots --parallel 4 --per-host
 php tools/gijiroku/organize_minutes_data.php --slug kawasaki-shi
 ```
 
-全文検索 DB の生成:
+全文検索 DB の手動生成:
 
 ```bash
 python tools/gijiroku/build_minutes_index.py --slug kawasaki-shi
 ```
 
 `--slug` を付けると、`data/config.json` から対象自治体の出力先を解決します。
+
+補足:
+
+- FTS5 には本文そのものではなく、SudachiPy で作った terms カラムを登録します。
+- 検索時も PHP から同じ SudachiPy ヘルパを呼ぶため、Web 側へ反映するには PHP image の再 build が必要です。
 
 補足:
 
@@ -105,6 +120,9 @@ python tools/gijiroku/build_minutes_index.py --slug kawasaki-shi
 ## メモ
 
 - スクレイパは system_type ごとに分けています。自治体ごとの構造差分が大きい場合は、今後も system_type 単位で追加します。
+- `gijiroku.com` 系は `voices` も同じスクレイパで扱います。
+- `dbsr` 系は `db-search` と `kaigiroku-indexphp` も同じスクレイパで扱います。
 - `dbsr` 系は年別一覧から `Template=list` をたどり、検索結果一覧のページ送りを巡回して日付単位の本文テキストを保存します。
+- `kensakusystem` 系は `See.exe` のツリーと `PRINT_ALL` の全文表示を使って、1文書ずつ本文を保存します。
 - 一方で、Web 画面と SQLite インデクサは自治体単位の切り替えを前提に整理しています。
 - `run_result_*.csv` や空の `pages/` は調査用の一時成果物なので、確認後に整理して構いません。

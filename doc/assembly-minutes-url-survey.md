@@ -43,6 +43,15 @@
 - `msearch`
 - `独自`
 
+## スクレイパ系統との対応
+
+`system_type` は観測した URL / 画面の種類を残しています。スクレイパは次の系統に寄せて扱います。
+
+- `gijiroku.com` 系: `gijiroku.com`, `voices`
+- `dbsr` 系: `dbsr`, `db-search`, `kaigiroku-indexphp`
+- 単独系: `kaigiroku.net`, `kensakusystem`
+- 未対応: `amivoice`, `voicetechno`, `msearch`, `独自`
+
 ## 再生成
 
 ```powershell

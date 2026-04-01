@@ -5,16 +5,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sqlite3
 import sys
+import tempfile
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, unquote_to_bytes, urlsplit
 
 sys.path.append(str(Path(__file__).parent))
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent / "lib" / "python"))
 import gijiroku_storage
+import japanese_search_tokenizer
 
 
 FULLWIDTH_DIGITS = str.maketrans("０１２３４５６７８９", "0123456789")
@@ -24,6 +30,39 @@ DATE_PATTERN = re.compile(
 )
 YEAR_LABEL_PATTERN = re.compile(r"(昭和|平成|令和)\s*([元\d０-９]+)年(?:・(昭和|平成|令和)元年)?")
 FILE_DATE_PATTERN = re.compile(r"([0-9]{2})月([0-9]{2})日")
+INCREMENTAL_SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS minutes (
+    id INTEGER PRIMARY KEY,
+    rel_path TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    meeting_name TEXT,
+    year_label TEXT NOT NULL,
+    held_on TEXT,
+    gregorian_year INTEGER,
+    month INTEGER,
+    day INTEGER,
+    doc_type TEXT NOT NULL,
+    ext TEXT NOT NULL,
+    source_fino INTEGER,
+    source_year INTEGER,
+    source_url TEXT,
+    content TEXT NOT NULL,
+    indexed_at TEXT NOT NULL
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS minutes_fts USING fts5(
+    title_terms,
+    meeting_name_terms,
+    content_terms,
+    tokenize='unicode61'
+);
+
+CREATE INDEX IF NOT EXISTS idx_minutes_held_on ON minutes(held_on);
+CREATE INDEX IF NOT EXISTS idx_minutes_doc_type ON minutes(doc_type);
+CREATE INDEX IF NOT EXISTS idx_minutes_doc_type_held_on_id ON minutes(doc_type, held_on DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_minutes_source_fino ON minutes(source_fino);
+CREATE INDEX IF NOT EXISTS idx_minutes_year_label ON minutes(year_label);
+"""
 
 
 def project_root() -> Path:
@@ -110,6 +149,9 @@ class MinuteRecord:
     source_year: int | None
     source_url: str | None
     content: str
+    title_terms: str
+    meeting_name_terms: str
+    content_terms: str
     indexed_at: str
 
 
@@ -343,6 +385,53 @@ def classify_doc_type(title: str, text: str) -> str:
     return "minutes"
 
 
+def minutes_fts_columns(conn: sqlite3.Connection) -> list[str]:
+    try:
+        rows = conn.execute("PRAGMA table_info(minutes_fts)").fetchall()
+    except sqlite3.DatabaseError:
+        return []
+    return [str(row[1]) for row in rows if len(row) >= 2]
+
+
+def minutes_fts_schema_matches(conn: sqlite3.Connection) -> bool:
+    return minutes_fts_columns(conn) == ["title_terms", "meeting_name_terms", "content_terms"]
+
+
+def create_minutes_fts(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE VIRTUAL TABLE IF NOT EXISTS minutes_fts USING fts5(
+            title_terms,
+            meeting_name_terms,
+            content_terms,
+            tokenize='unicode61'
+        )
+        """
+    )
+
+
+def rebuild_minutes_fts(conn: sqlite3.Connection) -> None:
+    conn.execute("DROP TABLE IF EXISTS minutes_fts")
+    create_minutes_fts(conn)
+
+    # 旧 schema の DB でも base table は流用できるので、FTS だけ作り直して再投入する。
+    for row_id, title, meeting_name, content in conn.execute(
+        "SELECT id, title, meeting_name, content FROM minutes"
+    ):
+        conn.execute(
+            """
+            INSERT INTO minutes_fts (rowid, title_terms, meeting_name_terms, content_terms)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                int(row_id),
+                japanese_search_tokenizer.document_terms_text(str(title or "")),
+                japanese_search_tokenizer.document_terms_text(str(meeting_name or "")),
+                japanese_search_tokenizer.document_terms_text(str(content or "")),
+            ),
+        )
+
+
 def parse_source_meta(index_json: Path) -> dict[tuple[str, str, str], SourceMeta]:
     if not index_json.exists():
         return {}
@@ -447,6 +536,9 @@ def build_record(file_path: Path, downloads_dir: Path, meta_map: dict[tuple[str,
     held_on, gregorian_year, month, day = extract_held_on(content, title, meta.source_year if meta else None)
     doc_type = classify_doc_type(title, content)
     rel_path = file_path.relative_to(downloads_dir).as_posix()
+    title_terms = japanese_search_tokenizer.document_terms_text(title)
+    meeting_name_terms = japanese_search_tokenizer.document_terms_text(meeting_name or "")
+    content_terms = japanese_search_tokenizer.document_terms_text(content)
 
     return MinuteRecord(
         rel_path=rel_path,
@@ -463,6 +555,9 @@ def build_record(file_path: Path, downloads_dir: Path, meta_map: dict[tuple[str,
         source_year=meta.source_year if meta else gregorian_year,
         source_url=meta.source_url if meta else None,
         content=content,
+        title_terms=title_terms,
+        meeting_name_terms=meeting_name_terms,
+        content_terms=content_terms,
         indexed_at=indexed_at,
     )
 
@@ -475,28 +570,57 @@ def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(schema_path().read_text(encoding="utf-8"))
 
 
-def build_index(downloads_dir: Path, index_json: Path, output_db: Path) -> tuple[int, int]:
-    if not downloads_dir.exists():
-        raise FileNotFoundError(f"downloads dir not found: {downloads_dir}")
+def ensure_db_schema(conn: sqlite3.Connection) -> None:
+    # 逐次更新時は既存 DB を消さず、最小限の CREATE IF NOT EXISTS だけを流す。
+    conn.executescript(INCREMENTAL_SCHEMA_SQL)
+    if not minutes_fts_schema_matches(conn):
+        rebuild_minutes_fts(conn)
+    else:
+        create_minutes_fts(conn)
 
+
+def open_sqlite_connection(path: Path) -> sqlite3.Connection:
+    conn = sqlite3.connect(path, timeout=30)
+    # 会議録 DB も逐次 upsert と検索が並行するため、WAL を基本にする。
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=30000")
+    return conn
+
+
+def ensure_output_db(output_db: Path) -> None:
     output_db.parent.mkdir(parents=True, exist_ok=True)
-    meta_map = parse_source_meta(index_json)
+    with open_sqlite_connection(output_db) as conn:
+        ensure_db_schema(conn)
+        conn.commit()
 
-    conn = sqlite3.connect(output_db)
-    init_db(conn)
 
-    indexed = 0
-    skipped = 0
-    indexed_at = datetime.now(timezone.utc).isoformat()
-    cur = conn.cursor()
+def upsert_record(conn: sqlite3.Connection, record: MinuteRecord) -> int:
+    existing_row = conn.execute(
+        "SELECT id FROM minutes WHERE rel_path = ?",
+        (record.rel_path,),
+    ).fetchone()
 
-    for file_path in choose_source_files(downloads_dir):
-        record = build_record(file_path, downloads_dir, meta_map, indexed_at)
-        if record is None:
-            skipped += 1
-            continue
+    params = (
+        record.rel_path,
+        record.title,
+        record.meeting_name,
+        record.year_label,
+        record.held_on,
+        record.gregorian_year,
+        record.month,
+        record.day,
+        record.doc_type,
+        record.ext,
+        record.source_fino,
+        record.source_year,
+        record.source_url,
+        record.content,
+        record.indexed_at,
+    )
 
-        cur.execute(
+    if existing_row is None:
+        cur = conn.execute(
             """
             INSERT INTO minutes (
                 rel_path, title, meeting_name, year_label, held_on,
@@ -505,37 +629,266 @@ def build_index(downloads_dir: Path, index_json: Path, output_db: Path) -> tuple
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (
-                record.rel_path,
-                record.title,
-                record.meeting_name,
-                record.year_label,
-                record.held_on,
-                record.gregorian_year,
-                record.month,
-                record.day,
-                record.doc_type,
-                record.ext,
-                record.source_fino,
-                record.source_year,
-                record.source_url,
-                record.content,
-                record.indexed_at,
-            ),
+            params,
         )
-        row_id = cur.lastrowid
+        row_id = int(cur.lastrowid)
+    else:
+        row_id = int(existing_row[0])
+        conn.execute("DELETE FROM minutes_fts WHERE rowid = ?", (row_id,))
+        conn.execute(
+            """
+            UPDATE minutes
+               SET rel_path = ?, title = ?, meeting_name = ?, year_label = ?, held_on = ?,
+                   gregorian_year = ?, month = ?, day = ?, doc_type = ?, ext = ?,
+                   source_fino = ?, source_year = ?, source_url = ?, content = ?, indexed_at = ?
+             WHERE id = ?
+            """,
+            params + (row_id,),
+        )
 
-        if record.doc_type == "minutes":
+    if record.doc_type == "minutes":
+        conn.execute(
+            """
+            INSERT INTO minutes_fts (rowid, title_terms, meeting_name_terms, content_terms)
+            VALUES (?, ?, ?, ?)
+            """,
+            (row_id, record.title_terms, record.meeting_name_terms, record.content_terms),
+        )
+    return row_id
+
+
+def upsert_source_file(
+    output_db: Path,
+    downloads_dir: Path,
+    source_file: Path,
+    *,
+    meta_map: dict[tuple[str, str, str], SourceMeta] | None = None,
+    index_json: Path | None = None,
+    indexed_at: str | None = None,
+) -> bool:
+    if not source_file.exists():
+        return False
+
+    if meta_map is None:
+        meta_map = parse_source_meta(index_json) if index_json is not None else {}
+    if indexed_at is None:
+        indexed_at = datetime.now(timezone.utc).isoformat()
+
+    record = build_record(source_file, downloads_dir, meta_map, indexed_at)
+    if record is None:
+        return False
+
+    output_db.parent.mkdir(parents=True, exist_ok=True)
+    with open_sqlite_connection(output_db) as conn:
+        ensure_db_schema(conn)
+        upsert_record(conn, record)
+        conn.commit()
+    return True
+
+
+def existing_rel_paths(output_db: Path) -> set[str]:
+    if not output_db.exists():
+        return set()
+    with open_sqlite_connection(output_db) as conn:
+        ensure_db_schema(conn)
+        return {str(row[0]) for row in conn.execute("SELECT rel_path FROM minutes")}
+
+
+def backfill_missing_rows(
+    downloads_dir: Path,
+    index_json: Path,
+    output_db: Path,
+    *,
+    progress_callback: Callable[[dict[str, int | str]], None] | None = None,
+) -> dict[str, int]:
+    # 既存 DB を壊さず、rel_path で未登録の会議録だけを後追いで差し込む。
+    source_files = choose_source_files(downloads_dir)
+    if not source_files:
+        return {"added": 0, "existing": 0, "skipped": 0, "total_files": 0}
+
+    total_files = len(source_files)
+    if progress_callback is not None:
+        progress_callback(
+            {
+                "stage": "prepare_db",
+                "processed": 0,
+                "total_files": total_files,
+                "added": 0,
+                "existing": 0,
+                "skipped": 0,
+            }
+        )
+
+    ensure_output_db(output_db)
+    indexed_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    meta_map = parse_source_meta(index_json)
+    existing = existing_rel_paths(output_db)
+    added = 0
+    existing_count = 0
+    skipped = 0
+    processed = 0
+    last_report_at = time.monotonic()
+
+    if progress_callback is not None:
+        progress_callback(
+            {
+                "stage": "indexing",
+                "processed": 0,
+                "total_files": total_files,
+                "added": 0,
+                "existing": 0,
+                "skipped": 0,
+            }
+        )
+
+    with open_sqlite_connection(output_db) as conn:
+        ensure_db_schema(conn)
+        for file_path in source_files:
+            rel_path = file_path.relative_to(downloads_dir).as_posix()
+            if rel_path in existing:
+                existing_count += 1
+                processed += 1
+                if progress_callback is not None:
+                    now = time.monotonic()
+                    if processed == total_files or processed % 250 == 0 or (now - last_report_at) >= 5.0:
+                        last_report_at = now
+                        progress_callback(
+                            {
+                                "stage": "indexing",
+                                "processed": processed,
+                                "total_files": total_files,
+                                "added": added,
+                                "existing": existing_count,
+                                "skipped": skipped,
+                            }
+                        )
+                continue
+            record = build_record(file_path, downloads_dir, meta_map, indexed_at)
+            if record is None:
+                skipped += 1
+                processed += 1
+                if progress_callback is not None:
+                    now = time.monotonic()
+                    if processed == total_files or processed % 250 == 0 or (now - last_report_at) >= 5.0:
+                        last_report_at = now
+                        progress_callback(
+                            {
+                                "stage": "indexing",
+                                "processed": processed,
+                                "total_files": total_files,
+                                "added": added,
+                                "existing": existing_count,
+                                "skipped": skipped,
+                            }
+                        )
+                continue
+            upsert_record(conn, record)
+            existing.add(rel_path)
+            added += 1
+            processed += 1
+            if progress_callback is not None:
+                now = time.monotonic()
+                if processed == total_files or processed % 250 == 0 or (now - last_report_at) >= 5.0:
+                    last_report_at = now
+                    progress_callback(
+                        {
+                            "stage": "indexing",
+                            "processed": processed,
+                            "total_files": total_files,
+                            "added": added,
+                            "existing": existing_count,
+                            "skipped": skipped,
+                        }
+                    )
+        conn.commit()
+
+    return {
+        "added": added,
+        "existing": existing_count,
+        "skipped": skipped,
+        "total_files": total_files,
+    }
+
+
+def build_index(downloads_dir: Path, index_json: Path, output_db: Path) -> tuple[int, int]:
+    if not downloads_dir.exists():
+        raise FileNotFoundError(f"downloads dir not found: {downloads_dir}")
+
+    output_db.parent.mkdir(parents=True, exist_ok=True)
+    meta_map = parse_source_meta(index_json)
+    temp_fd, temp_name = tempfile.mkstemp(
+        prefix=f"{output_db.name}.",
+        suffix=".tmp",
+        dir=str(output_db.parent),
+    )
+    os.close(temp_fd)
+    temp_db = Path(temp_name)
+
+    try:
+        conn = open_sqlite_connection(temp_db)
+        init_db(conn)
+
+        indexed = 0
+        skipped = 0
+        indexed_at = datetime.now(timezone.utc).isoformat()
+        cur = conn.cursor()
+
+        for file_path in choose_source_files(downloads_dir):
+            record = build_record(file_path, downloads_dir, meta_map, indexed_at)
+            if record is None:
+                skipped += 1
+                continue
+
             cur.execute(
-                "INSERT INTO minutes_fts (rowid, title, meeting_name, content) VALUES (?, ?, ?, ?)",
-                (row_id, record.title, record.meeting_name or "", record.content),
+                """
+                INSERT INTO minutes (
+                    rel_path, title, meeting_name, year_label, held_on,
+                    gregorian_year, month, day, doc_type, ext,
+                    source_fino, source_year, source_url, content, indexed_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record.rel_path,
+                    record.title,
+                    record.meeting_name,
+                    record.year_label,
+                    record.held_on,
+                    record.gregorian_year,
+                    record.month,
+                    record.day,
+                    record.doc_type,
+                    record.ext,
+                    record.source_fino,
+                    record.source_year,
+                    record.source_url,
+                    record.content,
+                    record.indexed_at,
+                ),
             )
+            row_id = cur.lastrowid
 
-        indexed += 1
+            if record.doc_type == "minutes":
+                cur.execute(
+                    """
+                    INSERT INTO minutes_fts (rowid, title_terms, meeting_name_terms, content_terms)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (row_id, record.title_terms, record.meeting_name_terms, record.content_terms),
+                )
 
-    conn.commit()
-    conn.close()
-    return indexed, skipped
+            indexed += 1
+
+        conn.commit()
+        conn.close()
+        temp_db.replace(output_db)
+        return indexed, skipped
+    except Exception:
+        try:
+            temp_db.unlink(missing_ok=True)
+        except Exception:
+            pass
+        raise
 
 
 def main() -> int:

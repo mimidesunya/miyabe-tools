@@ -3,6 +3,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import os
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any
@@ -123,4 +124,16 @@ def load_state(path: Path) -> dict[str, Any]:
 
 
 def save_state(path: Path, state: dict[str, Any]) -> None:
-    write_json(path, state, compress=False)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_suffix(path.suffix + ".tmp")
+    payload = json.dumps(state, ensure_ascii=False, indent=2) + "\n"
+    temp_path.write_text(payload, encoding="utf-8")
+    os.replace(temp_path, path)
+
+
+def update_progress_state(path: Path, *, current: int, total: int, unit: str = "meeting") -> None:
+    state = load_state(path)
+    state["progress_current"] = max(0, int(current))
+    state["progress_total"] = max(0, int(total))
+    state["progress_unit"] = str(unit).strip() or "meeting"
+    save_state(path, state)

@@ -4,13 +4,14 @@
 // ログインが必要です。
 
 declare(strict_types=1);
-require '/var/www/lib/session.php';
+require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'session.php';
 
 function h(?string $s): string { 
     return htmlspecialchars($s ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); 
 }
 
 // スラッグを取得し、DBを初期化（boards + attached tasks/users）
+redirect_to_canonical_query_slug_if_needed();
 $slug = get_slug();
 $municipality = municipality_entry($slug);
 $municipalityName = (string)($municipality['name'] ?? $slug);

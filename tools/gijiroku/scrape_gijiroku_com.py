@@ -19,6 +19,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 sys.path.append(str(Path(__file__).parent))
+import build_minutes_index as minutes_index_builder
 import gijiroku_storage
 import gijiroku_targets
 
@@ -36,6 +37,24 @@ class MeetingItem:
 
 def now_ts() -> str:
     return time.strftime("%Y%m%d_%H%M%S")
+
+
+def emit_progress(
+    current: int,
+    total: int,
+    state_path: Path | None = None,
+    state: dict | None = None,
+) -> None:
+    # stdout はログファイルへリダイレクトされるため、即時 flush しないと親バッチから進捗が見えない。
+    print(f"[PROGRESS] unit=meeting current={max(0, current)} total={max(0, total)}", flush=True)
+    if state_path is not None:
+        if state is not None:
+            state["progress_current"] = max(0, int(current))
+            state["progress_total"] = max(0, int(total))
+            state["progress_unit"] = "meeting"
+            gijiroku_storage.save_state(state_path, state)
+        else:
+            gijiroku_storage.update_progress_state(state_path, current=current, total=total, unit="meeting")
 
 
 def unique_preserve_order(values: Iterable[str]) -> list[str]:
@@ -206,7 +225,7 @@ def resolve_act203_url(request_context, act100_url: str, timeout_ms: int) -> str
 def build_parser() -> argparse.ArgumentParser:
     default_slug = gijiroku_targets.default_slug_for_system("gijiroku.com")
     parser = argparse.ArgumentParser(
-        description="gijiroku.com 系の議会会議録一覧を巡回し、ダウンロード可能な記録を保存します。"
+        description="gijiroku.com / voices 系の議会会議録一覧を巡回し、ダウンロード可能な記録を保存します。"
     )
     parser.add_argument(
         "--slug",
@@ -461,6 +480,11 @@ def main() -> int:
         if args.output_dir is not None
         else Path(target["index_json_path"]).resolve()
     )
+    output_db = (
+        (output_dir / "minutes.sqlite").resolve()
+        if args.output_dir is not None
+        else Path(target["db_path"]).resolve()
+    )
     pages_dir = work_dir / "pages"
     result_csv = work_dir / f"run_result_{now_ts()}.csv"
     state_path = work_dir / "scrape_state.json"
@@ -490,9 +514,12 @@ def main() -> int:
             json.dumps([asdict(item) for item in meeting_items], ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+        minutes_meta_map = minutes_index_builder.parse_source_meta(index_json)
+        minutes_index_builder.ensure_output_db(output_db)
 
         if args.max_meetings > 0:
             meeting_items = meeting_items[: args.max_meetings]
+        emit_progress(0, len(meeting_items), state_path, state)
 
         with result_csv.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(
@@ -518,6 +545,10 @@ def main() -> int:
                 if not args.no_resume and existing_outputs:
                     output_path = str(existing_outputs[0])
                     status = "skipped_existing"
+                    existing_indexable_output = next(
+                        (path for path in existing_outputs if gijiroku_storage.logical_suffix(path) in {".txt", ".html", ".htm"}),
+                        None,
+                    )
                     state["items"][resume_key] = {
                         "title": item.title,
                         "year_label": item.year_label,
@@ -527,6 +558,13 @@ def main() -> int:
                         "updated_at": now_ts(),
                     }
                     gijiroku_storage.save_state(state_path, state)
+                    if existing_indexable_output is not None:
+                        minutes_index_builder.upsert_source_file(
+                            output_db,
+                            downloads_dir,
+                            existing_indexable_output,
+                            meta_map=minutes_meta_map,
+                        )
                     writer.writerow(
                         {
                             "title": item.title,
@@ -538,6 +576,7 @@ def main() -> int:
                         }
                     )
                     handle.flush()
+                    emit_progress(idx, len(meeting_items), state_path, state)
                     continue
                 try:
                     status, output_path = try_download_from_detail(
@@ -572,6 +611,15 @@ def main() -> int:
                     "updated_at": now_ts(),
                 }
                 gijiroku_storage.save_state(state_path, state)
+                if output_path:
+                    indexed_output = Path(output_path)
+                    if gijiroku_storage.logical_suffix(indexed_output) in {".txt", ".html", ".htm"}:
+                        minutes_index_builder.upsert_source_file(
+                            output_db,
+                            downloads_dir,
+                            indexed_output,
+                            meta_map=minutes_meta_map,
+                        )
 
                 writer.writerow(
                     {
@@ -584,6 +632,7 @@ def main() -> int:
                     }
                 )
                 handle.flush()
+                emit_progress(idx, len(meeting_items), state_path, state)
                 time.sleep(max(args.delay_seconds, 0))
 
         context.close()

@@ -27,6 +27,7 @@
 - `district_name`: 郡・支庁・振興局等
 - `name`: 都道府県名または市町村名
 - `full_name`: `都道府県名 + 半角スペース + 名称`
+- `name_romaji`: slug 用のローマ字名称。例: `hakodate-shi`, `kyoto-fu`
 
 ## 再生成
 
@@ -34,4 +35,10 @@
 pwsh -File tools/municipalities/build_municipality_master_tsv.ps1
 ```
 
-ローカルに取得済みの CSV を使う場合は `-SourceCsvPath` を渡します。
+続けてローマ字列を付ける場合:
+
+```bash
+python tools/municipalities/enrich_municipality_master_tsv.py
+```
+
+`name_romaji` は `municipality_homepages.csv` と既存 `config.json` の slug を使って補完します。ローカルに取得済みの CSV を使う場合は `-SourceCsvPath` を渡します。

@@ -15,10 +15,43 @@ from municipality_slugs import code_name_slug
 WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
 DATA_ROOT = WORKSPACE_ROOT / "data"
 WORK_ROOT = WORKSPACE_ROOT / "work"
+SYSTEM_FAMILY_ALIASES = {
+    "gijiroku.com": {"gijiroku.com", "voices"},
+    "kaigiroku.net": {"kaigiroku.net"},
+    "dbsr": {"dbsr", "db-search", "kaigiroku-indexphp"},
+    "kensakusystem": {"kensakusystem"},
+    "amivoice": {"amivoice"},
+    "voicetechno": {"voicetechno"},
+    "msearch": {"msearch"},
+    "独自": {"独自"},
+}
+SYSTEM_FAMILY_BY_TYPE = {
+    system_type: family
+    for family, system_types in SYSTEM_FAMILY_ALIASES.items()
+    for system_type in system_types
+}
 
 
 def project_root() -> Path:
     return WORKSPACE_ROOT
+
+
+def canonical_minutes_system_type(system_type: str) -> str:
+    normalized = str(system_type).strip()
+    if normalized == "":
+        return ""
+    return SYSTEM_FAMILY_BY_TYPE.get(normalized, normalized)
+
+
+def accepted_minutes_system_types(expected_system: str | None) -> set[str] | None:
+    normalized = str(expected_system or "").strip()
+    if normalized == "":
+        return None
+    if normalized in SYSTEM_FAMILY_ALIASES:
+        return set(SYSTEM_FAMILY_ALIASES[normalized])
+    if normalized in SYSTEM_FAMILY_BY_TYPE:
+        return {normalized}
+    return {normalized}
 
 
 def load_config() -> dict:
@@ -52,6 +85,7 @@ def load_municipality_master_index() -> dict[str, dict[str, str]]:
                 "pref_name": str(row.get("pref_name", "")).strip(),
                 "name": str(row.get("name", "")).strip(),
                 "full_name": str(row.get("full_name", "")).strip(),
+                "name_romaji": str(row.get("name_romaji", "")).strip(),
             }
     return index
 
@@ -118,8 +152,22 @@ def configured_slug_by_code() -> dict[str, str]:
     return slug_map
 
 
-def fallback_slug_for_minutes(code: str, source_url: str, homepage_url: str = "") -> str:
-    return code_name_slug(code, source_url, homepage_url)
+def fallback_slug_for_minutes(
+    code: str,
+    source_url: str,
+    homepage_url: str = "",
+    *,
+    master_entry: dict[str, str] | None = None,
+) -> str:
+    entry = master_entry or {}
+    return code_name_slug(
+        code,
+        source_url,
+        homepage_url,
+        name=str(entry.get("name", "")).strip(),
+        entity_type=str(entry.get("entity_type", "")).strip(),
+        name_romaji=str(entry.get("name_romaji", "")).strip(),
+    )
 
 
 def build_target_entry(
@@ -156,6 +204,7 @@ def build_target_entry(
         "entity_type": str((master_entry or {}).get("entity_type", "")).strip(),
         "full_name": str((master_entry or {}).get("full_name", "")).strip() or name,
         "system_type": system_type,
+        "system_family": canonical_minutes_system_type(system_type),
         "source_url": source_url,
         "base_url": derive_base_url(source_url),
         "robots_txt_url": derive_robots_txt_url(source_url),
@@ -173,12 +222,13 @@ def iter_gijiroku_targets(expected_system: str | None = None, configured_only: b
     master_index = load_municipality_master_index()
     homepage_index = load_municipality_homepage_index()
     slugs_by_code = configured_slug_by_code()
+    accepted_system_types = accepted_minutes_system_types(expected_system)
     targets: list[dict] = []
     seen_codes: set[str] = set()
 
     for code, url_entry in sorted(url_index.items()):
         system_type = str(url_entry.get("system_type", "")).strip()
-        if expected_system is not None and system_type != expected_system:
+        if accepted_system_types is not None and system_type not in accepted_system_types:
             continue
 
         source_url = str(url_entry.get("url", "")).strip()
@@ -192,10 +242,18 @@ def iter_gijiroku_targets(expected_system: str | None = None, configured_only: b
         else:
             if configured_only:
                 continue
-            slug = fallback_slug_for_minutes(code, source_url, homepage_index.get(code, ""))
             municipality_entry = None
 
         master_entry = master_index.get(code)
+        if configured_slug:
+            slug = configured_slug
+        else:
+            slug = fallback_slug_for_minutes(
+                code,
+                source_url,
+                homepage_index.get(code, ""),
+                master_entry=master_entry,
+            )
         targets.append(
             build_target_entry(
                 slug=slug,
@@ -251,9 +309,12 @@ def load_gijiroku_target(slug: str, expected_system: str | None = None) -> dict:
             raise ValueError(f"Municipality code is missing for slug: {slug}")
         url_index = load_local_minutes_url_index()
         system_type = str(url_index.get(code, {}).get("system_type", "")).strip()
-        if expected_system is not None and system_type != expected_system:
+        accepted_system_types = accepted_minutes_system_types(expected_system)
+        if accepted_system_types is not None and system_type not in accepted_system_types:
             raise ValueError(
-                f"Municipality slug {slug} uses system_type={system_type!r}, expected {expected_system!r}"
+                "Municipality slug "
+                f"{slug} uses system_type={system_type!r} "
+                f"(family={canonical_minutes_system_type(system_type)!r}), expected {expected_system!r}"
             )
         raise ValueError(f"Municipality code {code} is missing from work/municipalities/assembly_minutes_system_urls.tsv")
 

@@ -13,9 +13,14 @@ services:
       - php
 
   php:
-    image: php:8.3-fpm
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    image: miyabe-tools-php-local
     restart: always
     volumes:
       - ./app:/var/www/html
       - ./data:/var/www/data
       - ./lib:/var/www/lib
+      - ./src:/var/www/src
+      - ./docker/php/zz-www-overrides.conf:/usr/local/etc/php-fpm.d/zz-www-overrides.conf:ro

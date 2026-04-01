@@ -20,7 +20,7 @@ def now_ts() -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="assembly_minutes_system_urls.tsv の gijiroku.com 対象を一括スクレイピングします。"
+        description="assembly_minutes_system_urls.tsv の gijiroku.com / voices 対象を一括スクレイピングします。"
     )
     parser.add_argument(
         "--ack-robots",
@@ -53,7 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--delay-between-targets",
         type=float,
-        default=3.0,
+        default=2.0,
         help="自治体起動間の待機秒数",
     )
     parser.add_argument(
@@ -75,7 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--parallel",
         type=int,
-        default=1,
+        default=6,
         help="同時に走らせる自治体数",
     )
     parser.add_argument(

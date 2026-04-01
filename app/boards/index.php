@@ -8,6 +8,8 @@ function h(?string $value): string
     return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+$requestedSlug = $_GET['slug'] ?? null;
+redirect_to_canonical_boards_slug_if_needed(is_string($requestedSlug) ? $requestedSlug : null);
 $slug = get_slug();
 $municipality = municipality_entry($slug);
 if ($municipality === null) {

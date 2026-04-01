@@ -23,16 +23,15 @@ CREATE TABLE minutes (
 );
 
 CREATE VIRTUAL TABLE minutes_fts USING fts5(
-    title,
-    meeting_name,
-    content,
-    content='minutes',
-    content_rowid='id',
+    title_terms,
+    meeting_name_terms,
+    content_terms,
     tokenize='unicode61'
 );
 
 CREATE INDEX idx_minutes_held_on ON minutes(held_on);
 CREATE INDEX idx_minutes_doc_type ON minutes(doc_type);
+CREATE INDEX idx_minutes_doc_type_held_on_id ON minutes(doc_type, held_on DESC, id DESC);
 CREATE INDEX idx_minutes_source_fino ON minutes(source_fino);
 CREATE INDEX idx_minutes_year_label ON minutes(year_label);
 

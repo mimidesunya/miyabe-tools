@@ -104,7 +104,9 @@ async function fetchAndRenderVisible() {
 			const status = (item.status || 'pending');
 			const updatedBy = item.updated_by_line_id || null;
 			const hasComment = !!item.has_comment;
-			if (address) rows.push({ code, address, desc, lat, lng, status, updatedBy, hasComment });
+			if (code || address || desc) {
+				rows.push({ code, address, desc, lat, lng, status, updatedBy, hasComment });
+			}
 		}
 		allRows = rows;
 		loadAll(true);
@@ -139,7 +141,7 @@ function loadAll(skipFitBounds = false) {
 	// Coordinate grouping
 	const groups = new Map();
 	for (const r of allRows) {
-		if (!r.lat || !r.lng) continue;
+		if (!Number.isFinite(r.lat) || !Number.isFinite(r.lng)) continue;
 		const k = `${Number(r.lat).toFixed(6)},${Number(r.lng).toFixed(6)}`;
 		if (!groups.has(k)) groups.set(k, []);
 		groups.get(k).push(r);

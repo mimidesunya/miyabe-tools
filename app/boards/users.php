@@ -3,7 +3,7 @@
 // ログインと管理者権限（特定のLINEユーザーID）が必要です
 
 declare(strict_types=1);
-require '/var/www/lib/session.php';
+require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'session.php';
 
 // HTML エスケープ用ヘルパー（list.php と同等）
 function h(?string $s): string {
@@ -94,6 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // tasks.sqlite を開く
+redirect_to_canonical_query_slug_if_needed();
 $slug = get_slug();
 if ($slug === '') {
     die('自治体(slug)が正しく指定されていません。');
