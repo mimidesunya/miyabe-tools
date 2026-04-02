@@ -107,7 +107,7 @@ def parse_args() -> argparse.Namespace:
         description="例規（条例・規則・要項）をGemini/OpenAIで政策アクション指向に分類・評価します"
     )
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH, help="設定JSONのパス")
-    parser.add_argument("--slug", type=str, default=default_slug, help="data/config.json 上の自治体 slug")
+    parser.add_argument("--slug", type=str, default=default_slug, help="自治体 slug。data/municipalities から対象を解決します")
     parser.add_argument("--limit", type=int, default=0, help="分析件数の上限（0は無制限）")
     parser.add_argument("--input-dir", type=Path, default=None, help="元HTML入力ディレクトリ（未指定時は slug から自動決定）")
     parser.add_argument("--markdown-dir", type=Path, default=None, help="Markdown入力ディレクトリ（未指定時は slug から自動決定）")

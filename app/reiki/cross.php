@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'reiki_search.php';
+require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'site_assets.php';
 
 // 例規集の横断検索ページへ渡す初期表示データを組み立てる。
 redirect_to_canonical_query_slug_if_needed();
@@ -44,6 +45,7 @@ $jsVer = @filemtime(__DIR__ . '/assets/js/cross.js') ?: 1;
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>例規集 横断全文検索</title>
+    <?php echo site_render_favicon_links(); ?>
     <link rel="stylesheet" href="/gijiroku/assets/css/cross.css?v=<?php echo h((string)$cssVer); ?>">
 </head>
 <body>

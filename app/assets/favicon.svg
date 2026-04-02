@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">miyabe-tools favicon</title>
+  <desc id="desc">Teal rounded square with a bold ivory M and a copper accent bar.</desc>
+  <defs>
+    <linearGradient id="bg" x1="32" y1="20" x2="224" y2="236" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#18705d"/>
+      <stop offset="1" stop-color="#0f5c4d"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <path
+    fill="#f6f0e4"
+    d="M48 196V56h38l42 60 42-60h38v140h-36v-83l-36 51h-16l-36-51v83H48Z"
+  />
+  <rect x="44" y="196" width="168" height="16" rx="8" fill="#b56d2f"/>
+  <circle cx="197" cy="59" r="14" fill="#d6a062"/>
+</svg>

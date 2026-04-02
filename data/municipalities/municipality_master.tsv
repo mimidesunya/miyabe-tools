@@ -1,0 +1,1795 @@
+source_date	entity_type	jis_code	parent_jis_code	pref_code	pref_name	district_name	name	name_kana	full_name	name_romaji
+2025-10-01	prefecture	01000		01	北海道		北海道	ほっかいどう	北海道	hokkaido
+2025-10-01	municipality	01100	01000	01	北海道	石狩振興局	札幌市	さっぽろし	北海道 札幌市	sapporo-shi
+2025-10-01	municipality	01202	01000	01	北海道	渡島総合振興局	函館市	はこだてし	北海道 函館市	hakodate-shi
+2025-10-01	municipality	01203	01000	01	北海道	後志総合振興局	小樽市	おたるし	北海道 小樽市	otaru-shi
+2025-10-01	municipality	01204	01000	01	北海道	上川総合振興局	旭川市	あさひかわし	北海道 旭川市	asahikawa-shi
+2025-10-01	municipality	01205	01000	01	北海道	胆振総合振興局	室蘭市	むろらんし	北海道 室蘭市	muroran-shi
+2025-10-01	municipality	01206	01000	01	北海道	釧路総合振興局	釧路市	くしろし	北海道 釧路市	kushiro-shi
+2025-10-01	municipality	01207	01000	01	北海道	十勝総合振興局	帯広市	おびひろし	北海道 帯広市	obihiro-shi
+2025-10-01	municipality	01208	01000	01	北海道	オホーツク総合振興局	北見市	きたみし	北海道 北見市	kitami-shi
+2025-10-01	municipality	01209	01000	01	北海道	空知総合振興局	夕張市	ゆうばりし	北海道 夕張市	yubari-shi
+2025-10-01	municipality	01210	01000	01	北海道	空知総合振興局	岩見沢市	いわみざわし	北海道 岩見沢市	iwamizawa-shi
+2025-10-01	municipality	01211	01000	01	北海道	オホーツク総合振興局	網走市	あばしりし	北海道 網走市	abashiri-shi
+2025-10-01	municipality	01212	01000	01	北海道	留萌振興局	留萌市	るもいし	北海道 留萌市	e-rumoi-shi
+2025-10-01	municipality	01213	01000	01	北海道	胆振総合振興局	苫小牧市	とまこまいし	北海道 苫小牧市	tomakomai-shi
+2025-10-01	municipality	01214	01000	01	北海道	宗谷総合振興局	稚内市	わっかないし	北海道 稚内市	wakkanai-shi
+2025-10-01	municipality	01215	01000	01	北海道	空知総合振興局	美唄市	びばいし	北海道 美唄市	bibai-shi
+2025-10-01	municipality	01216	01000	01	北海道	空知総合振興局	芦別市	あしべつし	北海道 芦別市	ashibetsu-shi
+2025-10-01	municipality	01217	01000	01	北海道	石狩振興局	江別市	えべつし	北海道 江別市	ebetsu-shi
+2025-10-01	municipality	01218	01000	01	北海道	空知総合振興局	赤平市	あかびらし	北海道 赤平市	akabira-shi
+2025-10-01	municipality	01219	01000	01	北海道	オホーツク総合振興局	紋別市	もんべつし	北海道 紋別市	mombetsu-shi
+2025-10-01	municipality	01220	01000	01	北海道	上川総合振興局	士別市	しべつし	北海道 士別市	shibetsu-shi
+2025-10-01	municipality	01221	01000	01	北海道	上川総合振興局	名寄市	なよろし	北海道 名寄市	nayoro-shi
+2025-10-01	municipality	01222	01000	01	北海道	空知総合振興局	三笠市	みかさし	北海道 三笠市	mikasa-shi
+2025-10-01	municipality	01223	01000	01	北海道	根室振興局	根室市	ねむろし	北海道 根室市	nemuro-shi
+2025-10-01	municipality	01224	01000	01	北海道	石狩振興局	千歳市	ちとせし	北海道 千歳市	chitose-shi
+2025-10-01	municipality	01225	01000	01	北海道	空知総合振興局	滝川市	たきかわし	北海道 滝川市	takikawa-shi
+2025-10-01	municipality	01226	01000	01	北海道	空知総合振興局	砂川市	すながわし	北海道 砂川市	sunagawa-shi
+2025-10-01	municipality	01227	01000	01	北海道	空知総合振興局	歌志内市	うたしないし	北海道 歌志内市	utashinai-shi
+2025-10-01	municipality	01228	01000	01	北海道	空知総合振興局	深川市	ふかがわし	北海道 深川市	fukagawa-shi
+2025-10-01	municipality	01229	01000	01	北海道	上川総合振興局	富良野市	ふらのし	北海道 富良野市	furano-shi
+2025-10-01	municipality	01230	01000	01	北海道	胆振総合振興局	登別市	のぼりべつし	北海道 登別市	noboribetsu-shi
+2025-10-01	municipality	01231	01000	01	北海道	石狩振興局	恵庭市	えにわし	北海道 恵庭市	eniwa-shi
+2025-10-01	municipality	01233	01000	01	北海道	胆振総合振興局	伊達市	だてし	北海道 伊達市	date-shi
+2025-10-01	municipality	01234	01000	01	北海道	石狩振興局	北広島市	きたひろしまし	北海道 北広島市	kitahiroshima-shi
+2025-10-01	municipality	01235	01000	01	北海道	石狩振興局	石狩市	いしかりし	北海道 石狩市	ishikari-shi
+2025-10-01	municipality	01236	01000	01	北海道	渡島総合振興局	北斗市	ほくとし	北海道 北斗市	hokuto-shi
+2025-10-01	municipality	01303	01000	01	北海道	石狩振興局	当別町	とうべつちょう	北海道 当別町	tobetsu-cho
+2025-10-01	municipality	01304	01000	01	北海道	石狩振興局	新篠津村	しんしのつむら	北海道 新篠津村	shinshinotsu-mura
+2025-10-01	municipality	01331	01000	01	北海道	渡島総合振興局	松前町	まつまえちょう	北海道 松前町	matsumae-cho
+2025-10-01	municipality	01332	01000	01	北海道	渡島総合振興局	福島町	ふくしまちょう	北海道 福島町	fukushima-cho
+2025-10-01	municipality	01333	01000	01	北海道	渡島総合振興局	知内町	しりうちちょう	北海道 知内町	shiriuchi-cho
+2025-10-01	municipality	01334	01000	01	北海道	渡島総合振興局	木古内町	きこないちょう	北海道 木古内町	kikonai-cho
+2025-10-01	municipality	01337	01000	01	北海道	渡島総合振興局	七飯町	ななえちょう	北海道 七飯町	nanae-cho
+2025-10-01	municipality	01343	01000	01	北海道	渡島総合振興局	鹿部町	しかべちょう	北海道 鹿部町	shikabe-cho
+2025-10-01	municipality	01345	01000	01	北海道	渡島総合振興局	森町	もりまち	北海道 森町	hokkaido-mori-cho
+2025-10-01	municipality	01346	01000	01	北海道	渡島総合振興局	八雲町	やくもちょう	北海道 八雲町	yakumo-cho
+2025-10-01	municipality	01347	01000	01	北海道	渡島総合振興局	長万部町	おしゃまんべちょう	北海道 長万部町	oshamambe-cho
+2025-10-01	municipality	01361	01000	01	北海道	檜山振興局	江差町	えさしちょう	北海道 江差町	hokkaido-esashi-cho
+2025-10-01	municipality	01362	01000	01	北海道	檜山振興局	上ノ国町	かみのくにちょう	北海道 上ノ国町	kaminokuni-cho
+2025-10-01	municipality	01363	01000	01	北海道	檜山振興局	厚沢部町	あっさぶちょう	北海道 厚沢部町	assabu-cho
+2025-10-01	municipality	01364	01000	01	北海道	檜山振興局	乙部町	おとべちょう	北海道 乙部町	otobe-cho
+2025-10-01	municipality	01367	01000	01	北海道	檜山振興局	奥尻町	おくしりちょう	北海道 奥尻町	okushiri-cho
+2025-10-01	municipality	01370	01000	01	北海道	檜山振興局	今金町	いまかねちょう	北海道 今金町	imakane-cho
+2025-10-01	municipality	01371	01000	01	北海道	檜山振興局	せたな町	せたなちょう	北海道 せたな町	setana-cho
+2025-10-01	municipality	01391	01000	01	北海道	後志総合振興局	島牧村	しままきむら	北海道 島牧村	shimamaki-mura
+2025-10-01	municipality	01392	01000	01	北海道	後志総合振興局	寿都町	すっつちょう	北海道 寿都町	suttu-cho
+2025-10-01	municipality	01393	01000	01	北海道	後志総合振興局	黒松内町	くろまつないちょう	北海道 黒松内町	kuromatsunai-cho
+2025-10-01	municipality	01394	01000	01	北海道	後志総合振興局	蘭越町	らんこしちょう	北海道 蘭越町	rankoshi-cho
+2025-10-01	municipality	01395	01000	01	北海道	後志総合振興局	ニセコ町	にせこちょう	北海道 ニセコ町	niseko-cho
+2025-10-01	municipality	01396	01000	01	北海道	後志総合振興局	真狩村	まっかりむら	北海道 真狩村	makkari-mura
+2025-10-01	municipality	01397	01000	01	北海道	後志総合振興局	留寿都村	るすつむら	北海道 留寿都村	rusutsu-mura
+2025-10-01	municipality	01398	01000	01	北海道	後志総合振興局	喜茂別町	きもべつちょう	北海道 喜茂別町	kimobetsu-cho
+2025-10-01	municipality	01399	01000	01	北海道	後志総合振興局	京極町	きょうごくちょう	北海道 京極町	town-kyogoku-cho
+2025-10-01	municipality	01400	01000	01	北海道	後志総合振興局	倶知安町	くっちゃんちょう	北海道 倶知安町	kutchan-cho
+2025-10-01	municipality	01401	01000	01	北海道	後志総合振興局	共和町	きょうわちょう	北海道 共和町	kyowa-cho
+2025-10-01	municipality	01402	01000	01	北海道	後志総合振興局	岩内町	いわないちょう	北海道 岩内町	iwanai-cho
+2025-10-01	municipality	01403	01000	01	北海道	後志総合振興局	泊村	とまりむら	北海道 泊村	tomari-mura
+2025-10-01	municipality	01404	01000	01	北海道	後志総合振興局	神恵内村	かもえないむら	北海道 神恵内村	kamoenai-mura
+2025-10-01	municipality	01405	01000	01	北海道	後志総合振興局	積丹町	しゃこたんちょう	北海道 積丹町	shakotan-cho
+2025-10-01	municipality	01406	01000	01	北海道	後志総合振興局	古平町	ふるびらちょう	北海道 古平町	furubira-cho
+2025-10-01	municipality	01407	01000	01	北海道	後志総合振興局	仁木町	にきちょう	北海道 仁木町	niki-cho
+2025-10-01	municipality	01408	01000	01	北海道	後志総合振興局	余市町	よいちちょう	北海道 余市町	yoichi-cho
+2025-10-01	municipality	01409	01000	01	北海道	後志総合振興局	赤井川村	あかいがわむら	北海道 赤井川村	akaigawa-mura
+2025-10-01	municipality	01423	01000	01	北海道	空知総合振興局	南幌町	なんぽろちょう	北海道 南幌町	nanporo-cho
+2025-10-01	municipality	01424	01000	01	北海道	空知総合振興局	奈井江町	ないえちょう	北海道 奈井江町	naie-cho
+2025-10-01	municipality	01425	01000	01	北海道	空知総合振興局	上砂川町	かみすながわちょう	北海道 上砂川町	kamisunagawa-cho
+2025-10-01	municipality	01427	01000	01	北海道	空知総合振興局	由仁町	ゆにちょう	北海道 由仁町	yuni-cho
+2025-10-01	municipality	01428	01000	01	北海道	空知総合振興局	長沼町	ながぬまちょう	北海道 長沼町	maoi-net-cho
+2025-10-01	municipality	01429	01000	01	北海道	空知総合振興局	栗山町	くりやまちょう	北海道 栗山町	kuriyama-cho
+2025-10-01	municipality	01430	01000	01	北海道	空知総合振興局	月形町	つきがたちょう	北海道 月形町	tsukigata-cho
+2025-10-01	municipality	01431	01000	01	北海道	空知総合振興局	浦臼町	うらうすちょう	北海道 浦臼町	urausu-cho
+2025-10-01	municipality	01432	01000	01	北海道	空知総合振興局	新十津川町	しんとつかわちょう	北海道 新十津川町	shintotsukawa-cho
+2025-10-01	municipality	01433	01000	01	北海道	空知総合振興局	妹背牛町	もせうしちょう	北海道 妹背牛町	moseushi-cho
+2025-10-01	municipality	01434	01000	01	北海道	空知総合振興局	秩父別町	ちっぷべつちょう	北海道 秩父別町	chippubetsu-cho
+2025-10-01	municipality	01436	01000	01	北海道	空知総合振興局	雨竜町	うりゅうちょう	北海道 雨竜町	uryu-cho
+2025-10-01	municipality	01437	01000	01	北海道	空知総合振興局	北竜町	ほくりゅうちょう	北海道 北竜町	hokuryu-cho
+2025-10-01	municipality	01438	01000	01	北海道	空知総合振興局	沼田町	ぬまたちょう	北海道 沼田町	numata-cho
+2025-10-01	municipality	01452	01000	01	北海道	上川総合振興局	鷹栖町	たかすちょう	北海道 鷹栖町	takasu-cho
+2025-10-01	municipality	01453	01000	01	北海道	上川総合振興局	東神楽町	ひがしかぐらちょう	北海道 東神楽町	higashikagura-cho
+2025-10-01	municipality	01454	01000	01	北海道	上川総合振興局	当麻町	とうまちょう	北海道 当麻町	tohma-cho
+2025-10-01	municipality	01455	01000	01	北海道	上川総合振興局	比布町	ぴっぷちょう	北海道 比布町	pippu-cho
+2025-10-01	municipality	01456	01000	01	北海道	上川総合振興局	愛別町	あいべつちょう	北海道 愛別町	aibetsu-cho
+2025-10-01	municipality	01457	01000	01	北海道	上川総合振興局	上川町	かみかわちょう	北海道 上川町	hokkaido-kamikawa-cho
+2025-10-01	municipality	01458	01000	01	北海道	上川総合振興局	東川町	ひがしかわちょう	北海道 東川町	higashikawa-cho
+2025-10-01	municipality	01459	01000	01	北海道	上川総合振興局	美瑛町	びえいちょう	北海道 美瑛町	biei-cho
+2025-10-01	municipality	01460	01000	01	北海道	上川総合振興局	上富良野町	かみふらのちょう	北海道 上富良野町	kamifurano-cho
+2025-10-01	municipality	01461	01000	01	北海道	上川総合振興局	中富良野町	なかふらのちょう	北海道 中富良野町	nakafurano-cho
+2025-10-01	municipality	01462	01000	01	北海道	上川総合振興局	南富良野町	みなみふらのちょう	北海道 南富良野町	minamifurano-cho
+2025-10-01	municipality	01463	01000	01	北海道	上川総合振興局	占冠村	しむかっぷむら	北海道 占冠村	shimukappu-mura
+2025-10-01	municipality	01464	01000	01	北海道	上川総合振興局	和寒町	わっさむちょう	北海道 和寒町	wassamu-cho
+2025-10-01	municipality	01465	01000	01	北海道	上川総合振興局	剣淵町	けんぶちちょう	北海道 剣淵町	kembuchi-cho
+2025-10-01	municipality	01468	01000	01	北海道	上川総合振興局	下川町	しもかわちょう	北海道 下川町	shimokawa-cho
+2025-10-01	municipality	01469	01000	01	北海道	上川総合振興局	美深町	びふかちょう	北海道 美深町	bifuka-cho
+2025-10-01	municipality	01470	01000	01	北海道	上川総合振興局	音威子府村	おといねっぷむら	北海道 音威子府村	otoineppu-mura
+2025-10-01	municipality	01471	01000	01	北海道	上川総合振興局	中川町	なかがわちょう	北海道 中川町	nakagawa-cho
+2025-10-01	municipality	01472	01000	01	北海道	上川総合振興局	幌加内町	ほろかないちょう	北海道 幌加内町	horokanai-cho
+2025-10-01	municipality	01481	01000	01	北海道	留萌振興局	増毛町	ましけちょう	北海道 増毛町	mashike-cho
+2025-10-01	municipality	01482	01000	01	北海道	留萌振興局	小平町	おびらちょう	北海道 小平町	obira-cho
+2025-10-01	municipality	01483	01000	01	北海道	留萌振興局	苫前町	とままえちょう	北海道 苫前町	tomamae-cho
+2025-10-01	municipality	01484	01000	01	北海道	留萌振興局	羽幌町	はぼろちょう	北海道 羽幌町	haboro-cho
+2025-10-01	municipality	01485	01000	01	北海道	留萌振興局	初山別村	しょさんべつむら	北海道 初山別村	shosanbetsu-mura
+2025-10-01	municipality	01486	01000	01	北海道	留萌振興局	遠別町	えんべつちょう	北海道 遠別町	embetsu-cho
+2025-10-01	municipality	01487	01000	01	北海道	留萌振興局	天塩町	てしおちょう	北海道 天塩町	teshiotown-cho
+2025-10-01	municipality	01511	01000	01	北海道	宗谷総合振興局	猿払村	さるふつむら	北海道 猿払村	sarufutsu-mura
+2025-10-01	municipality	01512	01000	01	北海道	宗谷総合振興局	浜頓別町	はまとんべつちょう	北海道 浜頓別町	hamatonbetsu-cho
+2025-10-01	municipality	01513	01000	01	北海道	宗谷総合振興局	中頓別町	なかとんべつちょう	北海道 中頓別町	nakatombetsu-cho
+2025-10-01	municipality	01514	01000	01	北海道	宗谷総合振興局	枝幸町	えさしちょう	北海道 枝幸町	esashi-cho
+2025-10-01	municipality	01516	01000	01	北海道	宗谷総合振興局	豊富町	とよとみちょう	北海道 豊富町	toyotomi-cho
+2025-10-01	municipality	01517	01000	01	北海道	宗谷総合振興局	礼文町	れぶんちょう	北海道 礼文町	rebun-cho
+2025-10-01	municipality	01518	01000	01	北海道	宗谷総合振興局	利尻町	りしりちょう	北海道 利尻町	rishiri-cho
+2025-10-01	municipality	01519	01000	01	北海道	宗谷総合振興局	利尻富士町	りしりふじちょう	北海道 利尻富士町	rishirifuji-cho
+2025-10-01	municipality	01520	01000	01	北海道	宗谷総合振興局	幌延町	ほろのべちょう	北海道 幌延町	horonobe-cho
+2025-10-01	municipality	01543	01000	01	北海道	オホーツク総合振興局	美幌町	びほろちょう	北海道 美幌町	bihoro-cho
+2025-10-01	municipality	01544	01000	01	北海道	オホーツク総合振興局	津別町	つべつちょう	北海道 津別町	tsubetsu-cho
+2025-10-01	municipality	01545	01000	01	北海道	オホーツク総合振興局	斜里町	しゃりちょう	北海道 斜里町	shari-cho
+2025-10-01	municipality	01546	01000	01	北海道	オホーツク総合振興局	清里町	きよさとちょう	北海道 清里町	kiyosato-cho
+2025-10-01	municipality	01547	01000	01	北海道	オホーツク総合振興局	小清水町	こしみずちょう	北海道 小清水町	koshimizu-cho
+2025-10-01	municipality	01549	01000	01	北海道	オホーツク総合振興局	訓子府町	くんねっぷちょう	北海道 訓子府町	kunneppu-cho
+2025-10-01	municipality	01550	01000	01	北海道	オホーツク総合振興局	置戸町	おけとちょう	北海道 置戸町	oketo-cho
+2025-10-01	municipality	01552	01000	01	北海道	オホーツク総合振興局	佐呂間町	さろまちょう	北海道 佐呂間町	saroma-cho
+2025-10-01	municipality	01555	01000	01	北海道	オホーツク総合振興局	遠軽町	えんがるちょう	北海道 遠軽町	engaru-cho
+2025-10-01	municipality	01559	01000	01	北海道	オホーツク総合振興局	湧別町	ゆうべつちょう	北海道 湧別町	yubetsu-cho
+2025-10-01	municipality	01560	01000	01	北海道	オホーツク総合振興局	滝上町	たきのうえちょう	北海道 滝上町	takinoue-cho
+2025-10-01	municipality	01561	01000	01	北海道	オホーツク総合振興局	興部町	おこっぺちょう	北海道 興部町	okoppe-cho
+2025-10-01	municipality	01562	01000	01	北海道	オホーツク総合振興局	西興部村	にしおこっぺむら	北海道 西興部村	nishiokoppe-mura
+2025-10-01	municipality	01563	01000	01	北海道	オホーツク総合振興局	雄武町	おうむちょう	北海道 雄武町	oumu-cho
+2025-10-01	municipality	01564	01000	01	北海道	オホーツク総合振興局	大空町	おおぞらちょう	北海道 大空町	ozora-cho
+2025-10-01	municipality	01571	01000	01	北海道	胆振総合振興局	豊浦町	とようらちょう	北海道 豊浦町	toyoura-cho
+2025-10-01	municipality	01575	01000	01	北海道	胆振総合振興局	壮瞥町	そうべつちょう	北海道 壮瞥町	sobetsu-cho
+2025-10-01	municipality	01578	01000	01	北海道	胆振総合振興局	白老町	しらおいちょう	北海道 白老町	shiraoi-cho
+2025-10-01	municipality	01581	01000	01	北海道	胆振総合振興局	厚真町	あつまちょう	北海道 厚真町	atsuma-cho
+2025-10-01	municipality	01584	01000	01	北海道	胆振総合振興局	洞爺湖町	とうやこちょう	北海道 洞爺湖町	toyako-cho
+2025-10-01	municipality	01585	01000	01	北海道	胆振総合振興局	安平町	あびらちょう	北海道 安平町	abira-cho
+2025-10-01	municipality	01586	01000	01	北海道	胆振総合振興局	むかわ町	むかわちょう	北海道 むかわ町	mukawa-cho
+2025-10-01	municipality	01601	01000	01	北海道	日高振興局	日高町	ひだかちょう	北海道 日高町	hidaka-cho
+2025-10-01	municipality	01602	01000	01	北海道	日高振興局	平取町	びらとりちょう	北海道 平取町	biratori-cho
+2025-10-01	municipality	01604	01000	01	北海道	日高振興局	新冠町	にいかっぷちょう	北海道 新冠町	niikappu-cho
+2025-10-01	municipality	01607	01000	01	北海道	日高振興局	浦河町	うらかわちょう	北海道 浦河町	urakawa-cho
+2025-10-01	municipality	01608	01000	01	北海道	日高振興局	様似町	さまにちょう	北海道 様似町	samani-cho
+2025-10-01	municipality	01609	01000	01	北海道	日高振興局	えりも町	えりもちょう	北海道 えりも町	erimo-cho
+2025-10-01	municipality	01610	01000	01	北海道	日高振興局	新ひだか町	しんひだかちょう	北海道 新ひだか町	shinhidaka-hokkaido-cho
+2025-10-01	municipality	01631	01000	01	北海道	十勝総合振興局	音更町	おとふけちょう	北海道 音更町	otofuke-cho
+2025-10-01	municipality	01632	01000	01	北海道	十勝総合振興局	士幌町	しほろちょう	北海道 士幌町	shihoro-cho
+2025-10-01	municipality	01633	01000	01	北海道	十勝総合振興局	上士幌町	かみしほろちょう	北海道 上士幌町	kamishihoro-cho
+2025-10-01	municipality	01634	01000	01	北海道	十勝総合振興局	鹿追町	しかおいちょう	北海道 鹿追町	shikaoi-cho
+2025-10-01	municipality	01635	01000	01	北海道	十勝総合振興局	新得町	しんとくちょう	北海道 新得町	shintoku-town-cho
+2025-10-01	municipality	01636	01000	01	北海道	十勝総合振興局	清水町	しみずちょう	北海道 清水町	shimizu-cho
+2025-10-01	municipality	01637	01000	01	北海道	十勝総合振興局	芽室町	めむろちょう	北海道 芽室町	memuro-cho
+2025-10-01	municipality	01638	01000	01	北海道	十勝総合振興局	中札内村	なかさつないむら	北海道 中札内村	nakasatsunai-mura
+2025-10-01	municipality	01639	01000	01	北海道	十勝総合振興局	更別村	さらべつむら	北海道 更別村	sarabetsu-mura
+2025-10-01	municipality	01641	01000	01	北海道	十勝総合振興局	大樹町	たいきちょう	北海道 大樹町	taiki-cho
+2025-10-01	municipality	01642	01000	01	北海道	十勝総合振興局	広尾町	ひろおちょう	北海道 広尾町	hiroo-cho
+2025-10-01	municipality	01643	01000	01	北海道	十勝総合振興局	幕別町	まくべつちょう	北海道 幕別町	makubetsu-cho
+2025-10-01	municipality	01644	01000	01	北海道	十勝総合振興局	池田町	いけだちょう	北海道 池田町	hokkaido-ikeda-cho
+2025-10-01	municipality	01645	01000	01	北海道	十勝総合振興局	豊頃町	とよころちょう	北海道 豊頃町	toyokoro-cho
+2025-10-01	municipality	01646	01000	01	北海道	十勝総合振興局	本別町	ほんべつちょう	北海道 本別町	honbetsu-cho
+2025-10-01	municipality	01647	01000	01	北海道	十勝総合振興局	足寄町	あしょろちょう	北海道 足寄町	ashoro-cho
+2025-10-01	municipality	01648	01000	01	北海道	十勝総合振興局	陸別町	りくべつちょう	北海道 陸別町	rikubetsu-cho
+2025-10-01	municipality	01649	01000	01	北海道	十勝総合振興局	浦幌町	うらほろちょう	北海道 浦幌町	urahoro-cho
+2025-10-01	municipality	01661	01000	01	北海道	釧路総合振興局	釧路町	くしろちょう	北海道 釧路町	kushiro-cho
+2025-10-01	municipality	01662	01000	01	北海道	釧路総合振興局	厚岸町	あっけしちょう	北海道 厚岸町	akkeshi-town-cho
+2025-10-01	municipality	01663	01000	01	北海道	釧路総合振興局	浜中町	はまなかちょう	北海道 浜中町	townhamanaka-cho
+2025-10-01	municipality	01664	01000	01	北海道	釧路総合振興局	標茶町	しべちゃちょう	北海道 標茶町	shibecha-cho
+2025-10-01	municipality	01665	01000	01	北海道	釧路総合振興局	弟子屈町	てしかがちょう	北海道 弟子屈町	teshikaga-cho
+2025-10-01	municipality	01667	01000	01	北海道	釧路総合振興局	鶴居村	つるいむら	北海道 鶴居村	tsurui-mura
+2025-10-01	municipality	01668	01000	01	北海道	釧路総合振興局	白糠町	しらぬかちょう	北海道 白糠町	shiranuka-cho
+2025-10-01	municipality	01691	01000	01	北海道	根室振興局	別海町	べつかいちょう	北海道 別海町	betsukai-cho
+2025-10-01	municipality	01692	01000	01	北海道	根室振興局	中標津町	なかしべつちょう	北海道 中標津町	nakashibetsu-cho
+2025-10-01	municipality	01693	01000	01	北海道	根室振興局	標津町	しべつちょう	北海道 標津町	shibetsutown-cho
+2025-10-01	municipality	01694	01000	01	北海道	根室振興局	羅臼町	らうすちょう	北海道 羅臼町	rausu-town-cho
+2025-10-01	municipality	01695	01000	01	北海道	根室振興局	色丹村	しこたんむら	北海道 色丹村	shikotan-mura
+2025-10-01	municipality	01696	01000	01	北海道	根室振興局	泊村	とまりむら	北海道 泊村	tomari-mura
+2025-10-01	municipality	01697	01000	01	北海道	根室振興局	留夜別村	るよべつむら	北海道 留夜別村	ruyobetsu-mura
+2025-10-01	municipality	01698	01000	01	北海道	根室振興局	留別村	るべつむら	北海道 留別村	rubetsu-mura
+2025-10-01	municipality	01699	01000	01	北海道	根室振興局	紗那村	しゃなむら	北海道 紗那村	shana-mura
+2025-10-01	municipality	01700	01000	01	北海道	根室振興局	蘂取村	しべとろむら	北海道 蘂取村	shibetoro-mura
+2025-10-01	prefecture	02000		02	青森県		青森県	あおもりけん	青森県	aomori-ken
+2025-10-01	municipality	02201	02000	02	青森県		青森市	あおもりし	青森県 青森市	aomori-shi
+2025-10-01	municipality	02202	02000	02	青森県		弘前市	ひろさきし	青森県 弘前市	hirosaki-shi
+2025-10-01	municipality	02203	02000	02	青森県		八戸市	はちのへし	青森県 八戸市	hachinohe-shi
+2025-10-01	municipality	02204	02000	02	青森県		黒石市	くろいしし	青森県 黒石市	kuroishi-shi
+2025-10-01	municipality	02205	02000	02	青森県		五所川原市	ごしょがわらし	青森県 五所川原市	goshogawara-shi
+2025-10-01	municipality	02206	02000	02	青森県		十和田市	とわだし	青森県 十和田市	towada-shi
+2025-10-01	municipality	02207	02000	02	青森県		三沢市	みさわし	青森県 三沢市	misawa-shi
+2025-10-01	municipality	02208	02000	02	青森県		むつ市	むつし	青森県 むつ市	mutsu-shi
+2025-10-01	municipality	02209	02000	02	青森県		つがる市	つがるし	青森県 つがる市	tsugaru-shi
+2025-10-01	municipality	02210	02000	02	青森県		平川市	ひらかわし	青森県 平川市	hirakawa-shi
+2025-10-01	municipality	02301	02000	02	青森県	東津軽郡	平内町	ひらないまち	青森県 平内町	hiranai-cho
+2025-10-01	municipality	02303	02000	02	青森県	東津軽郡	今別町	いまべつまち	青森県 今別町	imabetsu-cho
+2025-10-01	municipality	02304	02000	02	青森県	東津軽郡	蓬田村	よもぎたむら	青森県 蓬田村	yomogita-mura
+2025-10-01	municipality	02307	02000	02	青森県	東津軽郡	外ヶ浜町	そとがはままち	青森県 外ヶ浜町	sotogahama-cho
+2025-10-01	municipality	02321	02000	02	青森県	西津軽郡	鰺ヶ沢町	あじがさわまち	青森県 鰺ヶ沢町	ajigasawa-cho
+2025-10-01	municipality	02323	02000	02	青森県	西津軽郡	深浦町	ふかうらまち	青森県 深浦町	fukaura-cho
+2025-10-01	municipality	02343	02000	02	青森県	中津軽郡	西目屋村	にしめやむら	青森県 西目屋村	nishimeya-mura
+2025-10-01	municipality	02361	02000	02	青森県	南津軽郡	藤崎町	ふじさきまち	青森県 藤崎町	fujisaki-cho
+2025-10-01	municipality	02362	02000	02	青森県	南津軽郡	大鰐町	おおわにまち	青森県 大鰐町	owani-cho
+2025-10-01	municipality	02367	02000	02	青森県	南津軽郡	田舎館村	いなかだてむら	青森県 田舎館村	inakadate-mura
+2025-10-01	municipality	02381	02000	02	青森県	北津軽郡	板柳町	いたやなぎまち	青森県 板柳町	itayanagi-cho
+2025-10-01	municipality	02384	02000	02	青森県	北津軽郡	鶴田町	つるたまち	青森県 鶴田町	tsuruta-cho
+2025-10-01	municipality	02387	02000	02	青森県	北津軽郡	中泊町	なかどまりまち	青森県 中泊町	nakadomari-cho
+2025-10-01	municipality	02401	02000	02	青森県	上北郡	野辺地町	のへじまち	青森県 野辺地町	noheji-cho
+2025-10-01	municipality	02402	02000	02	青森県	上北郡	七戸町	しちのへまち	青森県 七戸町	shichinohe-cho
+2025-10-01	municipality	02405	02000	02	青森県	上北郡	六戸町	ろくのへまち	青森県 六戸町	rokunohe-cho
+2025-10-01	municipality	02406	02000	02	青森県	上北郡	横浜町	よこはままち	青森県 横浜町	yokohama-cho
+2025-10-01	municipality	02408	02000	02	青森県	上北郡	東北町	とうほくまち	青森県 東北町	tohoku-cho
+2025-10-01	municipality	02411	02000	02	青森県	上北郡	六ヶ所村	ろっかしょむら	青森県 六ヶ所村	rokkasho-mura
+2025-10-01	municipality	02412	02000	02	青森県	上北郡	おいらせ町	おいらせちょう	青森県 おいらせ町	oirase-cho
+2025-10-01	municipality	02423	02000	02	青森県	下北郡	大間町	おおままち	青森県 大間町	ooma-cho
+2025-10-01	municipality	02424	02000	02	青森県	下北郡	東通村	ひがしどおりむら	青森県 東通村	higashidoori-mura
+2025-10-01	municipality	02425	02000	02	青森県	下北郡	風間浦村	かざまうらむら	青森県 風間浦村	kazamaura-mura
+2025-10-01	municipality	02426	02000	02	青森県	下北郡	佐井村	さいむら	青森県 佐井村	sai-mura
+2025-10-01	municipality	02441	02000	02	青森県	三戸郡	三戸町	さんのへまち	青森県 三戸町	sannohe-cho
+2025-10-01	municipality	02442	02000	02	青森県	三戸郡	五戸町	ごのへまち	青森県 五戸町	gonohe-cho
+2025-10-01	municipality	02443	02000	02	青森県	三戸郡	田子町	たっこまち	青森県 田子町	takko-cho
+2025-10-01	municipality	02445	02000	02	青森県	三戸郡	南部町	なんぶちょう	青森県 南部町	aomori-nanbu-cho
+2025-10-01	municipality	02446	02000	02	青森県	三戸郡	階上町	はしかみちょう	青森県 階上町	hashikami-cho
+2025-10-01	municipality	02450	02000	02	青森県	三戸郡	新郷村	しんごうむら	青森県 新郷村	shingo-mura
+2025-10-01	prefecture	03000		03	岩手県		岩手県	いわてけん	岩手県	iwate-ken
+2025-10-01	municipality	03201	03000	03	岩手県		盛岡市	もりおかし	岩手県 盛岡市	morioka-shi
+2025-10-01	municipality	03202	03000	03	岩手県		宮古市	みやこし	岩手県 宮古市	miyako-shi
+2025-10-01	municipality	03203	03000	03	岩手県		大船渡市	おおふなとし	岩手県 大船渡市	ofunato-shi
+2025-10-01	municipality	03205	03000	03	岩手県		花巻市	はなまきし	岩手県 花巻市	hanamaki-shi
+2025-10-01	municipality	03206	03000	03	岩手県		北上市	きたかみし	岩手県 北上市	kitakami-shi
+2025-10-01	municipality	03207	03000	03	岩手県		久慈市	くじし	岩手県 久慈市	kuji-shi
+2025-10-01	municipality	03208	03000	03	岩手県		遠野市	とおのし	岩手県 遠野市	tono-shi
+2025-10-01	municipality	03209	03000	03	岩手県		一関市	いちのせきし	岩手県 一関市	ichinoseki-shi
+2025-10-01	municipality	03210	03000	03	岩手県		陸前高田市	りくぜんたかたし	岩手県 陸前高田市	rikuzentakata-shi
+2025-10-01	municipality	03211	03000	03	岩手県		釜石市	かまいしし	岩手県 釜石市	kamaishi-shi
+2025-10-01	municipality	03213	03000	03	岩手県		二戸市	にのへし	岩手県 二戸市	ninohe-shi
+2025-10-01	municipality	03214	03000	03	岩手県		八幡平市	はちまんたいし	岩手県 八幡平市	hachimantai-shi
+2025-10-01	municipality	03215	03000	03	岩手県		奥州市	おうしゅうし	岩手県 奥州市	oshu-shi
+2025-10-01	municipality	03216	03000	03	岩手県		滝沢市	たきざわし	岩手県 滝沢市	takizawa-shi
+2025-10-01	municipality	03301	03000	03	岩手県	岩手郡	雫石町	しずくいしちょう	岩手県 雫石町	shizukuishi-cho
+2025-10-01	municipality	03302	03000	03	岩手県	岩手郡	葛巻町	くずまきまち	岩手県 葛巻町	kuzumaki-cho
+2025-10-01	municipality	03303	03000	03	岩手県	岩手郡	岩手町	いわてまち	岩手県 岩手町	iwate-cho
+2025-10-01	municipality	03321	03000	03	岩手県	紫波郡	紫波町	しわちょう	岩手県 紫波町	shiwa-cho
+2025-10-01	municipality	03322	03000	03	岩手県	紫波郡	矢巾町	やはばちょう	岩手県 矢巾町	yahaba-cho
+2025-10-01	municipality	03366	03000	03	岩手県	和賀郡	西和賀町	にしわがまち	岩手県 西和賀町	nishiwaga-cho
+2025-10-01	municipality	03381	03000	03	岩手県	胆沢郡	金ケ崎町	かねがさきちょう	岩手県 金ケ崎町	kanegasaki-cho
+2025-10-01	municipality	03402	03000	03	岩手県	西磐井郡	平泉町	ひらいずみちょう	岩手県 平泉町	hiraizumi-cho
+2025-10-01	municipality	03441	03000	03	岩手県	気仙郡	住田町	すみたちょう	岩手県 住田町	sumita-cho
+2025-10-01	municipality	03461	03000	03	岩手県	上閉伊郡	大槌町	おおつちちょう	岩手県 大槌町	otsuchi-cho
+2025-10-01	municipality	03482	03000	03	岩手県	下閉伊郡	山田町	やまだまち	岩手県 山田町	yamada-cho
+2025-10-01	municipality	03483	03000	03	岩手県	下閉伊郡	岩泉町	いわいずみちょう	岩手県 岩泉町	iwaizumi-cho
+2025-10-01	municipality	03484	03000	03	岩手県	下閉伊郡	田野畑村	たのはたむら	岩手県 田野畑村	tanohata-mura
+2025-10-01	municipality	03485	03000	03	岩手県	下閉伊郡	普代村	ふだいむら	岩手県 普代村	fudai-mura
+2025-10-01	municipality	03501	03000	03	岩手県	九戸郡	軽米町	かるまいまち	岩手県 軽米町	karumai-cho
+2025-10-01	municipality	03503	03000	03	岩手県	九戸郡	野田村	のだむら	岩手県 野田村	noda-mura
+2025-10-01	municipality	03506	03000	03	岩手県	九戸郡	九戸村	くのへむら	岩手県 九戸村	kunohe-mura
+2025-10-01	municipality	03507	03000	03	岩手県	九戸郡	洋野町	ひろのちょう	岩手県 洋野町	hirono-cho
+2025-10-01	municipality	03524	03000	03	岩手県	二戸郡	一戸町	いちのへまち	岩手県 一戸町	ichinohe-cho
+2025-10-01	prefecture	04000		04	宮城県		宮城県	みやぎけん	宮城県	miyagi-ken
+2025-10-01	municipality	04100	04000	04	宮城県		仙台市	せんだいし	宮城県 仙台市	sendai-shi
+2025-10-01	municipality	04202	04000	04	宮城県		石巻市	いしのまきし	宮城県 石巻市	ishinomaki-shi
+2025-10-01	municipality	04203	04000	04	宮城県		塩竈市	しおがまし	宮城県 塩竈市	shiogama-shi
+2025-10-01	municipality	04205	04000	04	宮城県		気仙沼市	けせんぬまし	宮城県 気仙沼市	kesennuma-shi
+2025-10-01	municipality	04206	04000	04	宮城県		白石市	しろいしし	宮城県 白石市	shiroishi-shi
+2025-10-01	municipality	04207	04000	04	宮城県		名取市	なとりし	宮城県 名取市	natori-shi
+2025-10-01	municipality	04208	04000	04	宮城県		角田市	かくだし	宮城県 角田市	kakuda-shi
+2025-10-01	municipality	04209	04000	04	宮城県		多賀城市	たがじょうし	宮城県 多賀城市	tagajo-shi
+2025-10-01	municipality	04211	04000	04	宮城県		岩沼市	いわぬまし	宮城県 岩沼市	iwanuma-shi
+2025-10-01	municipality	04212	04000	04	宮城県		登米市	とめし	宮城県 登米市	tome-shi
+2025-10-01	municipality	04213	04000	04	宮城県		栗原市	くりはらし	宮城県 栗原市	kuriharacity-shi
+2025-10-01	municipality	04214	04000	04	宮城県		東松島市	ひがしまつしまし	宮城県 東松島市	higashimatsushima-shi
+2025-10-01	municipality	04215	04000	04	宮城県		大崎市	おおさきし	宮城県 大崎市	osaki-shi
+2025-10-01	municipality	04216	04000	04	宮城県		富谷市	とみやし	宮城県 富谷市	tomiya-city-shi
+2025-10-01	municipality	04301	04000	04	宮城県	刈田郡	蔵王町	ざおうまち	宮城県 蔵王町	zao-cho
+2025-10-01	municipality	04302	04000	04	宮城県	刈田郡	七ヶ宿町	しちかしゅくまち	宮城県 七ヶ宿町	shichikashuku-cho
+2025-10-01	municipality	04321	04000	04	宮城県	柴田郡	大河原町	おおがわらまち	宮城県 大河原町	ogawara-cho
+2025-10-01	municipality	04322	04000	04	宮城県	柴田郡	村田町	むらたまち	宮城県 村田町	murata-cho
+2025-10-01	municipality	04323	04000	04	宮城県	柴田郡	柴田町	しばたまち	宮城県 柴田町	shibata-cho
+2025-10-01	municipality	04324	04000	04	宮城県	柴田郡	川崎町	かわさきまち	宮城県 川崎町	kawasaki-cho
+2025-10-01	municipality	04341	04000	04	宮城県	伊具郡	丸森町	まるもりまち	宮城県 丸森町	marumori-cho
+2025-10-01	municipality	04361	04000	04	宮城県	亘理郡	亘理町	わたりちょう	宮城県 亘理町	watari-cho
+2025-10-01	municipality	04362	04000	04	宮城県	亘理郡	山元町	やまもとちょう	宮城県 山元町	yamamoto-cho
+2025-10-01	municipality	04401	04000	04	宮城県	宮城郡	松島町	まつしままち	宮城県 松島町	miyagi-matsushima-cho
+2025-10-01	municipality	04404	04000	04	宮城県	宮城郡	七ヶ浜町	しちがはままち	宮城県 七ヶ浜町	shichigahama-cho
+2025-10-01	municipality	04406	04000	04	宮城県	宮城郡	利府町	りふちょう	宮城県 利府町	rifu-cho
+2025-10-01	municipality	04421	04000	04	宮城県	黒川郡	大和町	たいわちょう	宮城県 大和町	taiwa-cho
+2025-10-01	municipality	04422	04000	04	宮城県	黒川郡	大郷町	おおさとちょう	宮城県 大郷町	miyagi-osato-cho
+2025-10-01	municipality	04424	04000	04	宮城県	黒川郡	大衡村	おおひらむら	宮城県 大衡村	ohira-mura
+2025-10-01	municipality	04444	04000	04	宮城県	加美郡	色麻町	しかまちょう	宮城県 色麻町	shikama-cho
+2025-10-01	municipality	04445	04000	04	宮城県	加美郡	加美町	かみまち	宮城県 加美町	kami-cho
+2025-10-01	municipality	04501	04000	04	宮城県	遠田郡	涌谷町	わくやちょう	宮城県 涌谷町	wakuya-cho
+2025-10-01	municipality	04505	04000	04	宮城県	遠田郡	美里町	みさとまち	宮城県 美里町	misato-cho
+2025-10-01	municipality	04581	04000	04	宮城県	牡鹿郡	女川町	おながわちょう	宮城県 女川町	onagawa-cho
+2025-10-01	municipality	04606	04000	04	宮城県	本吉郡	南三陸町	みなみさんりくちょう	宮城県 南三陸町	minamisanriku-cho
+2025-10-01	prefecture	05000		05	秋田県		秋田県	あきたけん	秋田県	akita-ken
+2025-10-01	municipality	05201	05000	05	秋田県		秋田市	あきたし	秋田県 秋田市	akita-shi
+2025-10-01	municipality	05202	05000	05	秋田県		能代市	のしろし	秋田県 能代市	noshiro-shi
+2025-10-01	municipality	05203	05000	05	秋田県		横手市	よこてし	秋田県 横手市	yokote-shi
+2025-10-01	municipality	05204	05000	05	秋田県		大館市	おおだてし	秋田県 大館市	odate-shi
+2025-10-01	municipality	05206	05000	05	秋田県		男鹿市	おがし	秋田県 男鹿市	oga-shi
+2025-10-01	municipality	05207	05000	05	秋田県		湯沢市	ゆざわし	秋田県 湯沢市	city-yuzawa-shi
+2025-10-01	municipality	05209	05000	05	秋田県		鹿角市	かづのし	秋田県 鹿角市	kazuno-shi
+2025-10-01	municipality	05210	05000	05	秋田県		由利本荘市	ゆりほんじょうし	秋田県 由利本荘市	yurihonjo-shi
+2025-10-01	municipality	05211	05000	05	秋田県		潟上市	かたがみし	秋田県 潟上市	katagami-shi
+2025-10-01	municipality	05212	05000	05	秋田県		大仙市	だいせんし	秋田県 大仙市	daisen-shi
+2025-10-01	municipality	05213	05000	05	秋田県		北秋田市	きたあきたし	秋田県 北秋田市	kitaakita-shi
+2025-10-01	municipality	05214	05000	05	秋田県		にかほ市	にかほし	秋田県 にかほ市	nikaho-shi
+2025-10-01	municipality	05215	05000	05	秋田県		仙北市	せんぼくし	秋田県 仙北市	semboku-shi
+2025-10-01	municipality	05303	05000	05	秋田県	鹿角郡	小坂町	こさかまち	秋田県 小坂町	kosaka-cho
+2025-10-01	municipality	05327	05000	05	秋田県	北秋田郡	上小阿仁村	かみこあにむら	秋田県 上小阿仁村	kamikoani-mura
+2025-10-01	municipality	05346	05000	05	秋田県	山本郡	藤里町	ふじさとまち	秋田県 藤里町	fujisato-cho
+2025-10-01	municipality	05348	05000	05	秋田県	山本郡	三種町	みたねちょう	秋田県 三種町	mitane-cho
+2025-10-01	municipality	05349	05000	05	秋田県	山本郡	八峰町	はっぽうちょう	秋田県 八峰町	happo-cho
+2025-10-01	municipality	05361	05000	05	秋田県	南秋田郡	五城目町	ごじょうめまち	秋田県 五城目町	gojome-cho
+2025-10-01	municipality	05363	05000	05	秋田県	南秋田郡	八郎潟町	はちろうがたまち	秋田県 八郎潟町	hachirogata-cho
+2025-10-01	municipality	05366	05000	05	秋田県	南秋田郡	井川町	いかわまち	秋田県 井川町	ikawa-cho
+2025-10-01	municipality	05368	05000	05	秋田県	南秋田郡	大潟村	おおがたむら	秋田県 大潟村	ogata-mura
+2025-10-01	municipality	05434	05000	05	秋田県	仙北郡	美郷町	みさとちょう	秋田県 美郷町	misato-cho
+2025-10-01	municipality	05463	05000	05	秋田県	雄勝郡	羽後町	うごまち	秋田県 羽後町	ugo-cho
+2025-10-01	municipality	05464	05000	05	秋田県	雄勝郡	東成瀬村	ひがしなるせむら	秋田県 東成瀬村	higashinaruse-mura
+2025-10-01	prefecture	06000		06	山形県		山形県	やまがたけん	山形県	yamagata-ken
+2025-10-01	municipality	06201	06000	06	山形県		山形市	やまがたし	山形県 山形市	yamagata-yamagata-shi
+2025-10-01	municipality	06202	06000	06	山形県		米沢市	よねざわし	山形県 米沢市	yonezawa-shi
+2025-10-01	municipality	06203	06000	06	山形県		鶴岡市	つるおかし	山形県 鶴岡市	tsuruoka-shi
+2025-10-01	municipality	06204	06000	06	山形県		酒田市	さかたし	山形県 酒田市	sakata-shi
+2025-10-01	municipality	06205	06000	06	山形県		新庄市	しんじょうし	山形県 新庄市	shinjo-shi
+2025-10-01	municipality	06206	06000	06	山形県		寒河江市	さがえし	山形県 寒河江市	sagae-shi
+2025-10-01	municipality	06207	06000	06	山形県		上山市	かみのやまし	山形県 上山市	kaminoyama-shi
+2025-10-01	municipality	06208	06000	06	山形県		村山市	むらやまし	山形県 村山市	murayama-shi
+2025-10-01	municipality	06209	06000	06	山形県		長井市	ながいし	山形県 長井市	nagai-shi
+2025-10-01	municipality	06210	06000	06	山形県		天童市	てんどうし	山形県 天童市	tendo-shi
+2025-10-01	municipality	06211	06000	06	山形県		東根市	ひがしねし	山形県 東根市	higashine-shi
+2025-10-01	municipality	06212	06000	06	山形県		尾花沢市	おばなざわし	山形県 尾花沢市	obanazawa-shi
+2025-10-01	municipality	06213	06000	06	山形県		南陽市	なんようし	山形県 南陽市	nanyo-shi
+2025-10-01	municipality	06301	06000	06	山形県	東村山郡	山辺町	やまのべまち	山形県 山辺町	yamanobe-cho
+2025-10-01	municipality	06302	06000	06	山形県	東村山郡	中山町	なかやままち	山形県 中山町	nakayama-cho
+2025-10-01	municipality	06321	06000	06	山形県	西村山郡	河北町	かほくちょう	山形県 河北町	kahoku-cho
+2025-10-01	municipality	06322	06000	06	山形県	西村山郡	西川町	にしかわまち	山形県 西川町	nishikawa-cho
+2025-10-01	municipality	06323	06000	06	山形県	西村山郡	朝日町	あさひまち	山形県 朝日町	asahi-cho
+2025-10-01	municipality	06324	06000	06	山形県	西村山郡	大江町	おおえまち	山形県 大江町	oe-cho
+2025-10-01	municipality	06341	06000	06	山形県	北村山郡	大石田町	おおいしだまち	山形県 大石田町	oishida-cho
+2025-10-01	municipality	06361	06000	06	山形県	最上郡	金山町	かねやままち	山形県 金山町	kaneyama-cho
+2025-10-01	municipality	06362	06000	06	山形県	最上郡	最上町	もがみまち	山形県 最上町	mogami-cho
+2025-10-01	municipality	06363	06000	06	山形県	最上郡	舟形町	ふながたまち	山形県 舟形町	funagata-cho
+2025-10-01	municipality	06364	06000	06	山形県	最上郡	真室川町	まむろがわまち	山形県 真室川町	mamurogawa-cho
+2025-10-01	municipality	06365	06000	06	山形県	最上郡	大蔵村	おおくらむら	山形県 大蔵村	ohkura-mura
+2025-10-01	municipality	06366	06000	06	山形県	最上郡	鮭川村	さけがわむら	山形県 鮭川村	sakegawa-mura
+2025-10-01	municipality	06367	06000	06	山形県	最上郡	戸沢村	とざわむら	山形県 戸沢村	tozawa-mura
+2025-10-01	municipality	06381	06000	06	山形県	東置賜郡	高畠町	たかはたまち	山形県 高畠町	takahata-cho
+2025-10-01	municipality	06382	06000	06	山形県	東置賜郡	川西町	かわにしまち	山形県 川西町	kawanishi-cho
+2025-10-01	municipality	06401	06000	06	山形県	西置賜郡	小国町	おぐにまち	山形県 小国町	oguni-cho
+2025-10-01	municipality	06402	06000	06	山形県	西置賜郡	白鷹町	しらたかまち	山形県 白鷹町	shirataka-cho
+2025-10-01	municipality	06403	06000	06	山形県	西置賜郡	飯豊町	いいでまち	山形県 飯豊町	iide-cho
+2025-10-01	municipality	06426	06000	06	山形県	東田川郡	三川町	みかわまち	山形県 三川町	mikawa-cho
+2025-10-01	municipality	06428	06000	06	山形県	東田川郡	庄内町	しょうないまち	山形県 庄内町	shonai-cho
+2025-10-01	municipality	06461	06000	06	山形県	飽海郡	遊佐町	ゆざまち	山形県 遊佐町	yuza-cho
+2025-10-01	prefecture	07000		07	福島県		福島県	ふくしまけん	福島県	fukushima-ken
+2025-10-01	municipality	07201	07000	07	福島県		福島市	ふくしまし	福島県 福島市	fukushima-shi
+2025-10-01	municipality	07202	07000	07	福島県		会津若松市	あいづわかまつし	福島県 会津若松市	aizuwakamatsu-shi
+2025-10-01	municipality	07203	07000	07	福島県		郡山市	こおりやまし	福島県 郡山市	koriyama-shi
+2025-10-01	municipality	07204	07000	07	福島県		いわき市	いわきし	福島県 いわき市	iwaki-shi
+2025-10-01	municipality	07205	07000	07	福島県		白河市	しらかわし	福島県 白河市	shirakawa-shi
+2025-10-01	municipality	07207	07000	07	福島県		須賀川市	すかがわし	福島県 須賀川市	sukagawa-shi
+2025-10-01	municipality	07208	07000	07	福島県		喜多方市	きたかたし	福島県 喜多方市	kitakata-shi
+2025-10-01	municipality	07209	07000	07	福島県		相馬市	そうまし	福島県 相馬市	soma-shi
+2025-10-01	municipality	07210	07000	07	福島県		二本松市	にほんまつし	福島県 二本松市	nihonmatsu-shi
+2025-10-01	municipality	07211	07000	07	福島県		田村市	たむらし	福島県 田村市	tamura-shi
+2025-10-01	municipality	07212	07000	07	福島県		南相馬市	みなみそうまし	福島県 南相馬市	minamisoma-shi
+2025-10-01	municipality	07213	07000	07	福島県		伊達市	だてし	福島県 伊達市	fukushima-date-shi
+2025-10-01	municipality	07214	07000	07	福島県		本宮市	もとみやし	福島県 本宮市	motomiya-shi
+2025-10-01	municipality	07301	07000	07	福島県	伊達郡	桑折町	こおりまち	福島県 桑折町	koori-cho
+2025-10-01	municipality	07303	07000	07	福島県	伊達郡	国見町	くにみまち	福島県 国見町	kunimi-cho
+2025-10-01	municipality	07308	07000	07	福島県	伊達郡	川俣町	かわまたまち	福島県 川俣町	kawamata-cho
+2025-10-01	municipality	07322	07000	07	福島県	安達郡	大玉村	おおたまむら	福島県 大玉村	otama-mura
+2025-10-01	municipality	07342	07000	07	福島県	岩瀬郡	鏡石町	かがみいしまち	福島県 鏡石町	kagamiishi-cho
+2025-10-01	municipality	07344	07000	07	福島県	岩瀬郡	天栄村	てんえいむら	福島県 天栄村	tenei-mura
+2025-10-01	municipality	07362	07000	07	福島県	南会津郡	下郷町	しもごうまち	福島県 下郷町	shimogo-cho
+2025-10-01	municipality	07364	07000	07	福島県	南会津郡	檜枝岐村	ひのえまたむら	福島県 檜枝岐村	hinoemata-mura
+2025-10-01	municipality	07367	07000	07	福島県	南会津郡	只見町	ただみまち	福島県 只見町	tadami-cho
+2025-10-01	municipality	07368	07000	07	福島県	南会津郡	南会津町	みなみあいづまち	福島県 南会津町	minamiaizu-cho
+2025-10-01	municipality	07402	07000	07	福島県	耶麻郡	北塩原村	きたしおばらむら	福島県 北塩原村	kitashiobara-mura
+2025-10-01	municipality	07405	07000	07	福島県	耶麻郡	西会津町	にしあいづまち	福島県 西会津町	nishiaizu-cho
+2025-10-01	municipality	07407	07000	07	福島県	耶麻郡	磐梯町	ばんだいまち	福島県 磐梯町	bandai-cho
+2025-10-01	municipality	07408	07000	07	福島県	耶麻郡	猪苗代町	いなわしろまち	福島県 猪苗代町	inawashiro-cho
+2025-10-01	municipality	07421	07000	07	福島県	河沼郡	会津坂下町	あいづばんげまち	福島県 会津坂下町	aizubange-cho
+2025-10-01	municipality	07422	07000	07	福島県	河沼郡	湯川村	ゆがわむら	福島県 湯川村	yugawa-mura
+2025-10-01	municipality	07423	07000	07	福島県	河沼郡	柳津町	やないづまち	福島県 柳津町	yanaizu-cho
+2025-10-01	municipality	07444	07000	07	福島県	大沼郡	三島町	みしままち	福島県 三島町	mishima-cho
+2025-10-01	municipality	07445	07000	07	福島県	大沼郡	金山町	かねやままち	福島県 金山町	kaneyama-cho
+2025-10-01	municipality	07446	07000	07	福島県	大沼郡	昭和村	しょうわむら	福島県 昭和村	showa-mura
+2025-10-01	municipality	07447	07000	07	福島県	大沼郡	会津美里町	あいづみさとまち	福島県 会津美里町	aizumisato-cho
+2025-10-01	municipality	07461	07000	07	福島県	西白河郡	西郷村	にしごうむら	福島県 西郷村	nishigo-mura
+2025-10-01	municipality	07464	07000	07	福島県	西白河郡	泉崎村	いずみざきむら	福島県 泉崎村	izumizaki-mura
+2025-10-01	municipality	07465	07000	07	福島県	西白河郡	中島村	なかじまむら	福島県 中島村	vill-nakajima-mura
+2025-10-01	municipality	07466	07000	07	福島県	西白河郡	矢吹町	やぶきまち	福島県 矢吹町	yabuki-cho
+2025-10-01	municipality	07481	07000	07	福島県	東白川郡	棚倉町	たなぐらまち	福島県 棚倉町	tanagura-cho
+2025-10-01	municipality	07482	07000	07	福島県	東白川郡	矢祭町	やまつりまち	福島県 矢祭町	yamatsuri-cho
+2025-10-01	municipality	07483	07000	07	福島県	東白川郡	塙町	はなわまち	福島県 塙町	hanawa-cho
+2025-10-01	municipality	07484	07000	07	福島県	東白川郡	鮫川村	さめがわむら	福島県 鮫川村	samegawa-mura
+2025-10-01	municipality	07501	07000	07	福島県	石川郡	石川町	いしかわまち	福島県 石川町	ishikawa-cho
+2025-10-01	municipality	07502	07000	07	福島県	石川郡	玉川村	たまかわむら	福島県 玉川村	tamakawa-mura
+2025-10-01	municipality	07503	07000	07	福島県	石川郡	平田村	ひらたむら	福島県 平田村	hirata-mura
+2025-10-01	municipality	07504	07000	07	福島県	石川郡	浅川町	あさかわまち	福島県 浅川町	asakawa-cho
+2025-10-01	municipality	07505	07000	07	福島県	石川郡	古殿町	ふるどのまち	福島県 古殿町	furudono-cho
+2025-10-01	municipality	07521	07000	07	福島県	田村郡	三春町	みはるまち	福島県 三春町	miharu-cho
+2025-10-01	municipality	07522	07000	07	福島県	田村郡	小野町	おのまち	福島県 小野町	ono-cho
+2025-10-01	municipality	07541	07000	07	福島県	双葉郡	広野町	ひろのまち	福島県 広野町	hirono-cho
+2025-10-01	municipality	07542	07000	07	福島県	双葉郡	楢葉町	ならはまち	福島県 楢葉町	naraha-cho
+2025-10-01	municipality	07543	07000	07	福島県	双葉郡	富岡町	とみおかまち	福島県 富岡町	tomioka-town-cho
+2025-10-01	municipality	07544	07000	07	福島県	双葉郡	川内村	かわうちむら	福島県 川内村	kawauchimura-mura
+2025-10-01	municipality	07545	07000	07	福島県	双葉郡	大熊町	おおくままち	福島県 大熊町	okuma-cho
+2025-10-01	municipality	07546	07000	07	福島県	双葉郡	双葉町	ふたばまち	福島県 双葉町	fukushima-futaba-cho
+2025-10-01	municipality	07547	07000	07	福島県	双葉郡	浪江町	なみえまち	福島県 浪江町	namie-cho
+2025-10-01	municipality	07548	07000	07	福島県	双葉郡	葛尾村	かつらおむら	福島県 葛尾村	katsurao-mura
+2025-10-01	municipality	07561	07000	07	福島県	相馬郡	新地町	しんちまち	福島県 新地町	shinchi-town-cho
+2025-10-01	municipality	07564	07000	07	福島県	相馬郡	飯舘村	いいたてむら	福島県 飯舘村	iitate-mura
+2025-10-01	prefecture	08000		08	茨城県		茨城県	いばらきけん	茨城県	ibaraki-ken
+2025-10-01	municipality	08201	08000	08	茨城県		水戸市	みとし	茨城県 水戸市	mito-shi
+2025-10-01	municipality	08202	08000	08	茨城県		日立市	ひたちし	茨城県 日立市	hitachi-shi
+2025-10-01	municipality	08203	08000	08	茨城県		土浦市	つちうらし	茨城県 土浦市	tsuchiura-shi
+2025-10-01	municipality	08204	08000	08	茨城県		古河市	こがし	茨城県 古河市	ibaraki-koga-shi
+2025-10-01	municipality	08205	08000	08	茨城県		石岡市	いしおかし	茨城県 石岡市	ishioka-shi
+2025-10-01	municipality	08207	08000	08	茨城県		結城市	ゆうきし	茨城県 結城市	yuki-shi
+2025-10-01	municipality	08208	08000	08	茨城県		龍ケ崎市	りゅうがさきし	茨城県 龍ケ崎市	ryugasaki-shi
+2025-10-01	municipality	08210	08000	08	茨城県		下妻市	しもつまし	茨城県 下妻市	shimotsuma-shi
+2025-10-01	municipality	08211	08000	08	茨城県		常総市	じょうそうし	茨城県 常総市	joso-shi
+2025-10-01	municipality	08212	08000	08	茨城県		常陸太田市	ひたちおおたし	茨城県 常陸太田市	hitachiota-shi
+2025-10-01	municipality	08214	08000	08	茨城県		高萩市	たかはぎし	茨城県 高萩市	takahagi-shi
+2025-10-01	municipality	08215	08000	08	茨城県		北茨城市	きたいばらきし	茨城県 北茨城市	kitaibaraki-shi
+2025-10-01	municipality	08216	08000	08	茨城県		笠間市	かさまし	茨城県 笠間市	kasama-shi
+2025-10-01	municipality	08217	08000	08	茨城県		取手市	とりでし	茨城県 取手市	toride-shi
+2025-10-01	municipality	08219	08000	08	茨城県		牛久市	うしくし	茨城県 牛久市	ushiku-shi
+2025-10-01	municipality	08220	08000	08	茨城県		つくば市	つくばし	茨城県 つくば市	tsukuba-shi
+2025-10-01	municipality	08221	08000	08	茨城県		ひたちなか市	ひたちなかし	茨城県 ひたちなか市	hitachinaka-shi
+2025-10-01	municipality	08222	08000	08	茨城県		鹿嶋市	かしまし	茨城県 鹿嶋市	kashima-shi
+2025-10-01	municipality	08223	08000	08	茨城県		潮来市	いたこし	茨城県 潮来市	itako-shi
+2025-10-01	municipality	08224	08000	08	茨城県		守谷市	もりやし	茨城県 守谷市	moriya-shi
+2025-10-01	municipality	08225	08000	08	茨城県		常陸大宮市	ひたちおおみやし	茨城県 常陸大宮市	hitachiomiya-shi
+2025-10-01	municipality	08226	08000	08	茨城県		那珂市	なかし	茨城県 那珂市	naka-shi
+2025-10-01	municipality	08227	08000	08	茨城県		筑西市	ちくせいし	茨城県 筑西市	chikusei-shi
+2025-10-01	municipality	08228	08000	08	茨城県		坂東市	ばんどうし	茨城県 坂東市	bando-shi
+2025-10-01	municipality	08229	08000	08	茨城県		稲敷市	いなしきし	茨城県 稲敷市	inashiki-shi
+2025-10-01	municipality	08230	08000	08	茨城県		かすみがうら市	かすみがうらし	茨城県 かすみがうら市	kasumigaura-shi
+2025-10-01	municipality	08231	08000	08	茨城県		桜川市	さくらがわし	茨城県 桜川市	sakuragawa-shi
+2025-10-01	municipality	08232	08000	08	茨城県		神栖市	かみすし	茨城県 神栖市	kamisu-shi
+2025-10-01	municipality	08233	08000	08	茨城県		行方市	なめがたし	茨城県 行方市	namegata-shi
+2025-10-01	municipality	08234	08000	08	茨城県		鉾田市	ほこたし	茨城県 鉾田市	hokota-shi
+2025-10-01	municipality	08235	08000	08	茨城県		つくばみらい市	つくばみらいし	茨城県 つくばみらい市	tsukubamirai-shi
+2025-10-01	municipality	08236	08000	08	茨城県		小美玉市	おみたまし	茨城県 小美玉市	omitama-shi
+2025-10-01	municipality	08302	08000	08	茨城県	東茨城郡	茨城町	いばらきまち	茨城県 茨城町	ibaraki-cho
+2025-10-01	municipality	08309	08000	08	茨城県	東茨城郡	大洗町	おおあらいまち	茨城県 大洗町	oarai-cho
+2025-10-01	municipality	08310	08000	08	茨城県	東茨城郡	城里町	しろさとまち	茨城県 城里町	shirosato-cho
+2025-10-01	municipality	08341	08000	08	茨城県	那珂郡	東海村	とうかいむら	茨城県 東海村	tokai-mura
+2025-10-01	municipality	08364	08000	08	茨城県	久慈郡	大子町	だいごまち	茨城県 大子町	daigo-cho
+2025-10-01	municipality	08442	08000	08	茨城県	稲敷郡	美浦村	みほむら	茨城県 美浦村	miho-mura
+2025-10-01	municipality	08443	08000	08	茨城県	稲敷郡	阿見町	あみまち	茨城県 阿見町	ami-cho
+2025-10-01	municipality	08447	08000	08	茨城県	稲敷郡	河内町	かわちまち	茨城県 河内町	ibaraki-kawachi-cho
+2025-10-01	municipality	08521	08000	08	茨城県	結城郡	八千代町	やちよまち	茨城県 八千代町	ibaraki-yachiyo-cho
+2025-10-01	municipality	08542	08000	08	茨城県	猿島郡	五霞町	ごかまち	茨城県 五霞町	goka-cho
+2025-10-01	municipality	08546	08000	08	茨城県	猿島郡	境町	さかいまち	茨城県 境町	ibaraki-sakai-cho
+2025-10-01	municipality	08564	08000	08	茨城県	北相馬郡	利根町	とねまち	茨城県 利根町	tone-cho
+2025-10-01	prefecture	09000		09	栃木県		栃木県	とちぎけん	栃木県	tochigi-ken
+2025-10-01	municipality	09201	09000	09	栃木県		宇都宮市	うつのみやし	栃木県 宇都宮市	utsunomiya-shi
+2025-10-01	municipality	09202	09000	09	栃木県		足利市	あしかがし	栃木県 足利市	ashikaga-shi
+2025-10-01	municipality	09203	09000	09	栃木県		栃木市	とちぎし	栃木県 栃木市	tochigi-shi
+2025-10-01	municipality	09204	09000	09	栃木県		佐野市	さのし	栃木県 佐野市	sano-shi
+2025-10-01	municipality	09205	09000	09	栃木県		鹿沼市	かぬまし	栃木県 鹿沼市	kanuma-shi
+2025-10-01	municipality	09206	09000	09	栃木県		日光市	にっこうし	栃木県 日光市	nikko-shi
+2025-10-01	municipality	09208	09000	09	栃木県		小山市	おやまし	栃木県 小山市	oyama-shi
+2025-10-01	municipality	09209	09000	09	栃木県		真岡市	もおかし	栃木県 真岡市	moka-shi
+2025-10-01	municipality	09210	09000	09	栃木県		大田原市	おおたわらし	栃木県 大田原市	ohtawara-shi
+2025-10-01	municipality	09211	09000	09	栃木県		矢板市	やいたし	栃木県 矢板市	yaita-shi
+2025-10-01	municipality	09213	09000	09	栃木県		那須塩原市	なすしおばらし	栃木県 那須塩原市	nasushiobara-shi
+2025-10-01	municipality	09214	09000	09	栃木県		さくら市	さくらし	栃木県 さくら市	tochigi-sakura-shi
+2025-10-01	municipality	09215	09000	09	栃木県		那須烏山市	なすからすやまし	栃木県 那須烏山市	nasukarasuyama-shi
+2025-10-01	municipality	09216	09000	09	栃木県		下野市	しもつけし	栃木県 下野市	shimotsuke-shi
+2025-10-01	municipality	09301	09000	09	栃木県	河内郡	上三川町	かみのかわまち	栃木県 上三川町	kaminokawa-cho
+2025-10-01	municipality	09342	09000	09	栃木県	芳賀郡	益子町	ましこまち	栃木県 益子町	mashiko-cho
+2025-10-01	municipality	09343	09000	09	栃木県	芳賀郡	茂木町	もてぎまち	栃木県 茂木町	motegi-cho
+2025-10-01	municipality	09344	09000	09	栃木県	芳賀郡	市貝町	いちかいまち	栃木県 市貝町	ichikai-cho
+2025-10-01	municipality	09345	09000	09	栃木県	芳賀郡	芳賀町	はがまち	栃木県 芳賀町	tochigi-haga-cho
+2025-10-01	municipality	09361	09000	09	栃木県	下都賀郡	壬生町	みぶまち	栃木県 壬生町	mibu-cho
+2025-10-01	municipality	09364	09000	09	栃木県	下都賀郡	野木町	のぎまち	栃木県 野木町	nogi-cho
+2025-10-01	municipality	09384	09000	09	栃木県	塩谷郡	塩谷町	しおやまち	栃木県 塩谷町	shioya-cho
+2025-10-01	municipality	09386	09000	09	栃木県	塩谷郡	高根沢町	たかねざわまち	栃木県 高根沢町	takanezawa-cho
+2025-10-01	municipality	09407	09000	09	栃木県	那須郡	那須町	なすまち	栃木県 那須町	nasu-cho
+2025-10-01	municipality	09411	09000	09	栃木県	那須郡	那珂川町	なかがわまち	栃木県 那珂川町	tochigi-nakagawa-cho
+2025-10-01	prefecture	10000		10	群馬県		群馬県	ぐんまけん	群馬県	gunma-ken
+2025-10-01	municipality	10201	10000	10	群馬県		前橋市	まえばしし	群馬県 前橋市	maebashi-shi
+2025-10-01	municipality	10202	10000	10	群馬県		高崎市	たかさきし	群馬県 高崎市	takasaki-shi
+2025-10-01	municipality	10203	10000	10	群馬県		桐生市	きりゅうし	群馬県 桐生市	kiryu-shi
+2025-10-01	municipality	10204	10000	10	群馬県		伊勢崎市	いせさきし	群馬県 伊勢崎市	isesaki-shi
+2025-10-01	municipality	10205	10000	10	群馬県		太田市	おおたし	群馬県 太田市	ota-shi
+2025-10-01	municipality	10206	10000	10	群馬県		沼田市	ぬまたし	群馬県 沼田市	numata-shi
+2025-10-01	municipality	10207	10000	10	群馬県		館林市	たてばやしし	群馬県 館林市	tatebayashi-shi
+2025-10-01	municipality	10208	10000	10	群馬県		渋川市	しぶかわし	群馬県 渋川市	shibukawa-shi
+2025-10-01	municipality	10209	10000	10	群馬県		藤岡市	ふじおかし	群馬県 藤岡市	fujioka-shi
+2025-10-01	municipality	10210	10000	10	群馬県		富岡市	とみおかし	群馬県 富岡市	tomioka-shi
+2025-10-01	municipality	10211	10000	10	群馬県		安中市	あんなかし	群馬県 安中市	annaka-shi
+2025-10-01	municipality	10212	10000	10	群馬県		みどり市	みどりし	群馬県 みどり市	midori-shi
+2025-10-01	municipality	10344	10000	10	群馬県	北群馬郡	榛東村	しんとうむら	群馬県 榛東村	shinto-mura
+2025-10-01	municipality	10345	10000	10	群馬県	北群馬郡	吉岡町	よしおかまち	群馬県 吉岡町	yoshioka-cho
+2025-10-01	municipality	10366	10000	10	群馬県	多野郡	上野村	うえのむら	群馬県 上野村	uenomura-mura
+2025-10-01	municipality	10367	10000	10	群馬県	多野郡	神流町	かんなまち	群馬県 神流町	kanna-cho
+2025-10-01	municipality	10382	10000	10	群馬県	甘楽郡	下仁田町	しもにたまち	群馬県 下仁田町	shimonita-cho
+2025-10-01	municipality	10383	10000	10	群馬県	甘楽郡	南牧村	なんもくむら	群馬県 南牧村	nanmoku-mura
+2025-10-01	municipality	10384	10000	10	群馬県	甘楽郡	甘楽町	かんらまち	群馬県 甘楽町	kanra-cho
+2025-10-01	municipality	10421	10000	10	群馬県	吾妻郡	中之条町	なかのじょうまち	群馬県 中之条町	nakanojo-cho
+2025-10-01	municipality	10424	10000	10	群馬県	吾妻郡	長野原町	ながのはらまち	群馬県 長野原町	naganohara-cho
+2025-10-01	municipality	10425	10000	10	群馬県	吾妻郡	嬬恋村	つまごいむら	群馬県 嬬恋村	tsumagoi-mura
+2025-10-01	municipality	10426	10000	10	群馬県	吾妻郡	草津町	くさつまち	群馬県 草津町	kusatsu-cho
+2025-10-01	municipality	10428	10000	10	群馬県	吾妻郡	高山村	たかやまむら	群馬県 高山村	takayama-mura
+2025-10-01	municipality	10429	10000	10	群馬県	吾妻郡	東吾妻町	ひがしあがつままち	群馬県 東吾妻町	higashiagatsuma-cho
+2025-10-01	municipality	10443	10000	10	群馬県	利根郡	片品村	かたしなむら	群馬県 片品村	katashina-mura
+2025-10-01	municipality	10444	10000	10	群馬県	利根郡	川場村	かわばむら	群馬県 川場村	kawaba-mura
+2025-10-01	municipality	10448	10000	10	群馬県	利根郡	昭和村	しょうわむら	群馬県 昭和村	showa-mura
+2025-10-01	municipality	10449	10000	10	群馬県	利根郡	みなかみ町	みなかみまち	群馬県 みなかみ町	minakami-cho
+2025-10-01	municipality	10464	10000	10	群馬県	佐波郡	玉村町	たまむらまち	群馬県 玉村町	tamamura-cho
+2025-10-01	municipality	10521	10000	10	群馬県	邑楽郡	板倉町	いたくらまち	群馬県 板倉町	itakura-cho
+2025-10-01	municipality	10522	10000	10	群馬県	邑楽郡	明和町	めいわまち	群馬県 明和町	meiwa-cho
+2025-10-01	municipality	10523	10000	10	群馬県	邑楽郡	千代田町	ちよだまち	群馬県 千代田町	chiyoda-cho
+2025-10-01	municipality	10524	10000	10	群馬県	邑楽郡	大泉町	おおいずみまち	群馬県 大泉町	oizumi-cho
+2025-10-01	municipality	10525	10000	10	群馬県	邑楽郡	邑楽町	おうらまち	群馬県 邑楽町	ora-cho
+2025-10-01	prefecture	11000		11	埼玉県		埼玉県	さいたまけん	埼玉県	saitama-ken
+2025-10-01	municipality	11100	11000	11	埼玉県		さいたま市	さいたまし	埼玉県 さいたま市	saitama-shi
+2025-10-01	municipality	11201	11000	11	埼玉県		川越市	かわごえし	埼玉県 川越市	kawagoe-shi
+2025-10-01	municipality	11202	11000	11	埼玉県		熊谷市	くまがやし	埼玉県 熊谷市	kumagaya-shi
+2025-10-01	municipality	11203	11000	11	埼玉県		川口市	かわぐちし	埼玉県 川口市	kawaguchi-shi
+2025-10-01	municipality	11206	11000	11	埼玉県		行田市	ぎょうだし	埼玉県 行田市	gyoda-shi
+2025-10-01	municipality	11207	11000	11	埼玉県		秩父市	ちちぶし	埼玉県 秩父市	chichibu-shi
+2025-10-01	municipality	11208	11000	11	埼玉県		所沢市	ところざわし	埼玉県 所沢市	tokorozawa-shi
+2025-10-01	municipality	11209	11000	11	埼玉県		飯能市	はんのうし	埼玉県 飯能市	hanno-shi
+2025-10-01	municipality	11210	11000	11	埼玉県		加須市	かぞし	埼玉県 加須市	kazo-shi
+2025-10-01	municipality	11211	11000	11	埼玉県		本庄市	ほんじょうし	埼玉県 本庄市	honjo-shi
+2025-10-01	municipality	11212	11000	11	埼玉県		東松山市	ひがしまつやまし	埼玉県 東松山市	higashimatsuyama-shi
+2025-10-01	municipality	11214	11000	11	埼玉県		春日部市	かすかべし	埼玉県 春日部市	kasukabe-shi
+2025-10-01	municipality	11215	11000	11	埼玉県		狭山市	さやまし	埼玉県 狭山市	sayama-shi
+2025-10-01	municipality	11216	11000	11	埼玉県		羽生市	はにゅうし	埼玉県 羽生市	hanyu-shi
+2025-10-01	municipality	11217	11000	11	埼玉県		鴻巣市	こうのすし	埼玉県 鴻巣市	kounosu-shi
+2025-10-01	municipality	11218	11000	11	埼玉県		深谷市	ふかやし	埼玉県 深谷市	fukaya-shi
+2025-10-01	municipality	11219	11000	11	埼玉県		上尾市	あげおし	埼玉県 上尾市	ageo-shi
+2025-10-01	municipality	11221	11000	11	埼玉県		草加市	そうかし	埼玉県 草加市	soka-shi
+2025-10-01	municipality	11222	11000	11	埼玉県		越谷市	こしがやし	埼玉県 越谷市	koshigaya-shi
+2025-10-01	municipality	11223	11000	11	埼玉県		蕨市	わらびし	埼玉県 蕨市	warabi-shi
+2025-10-01	municipality	11224	11000	11	埼玉県		戸田市	とだし	埼玉県 戸田市	toda-shi
+2025-10-01	municipality	11225	11000	11	埼玉県		入間市	いるまし	埼玉県 入間市	iruma-shi
+2025-10-01	municipality	11227	11000	11	埼玉県		朝霞市	あさかし	埼玉県 朝霞市	asaka-shi
+2025-10-01	municipality	11228	11000	11	埼玉県		志木市	しきし	埼玉県 志木市	shiki-shi
+2025-10-01	municipality	11229	11000	11	埼玉県		和光市	わこうし	埼玉県 和光市	wako-shi
+2025-10-01	municipality	11230	11000	11	埼玉県		新座市	にいざし	埼玉県 新座市	niiza-shi
+2025-10-01	municipality	11231	11000	11	埼玉県		桶川市	おけがわし	埼玉県 桶川市	okegawa-shi
+2025-10-01	municipality	11232	11000	11	埼玉県		久喜市	くきし	埼玉県 久喜市	kuki-shi
+2025-10-01	municipality	11233	11000	11	埼玉県		北本市	きたもとし	埼玉県 北本市	kitamoto-shi
+2025-10-01	municipality	11234	11000	11	埼玉県		八潮市	やしおし	埼玉県 八潮市	yashio-shi
+2025-10-01	municipality	11235	11000	11	埼玉県		富士見市	ふじみし	埼玉県 富士見市	fujimi-shi
+2025-10-01	municipality	11237	11000	11	埼玉県		三郷市	みさとし	埼玉県 三郷市	misato-shi
+2025-10-01	municipality	11238	11000	11	埼玉県		蓮田市	はすだし	埼玉県 蓮田市	hasuda-shi
+2025-10-01	municipality	11239	11000	11	埼玉県		坂戸市	さかどし	埼玉県 坂戸市	sakado-shi
+2025-10-01	municipality	11240	11000	11	埼玉県		幸手市	さってし	埼玉県 幸手市	satte-shi
+2025-10-01	municipality	11241	11000	11	埼玉県		鶴ヶ島市	つるがしまし	埼玉県 鶴ヶ島市	tsurugashima-shi
+2025-10-01	municipality	11242	11000	11	埼玉県		日高市	ひだかし	埼玉県 日高市	hidaka-shi
+2025-10-01	municipality	11243	11000	11	埼玉県		吉川市	よしかわし	埼玉県 吉川市	yoshikawa-shi
+2025-10-01	municipality	11245	11000	11	埼玉県		ふじみ野市	ふじみのし	埼玉県 ふじみ野市	fujimino-shi
+2025-10-01	municipality	11246	11000	11	埼玉県		白岡市	しらおかし	埼玉県 白岡市	shiraoka-shi
+2025-10-01	municipality	11301	11000	11	埼玉県	北足立郡	伊奈町	いなまち	埼玉県 伊奈町	saitama-ina-cho
+2025-10-01	municipality	11324	11000	11	埼玉県	入間郡	三芳町	みよしまち	埼玉県 三芳町	saitama-miyoshi-cho
+2025-10-01	municipality	11326	11000	11	埼玉県	入間郡	毛呂山町	もろやままち	埼玉県 毛呂山町	moroyama-cho
+2025-10-01	municipality	11327	11000	11	埼玉県	入間郡	越生町	おごせまち	埼玉県 越生町	ogose-cho
+2025-10-01	municipality	11341	11000	11	埼玉県	比企郡	滑川町	なめがわまち	埼玉県 滑川町	namegawa-cho
+2025-10-01	municipality	11342	11000	11	埼玉県	比企郡	嵐山町	らんざんまち	埼玉県 嵐山町	ranzan-cho
+2025-10-01	municipality	11343	11000	11	埼玉県	比企郡	小川町	おがわまち	埼玉県 小川町	ogawa-cho
+2025-10-01	municipality	11346	11000	11	埼玉県	比企郡	川島町	かわじままち	埼玉県 川島町	kawajima-cho
+2025-10-01	municipality	11347	11000	11	埼玉県	比企郡	吉見町	よしみまち	埼玉県 吉見町	yoshimi-cho
+2025-10-01	municipality	11348	11000	11	埼玉県	比企郡	鳩山町	はとやままち	埼玉県 鳩山町	hatoyama-cho
+2025-10-01	municipality	11349	11000	11	埼玉県	比企郡	ときがわ町	ときがわまち	埼玉県 ときがわ町	tokigawa-cho
+2025-10-01	municipality	11361	11000	11	埼玉県	秩父郡	横瀬町	よこぜまち	埼玉県 横瀬町	yokoze-cho
+2025-10-01	municipality	11362	11000	11	埼玉県	秩父郡	皆野町	みなのまち	埼玉県 皆野町	minano-cho
+2025-10-01	municipality	11363	11000	11	埼玉県	秩父郡	長瀞町	ながとろまち	埼玉県 長瀞町	nagatoro-cho
+2025-10-01	municipality	11365	11000	11	埼玉県	秩父郡	小鹿野町	おがのまち	埼玉県 小鹿野町	ogano-cho
+2025-10-01	municipality	11369	11000	11	埼玉県	秩父郡	東秩父村	ひがしちちぶむら	埼玉県 東秩父村	higashichichibu-mura
+2025-10-01	municipality	11381	11000	11	埼玉県	児玉郡	美里町	みさとまち	埼玉県 美里町	saitama-misato-cho
+2025-10-01	municipality	11383	11000	11	埼玉県	児玉郡	神川町	かみかわまち	埼玉県 神川町	kamikawa-cho
+2025-10-01	municipality	11385	11000	11	埼玉県	児玉郡	上里町	かみさとまち	埼玉県 上里町	kamisato-cho
+2025-10-01	municipality	11408	11000	11	埼玉県	大里郡	寄居町	よりいまち	埼玉県 寄居町	yorii-cho
+2025-10-01	municipality	11442	11000	11	埼玉県	南埼玉郡	宮代町	みやしろまち	埼玉県 宮代町	miyashiro-cho
+2025-10-01	municipality	11464	11000	11	埼玉県	北葛飾郡	杉戸町	すぎとまち	埼玉県 杉戸町	sugito-cho
+2025-10-01	municipality	11465	11000	11	埼玉県	北葛飾郡	松伏町	まつぶしまち	埼玉県 松伏町	matsubushi-cho
+2025-10-01	prefecture	12000		12	千葉県		千葉県	ちばけん	千葉県	chiba-ken
+2025-10-01	municipality	12100	12000	12	千葉県		千葉市	ちばし	千葉県 千葉市	chiba-shi
+2025-10-01	municipality	12202	12000	12	千葉県		銚子市	ちょうしし	千葉県 銚子市	choshi-shi
+2025-10-01	municipality	12203	12000	12	千葉県		市川市	いちかわし	千葉県 市川市	ichikawa-shi
+2025-10-01	municipality	12204	12000	12	千葉県		船橋市	ふなばしし	千葉県 船橋市	funabashi-shi
+2025-10-01	municipality	12205	12000	12	千葉県		館山市	たてやまし	千葉県 館山市	tateyama-shi
+2025-10-01	municipality	12206	12000	12	千葉県		木更津市	きさらづし	千葉県 木更津市	kisarazu-shi
+2025-10-01	municipality	12207	12000	12	千葉県		松戸市	まつどし	千葉県 松戸市	matsudo-shi
+2025-10-01	municipality	12208	12000	12	千葉県		野田市	のだし	千葉県 野田市	noda-shi
+2025-10-01	municipality	12210	12000	12	千葉県		茂原市	もばらし	千葉県 茂原市	mobara-shi
+2025-10-01	municipality	12211	12000	12	千葉県		成田市	なりたし	千葉県 成田市	narita-shi
+2025-10-01	municipality	12212	12000	12	千葉県		佐倉市	さくらし	千葉県 佐倉市	sakura-shi
+2025-10-01	municipality	12213	12000	12	千葉県		東金市	とうがねし	千葉県 東金市	togane-shi
+2025-10-01	municipality	12215	12000	12	千葉県		旭市	あさひし	千葉県 旭市	asahi-shi
+2025-10-01	municipality	12216	12000	12	千葉県		習志野市	ならしのし	千葉県 習志野市	narashino-shi
+2025-10-01	municipality	12217	12000	12	千葉県		柏市	かしわし	千葉県 柏市	kashiwa-shi
+2025-10-01	municipality	12218	12000	12	千葉県		勝浦市	かつうらし	千葉県 勝浦市	katsuura-shi
+2025-10-01	municipality	12219	12000	12	千葉県		市原市	いちはらし	千葉県 市原市	ichihara-shi
+2025-10-01	municipality	12220	12000	12	千葉県		流山市	ながれやまし	千葉県 流山市	nagareyama-shi
+2025-10-01	municipality	12221	12000	12	千葉県		八千代市	やちよし	千葉県 八千代市	yachiyo-shi
+2025-10-01	municipality	12222	12000	12	千葉県		我孫子市	あびこし	千葉県 我孫子市	abiko-shi
+2025-10-01	municipality	12223	12000	12	千葉県		鴨川市	かもがわし	千葉県 鴨川市	kamogawa-shi
+2025-10-01	municipality	12224	12000	12	千葉県		鎌ケ谷市	かまがやし	千葉県 鎌ケ谷市	kamagaya-shi
+2025-10-01	municipality	12225	12000	12	千葉県		君津市	きみつし	千葉県 君津市	kimitsu-shi
+2025-10-01	municipality	12226	12000	12	千葉県		富津市	ふっつし	千葉県 富津市	futtsu-shi
+2025-10-01	municipality	12227	12000	12	千葉県		浦安市	うらやすし	千葉県 浦安市	urayasu-shi
+2025-10-01	municipality	12228	12000	12	千葉県		四街道市	よつかいどうし	千葉県 四街道市	yotsukaido-shi
+2025-10-01	municipality	12229	12000	12	千葉県		袖ケ浦市	そでがうらし	千葉県 袖ケ浦市	sodegaura-shi
+2025-10-01	municipality	12230	12000	12	千葉県		八街市	やちまたし	千葉県 八街市	yachimata-shi
+2025-10-01	municipality	12231	12000	12	千葉県		印西市	いんざいし	千葉県 印西市	inzai-shi
+2025-10-01	municipality	12232	12000	12	千葉県		白井市	しろいし	千葉県 白井市	shiroi-shi
+2025-10-01	municipality	12233	12000	12	千葉県		富里市	とみさとし	千葉県 富里市	tomisato-shi
+2025-10-01	municipality	12234	12000	12	千葉県		南房総市	みなみぼうそうし	千葉県 南房総市	minamiboso-shi
+2025-10-01	municipality	12235	12000	12	千葉県		匝瑳市	そうさし	千葉県 匝瑳市	sosa-shi
+2025-10-01	municipality	12236	12000	12	千葉県		香取市	かとりし	千葉県 香取市	katori-shi
+2025-10-01	municipality	12237	12000	12	千葉県		山武市	さんむし	千葉県 山武市	sammu-shi
+2025-10-01	municipality	12238	12000	12	千葉県		いすみ市	いすみし	千葉県 いすみ市	isumi-shi
+2025-10-01	municipality	12239	12000	12	千葉県		大網白里市	おおあみしらさとし	千葉県 大網白里市	oamishirasato-shi
+2025-10-01	municipality	12322	12000	12	千葉県	印旛郡	酒々井町	しすいまち	千葉県 酒々井町	shisui-cho
+2025-10-01	municipality	12329	12000	12	千葉県	印旛郡	栄町	さかえまち	千葉県 栄町	sakae-cho
+2025-10-01	municipality	12342	12000	12	千葉県	香取郡	神崎町	こうざきまち	千葉県 神崎町	kozaki-cho
+2025-10-01	municipality	12347	12000	12	千葉県	香取郡	多古町	たこまち	千葉県 多古町	tako-cho
+2025-10-01	municipality	12349	12000	12	千葉県	香取郡	東庄町	とうのしょうまち	千葉県 東庄町	tohnosho-cho
+2025-10-01	municipality	12403	12000	12	千葉県	山武郡	九十九里町	くじゅうくりまち	千葉県 九十九里町	kujukuri-cho
+2025-10-01	municipality	12409	12000	12	千葉県	山武郡	芝山町	しばやままち	千葉県 芝山町	shibayama-cho
+2025-10-01	municipality	12410	12000	12	千葉県	山武郡	横芝光町	よこしばひかりまち	千葉県 横芝光町	yokoshibahikari-cho
+2025-10-01	municipality	12421	12000	12	千葉県	長生郡	一宮町	いちのみやまち	千葉県 一宮町	ichinomiya-cho
+2025-10-01	municipality	12422	12000	12	千葉県	長生郡	睦沢町	むつざわまち	千葉県 睦沢町	mutsuzawa-cho
+2025-10-01	municipality	12423	12000	12	千葉県	長生郡	長生村	ちょうせいむら	千葉県 長生村	chosei-mura
+2025-10-01	municipality	12424	12000	12	千葉県	長生郡	白子町	しらこまち	千葉県 白子町	shirako-cho
+2025-10-01	municipality	12426	12000	12	千葉県	長生郡	長柄町	ながらまち	千葉県 長柄町	nagara-cho
+2025-10-01	municipality	12427	12000	12	千葉県	長生郡	長南町	ちょうなんまち	千葉県 長南町	chonan-cho
+2025-10-01	municipality	12441	12000	12	千葉県	夷隅郡	大多喜町	おおたきまち	千葉県 大多喜町	otaki-cho
+2025-10-01	municipality	12443	12000	12	千葉県	夷隅郡	御宿町	おんじゅくまち	千葉県 御宿町	onjuku-cho
+2025-10-01	municipality	12463	12000	12	千葉県	安房郡	鋸南町	きょなんまち	千葉県 鋸南町	kyonan-cho
+2025-10-01	prefecture	13000		13	東京都		東京都	とうきょうと	東京都	tokyo-to
+2025-10-01	special_ward	13101	13000	13	東京都		千代田区	ちよだく	東京都 千代田区	chiyoda-ku
+2025-10-01	special_ward	13102	13000	13	東京都		中央区	ちゅうおうく	東京都 中央区	chuo-ku
+2025-10-01	special_ward	13103	13000	13	東京都		港区	みなとく	東京都 港区	minato-ku
+2025-10-01	special_ward	13104	13000	13	東京都		新宿区	しんじゅくく	東京都 新宿区	shinjuku-ku
+2025-10-01	special_ward	13105	13000	13	東京都		文京区	ぶんきょうく	東京都 文京区	bunkyo-ku
+2025-10-01	special_ward	13106	13000	13	東京都		台東区	たいとうく	東京都 台東区	taito-ku
+2025-10-01	special_ward	13107	13000	13	東京都		墨田区	すみだく	東京都 墨田区	sumida-ku
+2025-10-01	special_ward	13108	13000	13	東京都		江東区	こうとうく	東京都 江東区	koto-ku
+2025-10-01	special_ward	13109	13000	13	東京都		品川区	しながわく	東京都 品川区	shinagawa-ku
+2025-10-01	special_ward	13110	13000	13	東京都		目黒区	めぐろく	東京都 目黒区	meguro-ku
+2025-10-01	special_ward	13111	13000	13	東京都		大田区	おおたく	東京都 大田区	ota-ku
+2025-10-01	special_ward	13112	13000	13	東京都		世田谷区	せたがやく	東京都 世田谷区	setagaya-ku
+2025-10-01	special_ward	13113	13000	13	東京都		渋谷区	しぶやく	東京都 渋谷区	shibuya-ku
+2025-10-01	special_ward	13114	13000	13	東京都		中野区	なかのく	東京都 中野区	tokyo-nakano-ku
+2025-10-01	special_ward	13115	13000	13	東京都		杉並区	すぎなみく	東京都 杉並区	suginami-ku
+2025-10-01	special_ward	13116	13000	13	東京都		豊島区	としまく	東京都 豊島区	toshima-ku
+2025-10-01	special_ward	13117	13000	13	東京都		北区	きたく	東京都 北区	kita-ku
+2025-10-01	special_ward	13118	13000	13	東京都		荒川区	あらかわく	東京都 荒川区	arakawa-ku
+2025-10-01	special_ward	13119	13000	13	東京都		板橋区	いたばしく	東京都 板橋区	itabashi-ku
+2025-10-01	special_ward	13120	13000	13	東京都		練馬区	ねりまく	東京都 練馬区	nerima-ku
+2025-10-01	special_ward	13121	13000	13	東京都		足立区	あだちく	東京都 足立区	adachi-ku
+2025-10-01	special_ward	13122	13000	13	東京都		葛飾区	かつしかく	東京都 葛飾区	katsushika-ku
+2025-10-01	special_ward	13123	13000	13	東京都		江戸川区	えどがわく	東京都 江戸川区	edogawa-ku
+2025-10-01	municipality	13201	13000	13	東京都		八王子市	はちおうじし	東京都 八王子市	hachioji-shi
+2025-10-01	municipality	13202	13000	13	東京都		立川市	たちかわし	東京都 立川市	tachikawa-shi
+2025-10-01	municipality	13203	13000	13	東京都		武蔵野市	むさしのし	東京都 武蔵野市	musashino-shi
+2025-10-01	municipality	13204	13000	13	東京都		三鷹市	みたかし	東京都 三鷹市	mitaka-shi
+2025-10-01	municipality	13205	13000	13	東京都		青梅市	おうめし	東京都 青梅市	ome-shi
+2025-10-01	municipality	13206	13000	13	東京都		府中市	ふちゅうし	東京都 府中市	fuchu-shi
+2025-10-01	municipality	13207	13000	13	東京都		昭島市	あきしまし	東京都 昭島市	akishima-shi
+2025-10-01	municipality	13208	13000	13	東京都		調布市	ちょうふし	東京都 調布市	chofu-shi
+2025-10-01	municipality	13209	13000	13	東京都		町田市	まちだし	東京都 町田市	machida-shi
+2025-10-01	municipality	13210	13000	13	東京都		小金井市	こがねいし	東京都 小金井市	koganei-shi
+2025-10-01	municipality	13211	13000	13	東京都		小平市	こだいらし	東京都 小平市	kodaira-shi
+2025-10-01	municipality	13212	13000	13	東京都		日野市	ひのし	東京都 日野市	hino-shi
+2025-10-01	municipality	13213	13000	13	東京都		東村山市	ひがしむらやまし	東京都 東村山市	higashimurayama-shi
+2025-10-01	municipality	13214	13000	13	東京都		国分寺市	こくぶんじし	東京都 国分寺市	kokubunji-shi
+2025-10-01	municipality	13215	13000	13	東京都		国立市	くにたちし	東京都 国立市	kunitachi-shi
+2025-10-01	municipality	13218	13000	13	東京都		福生市	ふっさし	東京都 福生市	fussa-shi
+2025-10-01	municipality	13219	13000	13	東京都		狛江市	こまえし	東京都 狛江市	komae-shi
+2025-10-01	municipality	13220	13000	13	東京都		東大和市	ひがしやまとし	東京都 東大和市	higashiyamato-shi
+2025-10-01	municipality	13221	13000	13	東京都		清瀬市	きよせし	東京都 清瀬市	kiyose-shi
+2025-10-01	municipality	13222	13000	13	東京都		東久留米市	ひがしくるめし	東京都 東久留米市	higashikurume-shi
+2025-10-01	municipality	13223	13000	13	東京都		武蔵村山市	むさしむらやまし	東京都 武蔵村山市	musashimurayama-shi
+2025-10-01	municipality	13224	13000	13	東京都		多摩市	たまし	東京都 多摩市	tama-shi
+2025-10-01	municipality	13225	13000	13	東京都		稲城市	いなぎし	東京都 稲城市	inagi-shi
+2025-10-01	municipality	13227	13000	13	東京都		羽村市	はむらし	東京都 羽村市	hamura-shi
+2025-10-01	municipality	13228	13000	13	東京都		あきる野市	あきるのし	東京都 あきる野市	akiruno-shi
+2025-10-01	municipality	13229	13000	13	東京都		西東京市	にしとうきょうし	東京都 西東京市	nishitokyo-shi
+2025-10-01	municipality	13303	13000	13	東京都	西多摩郡	瑞穂町	みずほまち	東京都 瑞穂町	mizuho-cho
+2025-10-01	municipality	13305	13000	13	東京都	西多摩郡	日の出町	ひのでまち	東京都 日の出町	hinode-cho
+2025-10-01	municipality	13307	13000	13	東京都	西多摩郡	檜原村	ひのはらむら	東京都 檜原村	hinohara-mura
+2025-10-01	municipality	13308	13000	13	東京都	西多摩郡	奥多摩町	おくたままち	東京都 奥多摩町	okutama-cho
+2025-10-01	municipality	13361	13000	13	東京都	大島支庁	大島町	おおしままち	東京都 大島町	oshima-cho
+2025-10-01	municipality	13362	13000	13	東京都	大島支庁	利島村	としまむら	東京都 利島村	toshimamura-mura
+2025-10-01	municipality	13363	13000	13	東京都	大島支庁	新島村	にいじまむら	東京都 新島村	niijima-mura
+2025-10-01	municipality	13364	13000	13	東京都	大島支庁	神津島村	こうづしまむら	東京都 神津島村	kouzushima-mura
+2025-10-01	municipality	13381	13000	13	東京都	三宅支庁	三宅村	みやけむら	東京都 三宅村	miyake-mura
+2025-10-01	municipality	13382	13000	13	東京都	三宅支庁	御蔵島村	みくらじまむら	東京都 御蔵島村	mikurasima-mura
+2025-10-01	municipality	13401	13000	13	東京都	八丈支庁	八丈町	はちじょうまち	東京都 八丈町	hachijo-cho
+2025-10-01	municipality	13402	13000	13	東京都	八丈支庁	青ヶ島村	あおがしまむら	東京都 青ヶ島村	aogashima-mura
+2025-10-01	municipality	13421	13000	13	東京都	小笠原支庁	小笠原村	おがさわらむら	東京都 小笠原村	ogasawara-mura
+2025-10-01	prefecture	14000		14	神奈川県		神奈川県	かながわけん	神奈川県	kanagawa-ken
+2025-10-01	municipality	14100	14000	14	神奈川県		横浜市	よこはまし	神奈川県 横浜市	yokohama-shi
+2025-10-01	municipality	14130	14000	14	神奈川県		川崎市	かわさきし	神奈川県 川崎市	kawasaki-shi
+2025-10-01	municipality	14150	14000	14	神奈川県		相模原市	さがみはらし	神奈川県 相模原市	sagamihara-shi
+2025-10-01	municipality	14201	14000	14	神奈川県		横須賀市	よこすかし	神奈川県 横須賀市	yokosuka-shi
+2025-10-01	municipality	14203	14000	14	神奈川県		平塚市	ひらつかし	神奈川県 平塚市	hiratsuka-shi
+2025-10-01	municipality	14204	14000	14	神奈川県		鎌倉市	かまくらし	神奈川県 鎌倉市	kamakura-shi
+2025-10-01	municipality	14205	14000	14	神奈川県		藤沢市	ふじさわし	神奈川県 藤沢市	fujisawa-shi
+2025-10-01	municipality	14206	14000	14	神奈川県		小田原市	おだわらし	神奈川県 小田原市	odawara-shi
+2025-10-01	municipality	14207	14000	14	神奈川県		茅ヶ崎市	ちがさきし	神奈川県 茅ヶ崎市	chigasaki-shi
+2025-10-01	municipality	14208	14000	14	神奈川県		逗子市	ずしし	神奈川県 逗子市	zushi-shi
+2025-10-01	municipality	14210	14000	14	神奈川県		三浦市	みうらし	神奈川県 三浦市	miura-shi
+2025-10-01	municipality	14211	14000	14	神奈川県		秦野市	はだのし	神奈川県 秦野市	hadano-shi
+2025-10-01	municipality	14212	14000	14	神奈川県		厚木市	あつぎし	神奈川県 厚木市	atsugi-shi
+2025-10-01	municipality	14213	14000	14	神奈川県		大和市	やまとし	神奈川県 大和市	yamato-shi
+2025-10-01	municipality	14214	14000	14	神奈川県		伊勢原市	いせはらし	神奈川県 伊勢原市	isehara-shi
+2025-10-01	municipality	14215	14000	14	神奈川県		海老名市	えびなし	神奈川県 海老名市	ebina-shi
+2025-10-01	municipality	14216	14000	14	神奈川県		座間市	ざまし	神奈川県 座間市	zama-shi
+2025-10-01	municipality	14217	14000	14	神奈川県		南足柄市	みなみあしがらし	神奈川県 南足柄市	minamiashigara-shi
+2025-10-01	municipality	14218	14000	14	神奈川県		綾瀬市	あやせし	神奈川県 綾瀬市	ayase-shi
+2025-10-01	municipality	14301	14000	14	神奈川県	三浦郡	葉山町	はやままち	神奈川県 葉山町	hayama-cho
+2025-10-01	municipality	14321	14000	14	神奈川県	高座郡	寒川町	さむかわまち	神奈川県 寒川町	samukawa-cho
+2025-10-01	municipality	14341	14000	14	神奈川県	中郡	大磯町	おおいそまち	神奈川県 大磯町	oiso-cho
+2025-10-01	municipality	14342	14000	14	神奈川県	中郡	二宮町	にのみやまち	神奈川県 二宮町	ninomiya-cho
+2025-10-01	municipality	14361	14000	14	神奈川県	足柄上郡	中井町	なかいまち	神奈川県 中井町	nakai-cho
+2025-10-01	municipality	14362	14000	14	神奈川県	足柄上郡	大井町	おおいまち	神奈川県 大井町	oi-cho
+2025-10-01	municipality	14363	14000	14	神奈川県	足柄上郡	松田町	まつだまち	神奈川県 松田町	matsuda-cho
+2025-10-01	municipality	14364	14000	14	神奈川県	足柄上郡	山北町	やまきたまち	神奈川県 山北町	yamakita-cho
+2025-10-01	municipality	14366	14000	14	神奈川県	足柄上郡	開成町	かいせいまち	神奈川県 開成町	kaisei-cho
+2025-10-01	municipality	14382	14000	14	神奈川県	足柄下郡	箱根町	はこねまち	神奈川県 箱根町	hakone-cho
+2025-10-01	municipality	14383	14000	14	神奈川県	足柄下郡	真鶴町	まなづるまち	神奈川県 真鶴町	manazuru-cho
+2025-10-01	municipality	14384	14000	14	神奈川県	足柄下郡	湯河原町	ゆがわらまち	神奈川県 湯河原町	yugawara-cho
+2025-10-01	municipality	14401	14000	14	神奈川県	愛甲郡	愛川町	あいかわまち	神奈川県 愛川町	aikawa-cho
+2025-10-01	municipality	14402	14000	14	神奈川県	愛甲郡	清川村	きよかわむら	神奈川県 清川村	kiyokawa-mura
+2025-10-01	prefecture	15000		15	新潟県		新潟県	にいがたけん	新潟県	niigata-ken
+2025-10-01	municipality	15100	15000	15	新潟県		新潟市	にいがたし	新潟県 新潟市	niigata-shi
+2025-10-01	municipality	15202	15000	15	新潟県		長岡市	ながおかし	新潟県 長岡市	nagaoka-shi
+2025-10-01	municipality	15204	15000	15	新潟県		三条市	さんじょうし	新潟県 三条市	sanjo-shi
+2025-10-01	municipality	15205	15000	15	新潟県		柏崎市	かしわざきし	新潟県 柏崎市	kashiwazaki-shi
+2025-10-01	municipality	15206	15000	15	新潟県		新発田市	しばたし	新潟県 新発田市	shibata-shi
+2025-10-01	municipality	15208	15000	15	新潟県		小千谷市	おぢやし	新潟県 小千谷市	ojiya-shi
+2025-10-01	municipality	15209	15000	15	新潟県		加茂市	かもし	新潟県 加茂市	kamo-shi
+2025-10-01	municipality	15210	15000	15	新潟県		十日町市	とおかまちし	新潟県 十日町市	tokamachi-shi
+2025-10-01	municipality	15211	15000	15	新潟県		見附市	みつけし	新潟県 見附市	mitsuke-shi
+2025-10-01	municipality	15212	15000	15	新潟県		村上市	むらかみし	新潟県 村上市	murakami-shi
+2025-10-01	municipality	15213	15000	15	新潟県		燕市	つばめし	新潟県 燕市	tsubame-shi
+2025-10-01	municipality	15216	15000	15	新潟県		糸魚川市	いといがわし	新潟県 糸魚川市	itoigawa-shi
+2025-10-01	municipality	15217	15000	15	新潟県		妙高市	みょうこうし	新潟県 妙高市	myoko-shi
+2025-10-01	municipality	15218	15000	15	新潟県		五泉市	ごせんし	新潟県 五泉市	gosen-shi
+2025-10-01	municipality	15222	15000	15	新潟県		上越市	じょうえつし	新潟県 上越市	joetsu-shi
+2025-10-01	municipality	15223	15000	15	新潟県		阿賀野市	あがのし	新潟県 阿賀野市	agano-shi
+2025-10-01	municipality	15224	15000	15	新潟県		佐渡市	さどし	新潟県 佐渡市	sado-shi
+2025-10-01	municipality	15225	15000	15	新潟県		魚沼市	うおぬまし	新潟県 魚沼市	uonuma-shi
+2025-10-01	municipality	15226	15000	15	新潟県		南魚沼市	みなみうおぬまし	新潟県 南魚沼市	minamiuonuma-shi
+2025-10-01	municipality	15227	15000	15	新潟県		胎内市	たいないし	新潟県 胎内市	tainai-shi
+2025-10-01	municipality	15307	15000	15	新潟県	北蒲原郡	聖籠町	せいろうまち	新潟県 聖籠町	seiro-cho
+2025-10-01	municipality	15342	15000	15	新潟県	西蒲原郡	弥彦村	やひこむら	新潟県 弥彦村	yahiko-mura
+2025-10-01	municipality	15361	15000	15	新潟県	南蒲原郡	田上町	たがみまち	新潟県 田上町	tagami-cho
+2025-10-01	municipality	15385	15000	15	新潟県	東蒲原郡	阿賀町	あがまち	新潟県 阿賀町	aga-cho
+2025-10-01	municipality	15405	15000	15	新潟県	三島郡	出雲崎町	いずもざきまち	新潟県 出雲崎町	izumozaki-cho
+2025-10-01	municipality	15461	15000	15	新潟県	南魚沼郡	湯沢町	ゆざわまち	新潟県 湯沢町	yuzawa-cho
+2025-10-01	municipality	15482	15000	15	新潟県	中魚沼郡	津南町	つなんまち	新潟県 津南町	tsunan-cho
+2025-10-01	municipality	15504	15000	15	新潟県	刈羽郡	刈羽村	かりわむら	新潟県 刈羽村	kariwa-mura
+2025-10-01	municipality	15581	15000	15	新潟県	岩船郡	関川村	せきかわむら	新潟県 関川村	sekikawa-mura
+2025-10-01	municipality	15586	15000	15	新潟県	岩船郡	粟島浦村	あわしまうらむら	新潟県 粟島浦村	awashimaura-mura
+2025-10-01	prefecture	16000		16	富山県		富山県	とやまけん	富山県	toyama-ken
+2025-10-01	municipality	16201	16000	16	富山県		富山市	とやまし	富山県 富山市	toyama-shi
+2025-10-01	municipality	16202	16000	16	富山県		高岡市	たかおかし	富山県 高岡市	takaoka-shi
+2025-10-01	municipality	16204	16000	16	富山県		魚津市	うおづし	富山県 魚津市	uozu-shi
+2025-10-01	municipality	16205	16000	16	富山県		氷見市	ひみし	富山県 氷見市	himi-shi
+2025-10-01	municipality	16206	16000	16	富山県		滑川市	なめりかわし	富山県 滑川市	namerikawa-shi
+2025-10-01	municipality	16207	16000	16	富山県		黒部市	くろべし	富山県 黒部市	kurobe-shi
+2025-10-01	municipality	16208	16000	16	富山県		砺波市	となみし	富山県 砺波市	tonami-shi
+2025-10-01	municipality	16209	16000	16	富山県		小矢部市	おやべし	富山県 小矢部市	oyabe-shi
+2025-10-01	municipality	16210	16000	16	富山県		南砺市	なんとし	富山県 南砺市	nanto-shi
+2025-10-01	municipality	16211	16000	16	富山県		射水市	いみずし	富山県 射水市	imizu-shi
+2025-10-01	municipality	16321	16000	16	富山県	中新川郡	舟橋村	ふなはしむら	富山県 舟橋村	funahashi-mura
+2025-10-01	municipality	16322	16000	16	富山県	中新川郡	上市町	かみいちまち	富山県 上市町	kamiichi-cho
+2025-10-01	municipality	16323	16000	16	富山県	中新川郡	立山町	たてやままち	富山県 立山町	tateyama-cho
+2025-10-01	municipality	16342	16000	16	富山県	下新川郡	入善町	にゅうぜんまち	富山県 入善町	nyuzen-cho
+2025-10-01	municipality	16343	16000	16	富山県	下新川郡	朝日町	あさひまち	富山県 朝日町	asahi-cho
+2025-10-01	prefecture	17000		17	石川県		石川県	いしかわけん	石川県	ishikawa-ken
+2025-10-01	municipality	17201	17000	17	石川県		金沢市	かなざわし	石川県 金沢市	kanazawa-shi
+2025-10-01	municipality	17202	17000	17	石川県		七尾市	ななおし	石川県 七尾市	nanao-shi
+2025-10-01	municipality	17203	17000	17	石川県		小松市	こまつし	石川県 小松市	komatsu-shi
+2025-10-01	municipality	17204	17000	17	石川県		輪島市	わじまし	石川県 輪島市	wajima-shi
+2025-10-01	municipality	17205	17000	17	石川県		珠洲市	すずし	石川県 珠洲市	suzu-shi
+2025-10-01	municipality	17206	17000	17	石川県		加賀市	かがし	石川県 加賀市	kaga-shi
+2025-10-01	municipality	17207	17000	17	石川県		羽咋市	はくいし	石川県 羽咋市	hakui-shi
+2025-10-01	municipality	17209	17000	17	石川県		かほく市	かほくし	石川県 かほく市	kahoku-shi
+2025-10-01	municipality	17210	17000	17	石川県		白山市	はくさんし	石川県 白山市	hakusan-shi
+2025-10-01	municipality	17211	17000	17	石川県		能美市	のみし	石川県 能美市	nomi-shi
+2025-10-01	municipality	17212	17000	17	石川県		野々市市	ののいちし	石川県 野々市市	nonoichi-shi
+2025-10-01	municipality	17324	17000	17	石川県	能美郡	川北町	かわきたまち	石川県 川北町	kawakita-cho
+2025-10-01	municipality	17361	17000	17	石川県	河北郡	津幡町	つばたまち	石川県 津幡町	tsubata-cho
+2025-10-01	municipality	17365	17000	17	石川県	河北郡	内灘町	うちなだまち	石川県 内灘町	uchinada-cho
+2025-10-01	municipality	17384	17000	17	石川県	羽咋郡	志賀町	しかまち	石川県 志賀町	shika-cho
+2025-10-01	municipality	17386	17000	17	石川県	羽咋郡	宝達志水町	ほうだつしみずちょう	石川県 宝達志水町	hodatsushimizu-cho
+2025-10-01	municipality	17407	17000	17	石川県	鹿島郡	中能登町	なかのとまち	石川県 中能登町	nakanoto-cho
+2025-10-01	municipality	17461	17000	17	石川県	鳳珠郡	穴水町	あなみずまち	石川県 穴水町	anamizu-cho
+2025-10-01	municipality	17463	17000	17	石川県	鳳珠郡	能登町	のとちょう	石川県 能登町	noto-cho
+2025-10-01	prefecture	18000		18	福井県		福井県	ふくいけん	福井県	fukui-ken
+2025-10-01	municipality	18201	18000	18	福井県		福井市	ふくいし	福井県 福井市	fukui-shi
+2025-10-01	municipality	18202	18000	18	福井県		敦賀市	つるがし	福井県 敦賀市	tsuruga-shi
+2025-10-01	municipality	18204	18000	18	福井県		小浜市	おばまし	福井県 小浜市	obama-shi
+2025-10-01	municipality	18205	18000	18	福井県		大野市	おおのし	福井県 大野市	ono-shi
+2025-10-01	municipality	18206	18000	18	福井県		勝山市	かつやまし	福井県 勝山市	katsuyama-shi
+2025-10-01	municipality	18207	18000	18	福井県		鯖江市	さばえし	福井県 鯖江市	sabae-shi
+2025-10-01	municipality	18208	18000	18	福井県		あわら市	あわらし	福井県 あわら市	awara-shi
+2025-10-01	municipality	18209	18000	18	福井県		越前市	えちぜんし	福井県 越前市	echizen-shi
+2025-10-01	municipality	18210	18000	18	福井県		坂井市	さかいし	福井県 坂井市	fukui-sakai-shi
+2025-10-01	municipality	18322	18000	18	福井県	吉田郡	永平寺町	えいへいじちょう	福井県 永平寺町	eiheiji-cho
+2025-10-01	municipality	18382	18000	18	福井県	今立郡	池田町	いけだちょう	福井県 池田町	ikeda-cho
+2025-10-01	municipality	18404	18000	18	福井県	南条郡	南越前町	みなみえちぜんちょう	福井県 南越前町	minamiechizen-cho
+2025-10-01	municipality	18423	18000	18	福井県	丹生郡	越前町	えちぜんちょう	福井県 越前町	echizen-cho
+2025-10-01	municipality	18442	18000	18	福井県	三方郡	美浜町	みはまちょう	福井県 美浜町	fukui-mihama-cho
+2025-10-01	municipality	18481	18000	18	福井県	大飯郡	高浜町	たかはまちょう	福井県 高浜町	takahama-cho
+2025-10-01	municipality	18483	18000	18	福井県	大飯郡	おおい町	おおいちょう	福井県 おおい町	ohi-cho
+2025-10-01	municipality	18501	18000	18	福井県	三方上中郡	若狭町	わかさちょう	福井県 若狭町	fukui-wakasa-cho
+2025-10-01	prefecture	19000		19	山梨県		山梨県	やまなしけん	山梨県	yamanashi-ken
+2025-10-01	municipality	19201	19000	19	山梨県		甲府市	こうふし	山梨県 甲府市	kofu-shi
+2025-10-01	municipality	19202	19000	19	山梨県		富士吉田市	ふじよしだし	山梨県 富士吉田市	fujiyoshida-shi
+2025-10-01	municipality	19204	19000	19	山梨県		都留市	つるし	山梨県 都留市	tsuru-shi
+2025-10-01	municipality	19205	19000	19	山梨県		山梨市	やまなしし	山梨県 山梨市	yamanashi-shi
+2025-10-01	municipality	19206	19000	19	山梨県		大月市	おおつきし	山梨県 大月市	otsuki-shi
+2025-10-01	municipality	19207	19000	19	山梨県		韮崎市	にらさきし	山梨県 韮崎市	nirasaki-shi
+2025-10-01	municipality	19208	19000	19	山梨県		南アルプス市	みなみあるぷすし	山梨県 南アルプス市	minami-alps-shi
+2025-10-01	municipality	19209	19000	19	山梨県		北杜市	ほくとし	山梨県 北杜市	hokuto-shi
+2025-10-01	municipality	19210	19000	19	山梨県		甲斐市	かいし	山梨県 甲斐市	kai-shi
+2025-10-01	municipality	19211	19000	19	山梨県		笛吹市	ふえふきし	山梨県 笛吹市	fuefuki-shi
+2025-10-01	municipality	19212	19000	19	山梨県		上野原市	うえのはらし	山梨県 上野原市	uenohara-shi
+2025-10-01	municipality	19213	19000	19	山梨県		甲州市	こうしゅうし	山梨県 甲州市	koshu-shi
+2025-10-01	municipality	19214	19000	19	山梨県		中央市	ちゅうおうし	山梨県 中央市	chuo-shi
+2025-10-01	municipality	19346	19000	19	山梨県	西八代郡	市川三郷町	いちかわみさとちょう	山梨県 市川三郷町	ichikawamisato-cho
+2025-10-01	municipality	19364	19000	19	山梨県	南巨摩郡	早川町	はやかわちょう	山梨県 早川町	hayakawa-cho
+2025-10-01	municipality	19365	19000	19	山梨県	南巨摩郡	身延町	みのぶちょう	山梨県 身延町	minobu-cho
+2025-10-01	municipality	19366	19000	19	山梨県	南巨摩郡	南部町	なんぶちょう	山梨県 南部町	nanbu-cho
+2025-10-01	municipality	19368	19000	19	山梨県	南巨摩郡	富士川町	ふじかわちょう	山梨県 富士川町	fujikawa-cho
+2025-10-01	municipality	19384	19000	19	山梨県	中巨摩郡	昭和町	しょうわちょう	山梨県 昭和町	showa-cho
+2025-10-01	municipality	19422	19000	19	山梨県	南都留郡	道志村	どうしむら	山梨県 道志村	doshi-mura
+2025-10-01	municipality	19423	19000	19	山梨県	南都留郡	西桂町	にしかつらちょう	山梨県 西桂町	nishikatsura-cho
+2025-10-01	municipality	19424	19000	19	山梨県	南都留郡	忍野村	おしのむら	山梨県 忍野村	oshino-mura
+2025-10-01	municipality	19425	19000	19	山梨県	南都留郡	山中湖村	やまなかこむら	山梨県 山中湖村	yamanakako-mura
+2025-10-01	municipality	19429	19000	19	山梨県	南都留郡	鳴沢村	なるさわむら	山梨県 鳴沢村	narusawa-mura
+2025-10-01	municipality	19430	19000	19	山梨県	南都留郡	富士河口湖町	ふじかわぐちこまち	山梨県 富士河口湖町	fujikawaguchiko-cho
+2025-10-01	municipality	19442	19000	19	山梨県	北都留郡	小菅村	こすげむら	山梨県 小菅村	kosuge-mura
+2025-10-01	municipality	19443	19000	19	山梨県	北都留郡	丹波山村	たばやまむら	山梨県 丹波山村	tabayama-mura
+2025-10-01	prefecture	20000		20	長野県		長野県	ながのけん	長野県	nagano-ken
+2025-10-01	municipality	20201	20000	20	長野県		長野市	ながのし	長野県 長野市	nagano-shi
+2025-10-01	municipality	20202	20000	20	長野県		松本市	まつもとし	長野県 松本市	matsumoto-shi
+2025-10-01	municipality	20203	20000	20	長野県		上田市	うえだし	長野県 上田市	ueda-shi
+2025-10-01	municipality	20204	20000	20	長野県		岡谷市	おかやし	長野県 岡谷市	okaya-shi
+2025-10-01	municipality	20205	20000	20	長野県		飯田市	いいだし	長野県 飯田市	iida-shi
+2025-10-01	municipality	20206	20000	20	長野県		諏訪市	すわし	長野県 諏訪市	suwa-shi
+2025-10-01	municipality	20207	20000	20	長野県		須坂市	すざかし	長野県 須坂市	suzaka-shi
+2025-10-01	municipality	20208	20000	20	長野県		小諸市	こもろし	長野県 小諸市	komoro-shi
+2025-10-01	municipality	20209	20000	20	長野県		伊那市	いなし	長野県 伊那市	inacity-shi
+2025-10-01	municipality	20210	20000	20	長野県		駒ヶ根市	こまがねし	長野県 駒ヶ根市	komagane-shi
+2025-10-01	municipality	20211	20000	20	長野県		中野市	なかのし	長野県 中野市	nakano-shi
+2025-10-01	municipality	20212	20000	20	長野県		大町市	おおまちし	長野県 大町市	omachi-shi
+2025-10-01	municipality	20213	20000	20	長野県		飯山市	いいやまし	長野県 飯山市	iiyama-shi
+2025-10-01	municipality	20214	20000	20	長野県		茅野市	ちのし	長野県 茅野市	chino-shi
+2025-10-01	municipality	20215	20000	20	長野県		塩尻市	しおじりし	長野県 塩尻市	shiojiri-shi
+2025-10-01	municipality	20217	20000	20	長野県		佐久市	さくし	長野県 佐久市	saku-shi
+2025-10-01	municipality	20218	20000	20	長野県		千曲市	ちくまし	長野県 千曲市	chikuma-shi
+2025-10-01	municipality	20219	20000	20	長野県		東御市	とうみし	長野県 東御市	tomi-shi
+2025-10-01	municipality	20220	20000	20	長野県		安曇野市	あづみのし	長野県 安曇野市	azumino-shi
+2025-10-01	municipality	20303	20000	20	長野県	南佐久郡	小海町	こうみまち	長野県 小海町	koumi-town-cho
+2025-10-01	municipality	20304	20000	20	長野県	南佐久郡	川上村	かわかみむら	長野県 川上村	kawakami-mura
+2025-10-01	municipality	20305	20000	20	長野県	南佐久郡	南牧村	みなみまきむら	長野県 南牧村	minamimakimura-mura
+2025-10-01	municipality	20306	20000	20	長野県	南佐久郡	南相木村	みなみあいきむら	長野県 南相木村	minamiaiki-mura
+2025-10-01	municipality	20307	20000	20	長野県	南佐久郡	北相木村	きたあいきむら	長野県 北相木村	kitaaiki-mura
+2025-10-01	municipality	20309	20000	20	長野県	南佐久郡	佐久穂町	さくほまち	長野県 佐久穂町	sakuho-cho
+2025-10-01	municipality	20321	20000	20	長野県	北佐久郡	軽井沢町	かるいざわまち	長野県 軽井沢町	karuizawa-cho
+2025-10-01	municipality	20323	20000	20	長野県	北佐久郡	御代田町	みよたまち	長野県 御代田町	miyota-cho
+2025-10-01	municipality	20324	20000	20	長野県	北佐久郡	立科町	たてしなまち	長野県 立科町	tateshina-cho
+2025-10-01	municipality	20349	20000	20	長野県	小県郡	青木村	あおきむら	長野県 青木村	aoki-mura
+2025-10-01	municipality	20350	20000	20	長野県	小県郡	長和町	ながわまち	長野県 長和町	nagawa-cho
+2025-10-01	municipality	20361	20000	20	長野県	諏訪郡	下諏訪町	しもすわまち	長野県 下諏訪町	shimosuwa-cho
+2025-10-01	municipality	20362	20000	20	長野県	諏訪郡	富士見町	ふじみまち	長野県 富士見町	fujimi-cho
+2025-10-01	municipality	20363	20000	20	長野県	諏訪郡	原村	はらむら	長野県 原村	hara-mura
+2025-10-01	municipality	20382	20000	20	長野県	上伊那郡	辰野町	たつのまち	長野県 辰野町	tatsuno-cho
+2025-10-01	municipality	20383	20000	20	長野県	上伊那郡	箕輪町	みのわまち	長野県 箕輪町	minowa-cho
+2025-10-01	municipality	20384	20000	20	長野県	上伊那郡	飯島町	いいじままち	長野県 飯島町	iijima-cho
+2025-10-01	municipality	20385	20000	20	長野県	上伊那郡	南箕輪村	みなみみのわむら	長野県 南箕輪村	minamiminowa-mura
+2025-10-01	municipality	20386	20000	20	長野県	上伊那郡	中川村	なかがわむら	長野県 中川村	nakagawa-mura
+2025-10-01	municipality	20388	20000	20	長野県	上伊那郡	宮田村	みやだむら	長野県 宮田村	miyada-mura
+2025-10-01	municipality	20402	20000	20	長野県	下伊那郡	松川町	まつかわまち	長野県 松川町	matsukawa-cho
+2025-10-01	municipality	20403	20000	20	長野県	下伊那郡	高森町	たかもりまち	長野県 高森町	nagano-takamori-cho
+2025-10-01	municipality	20404	20000	20	長野県	下伊那郡	阿南町	あなんちょう	長野県 阿南町	anan-cho
+2025-10-01	municipality	20407	20000	20	長野県	下伊那郡	阿智村	あちむら	長野県 阿智村	achi-mura
+2025-10-01	municipality	20409	20000	20	長野県	下伊那郡	平谷村	ひらやむら	長野県 平谷村	hirayamura-mura
+2025-10-01	municipality	20410	20000	20	長野県	下伊那郡	根羽村	ねばむら	長野県 根羽村	nebamura-mura
+2025-10-01	municipality	20411	20000	20	長野県	下伊那郡	下條村	しもじょうむら	長野県 下條村	vill-shimojo-mura
+2025-10-01	municipality	20412	20000	20	長野県	下伊那郡	売木村	うるぎむら	長野県 売木村	urugi-mura
+2025-10-01	municipality	20413	20000	20	長野県	下伊那郡	天龍村	てんりゅうむら	長野県 天龍村	vill-tenryu-mura
+2025-10-01	municipality	20414	20000	20	長野県	下伊那郡	泰阜村	やすおかむら	長野県 泰阜村	yasuoka-mura
+2025-10-01	municipality	20415	20000	20	長野県	下伊那郡	喬木村	たかぎむら	長野県 喬木村	takagi-mura
+2025-10-01	municipality	20416	20000	20	長野県	下伊那郡	豊丘村	とよおかむら	長野県 豊丘村	nagano-toyooka-mura
+2025-10-01	municipality	20417	20000	20	長野県	下伊那郡	大鹿村	おおしかむら	長野県 大鹿村	ooshika-mura
+2025-10-01	municipality	20422	20000	20	長野県	木曽郡	上松町	あげまつまち	長野県 上松町	agematsu-cho
+2025-10-01	municipality	20423	20000	20	長野県	木曽郡	南木曽町	なぎそまち	長野県 南木曽町	nagiso-cho
+2025-10-01	municipality	20425	20000	20	長野県	木曽郡	木祖村	きそむら	長野県 木祖村	kiso-mura
+2025-10-01	municipality	20429	20000	20	長野県	木曽郡	王滝村	おうたきむら	長野県 王滝村	otaki-mura
+2025-10-01	municipality	20430	20000	20	長野県	木曽郡	大桑村	おおくわむら	長野県 大桑村	okuwa-mura
+2025-10-01	municipality	20432	20000	20	長野県	木曽郡	木曽町	きそまち	長野県 木曽町	town-kiso-cho
+2025-10-01	municipality	20446	20000	20	長野県	東筑摩郡	麻績村	おみむら	長野県 麻績村	omi-mura
+2025-10-01	municipality	20448	20000	20	長野県	東筑摩郡	生坂村	いくさかむら	長野県 生坂村	ikusaka-mura
+2025-10-01	municipality	20450	20000	20	長野県	東筑摩郡	山形村	やまがたむら	長野県 山形村	yamagata-mura
+2025-10-01	municipality	20451	20000	20	長野県	東筑摩郡	朝日村	あさひむら	長野県 朝日村	asahi-mura
+2025-10-01	municipality	20452	20000	20	長野県	東筑摩郡	筑北村	ちくほくむら	長野県 筑北村	chikuhoku-mura
+2025-10-01	municipality	20481	20000	20	長野県	北安曇郡	池田町	いけだまち	長野県 池田町	ikedamachi-cho
+2025-10-01	municipality	20482	20000	20	長野県	北安曇郡	松川村	まつかわむら	長野県 松川村	matsukawa-mura
+2025-10-01	municipality	20485	20000	20	長野県	北安曇郡	白馬村	はくばむら	長野県 白馬村	hakuba-mura
+2025-10-01	municipality	20486	20000	20	長野県	北安曇郡	小谷村	おたりむら	長野県 小谷村	otari-mura
+2025-10-01	municipality	20521	20000	20	長野県	埴科郡	坂城町	さかきまち	長野県 坂城町	sakaki-cho
+2025-10-01	municipality	20541	20000	20	長野県	上高井郡	小布施町	おぶせまち	長野県 小布施町	obuse-cho
+2025-10-01	municipality	20543	20000	20	長野県	上高井郡	高山村	たかやまむら	長野県 高山村	takayama-mura
+2025-10-01	municipality	20561	20000	20	長野県	下高井郡	山ノ内町	やまのうちまち	長野県 山ノ内町	yamanouchi-cho
+2025-10-01	municipality	20562	20000	20	長野県	下高井郡	木島平村	きじまだいらむら	長野県 木島平村	kijimadaira-mura
+2025-10-01	municipality	20563	20000	20	長野県	下高井郡	野沢温泉村	のざわおんせんむら	長野県 野沢温泉村	nozawaonsen-mura
+2025-10-01	municipality	20583	20000	20	長野県	上水内郡	信濃町	しなのまち	長野県 信濃町	shinano-cho
+2025-10-01	municipality	20588	20000	20	長野県	上水内郡	小川村	おがわむら	長野県 小川村	ogawa-mura
+2025-10-01	municipality	20590	20000	20	長野県	上水内郡	飯綱町	いいづなまち	長野県 飯綱町	iizuna-cho
+2025-10-01	municipality	20602	20000	20	長野県	下水内郡	栄村	さかえむら	長野県 栄村	sakae-mura
+2025-10-01	prefecture	21000		21	岐阜県		岐阜県	ぎふけん	岐阜県	gifu-ken
+2025-10-01	municipality	21201	21000	21	岐阜県		岐阜市	ぎふし	岐阜県 岐阜市	gifu-shi
+2025-10-01	municipality	21202	21000	21	岐阜県		大垣市	おおがきし	岐阜県 大垣市	ogaki-shi
+2025-10-01	municipality	21203	21000	21	岐阜県		高山市	たかやまし	岐阜県 高山市	takayama-shi
+2025-10-01	municipality	21204	21000	21	岐阜県		多治見市	たじみし	岐阜県 多治見市	tajimi-shi
+2025-10-01	municipality	21205	21000	21	岐阜県		関市	せきし	岐阜県 関市	seki-shi
+2025-10-01	municipality	21206	21000	21	岐阜県		中津川市	なかつがわし	岐阜県 中津川市	nakatsugawa-shi
+2025-10-01	municipality	21207	21000	21	岐阜県		美濃市	みのし	岐阜県 美濃市	mino-shi
+2025-10-01	municipality	21208	21000	21	岐阜県		瑞浪市	みずなみし	岐阜県 瑞浪市	mizunami-shi
+2025-10-01	municipality	21209	21000	21	岐阜県		羽島市	はしまし	岐阜県 羽島市	hashima-shi
+2025-10-01	municipality	21210	21000	21	岐阜県		恵那市	えなし	岐阜県 恵那市	ena-shi
+2025-10-01	municipality	21211	21000	21	岐阜県		美濃加茂市	みのかもし	岐阜県 美濃加茂市	minokamo-shi
+2025-10-01	municipality	21212	21000	21	岐阜県		土岐市	ときし	岐阜県 土岐市	toki-shi
+2025-10-01	municipality	21213	21000	21	岐阜県		各務原市	かかみがはらし	岐阜県 各務原市	kakamigahara-shi
+2025-10-01	municipality	21214	21000	21	岐阜県		可児市	かにし	岐阜県 可児市	kani-shi
+2025-10-01	municipality	21215	21000	21	岐阜県		山県市	やまがたし	岐阜県 山県市	yamagata-shi
+2025-10-01	municipality	21216	21000	21	岐阜県		瑞穂市	みずほし	岐阜県 瑞穂市	mizuho-shi
+2025-10-01	municipality	21217	21000	21	岐阜県		飛騨市	ひだし	岐阜県 飛騨市	hida-shi
+2025-10-01	municipality	21218	21000	21	岐阜県		本巣市	もとすし	岐阜県 本巣市	motosu-shi
+2025-10-01	municipality	21219	21000	21	岐阜県		郡上市	ぐじょうし	岐阜県 郡上市	gujo-shi
+2025-10-01	municipality	21220	21000	21	岐阜県		下呂市	げろし	岐阜県 下呂市	gero-shi
+2025-10-01	municipality	21221	21000	21	岐阜県		海津市	かいづし	岐阜県 海津市	kaizu-shi
+2025-10-01	municipality	21302	21000	21	岐阜県	羽島郡	岐南町	ぎなんちょう	岐阜県 岐南町	ginan-cho
+2025-10-01	municipality	21303	21000	21	岐阜県	羽島郡	笠松町	かさまつちょう	岐阜県 笠松町	kasamatsu-cho
+2025-10-01	municipality	21341	21000	21	岐阜県	養老郡	養老町	ようろうちょう	岐阜県 養老町	yoro-cho
+2025-10-01	municipality	21361	21000	21	岐阜県	不破郡	垂井町	たるいちょう	岐阜県 垂井町	tarui-cho
+2025-10-01	municipality	21362	21000	21	岐阜県	不破郡	関ケ原町	せきがはらちょう	岐阜県 関ケ原町	sekigahara-cho
+2025-10-01	municipality	21381	21000	21	岐阜県	安八郡	神戸町	ごうどちょう	岐阜県 神戸町	godo-cho
+2025-10-01	municipality	21382	21000	21	岐阜県	安八郡	輪之内町	わのうちちょう	岐阜県 輪之内町	wanouchi-cho
+2025-10-01	municipality	21383	21000	21	岐阜県	安八郡	安八町	あんぱちちょう	岐阜県 安八町	anpachi-cho
+2025-10-01	municipality	21401	21000	21	岐阜県	揖斐郡	揖斐川町	いびがわちょう	岐阜県 揖斐川町	ibigawa-cho
+2025-10-01	municipality	21403	21000	21	岐阜県	揖斐郡	大野町	おおのちょう	岐阜県 大野町	town-ono-cho
+2025-10-01	municipality	21404	21000	21	岐阜県	揖斐郡	池田町	いけだちょう	岐阜県 池田町	gifu-ikeda-cho
+2025-10-01	municipality	21421	21000	21	岐阜県	本巣郡	北方町	きたがたちょう	岐阜県 北方町	kitagata-cho
+2025-10-01	municipality	21501	21000	21	岐阜県	加茂郡	坂祝町	さかほぎちょう	岐阜県 坂祝町	sakahogi-cho
+2025-10-01	municipality	21502	21000	21	岐阜県	加茂郡	富加町	とみかちょう	岐阜県 富加町	tomika-cho
+2025-10-01	municipality	21503	21000	21	岐阜県	加茂郡	川辺町	かわべちょう	岐阜県 川辺町	kawabe-gifu-cho
+2025-10-01	municipality	21504	21000	21	岐阜県	加茂郡	七宗町	ひちそうちょう	岐阜県 七宗町	hichiso-cho
+2025-10-01	municipality	21505	21000	21	岐阜県	加茂郡	八百津町	やおつちょう	岐阜県 八百津町	yaotsu-cho
+2025-10-01	municipality	21506	21000	21	岐阜県	加茂郡	白川町	しらかわちょう	岐阜県 白川町	shirakawa-cho
+2025-10-01	municipality	21507	21000	21	岐阜県	加茂郡	東白川村	ひがししらかわむら	岐阜県 東白川村	higashishirakawa-mura
+2025-10-01	municipality	21521	21000	21	岐阜県	可児郡	御嵩町	みたけちょう	岐阜県 御嵩町	mitake-cho
+2025-10-01	municipality	21604	21000	21	岐阜県	大野郡	白川村	しらかわむら	岐阜県 白川村	shirakawa-go-mura
+2025-10-01	prefecture	22000		22	静岡県		静岡県	しずおかけん	静岡県	shizuoka-ken
+2025-10-01	municipality	22100	22000	22	静岡県		静岡市	しずおかし	静岡県 静岡市	shizuoka-shi
+2025-10-01	municipality	22130	22000	22	静岡県		浜松市	はままつし	静岡県 浜松市	hamamatsu-shi
+2025-10-01	municipality	22203	22000	22	静岡県		沼津市	ぬまづし	静岡県 沼津市	numazu-shi
+2025-10-01	municipality	22205	22000	22	静岡県		熱海市	あたみし	静岡県 熱海市	atami-shi
+2025-10-01	municipality	22206	22000	22	静岡県		三島市	みしまし	静岡県 三島市	mishima-shi
+2025-10-01	municipality	22207	22000	22	静岡県		富士宮市	ふじのみやし	静岡県 富士宮市	fujinomiya-shi
+2025-10-01	municipality	22208	22000	22	静岡県		伊東市	いとうし	静岡県 伊東市	ito-shi
+2025-10-01	municipality	22209	22000	22	静岡県		島田市	しまだし	静岡県 島田市	shimada-shi
+2025-10-01	municipality	22210	22000	22	静岡県		富士市	ふじし	静岡県 富士市	fuji-shi
+2025-10-01	municipality	22211	22000	22	静岡県		磐田市	いわたし	静岡県 磐田市	iwata-shi
+2025-10-01	municipality	22212	22000	22	静岡県		焼津市	やいづし	静岡県 焼津市	yaizu-shi
+2025-10-01	municipality	22213	22000	22	静岡県		掛川市	かけがわし	静岡県 掛川市	kakegawa-shi
+2025-10-01	municipality	22214	22000	22	静岡県		藤枝市	ふじえだし	静岡県 藤枝市	fujieda-shi
+2025-10-01	municipality	22215	22000	22	静岡県		御殿場市	ごてんばし	静岡県 御殿場市	gotemba-shi
+2025-10-01	municipality	22216	22000	22	静岡県		袋井市	ふくろいし	静岡県 袋井市	fukuroi-shi
+2025-10-01	municipality	22219	22000	22	静岡県		下田市	しもだし	静岡県 下田市	shimoda-shi
+2025-10-01	municipality	22220	22000	22	静岡県		裾野市	すそのし	静岡県 裾野市	susono-shi
+2025-10-01	municipality	22221	22000	22	静岡県		湖西市	こさいし	静岡県 湖西市	kosai-shi
+2025-10-01	municipality	22222	22000	22	静岡県		伊豆市	いずし	静岡県 伊豆市	izu-shi
+2025-10-01	municipality	22223	22000	22	静岡県		御前崎市	おまえざきし	静岡県 御前崎市	omaezaki-shi
+2025-10-01	municipality	22224	22000	22	静岡県		菊川市	きくがわし	静岡県 菊川市	kikugawa-shi
+2025-10-01	municipality	22225	22000	22	静岡県		伊豆の国市	いずのくにし	静岡県 伊豆の国市	izunokuni-shi
+2025-10-01	municipality	22226	22000	22	静岡県		牧之原市	まきのはらし	静岡県 牧之原市	makinohara-shi
+2025-10-01	municipality	22301	22000	22	静岡県	賀茂郡	東伊豆町	ひがしいずちょう	静岡県 東伊豆町	higashiizu-cho
+2025-10-01	municipality	22302	22000	22	静岡県	賀茂郡	河津町	かわづちょう	静岡県 河津町	kawazu-cho
+2025-10-01	municipality	22304	22000	22	静岡県	賀茂郡	南伊豆町	みなみいずちょう	静岡県 南伊豆町	minamiizu-cho
+2025-10-01	municipality	22305	22000	22	静岡県	賀茂郡	松崎町	まつざきちょう	静岡県 松崎町	matsuzaki-cho
+2025-10-01	municipality	22306	22000	22	静岡県	賀茂郡	西伊豆町	にしいずちょう	静岡県 西伊豆町	nishiizu-cho
+2025-10-01	municipality	22325	22000	22	静岡県	田方郡	函南町	かんなみちょう	静岡県 函南町	kannami-cho
+2025-10-01	municipality	22341	22000	22	静岡県	駿東郡	清水町	しみずちょう	静岡県 清水町	shimizu-cho
+2025-10-01	municipality	22342	22000	22	静岡県	駿東郡	長泉町	ながいずみちょう	静岡県 長泉町	nagaizumi-cho
+2025-10-01	municipality	22344	22000	22	静岡県	駿東郡	小山町	おやまちょう	静岡県 小山町	fuji-oyama-cho
+2025-10-01	municipality	22424	22000	22	静岡県	榛原郡	吉田町	よしだちょう	静岡県 吉田町	yoshida-cho
+2025-10-01	municipality	22429	22000	22	静岡県	榛原郡	川根本町	かわねほんちょう	静岡県 川根本町	kawanehon-cho
+2025-10-01	municipality	22461	22000	22	静岡県	周智郡	森町	もりまち	静岡県 森町	morimachi-cho
+2025-10-01	prefecture	23000		23	愛知県		愛知県	あいちけん	愛知県	aichi-ken
+2025-10-01	municipality	23100	23000	23	愛知県		名古屋市	なごやし	愛知県 名古屋市	nagoya-shi
+2025-10-01	municipality	23201	23000	23	愛知県		豊橋市	とよはしし	愛知県 豊橋市	toyohashi-shi
+2025-10-01	municipality	23202	23000	23	愛知県		岡崎市	おかざきし	愛知県 岡崎市	okazaki-shi
+2025-10-01	municipality	23203	23000	23	愛知県		一宮市	いちのみやし	愛知県 一宮市	ichinomiya-shi
+2025-10-01	municipality	23204	23000	23	愛知県		瀬戸市	せとし	愛知県 瀬戸市	seto-shi
+2025-10-01	municipality	23205	23000	23	愛知県		半田市	はんだし	愛知県 半田市	handa-shi
+2025-10-01	municipality	23206	23000	23	愛知県		春日井市	かすがいし	愛知県 春日井市	kasugai-shi
+2025-10-01	municipality	23207	23000	23	愛知県		豊川市	とよかわし	愛知県 豊川市	toyokawa-shi
+2025-10-01	municipality	23208	23000	23	愛知県		津島市	つしまし	愛知県 津島市	tsushima-shi
+2025-10-01	municipality	23209	23000	23	愛知県		碧南市	へきなんし	愛知県 碧南市	hekinan-shi
+2025-10-01	municipality	23210	23000	23	愛知県		刈谷市	かりやし	愛知県 刈谷市	kariya-shi
+2025-10-01	municipality	23211	23000	23	愛知県		豊田市	とよたし	愛知県 豊田市	toyota-shi
+2025-10-01	municipality	23212	23000	23	愛知県		安城市	あんじょうし	愛知県 安城市	anjo-shi
+2025-10-01	municipality	23213	23000	23	愛知県		西尾市	にしおし	愛知県 西尾市	nishio-shi
+2025-10-01	municipality	23214	23000	23	愛知県		蒲郡市	がまごおりし	愛知県 蒲郡市	gamagori-shi
+2025-10-01	municipality	23215	23000	23	愛知県		犬山市	いぬやまし	愛知県 犬山市	inuyama-shi
+2025-10-01	municipality	23216	23000	23	愛知県		常滑市	とこなめし	愛知県 常滑市	tokoname-shi
+2025-10-01	municipality	23217	23000	23	愛知県		江南市	こうなんし	愛知県 江南市	konan-shi
+2025-10-01	municipality	23219	23000	23	愛知県		小牧市	こまきし	愛知県 小牧市	komaki-shi
+2025-10-01	municipality	23220	23000	23	愛知県		稲沢市	いなざわし	愛知県 稲沢市	inazawa-shi
+2025-10-01	municipality	23221	23000	23	愛知県		新城市	しんしろし	愛知県 新城市	shinshiro-shi
+2025-10-01	municipality	23222	23000	23	愛知県		東海市	とうかいし	愛知県 東海市	tokai-shi
+2025-10-01	municipality	23223	23000	23	愛知県		大府市	おおぶし	愛知県 大府市	obu-shi
+2025-10-01	municipality	23224	23000	23	愛知県		知多市	ちたし	愛知県 知多市	chita-shi
+2025-10-01	municipality	23225	23000	23	愛知県		知立市	ちりゅうし	愛知県 知立市	chiryu-shi
+2025-10-01	municipality	23226	23000	23	愛知県		尾張旭市	おわりあさひし	愛知県 尾張旭市	owariasahi-shi
+2025-10-01	municipality	23227	23000	23	愛知県		高浜市	たかはまし	愛知県 高浜市	takahama-shi
+2025-10-01	municipality	23228	23000	23	愛知県		岩倉市	いわくらし	愛知県 岩倉市	iwakura-shi
+2025-10-01	municipality	23229	23000	23	愛知県		豊明市	とよあけし	愛知県 豊明市	toyoake-shi
+2025-10-01	municipality	23230	23000	23	愛知県		日進市	にっしんし	愛知県 日進市	nisshin-shi
+2025-10-01	municipality	23231	23000	23	愛知県		田原市	たはらし	愛知県 田原市	tahara-shi
+2025-10-01	municipality	23232	23000	23	愛知県		愛西市	あいさいし	愛知県 愛西市	aisai-shi
+2025-10-01	municipality	23233	23000	23	愛知県		清須市	きよすし	愛知県 清須市	kiyosu-shi
+2025-10-01	municipality	23234	23000	23	愛知県		北名古屋市	きたなごやし	愛知県 北名古屋市	kitanagoya-shi
+2025-10-01	municipality	23235	23000	23	愛知県		弥富市	やとみし	愛知県 弥富市	yatomi-shi
+2025-10-01	municipality	23236	23000	23	愛知県		みよし市	みよしし	愛知県 みよし市	aichi-miyoshi-shi
+2025-10-01	municipality	23237	23000	23	愛知県		あま市	あまし	愛知県 あま市	ama-shi
+2025-10-01	municipality	23238	23000	23	愛知県		長久手市	ながくてし	愛知県 長久手市	nagakute-shi
+2025-10-01	municipality	23302	23000	23	愛知県	愛知郡	東郷町	とうごうちょう	愛知県 東郷町	aichi-togo-cho
+2025-10-01	municipality	23342	23000	23	愛知県	西春日井郡	豊山町	とよやまちょう	愛知県 豊山町	toyoyama-cho
+2025-10-01	municipality	23361	23000	23	愛知県	丹羽郡	大口町	おおぐちちょう	愛知県 大口町	oguchi-cho
+2025-10-01	municipality	23362	23000	23	愛知県	丹羽郡	扶桑町	ふそうちょう	愛知県 扶桑町	fuso-cho
+2025-10-01	municipality	23424	23000	23	愛知県	海部郡	大治町	おおはるちょう	愛知県 大治町	oharu-cho
+2025-10-01	municipality	23425	23000	23	愛知県	海部郡	蟹江町	かにえちょう	愛知県 蟹江町	kanie-cho
+2025-10-01	municipality	23427	23000	23	愛知県	海部郡	飛島村	とびしまむら	愛知県 飛島村	tobishima-mura
+2025-10-01	municipality	23441	23000	23	愛知県	知多郡	阿久比町	あぐいちょう	愛知県 阿久比町	agui-cho
+2025-10-01	municipality	23442	23000	23	愛知県	知多郡	東浦町	ひがしうらちょう	愛知県 東浦町	aichi-higashiura-cho
+2025-10-01	municipality	23445	23000	23	愛知県	知多郡	南知多町	みなみちたちょう	愛知県 南知多町	minamichita-cho
+2025-10-01	municipality	23446	23000	23	愛知県	知多郡	美浜町	みはまちょう	愛知県 美浜町	aichi-mihama-cho
+2025-10-01	municipality	23447	23000	23	愛知県	知多郡	武豊町	たけとよちょう	愛知県 武豊町	taketoyo-cho
+2025-10-01	municipality	23501	23000	23	愛知県	額田郡	幸田町	こうたちょう	愛知県 幸田町	kota-cho
+2025-10-01	municipality	23561	23000	23	愛知県	北設楽郡	設楽町	したらちょう	愛知県 設楽町	shitara-cho
+2025-10-01	municipality	23562	23000	23	愛知県	北設楽郡	東栄町	とうえいちょう	愛知県 東栄町	toei-cho
+2025-10-01	municipality	23563	23000	23	愛知県	北設楽郡	豊根村	とよねむら	愛知県 豊根村	toyone-mura
+2025-10-01	prefecture	24000		24	三重県		三重県	みえけん	三重県	mie-ken
+2025-10-01	municipality	24201	24000	24	三重県		津市	つし	三重県 津市	info-shi
+2025-10-01	municipality	24202	24000	24	三重県		四日市市	よっかいちし	三重県 四日市市	yokkaichi-shi
+2025-10-01	municipality	24203	24000	24	三重県		伊勢市	いせし	三重県 伊勢市	ise-shi
+2025-10-01	municipality	24204	24000	24	三重県		松阪市	まつさかし	三重県 松阪市	matsusaka-shi
+2025-10-01	municipality	24205	24000	24	三重県		桑名市	くわなし	三重県 桑名市	kuwana-shi
+2025-10-01	municipality	24207	24000	24	三重県		鈴鹿市	すずかし	三重県 鈴鹿市	suzuka-shi
+2025-10-01	municipality	24208	24000	24	三重県		名張市	なばりし	三重県 名張市	nabari-shi
+2025-10-01	municipality	24209	24000	24	三重県		尾鷲市	おわせし	三重県 尾鷲市	owase-shi
+2025-10-01	municipality	24210	24000	24	三重県		亀山市	かめやまし	三重県 亀山市	kameyama-shi
+2025-10-01	municipality	24211	24000	24	三重県		鳥羽市	とばし	三重県 鳥羽市	toba-shi
+2025-10-01	municipality	24212	24000	24	三重県		熊野市	くまのし	三重県 熊野市	kumano-shi
+2025-10-01	municipality	24214	24000	24	三重県		いなべ市	いなべし	三重県 いなべ市	inabe-shi
+2025-10-01	municipality	24215	24000	24	三重県		志摩市	しまし	三重県 志摩市	shima-shi
+2025-10-01	municipality	24216	24000	24	三重県		伊賀市	いがし	三重県 伊賀市	iga-shi
+2025-10-01	municipality	24303	24000	24	三重県	桑名郡	木曽岬町	きそさきちょう	三重県 木曽岬町	kisosaki-cho
+2025-10-01	municipality	24324	24000	24	三重県	員弁郡	東員町	とういんちょう	三重県 東員町	toin-cho
+2025-10-01	municipality	24341	24000	24	三重県	三重郡	菰野町	こものちょう	三重県 菰野町	komono-cho
+2025-10-01	municipality	24343	24000	24	三重県	三重郡	朝日町	あさひちょう	三重県 朝日町	asahi-cho
+2025-10-01	municipality	24344	24000	24	三重県	三重郡	川越町	かわごえちょう	三重県 川越町	kawagoe-cho
+2025-10-01	municipality	24441	24000	24	三重県	多気郡	多気町	たきちょう	三重県 多気町	taki-cho
+2025-10-01	municipality	24442	24000	24	三重県	多気郡	明和町	めいわちょう	三重県 明和町	meiwa-cho
+2025-10-01	municipality	24443	24000	24	三重県	多気郡	大台町	おおだいちょう	三重県 大台町	odaitown-cho
+2025-10-01	municipality	24461	24000	24	三重県	度会郡	玉城町	たまきちょう	三重県 玉城町	kizuna-cho
+2025-10-01	municipality	24470	24000	24	三重県	度会郡	度会町	わたらいちょう	三重県 度会町	watarai-cho
+2025-10-01	municipality	24471	24000	24	三重県	度会郡	大紀町	たいきちょう	三重県 大紀町	taiki-cho
+2025-10-01	municipality	24472	24000	24	三重県	度会郡	南伊勢町	みなみいせちょう	三重県 南伊勢町	minamiise-cho
+2025-10-01	municipality	24543	24000	24	三重県	北牟婁郡	紀北町	きほくちょう	三重県 紀北町	mie-kihoku-cho
+2025-10-01	municipality	24561	24000	24	三重県	南牟婁郡	御浜町	みはまちょう	三重県 御浜町	mihama-cho
+2025-10-01	municipality	24562	24000	24	三重県	南牟婁郡	紀宝町	きほうちょう	三重県 紀宝町	kiho-cho
+2025-10-01	prefecture	25000		25	滋賀県		滋賀県	しがけん	滋賀県	shiga-ken
+2025-10-01	municipality	25201	25000	25	滋賀県		大津市	おおつし	滋賀県 大津市	otsu-shi
+2025-10-01	municipality	25202	25000	25	滋賀県		彦根市	ひこねし	滋賀県 彦根市	hikone-shi
+2025-10-01	municipality	25203	25000	25	滋賀県		長浜市	ながはまし	滋賀県 長浜市	nagahama-shi
+2025-10-01	municipality	25204	25000	25	滋賀県		近江八幡市	おうみはちまんし	滋賀県 近江八幡市	omihachiman-shi
+2025-10-01	municipality	25206	25000	25	滋賀県		草津市	くさつし	滋賀県 草津市	kusatsu-shi
+2025-10-01	municipality	25207	25000	25	滋賀県		守山市	もりやまし	滋賀県 守山市	moriyama-shi
+2025-10-01	municipality	25208	25000	25	滋賀県		栗東市	りっとうし	滋賀県 栗東市	ritto-shi
+2025-10-01	municipality	25209	25000	25	滋賀県		甲賀市	こうかし	滋賀県 甲賀市	koka-shi
+2025-10-01	municipality	25210	25000	25	滋賀県		野洲市	やすし	滋賀県 野洲市	yasu-shi
+2025-10-01	municipality	25211	25000	25	滋賀県		湖南市	こなんし	滋賀県 湖南市	shiga-konan-shi
+2025-10-01	municipality	25212	25000	25	滋賀県		高島市	たかしまし	滋賀県 高島市	takashima-shi
+2025-10-01	municipality	25213	25000	25	滋賀県		東近江市	ひがしおうみし	滋賀県 東近江市	higashiomi-shi
+2025-10-01	municipality	25214	25000	25	滋賀県		米原市	まいばらし	滋賀県 米原市	maibara-shi
+2025-10-01	municipality	25383	25000	25	滋賀県	蒲生郡	日野町	ひのちょう	滋賀県 日野町	shiga-hino-cho
+2025-10-01	municipality	25384	25000	25	滋賀県	蒲生郡	竜王町	りゅうおうちょう	滋賀県 竜王町	ryuoh-cho
+2025-10-01	municipality	25425	25000	25	滋賀県	愛知郡	愛荘町	あいしょうちょう	滋賀県 愛荘町	aisho-cho
+2025-10-01	municipality	25441	25000	25	滋賀県	犬上郡	豊郷町	とよさとちょう	滋賀県 豊郷町	toyosato-cho
+2025-10-01	municipality	25442	25000	25	滋賀県	犬上郡	甲良町	こうらちょう	滋賀県 甲良町	kouratown-cho
+2025-10-01	municipality	25443	25000	25	滋賀県	犬上郡	多賀町	たがちょう	滋賀県 多賀町	taga-cho
+2025-10-01	prefecture	26000		26	京都府		京都府	きょうとふ	京都府	kyoto-fu
+2025-10-01	municipality	26100	26000	26	京都府		京都市	きょうとし	京都府 京都市	kyoto-shi
+2025-10-01	municipality	26201	26000	26	京都府		福知山市	ふくちやまし	京都府 福知山市	fukuchiyama-shi
+2025-10-01	municipality	26202	26000	26	京都府		舞鶴市	まいづるし	京都府 舞鶴市	maizuru-shi
+2025-10-01	municipality	26203	26000	26	京都府		綾部市	あやべし	京都府 綾部市	ayabe-shi
+2025-10-01	municipality	26204	26000	26	京都府		宇治市	うじし	京都府 宇治市	uji-shi
+2025-10-01	municipality	26205	26000	26	京都府		宮津市	みやづし	京都府 宮津市	miyazu-shi
+2025-10-01	municipality	26206	26000	26	京都府		亀岡市	かめおかし	京都府 亀岡市	kameoka-shi
+2025-10-01	municipality	26207	26000	26	京都府		城陽市	じょうようし	京都府 城陽市	joyo-shi
+2025-10-01	municipality	26208	26000	26	京都府		向日市	むこうし	京都府 向日市	muko-shi
+2025-10-01	municipality	26209	26000	26	京都府		長岡京市	ながおかきょうし	京都府 長岡京市	nagaokakyo-shi
+2025-10-01	municipality	26210	26000	26	京都府		八幡市	やわたし	京都府 八幡市	yawata-shi
+2025-10-01	municipality	26211	26000	26	京都府		京田辺市	きょうたなべし	京都府 京田辺市	kyotanabe-shi
+2025-10-01	municipality	26212	26000	26	京都府		京丹後市	きょうたんごし	京都府 京丹後市	kyotango-shi
+2025-10-01	municipality	26213	26000	26	京都府		南丹市	なんたんし	京都府 南丹市	nantan-shi
+2025-10-01	municipality	26214	26000	26	京都府		木津川市	きづがわし	京都府 木津川市	kizugawa-shi
+2025-10-01	municipality	26303	26000	26	京都府	乙訓郡	大山崎町	おおやまざきちょう	京都府 大山崎町	oyamazaki-cho
+2025-10-01	municipality	26322	26000	26	京都府	久世郡	久御山町	くみやまちょう	京都府 久御山町	kumiyama-cho
+2025-10-01	municipality	26343	26000	26	京都府	綴喜郡	井手町	いでちょう	京都府 井手町	ide-cho
+2025-10-01	municipality	26344	26000	26	京都府	綴喜郡	宇治田原町	うじたわらちょう	京都府 宇治田原町	ujitawara-cho
+2025-10-01	municipality	26364	26000	26	京都府	相楽郡	笠置町	かさぎちょう	京都府 笠置町	kasagi-cho
+2025-10-01	municipality	26365	26000	26	京都府	相楽郡	和束町	わづかちょう	京都府 和束町	wazuka-cho
+2025-10-01	municipality	26366	26000	26	京都府	相楽郡	精華町	せいかちょう	京都府 精華町	seika-cho
+2025-10-01	municipality	26367	26000	26	京都府	相楽郡	南山城村	みなみやましろむら	京都府 南山城村	minamiyamashiro-mura
+2025-10-01	municipality	26407	26000	26	京都府	船井郡	京丹波町	きょうたんばちょう	京都府 京丹波町	kyotamba-cho
+2025-10-01	municipality	26463	26000	26	京都府	与謝郡	伊根町	いねちょう	京都府 伊根町	ine-cho
+2025-10-01	municipality	26465	26000	26	京都府	与謝郡	与謝野町	よさのちょう	京都府 与謝野町	yosano-cho
+2025-10-01	prefecture	27000		27	大阪府		大阪府	おおさかふ	大阪府	osaka-fu
+2025-10-01	municipality	27100	27000	27	大阪府		大阪市	おおさかし	大阪府 大阪市	osaka-shi
+2025-10-01	municipality	27140	27000	27	大阪府		堺市	さかいし	大阪府 堺市	sakai-shi
+2025-10-01	municipality	27202	27000	27	大阪府		岸和田市	きしわだし	大阪府 岸和田市	kishiwada-shi
+2025-10-01	municipality	27203	27000	27	大阪府		豊中市	とよなかし	大阪府 豊中市	toyonaka-shi
+2025-10-01	municipality	27204	27000	27	大阪府		池田市	いけだし	大阪府 池田市	ikeda-shi
+2025-10-01	municipality	27205	27000	27	大阪府		吹田市	すいたし	大阪府 吹田市	suita-shi
+2025-10-01	municipality	27206	27000	27	大阪府		泉大津市	いずみおおつし	大阪府 泉大津市	izumiotsu-shi
+2025-10-01	municipality	27207	27000	27	大阪府		高槻市	たかつきし	大阪府 高槻市	takatsuki-shi
+2025-10-01	municipality	27208	27000	27	大阪府		貝塚市	かいづかし	大阪府 貝塚市	kaizuka-shi
+2025-10-01	municipality	27209	27000	27	大阪府		守口市	もりぐちし	大阪府 守口市	moriguchi-shi
+2025-10-01	municipality	27210	27000	27	大阪府		枚方市	ひらかたし	大阪府 枚方市	hirakata-shi
+2025-10-01	municipality	27211	27000	27	大阪府		茨木市	いばらきし	大阪府 茨木市	ibaraki-shi
+2025-10-01	municipality	27212	27000	27	大阪府		八尾市	やおし	大阪府 八尾市	yao-shi
+2025-10-01	municipality	27213	27000	27	大阪府		泉佐野市	いずみさのし	大阪府 泉佐野市	izumisano-shi
+2025-10-01	municipality	27214	27000	27	大阪府		富田林市	とんだばやしし	大阪府 富田林市	tondabayashi-shi
+2025-10-01	municipality	27215	27000	27	大阪府		寝屋川市	ねやがわし	大阪府 寝屋川市	neyagawa-shi
+2025-10-01	municipality	27216	27000	27	大阪府		河内長野市	かわちながのし	大阪府 河内長野市	kawachinagano-shi
+2025-10-01	municipality	27217	27000	27	大阪府		松原市	まつばらし	大阪府 松原市	matsubara-shi
+2025-10-01	municipality	27218	27000	27	大阪府		大東市	だいとうし	大阪府 大東市	daito-shi
+2025-10-01	municipality	27219	27000	27	大阪府		和泉市	いずみし	大阪府 和泉市	osaka-izumi-shi
+2025-10-01	municipality	27220	27000	27	大阪府		箕面市	みのおし	大阪府 箕面市	minoh-shi
+2025-10-01	municipality	27221	27000	27	大阪府		柏原市	かしわらし	大阪府 柏原市	kashiwara-shi
+2025-10-01	municipality	27222	27000	27	大阪府		羽曳野市	はびきのし	大阪府 羽曳野市	habikino-shi
+2025-10-01	municipality	27223	27000	27	大阪府		門真市	かどまし	大阪府 門真市	kadoma-shi
+2025-10-01	municipality	27224	27000	27	大阪府		摂津市	せっつし	大阪府 摂津市	settsu-shi
+2025-10-01	municipality	27225	27000	27	大阪府		高石市	たかいしし	大阪府 高石市	takaishi-shi
+2025-10-01	municipality	27226	27000	27	大阪府		藤井寺市	ふじいでらし	大阪府 藤井寺市	fujiidera-shi
+2025-10-01	municipality	27227	27000	27	大阪府		東大阪市	ひがしおおさかし	大阪府 東大阪市	higashiosaka-shi
+2025-10-01	municipality	27228	27000	27	大阪府		泉南市	せんなんし	大阪府 泉南市	sennan-shi
+2025-10-01	municipality	27229	27000	27	大阪府		四條畷市	しじょうなわてし	大阪府 四條畷市	shijonawate-shi
+2025-10-01	municipality	27230	27000	27	大阪府		交野市	かたのし	大阪府 交野市	katano-shi
+2025-10-01	municipality	27231	27000	27	大阪府		大阪狭山市	おおさかさやまし	大阪府 大阪狭山市	osakasayama-shi
+2025-10-01	municipality	27232	27000	27	大阪府		阪南市	はんなんし	大阪府 阪南市	hannan-shi
+2025-10-01	municipality	27301	27000	27	大阪府	三島郡	島本町	しまもとちょう	大阪府 島本町	shimamoto-cho
+2025-10-01	municipality	27321	27000	27	大阪府	豊能郡	豊能町	とよのちょう	大阪府 豊能町	toyono-cho
+2025-10-01	municipality	27322	27000	27	大阪府	豊能郡	能勢町	のせちょう	大阪府 能勢町	nose-cho
+2025-10-01	municipality	27341	27000	27	大阪府	泉北郡	忠岡町	ただおかちょう	大阪府 忠岡町	tadaoka-cho
+2025-10-01	municipality	27361	27000	27	大阪府	泉南郡	熊取町	くまとりちょう	大阪府 熊取町	kumatori-cho
+2025-10-01	municipality	27362	27000	27	大阪府	泉南郡	田尻町	たじりちょう	大阪府 田尻町	tajiri-cho
+2025-10-01	municipality	27366	27000	27	大阪府	泉南郡	岬町	みさきちょう	大阪府 岬町	misaki-cho
+2025-10-01	municipality	27381	27000	27	大阪府	南河内郡	太子町	たいしちょう	大阪府 太子町	taishi-cho
+2025-10-01	municipality	27382	27000	27	大阪府	南河内郡	河南町	かなんちょう	大阪府 河南町	kanan-cho
+2025-10-01	municipality	27383	27000	27	大阪府	南河内郡	千早赤阪村	ちはやあかさかむら	大阪府 千早赤阪村	chihayaakasaka-mura
+2025-10-01	prefecture	28000		28	兵庫県		兵庫県	ひょうごけん	兵庫県	web-ken
+2025-10-01	municipality	28100	28000	28	兵庫県		神戸市	こうべし	兵庫県 神戸市	kobe-shi
+2025-10-01	municipality	28201	28000	28	兵庫県		姫路市	ひめじし	兵庫県 姫路市	himeji-shi
+2025-10-01	municipality	28202	28000	28	兵庫県		尼崎市	あまがさきし	兵庫県 尼崎市	amagasaki-shi
+2025-10-01	municipality	28203	28000	28	兵庫県		明石市	あかしし	兵庫県 明石市	akashi-shi
+2025-10-01	municipality	28204	28000	28	兵庫県		西宮市	にしのみやし	兵庫県 西宮市	nishi-shi
+2025-10-01	municipality	28205	28000	28	兵庫県		洲本市	すもとし	兵庫県 洲本市	sumoto-shi
+2025-10-01	municipality	28206	28000	28	兵庫県		芦屋市	あしやし	兵庫県 芦屋市	ashiya-shi
+2025-10-01	municipality	28207	28000	28	兵庫県		伊丹市	いたみし	兵庫県 伊丹市	itami-shi
+2025-10-01	municipality	28208	28000	28	兵庫県		相生市	あいおいし	兵庫県 相生市	aioi-shi
+2025-10-01	municipality	28209	28000	28	兵庫県		豊岡市	とよおかし	兵庫県 豊岡市	toyooka-shi
+2025-10-01	municipality	28210	28000	28	兵庫県		加古川市	かこがわし	兵庫県 加古川市	kakogawa-shi
+2025-10-01	municipality	28212	28000	28	兵庫県		赤穂市	あこうし	兵庫県 赤穂市	ako-shi
+2025-10-01	municipality	28213	28000	28	兵庫県		西脇市	にしわきし	兵庫県 西脇市	nishiwaki-shi
+2025-10-01	municipality	28214	28000	28	兵庫県		宝塚市	たからづかし	兵庫県 宝塚市	takarazuka-shi
+2025-10-01	municipality	28215	28000	28	兵庫県		三木市	みきし	兵庫県 三木市	miki-shi
+2025-10-01	municipality	28216	28000	28	兵庫県		高砂市	たかさごし	兵庫県 高砂市	takasago-shi
+2025-10-01	municipality	28217	28000	28	兵庫県		川西市	かわにしし	兵庫県 川西市	kawanishi-shi
+2025-10-01	municipality	28218	28000	28	兵庫県		小野市	おのし	兵庫県 小野市	ono-shi
+2025-10-01	municipality	28219	28000	28	兵庫県		三田市	さんだし	兵庫県 三田市	sanda-shi
+2025-10-01	municipality	28220	28000	28	兵庫県		加西市	かさいし	兵庫県 加西市	kasai-shi
+2025-10-01	municipality	28221	28000	28	兵庫県		丹波篠山市	たんばささやまし	兵庫県 丹波篠山市	tambasasayama-shi
+2025-10-01	municipality	28222	28000	28	兵庫県		養父市	やぶし	兵庫県 養父市	yabu-shi
+2025-10-01	municipality	28223	28000	28	兵庫県		丹波市	たんばし	兵庫県 丹波市	tamba-shi
+2025-10-01	municipality	28224	28000	28	兵庫県		南あわじ市	みなみあわじし	兵庫県 南あわじ市	minamiawaji-shi
+2025-10-01	municipality	28225	28000	28	兵庫県		朝来市	あさごし	兵庫県 朝来市	asago-shi
+2025-10-01	municipality	28226	28000	28	兵庫県		淡路市	あわじし	兵庫県 淡路市	awaji-shi
+2025-10-01	municipality	28227	28000	28	兵庫県		宍粟市	しそうし	兵庫県 宍粟市	shiso-shi
+2025-10-01	municipality	28228	28000	28	兵庫県		加東市	かとうし	兵庫県 加東市	kato-shi
+2025-10-01	municipality	28229	28000	28	兵庫県		たつの市	たつのし	兵庫県 たつの市	tatsuno-shi
+2025-10-01	municipality	28301	28000	28	兵庫県	川辺郡	猪名川町	いながわちょう	兵庫県 猪名川町	inagawa-cho
+2025-10-01	municipality	28365	28000	28	兵庫県	多可郡	多可町	たかちょう	兵庫県 多可町	taka-cho
+2025-10-01	municipality	28381	28000	28	兵庫県	加古郡	稲美町	いなみちょう	兵庫県 稲美町	hyogo-inami-cho
+2025-10-01	municipality	28382	28000	28	兵庫県	加古郡	播磨町	はりまちょう	兵庫県 播磨町	harima-cho
+2025-10-01	municipality	28442	28000	28	兵庫県	神崎郡	市川町	いちかわちょう	兵庫県 市川町	ichikawa-cho
+2025-10-01	municipality	28443	28000	28	兵庫県	神崎郡	福崎町	ふくさきちょう	兵庫県 福崎町	fukusaki-cho
+2025-10-01	municipality	28446	28000	28	兵庫県	神崎郡	神河町	かみかわちょう	兵庫県 神河町	kamikawa-cho
+2025-10-01	municipality	28464	28000	28	兵庫県	揖保郡	太子町	たいしちょう	兵庫県 太子町	hyogo-taishi-cho
+2025-10-01	municipality	28481	28000	28	兵庫県	赤穂郡	上郡町	かみごおりちょう	兵庫県 上郡町	kamigori-cho
+2025-10-01	municipality	28501	28000	28	兵庫県	佐用郡	佐用町	さようちょう	兵庫県 佐用町	sayo-cho
+2025-10-01	municipality	28585	28000	28	兵庫県	美方郡	香美町	かみちょう	兵庫県 香美町	mikata-kami-cho
+2025-10-01	municipality	28586	28000	28	兵庫県	美方郡	新温泉町	しんおんせんちょう	兵庫県 新温泉町	shinonsen-cho
+2025-10-01	prefecture	29000		29	奈良県		奈良県	ならけん	奈良県	nara-ken
+2025-10-01	municipality	29201	29000	29	奈良県		奈良市	ならし	奈良県 奈良市	nara-shi
+2025-10-01	municipality	29202	29000	29	奈良県		大和高田市	やまとたかだし	奈良県 大和高田市	yamatotakada-shi
+2025-10-01	municipality	29203	29000	29	奈良県		大和郡山市	やまとこおりやまし	奈良県 大和郡山市	yamatokoriyama-shi
+2025-10-01	municipality	29204	29000	29	奈良県		天理市	てんりし	奈良県 天理市	tenri-shi
+2025-10-01	municipality	29205	29000	29	奈良県		橿原市	かしはらし	奈良県 橿原市	kashihara-shi
+2025-10-01	municipality	29206	29000	29	奈良県		桜井市	さくらいし	奈良県 桜井市	sakurai-shi
+2025-10-01	municipality	29207	29000	29	奈良県		五條市	ごじょうし	奈良県 五條市	gojo-shi
+2025-10-01	municipality	29208	29000	29	奈良県		御所市	ごせし	奈良県 御所市	gose-shi
+2025-10-01	municipality	29209	29000	29	奈良県		生駒市	いこまし	奈良県 生駒市	ikoma-shi
+2025-10-01	municipality	29210	29000	29	奈良県		香芝市	かしばし	奈良県 香芝市	kashiba-shi
+2025-10-01	municipality	29211	29000	29	奈良県		葛城市	かつらぎし	奈良県 葛城市	katsuragi-shi
+2025-10-01	municipality	29212	29000	29	奈良県		宇陀市	うだし	奈良県 宇陀市	uda-shi
+2025-10-01	municipality	29322	29000	29	奈良県	山辺郡	山添村	やまぞえむら	奈良県 山添村	yamazoe-mura
+2025-10-01	municipality	29342	29000	29	奈良県	生駒郡	平群町	へぐりちょう	奈良県 平群町	heguri-cho
+2025-10-01	municipality	29343	29000	29	奈良県	生駒郡	三郷町	さんごうちょう	奈良県 三郷町	sango-cho
+2025-10-01	municipality	29344	29000	29	奈良県	生駒郡	斑鳩町	いかるがちょう	奈良県 斑鳩町	ikaruga-cho
+2025-10-01	municipality	29345	29000	29	奈良県	生駒郡	安堵町	あんどちょう	奈良県 安堵町	ando-cho
+2025-10-01	municipality	29361	29000	29	奈良県	磯城郡	川西町	かわにしちょう	奈良県 川西町	nara-kawanishi-cho
+2025-10-01	municipality	29362	29000	29	奈良県	磯城郡	三宅町	みやけちょう	奈良県 三宅町	miyake-cho
+2025-10-01	municipality	29363	29000	29	奈良県	磯城郡	田原本町	たわらもとちょう	奈良県 田原本町	tawaramoto-cho
+2025-10-01	municipality	29385	29000	29	奈良県	宇陀郡	曽爾村	そにむら	奈良県 曽爾村	soni-mura
+2025-10-01	municipality	29386	29000	29	奈良県	宇陀郡	御杖村	みつえむら	奈良県 御杖村	mitsue-mura
+2025-10-01	municipality	29401	29000	29	奈良県	高市郡	高取町	たかとりちょう	奈良県 高取町	takatori-cho
+2025-10-01	municipality	29402	29000	29	奈良県	高市郡	明日香村	あすかむら	奈良県 明日香村	asukamura-mura
+2025-10-01	municipality	29424	29000	29	奈良県	北葛城郡	上牧町	かんまきちょう	奈良県 上牧町	kanmaki-cho
+2025-10-01	municipality	29425	29000	29	奈良県	北葛城郡	王寺町	おうじちょう	奈良県 王寺町	oji-cho
+2025-10-01	municipality	29426	29000	29	奈良県	北葛城郡	広陵町	こうりょうちょう	奈良県 広陵町	koryo-cho
+2025-10-01	municipality	29427	29000	29	奈良県	北葛城郡	河合町	かわいちょう	奈良県 河合町	kawai-cho
+2025-10-01	municipality	29441	29000	29	奈良県	吉野郡	吉野町	よしのちょう	奈良県 吉野町	yoshino-cho
+2025-10-01	municipality	29442	29000	29	奈良県	吉野郡	大淀町	おおよどちょう	奈良県 大淀町	oyodo-cho
+2025-10-01	municipality	29443	29000	29	奈良県	吉野郡	下市町	しもいちちょう	奈良県 下市町	shimoichi-cho
+2025-10-01	municipality	29444	29000	29	奈良県	吉野郡	黒滝村	くろたきむら	奈良県 黒滝村	kurotaki-mura
+2025-10-01	municipality	29446	29000	29	奈良県	吉野郡	天川村	てんかわむら	奈良県 天川村	tenkawa-mura
+2025-10-01	municipality	29447	29000	29	奈良県	吉野郡	野迫川村	のせがわむら	奈良県 野迫川村	nosegawa-mura
+2025-10-01	municipality	29449	29000	29	奈良県	吉野郡	十津川村	とつかわむら	奈良県 十津川村	totsukawa-mura
+2025-10-01	municipality	29450	29000	29	奈良県	吉野郡	下北山村	しもきたやまむら	奈良県 下北山村	shimokitayama-mura
+2025-10-01	municipality	29451	29000	29	奈良県	吉野郡	上北山村	かみきたやまむら	奈良県 上北山村	kamikitayama-mura
+2025-10-01	municipality	29452	29000	29	奈良県	吉野郡	川上村	かわかみむら	奈良県 川上村	kawakami-mura
+2025-10-01	municipality	29453	29000	29	奈良県	吉野郡	東吉野村	ひがしよしのむら	奈良県 東吉野村	higashiyoshino-mura
+2025-10-01	prefecture	30000		30	和歌山県		和歌山県	わかやまけん	和歌山県	wakayama-ken
+2025-10-01	municipality	30201	30000	30	和歌山県		和歌山市	わかやまし	和歌山県 和歌山市	wakayama-shi
+2025-10-01	municipality	30202	30000	30	和歌山県		海南市	かいなんし	和歌山県 海南市	kainan-shi
+2025-10-01	municipality	30203	30000	30	和歌山県		橋本市	はしもとし	和歌山県 橋本市	hashimoto-shi
+2025-10-01	municipality	30204	30000	30	和歌山県		有田市	ありだし	和歌山県 有田市	arida-shi
+2025-10-01	municipality	30205	30000	30	和歌山県		御坊市	ごぼうし	和歌山県 御坊市	gobo-shi
+2025-10-01	municipality	30206	30000	30	和歌山県		田辺市	たなべし	和歌山県 田辺市	tanabe-shi
+2025-10-01	municipality	30207	30000	30	和歌山県		新宮市	しんぐうし	和歌山県 新宮市	shingu-shi
+2025-10-01	municipality	30208	30000	30	和歌山県		紀の川市	きのかわし	和歌山県 紀の川市	kinokawa-shi
+2025-10-01	municipality	30209	30000	30	和歌山県		岩出市	いわでし	和歌山県 岩出市	iwade-shi
+2025-10-01	municipality	30304	30000	30	和歌山県	海草郡	紀美野町	きみのちょう	和歌山県 紀美野町	kimino-cho
+2025-10-01	municipality	30341	30000	30	和歌山県	伊都郡	かつらぎ町	かつらぎちょう	和歌山県 かつらぎ町	katsuragi-cho
+2025-10-01	municipality	30343	30000	30	和歌山県	伊都郡	九度山町	くどやまちょう	和歌山県 九度山町	kudoyama-cho
+2025-10-01	municipality	30344	30000	30	和歌山県	伊都郡	高野町	こうやちょう	和歌山県 高野町	koya-cho
+2025-10-01	municipality	30361	30000	30	和歌山県	有田郡	湯浅町	ゆあさちょう	和歌山県 湯浅町	yuasa-cho
+2025-10-01	municipality	30362	30000	30	和歌山県	有田郡	広川町	ひろがわちょう	和歌山県 広川町	hirogawa-cho
+2025-10-01	municipality	30366	30000	30	和歌山県	有田郡	有田川町	ありだがわちょう	和歌山県 有田川町	aridagawa-cho
+2025-10-01	municipality	30381	30000	30	和歌山県	日高郡	美浜町	みはまちょう	和歌山県 美浜町	mihama-cho
+2025-10-01	municipality	30382	30000	30	和歌山県	日高郡	日高町	ひだかちょう	和歌山県 日高町	wakayama-hidaka-cho
+2025-10-01	municipality	30383	30000	30	和歌山県	日高郡	由良町	ゆらちょう	和歌山県 由良町	yura-cho
+2025-10-01	municipality	30390	30000	30	和歌山県	日高郡	印南町	いなみちょう	和歌山県 印南町	wakayama-inami-cho
+2025-10-01	municipality	30391	30000	30	和歌山県	日高郡	みなべ町	みなべちょう	和歌山県 みなべ町	minabe-cho
+2025-10-01	municipality	30392	30000	30	和歌山県	日高郡	日高川町	ひだかがわちょう	和歌山県 日高川町	hidakagawa-cho
+2025-10-01	municipality	30401	30000	30	和歌山県	西牟婁郡	白浜町	しらはまちょう	和歌山県 白浜町	shirahama-cho
+2025-10-01	municipality	30404	30000	30	和歌山県	西牟婁郡	上富田町	かみとんだちょう	和歌山県 上富田町	kamitonda-cho
+2025-10-01	municipality	30406	30000	30	和歌山県	西牟婁郡	すさみ町	すさみちょう	和歌山県 すさみ町	susami-cho
+2025-10-01	municipality	30421	30000	30	和歌山県	東牟婁郡	那智勝浦町	なちかつうらちょう	和歌山県 那智勝浦町	nachikatsuura-cho
+2025-10-01	municipality	30422	30000	30	和歌山県	東牟婁郡	太地町	たいじちょう	和歌山県 太地町	taiji-cho
+2025-10-01	municipality	30424	30000	30	和歌山県	東牟婁郡	古座川町	こざがわちょう	和歌山県 古座川町	kozagawa-cho
+2025-10-01	municipality	30427	30000	30	和歌山県	東牟婁郡	北山村	きたやまむら	和歌山県 北山村	kitayama-mura
+2025-10-01	municipality	30428	30000	30	和歌山県	東牟婁郡	串本町	くしもとちょう	和歌山県 串本町	kushimoto-cho
+2025-10-01	prefecture	31000		31	鳥取県		鳥取県	とっとりけん	鳥取県	tottori-ken
+2025-10-01	municipality	31201	31000	31	鳥取県		鳥取市	とっとりし	鳥取県 鳥取市	tottori-shi
+2025-10-01	municipality	31202	31000	31	鳥取県		米子市	よなごし	鳥取県 米子市	yonago-shi
+2025-10-01	municipality	31203	31000	31	鳥取県		倉吉市	くらよしし	鳥取県 倉吉市	kurayoshi-shi
+2025-10-01	municipality	31204	31000	31	鳥取県		境港市	さかいみなとし	鳥取県 境港市	sakaiminato-shi
+2025-10-01	municipality	31302	31000	31	鳥取県	岩美郡	岩美町	いわみちょう	鳥取県 岩美町	iwami-cho
+2025-10-01	municipality	31325	31000	31	鳥取県	八頭郡	若桜町	わかさちょう	鳥取県 若桜町	wakasa-cho
+2025-10-01	municipality	31328	31000	31	鳥取県	八頭郡	智頭町	ちづちょう	鳥取県 智頭町	chizu-cho
+2025-10-01	municipality	31329	31000	31	鳥取県	八頭郡	八頭町	やずちょう	鳥取県 八頭町	yazu-cho
+2025-10-01	municipality	31364	31000	31	鳥取県	東伯郡	三朝町	みささちょう	鳥取県 三朝町	misasa-cho
+2025-10-01	municipality	31370	31000	31	鳥取県	東伯郡	湯梨浜町	ゆりはまちょう	鳥取県 湯梨浜町	yurihama-cho
+2025-10-01	municipality	31371	31000	31	鳥取県	東伯郡	琴浦町	ことうらちょう	鳥取県 琴浦町	kotoura-cho
+2025-10-01	municipality	31372	31000	31	鳥取県	東伯郡	北栄町	ほくえいちょう	鳥取県 北栄町	e-hokuei-cho
+2025-10-01	municipality	31384	31000	31	鳥取県	西伯郡	日吉津村	ひえづそん	鳥取県 日吉津村	hiezu-mura
+2025-10-01	municipality	31386	31000	31	鳥取県	西伯郡	大山町	だいせんちょう	鳥取県 大山町	daisen-cho
+2025-10-01	municipality	31389	31000	31	鳥取県	西伯郡	南部町	なんぶちょう	鳥取県 南部町	nanbu-cho
+2025-10-01	municipality	31390	31000	31	鳥取県	西伯郡	伯耆町	ほうきちょう	鳥取県 伯耆町	houki-town-cho
+2025-10-01	municipality	31401	31000	31	鳥取県	日野郡	日南町	にちなんちょう	鳥取県 日南町	nichinan-cho
+2025-10-01	municipality	31402	31000	31	鳥取県	日野郡	日野町	ひのちょう	鳥取県 日野町	hino-cho
+2025-10-01	municipality	31403	31000	31	鳥取県	日野郡	江府町	こうふちょう	鳥取県 江府町	town-kofu-cho
+2025-10-01	prefecture	32000		32	島根県		島根県	しまねけん	島根県	shimane-ken
+2025-10-01	municipality	32201	32000	32	島根県		松江市	まつえし	島根県 松江市	matsue-shi
+2025-10-01	municipality	32202	32000	32	島根県		浜田市	はまだし	島根県 浜田市	hamada-shi
+2025-10-01	municipality	32203	32000	32	島根県		出雲市	いずもし	島根県 出雲市	izumo-shi
+2025-10-01	municipality	32204	32000	32	島根県		益田市	ますだし	島根県 益田市	masuda-shi
+2025-10-01	municipality	32205	32000	32	島根県		大田市	おおだし	島根県 大田市	oda-shi
+2025-10-01	municipality	32206	32000	32	島根県		安来市	やすぎし	島根県 安来市	yasugi-shi
+2025-10-01	municipality	32207	32000	32	島根県		江津市	ごうつし	島根県 江津市	gotsu-shi
+2025-10-01	municipality	32209	32000	32	島根県		雲南市	うんなんし	島根県 雲南市	unnan-shi
+2025-10-01	municipality	32343	32000	32	島根県	仁多郡	奥出雲町	おくいずもちょう	島根県 奥出雲町	okuizumo-cho
+2025-10-01	municipality	32386	32000	32	島根県	飯石郡	飯南町	いいなんちょう	島根県 飯南町	iinan-cho
+2025-10-01	municipality	32441	32000	32	島根県	邑智郡	川本町	かわもとまち	島根県 川本町	shimane-kawamoto-cho
+2025-10-01	municipality	32448	32000	32	島根県	邑智郡	美郷町	みさとちょう	島根県 美郷町	shimane-misato-cho
+2025-10-01	municipality	32449	32000	32	島根県	邑智郡	邑南町	おおなんちょう	島根県 邑南町	ohnan-cho
+2025-10-01	municipality	32501	32000	32	島根県	鹿足郡	津和野町	つわのちょう	島根県 津和野町	tsuwano-cho
+2025-10-01	municipality	32505	32000	32	島根県	鹿足郡	吉賀町	よしかちょう	島根県 吉賀町	yoshika-cho
+2025-10-01	municipality	32525	32000	32	島根県	隠岐郡	海士町	あまちょう	島根県 海士町	ama-cho
+2025-10-01	municipality	32526	32000	32	島根県	隠岐郡	西ノ島町	にしのしまちょう	島根県 西ノ島町	nishinoshima-cho
+2025-10-01	municipality	32527	32000	32	島根県	隠岐郡	知夫村	ちぶむら	島根県 知夫村	chibu-mura
+2025-10-01	municipality	32528	32000	32	島根県	隠岐郡	隠岐の島町	おきのしまちょう	島根県 隠岐の島町	okinoshima-cho
+2025-10-01	prefecture	33000		33	岡山県		岡山県	おかやまけん	岡山県	okayama-ken
+2025-10-01	municipality	33100	33000	33	岡山県		岡山市	おかやまし	岡山県 岡山市	okayama-shi
+2025-10-01	municipality	33202	33000	33	岡山県		倉敷市	くらしきし	岡山県 倉敷市	kurashiki-shi
+2025-10-01	municipality	33203	33000	33	岡山県		津山市	つやまし	岡山県 津山市	tsuyama-shi
+2025-10-01	municipality	33204	33000	33	岡山県		玉野市	たまのし	岡山県 玉野市	tamano-shi
+2025-10-01	municipality	33205	33000	33	岡山県		笠岡市	かさおかし	岡山県 笠岡市	kasaoka-shi
+2025-10-01	municipality	33207	33000	33	岡山県		井原市	いばらし	岡山県 井原市	ibara-shi
+2025-10-01	municipality	33208	33000	33	岡山県		総社市	そうじゃし	岡山県 総社市	soja-shi
+2025-10-01	municipality	33209	33000	33	岡山県		高梁市	たかはしし	岡山県 高梁市	takahashi-shi
+2025-10-01	municipality	33210	33000	33	岡山県		新見市	にいみし	岡山県 新見市	niimi-shi
+2025-10-01	municipality	33211	33000	33	岡山県		備前市	びぜんし	岡山県 備前市	bizen-shi
+2025-10-01	municipality	33212	33000	33	岡山県		瀬戸内市	せとうちし	岡山県 瀬戸内市	setouchi-shi
+2025-10-01	municipality	33213	33000	33	岡山県		赤磐市	あかいわし	岡山県 赤磐市	akaiwa-shi
+2025-10-01	municipality	33214	33000	33	岡山県		真庭市	まにわし	岡山県 真庭市	maniwa-shi
+2025-10-01	municipality	33215	33000	33	岡山県		美作市	みまさかし	岡山県 美作市	mimasaka-shi
+2025-10-01	municipality	33216	33000	33	岡山県		浅口市	あさくちし	岡山県 浅口市	asakuchi-shi
+2025-10-01	municipality	33346	33000	33	岡山県	和気郡	和気町	わけちょう	岡山県 和気町	wake-cho
+2025-10-01	municipality	33423	33000	33	岡山県	都窪郡	早島町	はやしまちょう	岡山県 早島町	hayashima-cho
+2025-10-01	municipality	33445	33000	33	岡山県	浅口郡	里庄町	さとしょうちょう	岡山県 里庄町	satosho-cho
+2025-10-01	municipality	33461	33000	33	岡山県	小田郡	矢掛町	やかげちょう	岡山県 矢掛町	yakage-cho
+2025-10-01	municipality	33586	33000	33	岡山県	真庭郡	新庄村	しんじょうそん	岡山県 新庄村	shinjo-mura
+2025-10-01	municipality	33606	33000	33	岡山県	苫田郡	鏡野町	かがみのちょう	岡山県 鏡野町	kagamino-cho
+2025-10-01	municipality	33622	33000	33	岡山県	勝田郡	勝央町	しょうおうちょう	岡山県 勝央町	shoo-cho
+2025-10-01	municipality	33623	33000	33	岡山県	勝田郡	奈義町	なぎちょう	岡山県 奈義町	nagi-cho
+2025-10-01	municipality	33643	33000	33	岡山県	英田郡	西粟倉村	にしあわくらそん	岡山県 西粟倉村	nishiawakura-mura
+2025-10-01	municipality	33663	33000	33	岡山県	久米郡	久米南町	くめなんちょう	岡山県 久米南町	kumenan-cho
+2025-10-01	municipality	33666	33000	33	岡山県	久米郡	美咲町	みさきちょう	岡山県 美咲町	misaki-cho
+2025-10-01	municipality	33681	33000	33	岡山県	加賀郡	吉備中央町	きびちゅうおうちょう	岡山県 吉備中央町	kibichuo-cho
+2025-10-01	prefecture	34000		34	広島県		広島県	ひろしまけん	広島県	hiroshima-ken
+2025-10-01	municipality	34100	34000	34	広島県		広島市	ひろしまし	広島県 広島市	hiroshima-shi
+2025-10-01	municipality	34202	34000	34	広島県		呉市	くれし	広島県 呉市	kure-shi
+2025-10-01	municipality	34203	34000	34	広島県		竹原市	たけはらし	広島県 竹原市	takehara-shi
+2025-10-01	municipality	34204	34000	34	広島県		三原市	みはらし	広島県 三原市	mihara-shi
+2025-10-01	municipality	34205	34000	34	広島県		尾道市	おのみちし	広島県 尾道市	onomichi-shi
+2025-10-01	municipality	34207	34000	34	広島県		福山市	ふくやまし	広島県 福山市	fukuyama-shi
+2025-10-01	municipality	34208	34000	34	広島県		府中市	ふちゅうし	広島県 府中市	fuchu-shi
+2025-10-01	municipality	34209	34000	34	広島県		三次市	みよしし	広島県 三次市	miyoshi-shi
+2025-10-01	municipality	34210	34000	34	広島県		庄原市	しょうばらし	広島県 庄原市	shobara-shi
+2025-10-01	municipality	34211	34000	34	広島県		大竹市	おおたけし	広島県 大竹市	otake-shi
+2025-10-01	municipality	34212	34000	34	広島県		東広島市	ひがしひろしまし	広島県 東広島市	higashihiroshima-shi
+2025-10-01	municipality	34213	34000	34	広島県		廿日市市	はつかいちし	広島県 廿日市市	hatsukaichi-shi
+2025-10-01	municipality	34214	34000	34	広島県		安芸高田市	あきたかたし	広島県 安芸高田市	akitakata-shi
+2025-10-01	municipality	34215	34000	34	広島県		江田島市	えたじまし	広島県 江田島市	etajima-shi
+2025-10-01	municipality	34302	34000	34	広島県	安芸郡	府中町	ふちゅうちょう	広島県 府中町	fuchu-cho
+2025-10-01	municipality	34304	34000	34	広島県	安芸郡	海田町	かいたちょう	広島県 海田町	kaita-cho
+2025-10-01	municipality	34307	34000	34	広島県	安芸郡	熊野町	くまのちょう	広島県 熊野町	kumano-cho
+2025-10-01	municipality	34309	34000	34	広島県	安芸郡	坂町	さかちょう	広島県 坂町	saka-cho
+2025-10-01	municipality	34368	34000	34	広島県	山県郡	安芸太田町	あきおおたちょう	広島県 安芸太田町	akiota-cho
+2025-10-01	municipality	34369	34000	34	広島県	山県郡	北広島町	きたひろしまちょう	広島県 北広島町	kitahiroshima-cho
+2025-10-01	municipality	34431	34000	34	広島県	豊田郡	大崎上島町	おおさきかみじまちょう	広島県 大崎上島町	osakikamijima-cho
+2025-10-01	municipality	34462	34000	34	広島県	世羅郡	世羅町	せらちょう	広島県 世羅町	sera-cho
+2025-10-01	municipality	34545	34000	34	広島県	神石郡	神石高原町	じんせきこうげんちょう	広島県 神石高原町	jinsekigun-cho
+2025-10-01	prefecture	35000		35	山口県		山口県	やまぐちけん	山口県	yamaguchi-ken
+2025-10-01	municipality	35201	35000	35	山口県		下関市	しものせきし	山口県 下関市	shimonoseki-shi
+2025-10-01	municipality	35202	35000	35	山口県		宇部市	うべし	山口県 宇部市	ube-shi
+2025-10-01	municipality	35203	35000	35	山口県		山口市	やまぐちし	山口県 山口市	yamaguchi-shi
+2025-10-01	municipality	35204	35000	35	山口県		萩市	はぎし	山口県 萩市	hagi-shi
+2025-10-01	municipality	35206	35000	35	山口県		防府市	ほうふし	山口県 防府市	hofu-shi
+2025-10-01	municipality	35207	35000	35	山口県		下松市	くだまつし	山口県 下松市	kudamatsu-shi
+2025-10-01	municipality	35208	35000	35	山口県		岩国市	いわくにし	山口県 岩国市	iwakuni-shi
+2025-10-01	municipality	35210	35000	35	山口県		光市	ひかりし	山口県 光市	hikari-shi
+2025-10-01	municipality	35211	35000	35	山口県		長門市	ながとし	山口県 長門市	nagato-shi
+2025-10-01	municipality	35212	35000	35	山口県		柳井市	やないし	山口県 柳井市	city-yanai-shi
+2025-10-01	municipality	35213	35000	35	山口県		美祢市	みねし	山口県 美祢市	mine-shi
+2025-10-01	municipality	35215	35000	35	山口県		周南市	しゅうなんし	山口県 周南市	shunan-shi
+2025-10-01	municipality	35216	35000	35	山口県		山陽小野田市	さんようおのだし	山口県 山陽小野田市	sanyo-onoda-shi
+2025-10-01	municipality	35305	35000	35	山口県	大島郡	周防大島町	すおうおおしまちょう	山口県 周防大島町	suo-oshima-cho
+2025-10-01	municipality	35321	35000	35	山口県	玖珂郡	和木町	わきちょう	山口県 和木町	waki-cho
+2025-10-01	municipality	35341	35000	35	山口県	熊毛郡	上関町	かみのせきちょう	山口県 上関町	kaminoseki-cho
+2025-10-01	municipality	35343	35000	35	山口県	熊毛郡	田布施町	たぶせちょう	山口県 田布施町	tabuse-cho
+2025-10-01	municipality	35344	35000	35	山口県	熊毛郡	平生町	ひらおちょう	山口県 平生町	hirao-cho
+2025-10-01	municipality	35502	35000	35	山口県	阿武郡	阿武町	あぶちょう	山口県 阿武町	abu-cho
+2025-10-01	prefecture	36000		36	徳島県		徳島県	とくしまけん	徳島県	tokushima-ken
+2025-10-01	municipality	36201	36000	36	徳島県		徳島市	とくしまし	徳島県 徳島市	tokushima-shi
+2025-10-01	municipality	36202	36000	36	徳島県		鳴門市	なるとし	徳島県 鳴門市	naruto-shi
+2025-10-01	municipality	36203	36000	36	徳島県		小松島市	こまつしまし	徳島県 小松島市	komatsushima-shi
+2025-10-01	municipality	36204	36000	36	徳島県		阿南市	あなんし	徳島県 阿南市	anan-shi
+2025-10-01	municipality	36205	36000	36	徳島県		吉野川市	よしのがわし	徳島県 吉野川市	yoshinogawa-shi
+2025-10-01	municipality	36206	36000	36	徳島県		阿波市	あわし	徳島県 阿波市	awa-shi
+2025-10-01	municipality	36207	36000	36	徳島県		美馬市	みまし	徳島県 美馬市	mima-shi
+2025-10-01	municipality	36208	36000	36	徳島県		三好市	みよしし	徳島県 三好市	miyoshi-shi
+2025-10-01	municipality	36301	36000	36	徳島県	勝浦郡	勝浦町	かつうらちょう	徳島県 勝浦町	katsuura-cho
+2025-10-01	municipality	36302	36000	36	徳島県	勝浦郡	上勝町	かみかつちょう	徳島県 上勝町	kamikatsu-cho
+2025-10-01	municipality	36321	36000	36	徳島県	名東郡	佐那河内村	さなごうちそん	徳島県 佐那河内村	sanagochi-mura
+2025-10-01	municipality	36341	36000	36	徳島県	名西郡	石井町	いしいちょう	徳島県 石井町	ishii-cho
+2025-10-01	municipality	36342	36000	36	徳島県	名西郡	神山町	かみやまちょう	徳島県 神山町	kamiyama-cho
+2025-10-01	municipality	36368	36000	36	徳島県	那賀郡	那賀町	なかちょう	徳島県 那賀町	tokushima-naka-cho
+2025-10-01	municipality	36383	36000	36	徳島県	海部郡	牟岐町	むぎちょう	徳島県 牟岐町	tokushima-mugi-cho
+2025-10-01	municipality	36387	36000	36	徳島県	海部郡	美波町	みなみちょう	徳島県 美波町	minami-cho
+2025-10-01	municipality	36388	36000	36	徳島県	海部郡	海陽町	かいようちょう	徳島県 海陽町	kaiyo-cho
+2025-10-01	municipality	36401	36000	36	徳島県	板野郡	松茂町	まつしげちょう	徳島県 松茂町	matsushige-cho
+2025-10-01	municipality	36402	36000	36	徳島県	板野郡	北島町	きたじまちょう	徳島県 北島町	kitajima-cho
+2025-10-01	municipality	36403	36000	36	徳島県	板野郡	藍住町	あいずみちょう	徳島県 藍住町	aizumi-cho
+2025-10-01	municipality	36404	36000	36	徳島県	板野郡	板野町	いたのちょう	徳島県 板野町	itano-cho
+2025-10-01	municipality	36405	36000	36	徳島県	板野郡	上板町	かみいたちょう	徳島県 上板町	townkamiita-cho
+2025-10-01	municipality	36468	36000	36	徳島県	美馬郡	つるぎ町	つるぎちょう	徳島県 つるぎ町	tokushima-tsurugi-cho
+2025-10-01	municipality	36489	36000	36	徳島県	三好郡	東みよし町	ひがしみよしちょう	徳島県 東みよし町	higashimiyoshi-cho
+2025-10-01	prefecture	37000		37	香川県		香川県	かがわけん	香川県	kagawa-ken
+2025-10-01	municipality	37201	37000	37	香川県		高松市	たかまつし	香川県 高松市	takamatsu-shi
+2025-10-01	municipality	37202	37000	37	香川県		丸亀市	まるがめし	香川県 丸亀市	marugame-shi
+2025-10-01	municipality	37203	37000	37	香川県		坂出市	さかいでし	香川県 坂出市	sakaide-shi
+2025-10-01	municipality	37204	37000	37	香川県		善通寺市	ぜんつうじし	香川県 善通寺市	zentsuji-shi
+2025-10-01	municipality	37205	37000	37	香川県		観音寺市	かんおんじし	香川県 観音寺市	kanonji-shi
+2025-10-01	municipality	37206	37000	37	香川県		さぬき市	さぬきし	香川県 さぬき市	sanuki-shi
+2025-10-01	municipality	37207	37000	37	香川県		東かがわ市	ひがしかがわし	香川県 東かがわ市	higashikagawa-shi
+2025-10-01	municipality	37208	37000	37	香川県		三豊市	みとよし	香川県 三豊市	mitoyo-shi
+2025-10-01	municipality	37322	37000	37	香川県	小豆郡	土庄町	とのしょうちょう	香川県 土庄町	tonosho-cho
+2025-10-01	municipality	37324	37000	37	香川県	小豆郡	小豆島町	しょうどしまちょう	香川県 小豆島町	shodoshima-cho
+2025-10-01	municipality	37341	37000	37	香川県	木田郡	三木町	みきちょう	香川県 三木町	miki-cho
+2025-10-01	municipality	37364	37000	37	香川県	香川郡	直島町	なおしまちょう	香川県 直島町	naoshima-cho
+2025-10-01	municipality	37386	37000	37	香川県	綾歌郡	宇多津町	うたづちょう	香川県 宇多津町	utazu-cho
+2025-10-01	municipality	37387	37000	37	香川県	綾歌郡	綾川町	あやがわちょう	香川県 綾川町	ayagawa-cho
+2025-10-01	municipality	37403	37000	37	香川県	仲多度郡	琴平町	ことひらちょう	香川県 琴平町	kotohira-cho
+2025-10-01	municipality	37404	37000	37	香川県	仲多度郡	多度津町	たどつちょう	香川県 多度津町	tadotsu-cho
+2025-10-01	municipality	37406	37000	37	香川県	仲多度郡	まんのう町	まんのうちょう	香川県 まんのう町	manno-cho
+2025-10-01	prefecture	38000		38	愛媛県		愛媛県	えひめけん	愛媛県	ehime-ken
+2025-10-01	municipality	38201	38000	38	愛媛県		松山市	まつやまし	愛媛県 松山市	matsuyama-shi
+2025-10-01	municipality	38202	38000	38	愛媛県		今治市	いまばりし	愛媛県 今治市	imabari-shi
+2025-10-01	municipality	38203	38000	38	愛媛県		宇和島市	うわじまし	愛媛県 宇和島市	uwajima-shi
+2025-10-01	municipality	38204	38000	38	愛媛県		八幡浜市	やわたはまし	愛媛県 八幡浜市	yawatahama-shi
+2025-10-01	municipality	38205	38000	38	愛媛県		新居浜市	にいはまし	愛媛県 新居浜市	niihama-shi
+2025-10-01	municipality	38206	38000	38	愛媛県		西条市	さいじょうし	愛媛県 西条市	saijo-shi
+2025-10-01	municipality	38207	38000	38	愛媛県		大洲市	おおずし	愛媛県 大洲市	ozu-shi
+2025-10-01	municipality	38210	38000	38	愛媛県		伊予市	いよし	愛媛県 伊予市	iyo-shi
+2025-10-01	municipality	38213	38000	38	愛媛県		四国中央市	しこくちゅうおうし	愛媛県 四国中央市	shikokuchuo-shi
+2025-10-01	municipality	38214	38000	38	愛媛県		西予市	せいよし	愛媛県 西予市	seiyo-shi
+2025-10-01	municipality	38215	38000	38	愛媛県		東温市	とうおんし	愛媛県 東温市	toon-shi
+2025-10-01	municipality	38356	38000	38	愛媛県	越智郡	上島町	かみじまちょう	愛媛県 上島町	kamijima-cho
+2025-10-01	municipality	38386	38000	38	愛媛県	上浮穴郡	久万高原町	くまこうげんちょう	愛媛県 久万高原町	kumakogen-cho
+2025-10-01	municipality	38401	38000	38	愛媛県	伊予郡	松前町	まさきちょう	愛媛県 松前町	masaki-cho
+2025-10-01	municipality	38402	38000	38	愛媛県	伊予郡	砥部町	とべちょう	愛媛県 砥部町	tobe-cho
+2025-10-01	municipality	38422	38000	38	愛媛県	喜多郡	内子町	うちこちょう	愛媛県 内子町	uchiko-cho
+2025-10-01	municipality	38442	38000	38	愛媛県	西宇和郡	伊方町	いかたちょう	愛媛県 伊方町	ikata-cho
+2025-10-01	municipality	38484	38000	38	愛媛県	北宇和郡	松野町	まつのちょう	愛媛県 松野町	matsuno-cho
+2025-10-01	municipality	38488	38000	38	愛媛県	北宇和郡	鬼北町	きほくちょう	愛媛県 鬼北町	kihoku-cho
+2025-10-01	municipality	38506	38000	38	愛媛県	南宇和郡	愛南町	あいなんちょう	愛媛県 愛南町	ainan-cho
+2025-10-01	prefecture	39000		39	高知県		高知県	こうちけん	高知県	kochi-ken
+2025-10-01	municipality	39201	39000	39	高知県		高知市	こうちし	高知県 高知市	kochi-shi
+2025-10-01	municipality	39202	39000	39	高知県		室戸市	むろとし	高知県 室戸市	muroto-shi
+2025-10-01	municipality	39203	39000	39	高知県		安芸市	あきし	高知県 安芸市	aki-shi
+2025-10-01	municipality	39204	39000	39	高知県		南国市	なんこくし	高知県 南国市	nankoku-shi
+2025-10-01	municipality	39205	39000	39	高知県		土佐市	とさし	高知県 土佐市	tosa-shi
+2025-10-01	municipality	39206	39000	39	高知県		須崎市	すさきし	高知県 須崎市	susaki-shi
+2025-10-01	municipality	39208	39000	39	高知県		宿毛市	すくもし	高知県 宿毛市	sukumo-shi
+2025-10-01	municipality	39209	39000	39	高知県		土佐清水市	とさしみずし	高知県 土佐清水市	tosashimizu-shi
+2025-10-01	municipality	39210	39000	39	高知県		四万十市	しまんとし	高知県 四万十市	shimanto-shi
+2025-10-01	municipality	39211	39000	39	高知県		香南市	こうなんし	高知県 香南市	kochi-konan-shi
+2025-10-01	municipality	39212	39000	39	高知県		香美市	かみし	高知県 香美市	kami-shi
+2025-10-01	municipality	39301	39000	39	高知県	安芸郡	東洋町	とうようちょう	高知県 東洋町	toyo-cho
+2025-10-01	municipality	39302	39000	39	高知県	安芸郡	奈半利町	なはりちょう	高知県 奈半利町	nahari-cho
+2025-10-01	municipality	39303	39000	39	高知県	安芸郡	田野町	たのちょう	高知県 田野町	tanocho-cho
+2025-10-01	municipality	39304	39000	39	高知県	安芸郡	安田町	やすだちょう	高知県 安田町	yasuda-cho
+2025-10-01	municipality	39305	39000	39	高知県	安芸郡	北川村	きたがわむら	高知県 北川村	kitagawamura-mura
+2025-10-01	municipality	39306	39000	39	高知県	安芸郡	馬路村	うまじむら	高知県 馬路村	umaji-mura
+2025-10-01	municipality	39307	39000	39	高知県	安芸郡	芸西村	げいせいむら	高知県 芸西村	geisei-mura
+2025-10-01	municipality	39341	39000	39	高知県	長岡郡	本山町	もとやまちょう	高知県 本山町	motoyama-cho
+2025-10-01	municipality	39344	39000	39	高知県	長岡郡	大豊町	おおとよちょう	高知県 大豊町	otoyo-cho
+2025-10-01	municipality	39363	39000	39	高知県	土佐郡	土佐町	とさちょう	高知県 土佐町	tosa-cho
+2025-10-01	municipality	39364	39000	39	高知県	土佐郡	大川村	おおかわむら	高知県 大川村	okawa-mura
+2025-10-01	municipality	39386	39000	39	高知県	吾川郡	いの町	いのちょう	高知県 いの町	ino-cho
+2025-10-01	municipality	39387	39000	39	高知県	吾川郡	仁淀川町	によどがわちょう	高知県 仁淀川町	niyodogawa-cho
+2025-10-01	municipality	39401	39000	39	高知県	高岡郡	中土佐町	なかとさちょう	高知県 中土佐町	nakatosa-cho
+2025-10-01	municipality	39402	39000	39	高知県	高岡郡	佐川町	さかわちょう	高知県 佐川町	sakawa-cho
+2025-10-01	municipality	39403	39000	39	高知県	高岡郡	越知町	おちちょう	高知県 越知町	ochi-cho
+2025-10-01	municipality	39405	39000	39	高知県	高岡郡	檮原町	ゆすはらちょう	高知県 檮原町	yusuhara-cho
+2025-10-01	municipality	39410	39000	39	高知県	高岡郡	日高村	ひだかむら	高知県 日高村	hidaka-mura
+2025-10-01	municipality	39411	39000	39	高知県	高岡郡	津野町	つのちょう	高知県 津野町	kochi-tsuno-cho
+2025-10-01	municipality	39412	39000	39	高知県	高岡郡	四万十町	しまんとちょう	高知県 四万十町	shimanto-cho
+2025-10-01	municipality	39424	39000	39	高知県	幡多郡	大月町	おおつきちょう	高知県 大月町	otsuki-cho
+2025-10-01	municipality	39427	39000	39	高知県	幡多郡	三原村	みはらむら	高知県 三原村	mihara-mura
+2025-10-01	municipality	39428	39000	39	高知県	幡多郡	黒潮町	くろしおちょう	高知県 黒潮町	kuroshio-cho
+2025-10-01	prefecture	40000		40	福岡県		福岡県	ふくおかけん	福岡県	fukuoka-ken
+2025-10-01	municipality	40100	40000	40	福岡県		北九州市	きたきゅうしゅうし	福岡県 北九州市	kitakyushu-shi
+2025-10-01	municipality	40130	40000	40	福岡県		福岡市	ふくおかし	福岡県 福岡市	fukuoka-shi
+2025-10-01	municipality	40202	40000	40	福岡県		大牟田市	おおむたし	福岡県 大牟田市	omuta-shi
+2025-10-01	municipality	40203	40000	40	福岡県		久留米市	くるめし	福岡県 久留米市	kurume-shi
+2025-10-01	municipality	40204	40000	40	福岡県		直方市	のおがたし	福岡県 直方市	nogata-shi
+2025-10-01	municipality	40205	40000	40	福岡県		飯塚市	いいづかし	福岡県 飯塚市	iizuka-shi
+2025-10-01	municipality	40206	40000	40	福岡県		田川市	たがわし	福岡県 田川市	joho-shi
+2025-10-01	municipality	40207	40000	40	福岡県		柳川市	やながわし	福岡県 柳川市	yanagawa-shi
+2025-10-01	municipality	40210	40000	40	福岡県		八女市	やめし	福岡県 八女市	yame-shi
+2025-10-01	municipality	40211	40000	40	福岡県		筑後市	ちくごし	福岡県 筑後市	chikugo-shi
+2025-10-01	municipality	40212	40000	40	福岡県		大川市	おおかわし	福岡県 大川市	okawa-shi
+2025-10-01	municipality	40213	40000	40	福岡県		行橋市	ゆくはしし	福岡県 行橋市	yukuhashi-shi
+2025-10-01	municipality	40214	40000	40	福岡県		豊前市	ぶぜんし	福岡県 豊前市	buzen-shi
+2025-10-01	municipality	40215	40000	40	福岡県		中間市	なかまし	福岡県 中間市	nakama-shi
+2025-10-01	municipality	40216	40000	40	福岡県		小郡市	おごおりし	福岡県 小郡市	ogori-shi
+2025-10-01	municipality	40217	40000	40	福岡県		筑紫野市	ちくしのし	福岡県 筑紫野市	chikushino-shi
+2025-10-01	municipality	40218	40000	40	福岡県		春日市	かすがし	福岡県 春日市	kasuga-shi
+2025-10-01	municipality	40219	40000	40	福岡県		大野城市	おおのじょうし	福岡県 大野城市	onojo-shi
+2025-10-01	municipality	40220	40000	40	福岡県		宗像市	むなかたし	福岡県 宗像市	munakata-shi
+2025-10-01	municipality	40221	40000	40	福岡県		太宰府市	だざいふし	福岡県 太宰府市	dazaifu-shi
+2025-10-01	municipality	40223	40000	40	福岡県		古賀市	こがし	福岡県 古賀市	koga-shi
+2025-10-01	municipality	40224	40000	40	福岡県		福津市	ふくつし	福岡県 福津市	fukutsu-shi
+2025-10-01	municipality	40225	40000	40	福岡県		うきは市	うきはし	福岡県 うきは市	ukiha-shi
+2025-10-01	municipality	40226	40000	40	福岡県		宮若市	みやわかし	福岡県 宮若市	miyawaka-shi
+2025-10-01	municipality	40227	40000	40	福岡県		嘉麻市	かまし	福岡県 嘉麻市	kama-shi
+2025-10-01	municipality	40228	40000	40	福岡県		朝倉市	あさくらし	福岡県 朝倉市	asakura-shi
+2025-10-01	municipality	40229	40000	40	福岡県		みやま市	みやまし	福岡県 みやま市	miyama-shi
+2025-10-01	municipality	40230	40000	40	福岡県		糸島市	いとしまし	福岡県 糸島市	itoshima-shi
+2025-10-01	municipality	40231	40000	40	福岡県		那珂川市	なかがわし	福岡県 那珂川市	nakagawa-shi
+2025-10-01	municipality	40341	40000	40	福岡県	糟屋郡	宇美町	うみまち	福岡県 宇美町	umi-cho
+2025-10-01	municipality	40342	40000	40	福岡県	糟屋郡	篠栗町	ささぐりまち	福岡県 篠栗町	sasaguri-cho
+2025-10-01	municipality	40343	40000	40	福岡県	糟屋郡	志免町	しめまち	福岡県 志免町	shime-cho
+2025-10-01	municipality	40344	40000	40	福岡県	糟屋郡	須恵町	すえまち	福岡県 須恵町	sue-cho
+2025-10-01	municipality	40345	40000	40	福岡県	糟屋郡	新宮町	しんぐうまち	福岡県 新宮町	shingu-cho
+2025-10-01	municipality	40348	40000	40	福岡県	糟屋郡	久山町	ひさやままち	福岡県 久山町	hisayama-cho
+2025-10-01	municipality	40349	40000	40	福岡県	糟屋郡	粕屋町	かすやまち	福岡県 粕屋町	kasuya-cho
+2025-10-01	municipality	40381	40000	40	福岡県	遠賀郡	芦屋町	あしやまち	福岡県 芦屋町	ashiya-cho
+2025-10-01	municipality	40382	40000	40	福岡県	遠賀郡	水巻町	みずまきまち	福岡県 水巻町	mizumaki-cho
+2025-10-01	municipality	40383	40000	40	福岡県	遠賀郡	岡垣町	おかがきまち	福岡県 岡垣町	okagaki-cho
+2025-10-01	municipality	40384	40000	40	福岡県	遠賀郡	遠賀町	おんがちょう	福岡県 遠賀町	onga-cho
+2025-10-01	municipality	40401	40000	40	福岡県	鞍手郡	小竹町	こたけまち	福岡県 小竹町	kotake-cho
+2025-10-01	municipality	40402	40000	40	福岡県	鞍手郡	鞍手町	くらてまち	福岡県 鞍手町	kurate-cho
+2025-10-01	municipality	40421	40000	40	福岡県	嘉穂郡	桂川町	けいせんまち	福岡県 桂川町	keisen-cho
+2025-10-01	municipality	40447	40000	40	福岡県	朝倉郡	筑前町	ちくぜんまち	福岡県 筑前町	chikuzen-cho
+2025-10-01	municipality	40448	40000	40	福岡県	朝倉郡	東峰村	とうほうむら	福岡県 東峰村	toho-info-mura
+2025-10-01	municipality	40503	40000	40	福岡県	三井郡	大刀洗町	たちあらいまち	福岡県 大刀洗町	tachiarai-cho
+2025-10-01	municipality	40522	40000	40	福岡県	三潴郡	大木町	おおきまち	福岡県 大木町	ooki-cho
+2025-10-01	municipality	40544	40000	40	福岡県	八女郡	広川町	ひろかわまち	福岡県 広川町	hirokawa-cho
+2025-10-01	municipality	40601	40000	40	福岡県	田川郡	香春町	かわらまち	福岡県 香春町	kawara-cho
+2025-10-01	municipality	40602	40000	40	福岡県	田川郡	添田町	そえだまち	福岡県 添田町	soeda-cho
+2025-10-01	municipality	40604	40000	40	福岡県	田川郡	糸田町	いとだまち	福岡県 糸田町	itoda-cho
+2025-10-01	municipality	40605	40000	40	福岡県	田川郡	川崎町	かわさきまち	福岡県 川崎町	town-kawasaki-cho
+2025-10-01	municipality	40608	40000	40	福岡県	田川郡	大任町	おおとうまち	福岡県 大任町	oto-cho
+2025-10-01	municipality	40609	40000	40	福岡県	田川郡	赤村	あかむら	福岡県 赤村	akamura-mura
+2025-10-01	municipality	40610	40000	40	福岡県	田川郡	福智町	ふくちまち	福岡県 福智町	fukuchi-cho
+2025-10-01	municipality	40621	40000	40	福岡県	京都郡	苅田町	かんだまち	福岡県 苅田町	kanda-cho
+2025-10-01	municipality	40625	40000	40	福岡県	京都郡	みやこ町	みやこまち	福岡県 みやこ町	miyako-cho
+2025-10-01	municipality	40642	40000	40	福岡県	築上郡	吉富町	よしとみまち	福岡県 吉富町	yoshitomi-cho
+2025-10-01	municipality	40646	40000	40	福岡県	築上郡	上毛町	こうげまち	福岡県 上毛町	koge-cho
+2025-10-01	municipality	40647	40000	40	福岡県	築上郡	築上町	ちくじょうまち	福岡県 築上町	chikujo-cho
+2025-10-01	prefecture	41000		41	佐賀県		佐賀県	さがけん	佐賀県	saga-ken
+2025-10-01	municipality	41201	41000	41	佐賀県		佐賀市	さがし	佐賀県 佐賀市	saga-shi
+2025-10-01	municipality	41202	41000	41	佐賀県		唐津市	からつし	佐賀県 唐津市	karatsu-shi
+2025-10-01	municipality	41203	41000	41	佐賀県		鳥栖市	とすし	佐賀県 鳥栖市	tosu-shi
+2025-10-01	municipality	41204	41000	41	佐賀県		多久市	たくし	佐賀県 多久市	taku-shi
+2025-10-01	municipality	41205	41000	41	佐賀県		伊万里市	いまりし	佐賀県 伊万里市	imari-shi
+2025-10-01	municipality	41206	41000	41	佐賀県		武雄市	たけおし	佐賀県 武雄市	takeo-shi
+2025-10-01	municipality	41207	41000	41	佐賀県		鹿島市	かしまし	佐賀県 鹿島市	saga-kashima-shi
+2025-10-01	municipality	41208	41000	41	佐賀県		小城市	おぎし	佐賀県 小城市	ogi-shi
+2025-10-01	municipality	41209	41000	41	佐賀県		嬉野市	うれしのし	佐賀県 嬉野市	ureshino-shi
+2025-10-01	municipality	41210	41000	41	佐賀県		神埼市	かんざきし	佐賀県 神埼市	kanzaki-shi
+2025-10-01	municipality	41327	41000	41	佐賀県	神埼郡	吉野ヶ里町	よしのがりちょう	佐賀県 吉野ヶ里町	yoshinogari-cho
+2025-10-01	municipality	41341	41000	41	佐賀県	三養基郡	基山町	きやまちょう	佐賀県 基山町	kiyama-cho
+2025-10-01	municipality	41345	41000	41	佐賀県	三養基郡	上峰町	かみみねちょう	佐賀県 上峰町	kamimine-cho
+2025-10-01	municipality	41346	41000	41	佐賀県	三養基郡	みやき町	みやきちょう	佐賀県 みやき町	miyaki-cho
+2025-10-01	municipality	41387	41000	41	佐賀県	東松浦郡	玄海町	げんかいちょう	佐賀県 玄海町	genkai-cho
+2025-10-01	municipality	41401	41000	41	佐賀県	西松浦郡	有田町	ありたちょう	佐賀県 有田町	arita-cho
+2025-10-01	municipality	41423	41000	41	佐賀県	杵島郡	大町町	おおまちちょう	佐賀県 大町町	omachi-cho
+2025-10-01	municipality	41424	41000	41	佐賀県	杵島郡	江北町	こうほくまち	佐賀県 江北町	kouhoku-cho
+2025-10-01	municipality	41425	41000	41	佐賀県	杵島郡	白石町	しろいしちょう	佐賀県 白石町	shiroishi-cho
+2025-10-01	municipality	41441	41000	41	佐賀県	藤津郡	太良町	たらちょう	佐賀県 太良町	tara-cho
+2025-10-01	prefecture	42000		42	長崎県		長崎県	ながさきけん	長崎県	nagasaki-ken
+2025-10-01	municipality	42201	42000	42	長崎県		長崎市	ながさきし	長崎県 長崎市	nagasaki-shi
+2025-10-01	municipality	42202	42000	42	長崎県		佐世保市	させぼし	長崎県 佐世保市	sasebo-shi
+2025-10-01	municipality	42203	42000	42	長崎県		島原市	しまばらし	長崎県 島原市	shimabara-shi
+2025-10-01	municipality	42204	42000	42	長崎県		諫早市	いさはやし	長崎県 諫早市	isahaya-shi
+2025-10-01	municipality	42205	42000	42	長崎県		大村市	おおむらし	長崎県 大村市	omura-shi
+2025-10-01	municipality	42207	42000	42	長崎県		平戸市	ひらどし	長崎県 平戸市	hirado-shi
+2025-10-01	municipality	42208	42000	42	長崎県		松浦市	まつうらし	長崎県 松浦市	city-matsuura-shi
+2025-10-01	municipality	42209	42000	42	長崎県		対馬市	つしまし	長崎県 対馬市	tsushima-shi
+2025-10-01	municipality	42210	42000	42	長崎県		壱岐市	いきし	長崎県 壱岐市	iki-shi
+2025-10-01	municipality	42211	42000	42	長崎県		五島市	ごとうし	長崎県 五島市	goto-shi
+2025-10-01	municipality	42212	42000	42	長崎県		西海市	さいかいし	長崎県 西海市	saikai-shi
+2025-10-01	municipality	42213	42000	42	長崎県		雲仙市	うんぜんし	長崎県 雲仙市	unzen-shi
+2025-10-01	municipality	42214	42000	42	長崎県		南島原市	みなみしまばらし	長崎県 南島原市	minamishimabara-shi
+2025-10-01	municipality	42307	42000	42	長崎県	西彼杵郡	長与町	ながよちょう	長崎県 長与町	webtown-cho
+2025-10-01	municipality	42308	42000	42	長崎県	西彼杵郡	時津町	とぎつちょう	長崎県 時津町	togitsu-cho
+2025-10-01	municipality	42321	42000	42	長崎県	東彼杵郡	東彼杵町	ひがしそのぎちょう	長崎県 東彼杵町	sonogi-cho
+2025-10-01	municipality	42322	42000	42	長崎県	東彼杵郡	川棚町	かわたなちょう	長崎県 川棚町	kawatana-cho
+2025-10-01	municipality	42323	42000	42	長崎県	東彼杵郡	波佐見町	はさみちょう	長崎県 波佐見町	hasami-cho
+2025-10-01	municipality	42383	42000	42	長崎県	北松浦郡	小値賀町	おぢかちょう	長崎県 小値賀町	ojika-cho
+2025-10-01	municipality	42391	42000	42	長崎県	北松浦郡	佐々町	さざちょう	長崎県 佐々町	sazacho-nagasaki-cho
+2025-10-01	municipality	42411	42000	42	長崎県	南松浦郡	新上五島町	しんかみごとうちょう	長崎県 新上五島町	official-cho
+2025-10-01	prefecture	43000		43	熊本県		熊本県	くまもとけん	熊本県	kumamoto-ken
+2025-10-01	municipality	43100	43000	43	熊本県		熊本市	くまもとし	熊本県 熊本市	kumamoto-shi
+2025-10-01	municipality	43202	43000	43	熊本県		八代市	やつしろし	熊本県 八代市	yatsushiro-shi
+2025-10-01	municipality	43203	43000	43	熊本県		人吉市	ひとよしし	熊本県 人吉市	hitoyoshi-shi
+2025-10-01	municipality	43204	43000	43	熊本県		荒尾市	あらおし	熊本県 荒尾市	arao-shi
+2025-10-01	municipality	43205	43000	43	熊本県		水俣市	みなまたし	熊本県 水俣市	minamata-shi
+2025-10-01	municipality	43206	43000	43	熊本県		玉名市	たまなし	熊本県 玉名市	tamana-shi
+2025-10-01	municipality	43208	43000	43	熊本県		山鹿市	やまがし	熊本県 山鹿市	yamaga-shi
+2025-10-01	municipality	43210	43000	43	熊本県		菊池市	きくちし	熊本県 菊池市	kikuchi-shi
+2025-10-01	municipality	43211	43000	43	熊本県		宇土市	うとし	熊本県 宇土市	uto-shi
+2025-10-01	municipality	43212	43000	43	熊本県		上天草市	かみあまくさし	熊本県 上天草市	kamiamakusa-shi
+2025-10-01	municipality	43213	43000	43	熊本県		宇城市	うきし	熊本県 宇城市	uki-shi
+2025-10-01	municipality	43214	43000	43	熊本県		阿蘇市	あそし	熊本県 阿蘇市	aso-shi
+2025-10-01	municipality	43215	43000	43	熊本県		天草市	あまくさし	熊本県 天草市	amakusa-shi
+2025-10-01	municipality	43216	43000	43	熊本県		合志市	こうしし	熊本県 合志市	koshi-shi
+2025-10-01	municipality	43348	43000	43	熊本県	下益城郡	美里町	みさとまち	熊本県 美里町	kumamoto-misato-cho
+2025-10-01	municipality	43364	43000	43	熊本県	玉名郡	玉東町	ぎょくとうまち	熊本県 玉東町	gyokuto-cho
+2025-10-01	municipality	43367	43000	43	熊本県	玉名郡	南関町	なんかんまち	熊本県 南関町	nankan-cho
+2025-10-01	municipality	43368	43000	43	熊本県	玉名郡	長洲町	ながすまち	熊本県 長洲町	nagasu-cho
+2025-10-01	municipality	43369	43000	43	熊本県	玉名郡	和水町	なごみまち	熊本県 和水町	nagomi-cho
+2025-10-01	municipality	43403	43000	43	熊本県	菊池郡	大津町	おおづまち	熊本県 大津町	ozu-cho
+2025-10-01	municipality	43404	43000	43	熊本県	菊池郡	菊陽町	きくようまち	熊本県 菊陽町	kikuyo-cho
+2025-10-01	municipality	43423	43000	43	熊本県	阿蘇郡	南小国町	みなみおぐにまち	熊本県 南小国町	minamioguni-cho
+2025-10-01	municipality	43424	43000	43	熊本県	阿蘇郡	小国町	おぐにまち	熊本県 小国町	kumamoto-oguni-cho
+2025-10-01	municipality	43425	43000	43	熊本県	阿蘇郡	産山村	うぶやまむら	熊本県 産山村	ubuyama-v-mura
+2025-10-01	municipality	43428	43000	43	熊本県	阿蘇郡	高森町	たかもりまち	熊本県 高森町	takamori-cho
+2025-10-01	municipality	43432	43000	43	熊本県	阿蘇郡	西原村	にしはらむら	熊本県 西原村	nishihara-mura
+2025-10-01	municipality	43433	43000	43	熊本県	阿蘇郡	南阿蘇村	みなみあそむら	熊本県 南阿蘇村	minamiaso-mura
+2025-10-01	municipality	43441	43000	43	熊本県	上益城郡	御船町	みふねまち	熊本県 御船町	mifune-cho
+2025-10-01	municipality	43442	43000	43	熊本県	上益城郡	嘉島町	かしままち	熊本県 嘉島町	kumamoto-kashima-cho
+2025-10-01	municipality	43443	43000	43	熊本県	上益城郡	益城町	ましきまち	熊本県 益城町	mashiki-cho
+2025-10-01	municipality	43444	43000	43	熊本県	上益城郡	甲佐町	こうさまち	熊本県 甲佐町	kosa-cho
+2025-10-01	municipality	43447	43000	43	熊本県	上益城郡	山都町	やまとちょう	熊本県 山都町	kumamoto-yamato-cho
+2025-10-01	municipality	43468	43000	43	熊本県	八代郡	氷川町	ひかわちょう	熊本県 氷川町	hikawa-cho
+2025-10-01	municipality	43482	43000	43	熊本県	葦北郡	芦北町	あしきたまち	熊本県 芦北町	ashikita-cho
+2025-10-01	municipality	43484	43000	43	熊本県	葦北郡	津奈木町	つなぎまち	熊本県 津奈木町	tsunagi-cho
+2025-10-01	municipality	43501	43000	43	熊本県	球磨郡	錦町	にしきまち	熊本県 錦町	kumamoto-nishiki-cho
+2025-10-01	municipality	43505	43000	43	熊本県	球磨郡	多良木町	たらぎまち	熊本県 多良木町	taragi-cho
+2025-10-01	municipality	43506	43000	43	熊本県	球磨郡	湯前町	ゆのまえまち	熊本県 湯前町	yunomae-cho
+2025-10-01	municipality	43507	43000	43	熊本県	球磨郡	水上村	みずかみむら	熊本県 水上村	mizukami-mura
+2025-10-01	municipality	43510	43000	43	熊本県	球磨郡	相良村	さがらむら	熊本県 相良村	sagara-mura
+2025-10-01	municipality	43511	43000	43	熊本県	球磨郡	五木村	いつきむら	熊本県 五木村	itsuki-mura
+2025-10-01	municipality	43512	43000	43	熊本県	球磨郡	山江村	やまえむら	熊本県 山江村	yamae-mura
+2025-10-01	municipality	43513	43000	43	熊本県	球磨郡	球磨村	くまむら	熊本県 球磨村	kumamura-mura
+2025-10-01	municipality	43514	43000	43	熊本県	球磨郡	あさぎり町	あさぎりちょう	熊本県 あさぎり町	asagiri-cho
+2025-10-01	municipality	43531	43000	43	熊本県	天草郡	苓北町	れいほくまち	熊本県 苓北町	reihoku-kumamoto-cho
+2025-10-01	prefecture	44000		44	大分県		大分県	おおいたけん	大分県	oita-ken
+2025-10-01	municipality	44201	44000	44	大分県		大分市	おおいたし	大分県 大分市	oita-shi
+2025-10-01	municipality	44202	44000	44	大分県		別府市	べっぷし	大分県 別府市	beppu-shi
+2025-10-01	municipality	44203	44000	44	大分県		中津市	なかつし	大分県 中津市	city-nakatsu-shi
+2025-10-01	municipality	44204	44000	44	大分県		日田市	ひたし	大分県 日田市	hita-shi
+2025-10-01	municipality	44205	44000	44	大分県		佐伯市	さいきし	大分県 佐伯市	saiki-shi
+2025-10-01	municipality	44206	44000	44	大分県		臼杵市	うすきし	大分県 臼杵市	usuki-shi
+2025-10-01	municipality	44207	44000	44	大分県		津久見市	つくみし	大分県 津久見市	tsukumi-shi
+2025-10-01	municipality	44208	44000	44	大分県		竹田市	たけたし	大分県 竹田市	taketa-shi
+2025-10-01	municipality	44209	44000	44	大分県		豊後高田市	ぶんごたかだし	大分県 豊後高田市	bungotakada-shi
+2025-10-01	municipality	44210	44000	44	大分県		杵築市	きつきし	大分県 杵築市	kitsuki-shi
+2025-10-01	municipality	44211	44000	44	大分県		宇佐市	うさし	大分県 宇佐市	usa-shi
+2025-10-01	municipality	44212	44000	44	大分県		豊後大野市	ぶんごおおのし	大分県 豊後大野市	bungo-ohno-shi
+2025-10-01	municipality	44213	44000	44	大分県		由布市	ゆふし	大分県 由布市	yufu-shi
+2025-10-01	municipality	44214	44000	44	大分県		国東市	くにさきし	大分県 国東市	kunisaki-shi
+2025-10-01	municipality	44322	44000	44	大分県	東国東郡	姫島村	ひめしまむら	大分県 姫島村	himeshima-mura
+2025-10-01	municipality	44341	44000	44	大分県	速見郡	日出町	ひじまち	大分県 日出町	hiji-cho
+2025-10-01	municipality	44461	44000	44	大分県	玖珠郡	九重町	ここのえまち	大分県 九重町	kokonoe-cho
+2025-10-01	municipality	44462	44000	44	大分県	玖珠郡	玖珠町	くすまち	大分県 玖珠町	kusu-cho
+2025-10-01	prefecture	45000		45	宮崎県		宮崎県	みやざきけん	宮崎県	miyazaki-ken
+2025-10-01	municipality	45201	45000	45	宮崎県		宮崎市	みやざきし	宮崎県 宮崎市	miyazaki-shi
+2025-10-01	municipality	45202	45000	45	宮崎県		都城市	みやこのじょうし	宮崎県 都城市	miyakonojo-shi
+2025-10-01	municipality	45203	45000	45	宮崎県		延岡市	のべおかし	宮崎県 延岡市	nobeoka-shi
+2025-10-01	municipality	45204	45000	45	宮崎県		日南市	にちなんし	宮崎県 日南市	nichinan-shi
+2025-10-01	municipality	45205	45000	45	宮崎県		小林市	こばやしし	宮崎県 小林市	kobayashi-shi
+2025-10-01	municipality	45206	45000	45	宮崎県		日向市	ひゅうがし	宮崎県 日向市	hyugacity-shi
+2025-10-01	municipality	45207	45000	45	宮崎県		串間市	くしまし	宮崎県 串間市	kushima-shi
+2025-10-01	municipality	45208	45000	45	宮崎県		西都市	さいとし	宮崎県 西都市	saito-shi
+2025-10-01	municipality	45209	45000	45	宮崎県		えびの市	えびのし	宮崎県 えびの市	ebino-shi
+2025-10-01	municipality	45341	45000	45	宮崎県	北諸県郡	三股町	みまたちょう	宮崎県 三股町	mimata-cho
+2025-10-01	municipality	45361	45000	45	宮崎県	西諸県郡	高原町	たかはるちょう	宮崎県 高原町	takaharu-cho
+2025-10-01	municipality	45382	45000	45	宮崎県	東諸県郡	国富町	くにとみちょう	宮崎県 国富町	kunitomi-cho
+2025-10-01	municipality	45383	45000	45	宮崎県	東諸県郡	綾町	あやちょう	宮崎県 綾町	aya-cho
+2025-10-01	municipality	45401	45000	45	宮崎県	児湯郡	高鍋町	たかなべちょう	宮崎県 高鍋町	takanabe-cho
+2025-10-01	municipality	45402	45000	45	宮崎県	児湯郡	新富町	しんとみちょう	宮崎県 新富町	shintomi-cho
+2025-10-01	municipality	45403	45000	45	宮崎県	児湯郡	西米良村	にしめらそん	宮崎県 西米良村	nishimera-mura
+2025-10-01	municipality	45404	45000	45	宮崎県	児湯郡	木城町	きじょうちょう	宮崎県 木城町	kijo-cho
+2025-10-01	municipality	45405	45000	45	宮崎県	児湯郡	川南町	かわみなみちょう	宮崎県 川南町	kawaminami-cho
+2025-10-01	municipality	45406	45000	45	宮崎県	児湯郡	都農町	つのちょう	宮崎県 都農町	tsuno-cho
+2025-10-01	municipality	45421	45000	45	宮崎県	東臼杵郡	門川町	かどがわちょう	宮崎県 門川町	kadogawa-cho
+2025-10-01	municipality	45429	45000	45	宮崎県	東臼杵郡	諸塚村	もろつかそん	宮崎県 諸塚村	morotsuka-mura
+2025-10-01	municipality	45430	45000	45	宮崎県	東臼杵郡	椎葉村	しいばそん	宮崎県 椎葉村	shiiba-mura
+2025-10-01	municipality	45431	45000	45	宮崎県	東臼杵郡	美郷町	みさとちょう	宮崎県 美郷町	miyazaki-misato-cho
+2025-10-01	municipality	45441	45000	45	宮崎県	西臼杵郡	高千穂町	たかちほちょう	宮崎県 高千穂町	town-takachiho-cho
+2025-10-01	municipality	45442	45000	45	宮崎県	西臼杵郡	日之影町	ひのかげちょう	宮崎県 日之影町	hinokage-cho
+2025-10-01	municipality	45443	45000	45	宮崎県	西臼杵郡	五ヶ瀬町	ごかせちょう	宮崎県 五ヶ瀬町	gokase-cho
+2025-10-01	prefecture	46000		46	鹿児島県		鹿児島県	かごしまけん	鹿児島県	kagoshima-ken
+2025-10-01	municipality	46201	46000	46	鹿児島県		鹿児島市	かごしまし	鹿児島県 鹿児島市	kagoshima-shi
+2025-10-01	municipality	46203	46000	46	鹿児島県		鹿屋市	かのやし	鹿児島県 鹿屋市	kanoya-shi
+2025-10-01	municipality	46204	46000	46	鹿児島県		枕崎市	まくらざきし	鹿児島県 枕崎市	makurazaki-shi
+2025-10-01	municipality	46206	46000	46	鹿児島県		阿久根市	あくねし	鹿児島県 阿久根市	akune-shi
+2025-10-01	municipality	46208	46000	46	鹿児島県		出水市	いずみし	鹿児島県 出水市	kagoshima-izumi-shi
+2025-10-01	municipality	46210	46000	46	鹿児島県		指宿市	いぶすきし	鹿児島県 指宿市	ibusuki-shi
+2025-10-01	municipality	46213	46000	46	鹿児島県		西之表市	にしのおもてし	鹿児島県 西之表市	nishinoomote-shi
+2025-10-01	municipality	46214	46000	46	鹿児島県		垂水市	たるみずし	鹿児島県 垂水市	tarumizu-shi
+2025-10-01	municipality	46215	46000	46	鹿児島県		薩摩川内市	さつませんだいし	鹿児島県 薩摩川内市	satsumasendai-shi
+2025-10-01	municipality	46216	46000	46	鹿児島県		日置市	ひおきし	鹿児島県 日置市	hioki-shi
+2025-10-01	municipality	46217	46000	46	鹿児島県		曽於市	そおし	鹿児島県 曽於市	soo-shi
+2025-10-01	municipality	46218	46000	46	鹿児島県		霧島市	きりしまし	鹿児島県 霧島市	city-kirishima-shi
+2025-10-01	municipality	46219	46000	46	鹿児島県		いちき串木野市	いちきくしきのし	鹿児島県 いちき串木野市	ichikikushikino-shi
+2025-10-01	municipality	46220	46000	46	鹿児島県		南さつま市	みなみさつまし	鹿児島県 南さつま市	minamisatsuma-shi
+2025-10-01	municipality	46221	46000	46	鹿児島県		志布志市	しぶしし	鹿児島県 志布志市	shibushi-shi
+2025-10-01	municipality	46222	46000	46	鹿児島県		奄美市	あまみし	鹿児島県 奄美市	amami-shi
+2025-10-01	municipality	46223	46000	46	鹿児島県		南九州市	みなみきゅうしゅうし	鹿児島県 南九州市	minamikyushu-shi
+2025-10-01	municipality	46224	46000	46	鹿児島県		伊佐市	いさし	鹿児島県 伊佐市	isa-shi
+2025-10-01	municipality	46225	46000	46	鹿児島県		姶良市	あいらし	鹿児島県 姶良市	aira-shi
+2025-10-01	municipality	46303	46000	46	鹿児島県	鹿児島郡	三島村	みしまむら	鹿児島県 三島村	mishimamura-mura
+2025-10-01	municipality	46304	46000	46	鹿児島県	鹿児島郡	十島村	としまむら	鹿児島県 十島村	tokara-mura
+2025-10-01	municipality	46392	46000	46	鹿児島県	薩摩郡	さつま町	さつまちょう	鹿児島県 さつま町	satsuma-net-cho
+2025-10-01	municipality	46404	46000	46	鹿児島県	出水郡	長島町	ながしまちょう	鹿児島県 長島町	nagashima-cho
+2025-10-01	municipality	46452	46000	46	鹿児島県	姶良郡	湧水町	ゆうすいちょう	鹿児島県 湧水町	yusui-cho
+2025-10-01	municipality	46468	46000	46	鹿児島県	曽於郡	大崎町	おおさきちょう	鹿児島県 大崎町	kagoshima-osaki-cho
+2025-10-01	municipality	46482	46000	46	鹿児島県	肝属郡	東串良町	ひがしくしらちょう	鹿児島県 東串良町	higashikushira-cho
+2025-10-01	municipality	46490	46000	46	鹿児島県	肝属郡	錦江町	きんこうちょう	鹿児島県 錦江町	kinko-cho
+2025-10-01	municipality	46491	46000	46	鹿児島県	肝属郡	南大隅町	みなみおおすみちょう	鹿児島県 南大隅町	minamiosumi-cho
+2025-10-01	municipality	46492	46000	46	鹿児島県	肝属郡	肝付町	きもつきちょう	鹿児島県 肝付町	kimotsuki-town-cho
+2025-10-01	municipality	46501	46000	46	鹿児島県	熊毛郡	中種子町	なかたねちょう	鹿児島県 中種子町	nakatane-cho
+2025-10-01	municipality	46502	46000	46	鹿児島県	熊毛郡	南種子町	みなみたねちょう	鹿児島県 南種子町	minamitane-cho
+2025-10-01	municipality	46505	46000	46	鹿児島県	熊毛郡	屋久島町	やくしまちょう	鹿児島県 屋久島町	yakushima-cho
+2025-10-01	municipality	46523	46000	46	鹿児島県	大島郡	大和村	やまとそん	鹿児島県 大和村	yamato-mura
+2025-10-01	municipality	46524	46000	46	鹿児島県	大島郡	宇検村	うけんそん	鹿児島県 宇検村	uken-mura
+2025-10-01	municipality	46525	46000	46	鹿児島県	大島郡	瀬戸内町	せとうちちょう	鹿児島県 瀬戸内町	setouchi-cho
+2025-10-01	municipality	46527	46000	46	鹿児島県	大島郡	龍郷町	たつごうちょう	鹿児島県 龍郷町	tatsugo-cho
+2025-10-01	municipality	46529	46000	46	鹿児島県	大島郡	喜界町	きかいちょう	鹿児島県 喜界町	kikai-cho
+2025-10-01	municipality	46530	46000	46	鹿児島県	大島郡	徳之島町	とくのしまちょう	鹿児島県 徳之島町	tokunoshima-town-cho
+2025-10-01	municipality	46531	46000	46	鹿児島県	大島郡	天城町	あまぎちょう	鹿児島県 天城町	amagi-cho
+2025-10-01	municipality	46532	46000	46	鹿児島県	大島郡	伊仙町	いせんちょう	鹿児島県 伊仙町	isen-cho
+2025-10-01	municipality	46533	46000	46	鹿児島県	大島郡	和泊町	わどまりちょう	鹿児島県 和泊町	wadomari-cho
+2025-10-01	municipality	46534	46000	46	鹿児島県	大島郡	知名町	ちなちょう	鹿児島県 知名町	china-cho
+2025-10-01	municipality	46535	46000	46	鹿児島県	大島郡	与論町	よろんちょう	鹿児島県 与論町	yoron-cho
+2025-10-01	prefecture	47000		47	沖縄県		沖縄県	おきなわけん	沖縄県	okinawa-ken
+2025-10-01	municipality	47201	47000	47	沖縄県		那覇市	なはし	沖縄県 那覇市	naha-shi
+2025-10-01	municipality	47205	47000	47	沖縄県		宜野湾市	ぎのわんし	沖縄県 宜野湾市	ginowan-shi
+2025-10-01	municipality	47207	47000	47	沖縄県		石垣市	いしがきし	沖縄県 石垣市	ishigaki-shi
+2025-10-01	municipality	47208	47000	47	沖縄県		浦添市	うらそえし	沖縄県 浦添市	urasoe-shi
+2025-10-01	municipality	47209	47000	47	沖縄県		名護市	なごし	沖縄県 名護市	nago-shi
+2025-10-01	municipality	47210	47000	47	沖縄県		糸満市	いとまんし	沖縄県 糸満市	itoman-shi
+2025-10-01	municipality	47211	47000	47	沖縄県		沖縄市	おきなわし	沖縄県 沖縄市	okinawa-shi
+2025-10-01	municipality	47212	47000	47	沖縄県		豊見城市	とみぐすくし	沖縄県 豊見城市	tomigusuku-shi
+2025-10-01	municipality	47213	47000	47	沖縄県		うるま市	うるまし	沖縄県 うるま市	uruma-shi
+2025-10-01	municipality	47214	47000	47	沖縄県		宮古島市	みやこじまし	沖縄県 宮古島市	miyakojima-shi
+2025-10-01	municipality	47215	47000	47	沖縄県		南城市	なんじょうし	沖縄県 南城市	nanjo-shi
+2025-10-01	municipality	47301	47000	47	沖縄県	国頭郡	国頭村	くにがみそん	沖縄県 国頭村	kunigami-mura
+2025-10-01	municipality	47302	47000	47	沖縄県	国頭郡	大宜味村	おおぎみそん	沖縄県 大宜味村	ogimi-mura
+2025-10-01	municipality	47303	47000	47	沖縄県	国頭郡	東村	ひがしそん	沖縄県 東村	higashi-mura
+2025-10-01	municipality	47306	47000	47	沖縄県	国頭郡	今帰仁村	なきじんそん	沖縄県 今帰仁村	nakijin-mura
+2025-10-01	municipality	47308	47000	47	沖縄県	国頭郡	本部町	もとぶちょう	沖縄県 本部町	motobu-cho
+2025-10-01	municipality	47311	47000	47	沖縄県	国頭郡	恩納村	おんなそん	沖縄県 恩納村	onna-mura
+2025-10-01	municipality	47313	47000	47	沖縄県	国頭郡	宜野座村	ぎのざそん	沖縄県 宜野座村	ginoza-mura
+2025-10-01	municipality	47314	47000	47	沖縄県	国頭郡	金武町	きんちょう	沖縄県 金武町	kin-cho
+2025-10-01	municipality	47315	47000	47	沖縄県	国頭郡	伊江村	いえそん	沖縄県 伊江村	iejima-mura
+2025-10-01	municipality	47324	47000	47	沖縄県	中頭郡	読谷村	よみたんそん	沖縄県 読谷村	yomitan-mura
+2025-10-01	municipality	47325	47000	47	沖縄県	中頭郡	嘉手納町	かでなちょう	沖縄県 嘉手納町	kadena-cho
+2025-10-01	municipality	47326	47000	47	沖縄県	中頭郡	北谷町	ちゃたんちょう	沖縄県 北谷町	chatan-cho
+2025-10-01	municipality	47327	47000	47	沖縄県	中頭郡	北中城村	きたなかぐすくそん	沖縄県 北中城村	kitanakagusuku-mura
+2025-10-01	municipality	47328	47000	47	沖縄県	中頭郡	中城村	なかぐすくそん	沖縄県 中城村	nakagusuku-mura
+2025-10-01	municipality	47329	47000	47	沖縄県	中頭郡	西原町	にしはらちょう	沖縄県 西原町	nishihara-cho
+2025-10-01	municipality	47348	47000	47	沖縄県	島尻郡	与那原町	よなばるちょう	沖縄県 与那原町	yonabaru-cho
+2025-10-01	municipality	47350	47000	47	沖縄県	島尻郡	南風原町	はえばるちょう	沖縄県 南風原町	haebaru-cho
+2025-10-01	municipality	47353	47000	47	沖縄県	島尻郡	渡嘉敷村	とかしきそん	沖縄県 渡嘉敷村	tokashiki-mura
+2025-10-01	municipality	47354	47000	47	沖縄県	島尻郡	座間味村	ざまみそん	沖縄県 座間味村	zamami-mura
+2025-10-01	municipality	47355	47000	47	沖縄県	島尻郡	粟国村	あぐにそん	沖縄県 粟国村	aguni-mura
+2025-10-01	municipality	47356	47000	47	沖縄県	島尻郡	渡名喜村	となきそん	沖縄県 渡名喜村	tonaki-mura
+2025-10-01	municipality	47357	47000	47	沖縄県	島尻郡	南大東村	みなみだいとうそん	沖縄県 南大東村	minamidaito-mura
+2025-10-01	municipality	47358	47000	47	沖縄県	島尻郡	北大東村	きただいとうそん	沖縄県 北大東村	kitadaito-mura
+2025-10-01	municipality	47359	47000	47	沖縄県	島尻郡	伊平屋村	いへやそん	沖縄県 伊平屋村	iheya-mura
+2025-10-01	municipality	47360	47000	47	沖縄県	島尻郡	伊是名村	いぜなそん	沖縄県 伊是名村	izena-mura
+2025-10-01	municipality	47361	47000	47	沖縄県	島尻郡	久米島町	くめじまちょう	沖縄県 久米島町	kumejima-cho
+2025-10-01	municipality	47362	47000	47	沖縄県	島尻郡	八重瀬町	やえせちょう	沖縄県 八重瀬町	yaese-cho
+2025-10-01	municipality	47375	47000	47	沖縄県	宮古郡	多良間村	たらまそん	沖縄県 多良間村	tarama-mura
+2025-10-01	municipality	47381	47000	47	沖縄県	八重山郡	竹富町	たけとみちょう	沖縄県 竹富町	taketomi-cho
+2025-10-01	municipality	47382	47000	47	沖縄県	八重山郡	与那国町	よなぐにちょう	沖縄県 与那国町	yonaguni-cho

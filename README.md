@@ -41,17 +41,22 @@
 ## 公開中のWeb画面
 
 - トップ: https://tools.miya.be/
-- 川崎市ポスター掲示場: https://tools.miya.be/boards/kawasaki-shi/
-- 川崎市例規集 AI評価ビューア: https://tools.miya.be/reiki/?slug=kawasaki-shi
+- 川崎市ポスター掲示場: https://tools.miya.be/boards/14130-kawasaki-shi/
+- 川崎市例規集 AI評価ビューア: https://tools.miya.be/reiki/?slug=14130-kawasaki-shi
 - 例規集横断全文検索: https://tools.miya.be/reiki/cross.php
-- 川崎市議会 会議録 全文検索: https://tools.miya.be/gijiroku/?slug=kawasaki-shi
+- 川崎市議会 会議録 全文検索: https://tools.miya.be/gijiroku/?slug=14130-kawasaki-shi
 
 ## トップページ更新方式
 
 - トップページ本体は `/api/home.php` を 5 秒ごとに `fetch` して再描画します
 - `/api/home.php` は、ポスター掲示場・会議録・例規集の三つがすべて非表示の自治体を返しません
+- トップページの自治体カードは都道府県ごとにグループ化して表示します
+- トップページの時刻表示は `Asia/Tokyo` に揃えます
+- トップページでは `🪧 掲示板` `📝 会議録` `📚 例規集` のアイコンで機能を見分けやすくしています
 - `/api/home.php` はサーバー側キャッシュを持ち、自治体カタログや公開件数の重い再計算を毎回やり直さないようにしています
 - そのため、トップの自治体一覧は API の返却結果がそのまま表示内容になります
+- トップページの `要反映` は、スクレイプ件数上は完了しているのに公開用 DB / HTML の検出が追いついていない状態です
+- 会議録の `要反映` はトップページ側で自動的に補完キューへ積み、常駐の会議録サービスが `minutes.sqlite` の不足分補完を順次処理します
 
 ## パフォーマンス方針
 

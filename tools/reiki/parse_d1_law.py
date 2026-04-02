@@ -205,7 +205,7 @@ def process_file(
 def main():
     default_slug = reiki_targets.default_slug_for_system("d1-law")
     parser = argparse.ArgumentParser(description="Process D1-Law ordinance HTML files.")
-    parser.add_argument("--slug", default=default_slug, help="Municipality slug in data/config.json")
+    parser.add_argument("--slug", default=default_slug, help="Municipality slug resolved from data/municipalities")
     parser.add_argument("--force", action="store_true", help="Rebuild outputs even when unchanged")
     args = parser.parse_args()
 

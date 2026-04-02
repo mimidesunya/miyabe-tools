@@ -70,7 +70,8 @@ function background_task_item_progress_detail(array $item): string
     if ($current === null || $total === null) {
         return '';
     }
-    if ($current >= $total) {
+    $status = trim((string)($item['status'] ?? ''));
+    if ($current >= $total && $status !== 'running') {
         return sprintf('%d件', $current);
     }
     return sprintf('%d/%d件', $current, $total);
@@ -139,6 +140,8 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
     $status = trim((string)($item['status'] ?? ''));
     $running = (bool)($taskStatus['running'] ?? false);
     $stale = background_task_is_stale($taskStatus);
+    $taskName = trim((string)($taskStatus['task'] ?? ''));
+    $isReflectTask = str_ends_with($taskName, '_reflect');
     $hasStarted = background_task_item_has_started($item);
     $progress = background_task_item_progress_numbers($item);
     $updatedAt = trim((string)($item['updated_at'] ?? ($taskStatus['updated_at'] ?? '')));
@@ -183,7 +186,7 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
     }
     if ($running && $status === 'running') {
         return [
-            'label' => 'スクレイピング中',
+            'label' => $isReflectTask ? '反映中' : 'スクレイピング中',
             'class' => 'task-running',
             'detail' => $detail,
             'progress_current' => $progress['current'],
@@ -208,7 +211,7 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
     }
     if ($status === 'done' || $status === 'ok') {
         return [
-            'label' => background_task_item_is_complete($item) ? '完了' : '前回更新成功',
+            'label' => background_task_item_is_complete($item) ? '完了' : ($isReflectTask ? '前回反映成功' : '前回更新成功'),
             'class' => 'task-done',
             'detail' => $detail,
             'progress_current' => $progress['current'],
@@ -232,7 +235,7 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
             }
         }
         return [
-            'label' => '直近失敗',
+            'label' => $isReflectTask ? '直近反映失敗' : '直近失敗',
             'class' => 'task-failed',
             'detail' => $detail,
             'progress_current' => $progress['current'],

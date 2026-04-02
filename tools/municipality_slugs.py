@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
 import re
-from pathlib import Path
 from urllib.parse import urlsplit
 
 
@@ -16,6 +14,11 @@ ROMAJI_OVERRIDES_BY_CODE = {
     "01699": "shana-mura",
     "01700": "shibetoro-mura",
 }
+
+
+def normalized_jis_code(code: str) -> str:
+    normalized = re.sub(r"[^0-9]", "", code)
+    return normalized or "00000"
 
 
 def sanitize_slug_token(value: str) -> str:
@@ -90,40 +93,6 @@ def preferred_romaji_token(source_url: str, homepage_url: str = "") -> str:
     return host_slug_token(source_url)
 
 
-def slug_token_from_config_slug(slug: str) -> str:
-    normalized = str(slug).strip()
-    normalized = re.sub(r"^\d{5}-", "", normalized)
-    return sanitize_slug_token(normalized)
-
-
-def configured_slug_token_by_code(root: Path | None = None) -> dict[str, str]:
-    project_root = Path(root) if root is not None else Path(__file__).resolve().parents[1]
-    config_paths = [
-        project_root / "data" / "config.json",
-        project_root / "data" / "config.example.json",
-    ]
-    for path in config_paths:
-        if not path.exists():
-            continue
-        try:
-            config = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        municipalities = config.get("MUNICIPALITIES", {})
-        if not isinstance(municipalities, dict):
-            continue
-        result: dict[str, str] = {}
-        for slug, entry in municipalities.items():
-            if not isinstance(slug, str) or not isinstance(entry, dict):
-                continue
-            code = str(entry.get("code", "")).strip()
-            token = slug_token_from_config_slug(slug)
-            if code and token and code not in result:
-                result[code] = token
-        return result
-    return {}
-
-
 def apply_entity_suffix(token: str, name: str, entity_type: str) -> str:
     normalized = sanitize_slug_token(token)
     if normalized == "":
@@ -163,7 +132,6 @@ def preferred_name_romaji(
     entity_type: str,
     source_url: str = "",
     homepage_url: str = "",
-    configured_slug_token: str = "",
     name_romaji: str = "",
 ) -> str:
     normalized_code = re.sub(r"[^0-9]", "", code)
@@ -173,10 +141,6 @@ def preferred_name_romaji(
     explicit_name_romaji = sanitize_slug_token(name_romaji)
     if explicit_name_romaji:
         return explicit_name_romaji
-
-    configured_token = sanitize_slug_token(configured_slug_token)
-    if configured_token:
-        return configured_token
 
     base_token = preferred_romaji_token(source_url, homepage_url)
     if base_token:
@@ -192,21 +156,38 @@ def code_name_slug(
     *,
     name: str = "",
     entity_type: str = "",
-    configured_slug_token: str = "",
     name_romaji: str = "",
 ) -> str:
-    normalized_code = re.sub(r"[^0-9]", "", code)
-    if normalized_code == "":
-        normalized_code = "00000"
+    normalized_code = normalized_jis_code(code)
+    token = code_name_slug_token(
+        code=normalized_code,
+        source_url=source_url,
+        homepage_url=homepage_url,
+        name=name,
+        entity_type=entity_type,
+        name_romaji=name_romaji,
+    )
+    return f"{normalized_code}-{token}"
+
+
+def code_name_slug_token(
+    code: str,
+    source_url: str,
+    homepage_url: str = "",
+    *,
+    name: str = "",
+    entity_type: str = "",
+    name_romaji: str = "",
+) -> str:
+    normalized_code = normalized_jis_code(code)
     token = preferred_name_romaji(
         code=normalized_code,
         name=name,
         entity_type=entity_type,
         source_url=source_url,
         homepage_url=homepage_url,
-        configured_slug_token=configured_slug_token,
         name_romaji=name_romaji,
     )
     if token == "":
         token = preferred_romaji_token(source_url, homepage_url)
-    return f"{normalized_code}-{token}"
+    return sanitize_slug_token(token) or "municipality"

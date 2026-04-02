@@ -15,6 +15,7 @@ $slug = get_slug();
 if ($slug === '') {
     $slug = get_default_slug();
 }
+$requestSlug = municipality_public_slug($slug);
 $municipality = municipality_entry($slug);
 if ($municipality === null) {
     http_response_code(404);
@@ -30,7 +31,7 @@ $dbPath = (string)($reikiFeature['db_path'] ?? '');
 // 保存先は掲示板と同じ canonical slug へ統一したので、既定画像 URL も slug から決め打ちできる。
 $reikiImageUrl = (string)($reikiFeature['image_url'] ?? ('/data/reiki/' . rawurlencode($slug) . '/images'));
 $pageTitle = (string)($reikiFeature['title'] ?? ($municipality['name'] . '例規集 AI評価ビューア'));
-$clearUrl = '/reiki/?slug=' . rawurlencode($slug);
+$clearUrl = '/reiki/?slug=' . rawurlencode($requestSlug);
 $featureNotice = $featureAvailable ? '' : ($municipality['name'] . 'の例規集は準備中です。');
 
 // ─────────────────────────────────────
@@ -203,7 +204,7 @@ if ($pdo) {
         $records[] = [
             'name' => $name,
             'path' => $cleanHtmlDir . DIRECTORY_SEPARATOR . $name,
-            'mtime' => strtotime($row['updated_at']), 
+            'mtime' => app_parse_timestamp_utc_unix((string)($row['updated_at'] ?? '')) ?? 0,
             'title' => decode_html_text((string)($row['title'] ?? '')),
             'reading_kana' => $row['reading_kana'],
             'primary_class' => $row['primary_class'],

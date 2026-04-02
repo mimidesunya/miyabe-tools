@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 import os
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 # 一括スクレイパから書き込む background_tasks JSON の共通更新処理。
 _UNSET = object()
+TOKYO = timezone(timedelta(hours=9))
 
 
 def project_root() -> Path:
@@ -22,8 +24,24 @@ def status_path(task_name: str) -> Path:
     return status_root() / f"{task_name}.json"
 
 
+def runtime_cache_paths() -> list[Path]:
+    root = status_root()
+    return [
+        root / "municipality_catalog_cache.json",
+        root / "home_api_payload.json",
+        root / "gijiroku_ready_municipalities.json",
+        root / "reiki_ready_municipalities.json",
+    ]
+
+
 def now_text() -> str:
-    return time.strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.now(TOKYO).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def format_timestamp_text(timestamp: float | None) -> str:
+    if timestamp is None or timestamp <= 0:
+        return now_text()
+    return datetime.fromtimestamp(timestamp, TOKYO).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def rel_path(path: Path) -> str:
@@ -202,3 +220,11 @@ def write_state(task_name: str, state: dict[str, Any]) -> Path:
     temp_path.write_text(payload, encoding="utf-8")
     os.replace(temp_path, path)
     return path
+
+
+def invalidate_runtime_caches() -> None:
+    for path in runtime_cache_paths():
+        try:
+            path.unlink(missing_ok=True)
+        except Exception:
+            pass

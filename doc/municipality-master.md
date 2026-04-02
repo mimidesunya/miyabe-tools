@@ -1,6 +1,6 @@
 # 自治体マスタ
 
-`work/municipalities/municipality_master.tsv` は、会議録や例規集を複数自治体へ広げる前提で使う全国自治体マスタです。
+`data/municipalities/municipality_master.tsv` は、会議録や例規集を複数自治体へ広げる前提で使う全国自治体マスタです。`data/municipalities` を git 管理された正本として扱います。
 
 ## ソース
 
@@ -26,6 +26,7 @@
 - `pref_name`: 都道府県名
 - `district_name`: 郡・支庁・振興局等
 - `name`: 都道府県名または市町村名
+- `name_kana`: `name` の読み仮名。例: `ゆうばりし`, `きょうとふ`
 - `full_name`: `都道府県名 + 半角スペース + 名称`
 - `name_romaji`: slug 用のローマ字名称。例: `hakodate-shi`, `kyoto-fu`
 
@@ -35,10 +36,10 @@
 pwsh -File tools/municipalities/build_municipality_master_tsv.ps1
 ```
 
-続けてローマ字列を付ける場合:
+続けて読み仮名とローマ字列を付ける場合:
 
 ```bash
 python tools/municipalities/enrich_municipality_master_tsv.py
 ```
 
-`name_romaji` は `municipality_homepages.csv` と既存 `config.json` の slug を使って補完します。ローカルに取得済みの CSV を使う場合は `-SourceCsvPath` を渡します。
+`name_kana` は `localgovjp` / `prefjp` のかな列から補完し、`name_romaji` は `municipality_homepages.csv` と既存 `config.json` の slug を使って補完します。

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'gijiroku' . DIRECTORY_SEPARATOR . 'index_runtime.php';
+require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'site_assets.php';
 
 // 会議録ページの画面骨格は app 側に置き、前処理だけ lib 側へ分ける。
 ?><!doctype html>
@@ -10,6 +11,7 @@ require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPAR
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?php echo h($pageTitle); ?></title>
+    <?php echo site_render_favicon_links(); ?>
     <style>
         :root { --bg:#f5f1e8; --bg2:#ece2cf; --panel:rgba(255,252,246,.92); --panel-strong:#fffdfa; --line:#d8ccb5; --line-strong:#c5b28c; --text:#18251f; --muted:#61706a; --accent:#0f5c4d; --accent-soft:rgba(15,92,77,.12); --accent2:#b56d2f; --accent2-soft:rgba(181,109,47,.12); --match:#ffef96; --shadow:0 22px 50px rgba(75,57,32,.12); --shadow-soft:0 12px 30px rgba(75,57,32,.08); --radius:24px; --radius-sm:16px; }
         * { box-sizing:border-box; }
@@ -229,7 +231,7 @@ require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPAR
                 <p class="section-copy">本文検索は SQLite FTS5 です。`AND` / `OR` / `NOT` / `NEAR/5` をそのまま使えます。</p>
             </div>
             <form class="search-form" method="get">
-                <input type="hidden" name="slug" value="<?php echo h($slug); ?>">
+                <input type="hidden" name="slug" value="<?php echo h($requestSlug); ?>">
                 <div class="field">
                     <label for="q">キーワード</label>
                     <input id="q" type="text" name="q" value="<?php echo h($q); ?>" placeholder="例: 補正予算 / 子育て支援 AND 学校">

@@ -5,6 +5,7 @@
 
 declare(strict_types=1);
 require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'session.php';
+require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'site_assets.php';
 
 function h(?string $s): string { 
     return htmlspecialchars($s ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); 
@@ -13,6 +14,7 @@ function h(?string $s): string {
 // スラッグを取得し、DBを初期化（boards + attached tasks/users）
 redirect_to_canonical_query_slug_if_needed();
 $slug = get_slug();
+$requestSlug = municipality_public_slug($slug);
 $municipality = municipality_entry($slug);
 $municipalityName = (string)($municipality['name'] ?? $slug);
 $switcherItems = municipality_switcher_items('boards');
@@ -100,6 +102,7 @@ $statusLabels = [
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>掲示場一覧 - <?php echo h($municipalityName); ?></title>
+    <?php echo site_render_favicon_links(); ?>
     <style>
         * { box-sizing: border-box; }
         body { 
@@ -232,15 +235,15 @@ $statusLabels = [
         <div class="header-links">
             <span style="color: #666; margin-right: 15px;"><?php echo count($boards); ?>件表示中</span>
             <a href="/">トップ</a>
-            <a href="/boards/<?php echo h($slug); ?>/">マップ表示</a>
+            <a href="/boards/<?php echo h($requestSlug); ?>/">マップ表示</a>
             <?php if ($me): ?>
                 <span>ようこそ、<?php echo h($me['name'] ?? ''); ?>さん</span>
                 <?php if (is_admin($me)): ?>
-                    <a href="/boards/users.php?slug=<?php echo h($slug); ?>">ユーザー一覧</a>
+                    <a href="/boards/users.php?slug=<?php echo h($requestSlug); ?>">ユーザー一覧</a>
                 <?php endif; ?>
                 <a href="/line/logout.php">ログアウト</a>
             <?php else: ?>
-                <a href="/line/login.php?slug=<?php echo h($slug); ?>">LINEでログイン</a>
+                <a href="/line/login.php?slug=<?php echo h($requestSlug); ?>">LINEでログイン</a>
             <?php endif; ?>
             <select aria-label="自治体切り替え" onchange="if (this.value) { window.location.href = this.value; }">
                 <?php foreach ($switcherItems as $item): ?>
@@ -265,7 +268,7 @@ $statusLabels = [
         
         <div class="controls">
             <form method="get">
-                <input type="hidden" name="slug" value="<?php echo h($slug); ?>">
+                <input type="hidden" name="slug" value="<?php echo h($requestSlug); ?>">
                 <div class="batch-controls">
                     <label for="status">ステータスで絞り込み:</label>
                     <select name="status" id="status" onchange="this.form.submit()">
@@ -319,7 +322,7 @@ $statusLabels = [
                                         -
                                     <?php endif; ?>
                                 </td>
-                                <td><?php echo h($board['updated_at'] ?? '-'); ?></td>
+                                <td><?php echo h(!empty($board['updated_at']) ? app_format_tokyo_datetime((string)$board['updated_at']) : '-'); ?></td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>

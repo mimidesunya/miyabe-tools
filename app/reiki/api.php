@@ -87,6 +87,13 @@ if ($method === 'GET' && $action === 'stats') {
     $stmt = $pdo->prepare("SELECT vote, comment, created_at FROM feedback WHERE filename = :f AND comment != '' ORDER BY created_at DESC LIMIT 20");
     $stmt->execute([':f' => $scopeKey]);
     $comments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($comments as &$commentRow) {
+        if (!is_array($commentRow) || empty($commentRow['created_at'])) {
+            continue;
+        }
+        $commentRow['created_at'] = app_format_tokyo_datetime((string)$commentRow['created_at']);
+    }
+    unset($commentRow);
 
     // View count
     $stmt = $pdo->prepare("SELECT count FROM view_counts WHERE filename = :f");

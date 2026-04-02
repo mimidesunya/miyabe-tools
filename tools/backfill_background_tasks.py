@@ -59,13 +59,11 @@ def now_run_id() -> str:
 
 
 def now_text() -> str:
-    return time.strftime("%Y-%m-%d %H:%M:%S")
+    return batch_status.now_text()
 
 
 def format_timestamp(timestamp: float | None) -> str:
-    if timestamp is None or timestamp <= 0:
-        return now_text()
-    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp))
+    return batch_status.format_timestamp_text(timestamp)
 
 
 def file_or_gzip_path(path: Path) -> Path | None:

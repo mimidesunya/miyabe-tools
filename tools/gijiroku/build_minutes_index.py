@@ -20,6 +20,7 @@ from urllib.parse import parse_qs, unquote_to_bytes, urlsplit
 sys.path.append(str(Path(__file__).parent))
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent / "lib" / "python"))
 import gijiroku_storage
+import gijiroku_targets
 import japanese_search_tokenizer
 
 
@@ -80,47 +81,22 @@ def load_config(root: Path) -> dict:
     return {}
 
 
-def data_path(root: Path, relative: str) -> Path:
-    return root / "data" / Path(relative.replace("\\", "/"))
-
-
-def work_path(root: Path, relative: str) -> Path:
-    return root / "work" / Path(relative.replace("\\", "/"))
-
-
 def default_slug(root: Path) -> str:
     config = load_config(root)
+    # 自治体一覧は master から引けるので、ここで必要なのは「未指定時の既定 slug」だけ。
     value = str(config.get("DEFAULT_SLUG", "")).strip()
-    if value:
+    if value == "":
+        return ""
+    try:
+        return str(gijiroku_targets.load_gijiroku_target(value)["slug"])
+    except Exception:
         return value
-    municipalities = config.get("MUNICIPALITIES", {})
-    if isinstance(municipalities, dict) and municipalities:
-        first = next(iter(municipalities.keys()), "")
-        if isinstance(first, str):
-            return first.strip()
-    return ""
 
 
-def municipality_gijiroku_paths(root: Path, slug: str) -> tuple[Path, Path, Path]:
-    config = load_config(root)
-    municipalities = config.get("MUNICIPALITIES", {})
-    entry = municipalities.get(slug, {}) if isinstance(municipalities, dict) else {}
-    feature = entry.get("gijiroku", {}) if isinstance(entry, dict) else {}
-    if not isinstance(feature, dict):
-        feature = {}
-
-    default_data_dir = f"gijiroku/{slug}"
-
-    data_dir_rel = str(feature.get("data_dir", default_data_dir)).strip()
-    downloads_rel = str(feature.get("downloads_dir", f"gijiroku/{slug}/downloads")).strip()
-    index_json_rel = str(feature.get("index_json_path", f"gijiroku/{slug}/meetings_index.json")).strip()
-    output_db_rel = str(feature.get("db_path", f"{data_dir_rel}/minutes.sqlite")).strip()
-
-    return (
-        work_path(root, downloads_rel),
-        work_path(root, index_json_rel),
-        data_path(root, output_db_rel),
-    )
+def municipality_gijiroku_paths(_root: Path, slug: str) -> tuple[Path, Path, Path]:
+    # code-only や旧 name-only 指定でも、保存先は canonical な code-name slug に正規化して求める。
+    target = gijiroku_targets.load_gijiroku_target(slug)
+    return (Path(target["downloads_dir"]), Path(target["index_json_path"]), Path(target["db_path"]))
 
 
 @dataclass(frozen=True)
@@ -588,11 +564,20 @@ def open_sqlite_connection(path: Path) -> sqlite3.Connection:
     return conn
 
 
+def ensure_output_db_permissions(path: Path) -> None:
+    try:
+        if path.exists():
+            path.chmod(0o664)
+    except Exception:
+        pass
+
+
 def ensure_output_db(output_db: Path) -> None:
     output_db.parent.mkdir(parents=True, exist_ok=True)
     with open_sqlite_connection(output_db) as conn:
         ensure_db_schema(conn)
         conn.commit()
+    ensure_output_db_permissions(output_db)
 
 
 def upsert_record(conn: sqlite3.Connection, record: MinuteRecord) -> int:
@@ -683,6 +668,7 @@ def upsert_source_file(
         ensure_db_schema(conn)
         upsert_record(conn, record)
         conn.commit()
+    ensure_output_db_permissions(output_db)
     return True
 
 
@@ -801,6 +787,7 @@ def backfill_missing_rows(
                         }
                     )
         conn.commit()
+    ensure_output_db_permissions(output_db)
 
     return {
         "added": added,
@@ -810,12 +797,20 @@ def backfill_missing_rows(
     }
 
 
-def build_index(downloads_dir: Path, index_json: Path, output_db: Path) -> tuple[int, int]:
+def build_index(
+    downloads_dir: Path,
+    index_json: Path,
+    output_db: Path,
+    *,
+    progress_callback: Callable[[dict[str, int | str]], None] | None = None,
+) -> tuple[int, int]:
     if not downloads_dir.exists():
         raise FileNotFoundError(f"downloads dir not found: {downloads_dir}")
 
     output_db.parent.mkdir(parents=True, exist_ok=True)
     meta_map = parse_source_meta(index_json)
+    source_files = choose_source_files(downloads_dir)
+    total_files = len(source_files)
     temp_fd, temp_name = tempfile.mkstemp(
         prefix=f"{output_db.name}.",
         suffix=".tmp",
@@ -830,13 +825,52 @@ def build_index(downloads_dir: Path, index_json: Path, output_db: Path) -> tuple
 
         indexed = 0
         skipped = 0
+        processed = 0
         indexed_at = datetime.now(timezone.utc).isoformat()
         cur = conn.cursor()
+        last_report_at = time.monotonic()
 
-        for file_path in choose_source_files(downloads_dir):
+        if progress_callback is not None:
+            progress_callback(
+                {
+                    "stage": "prepare_db",
+                    "processed": 0,
+                    "total_files": total_files,
+                    "added": 0,
+                    "existing": 0,
+                    "skipped": 0,
+                }
+            )
+            progress_callback(
+                {
+                    "stage": "indexing",
+                    "processed": 0,
+                    "total_files": total_files,
+                    "added": 0,
+                    "existing": 0,
+                    "skipped": 0,
+                }
+            )
+
+        for file_path in source_files:
             record = build_record(file_path, downloads_dir, meta_map, indexed_at)
             if record is None:
                 skipped += 1
+                processed += 1
+                if progress_callback is not None:
+                    now = time.monotonic()
+                    if processed == total_files or processed % 250 == 0 or (now - last_report_at) >= 5.0:
+                        last_report_at = now
+                        progress_callback(
+                            {
+                                "stage": "indexing",
+                                "processed": processed,
+                                "total_files": total_files,
+                                "added": indexed,
+                                "existing": 0,
+                                "skipped": skipped,
+                            }
+                        )
                 continue
 
             cur.execute(
@@ -878,10 +912,26 @@ def build_index(downloads_dir: Path, index_json: Path, output_db: Path) -> tuple
                 )
 
             indexed += 1
+            processed += 1
+            if progress_callback is not None:
+                now = time.monotonic()
+                if processed == total_files or processed % 250 == 0 or (now - last_report_at) >= 5.0:
+                    last_report_at = now
+                    progress_callback(
+                        {
+                            "stage": "indexing",
+                            "processed": processed,
+                            "total_files": total_files,
+                            "added": indexed,
+                            "existing": 0,
+                            "skipped": skipped,
+                        }
+                    )
 
         conn.commit()
         conn.close()
         temp_db.replace(output_db)
+        ensure_output_db_permissions(output_db)
         return indexed, skipped
     except Exception:
         try:

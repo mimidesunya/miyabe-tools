@@ -6,6 +6,8 @@ require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPAR
 
 const TAIKEI_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36';
 const TAIKEI_SLEEP_USEC = 120000;
+const TAIKEI_FETCH_MAX_ATTEMPTS = 4;
+const TAIKEI_FETCH_RETRY_BASE_USEC = 750000;
 
 main($argv);
 
@@ -504,45 +506,60 @@ function parse_taikei_ordinance_html(string $html, string $sourceUrl, array $rec
 function fetch_url(string $url): string
 {
     if (extension_loaded('curl')) {
-        [$body, $status, $error] = curl_fetch($url, true);
-        if (($body === false || $status >= 400) && should_retry_insecure($error)) {
-            static $warned = false;
-            if (!$warned) {
-                fwrite(STDERR, "Warning: SSL certificate verification failed in this environment; retrying without local CA verification.\n");
-                $warned = true;
+        $verifySsl = true;
+        $lastStatus = 0;
+        $lastError = '';
+
+        for ($attempt = 1; $attempt <= TAIKEI_FETCH_MAX_ATTEMPTS; $attempt++) {
+            [$body, $status, $error] = curl_fetch($url, $verifySsl);
+            if (($body === false || $status >= 400) && $verifySsl && should_retry_insecure($error)) {
+                warn_retry_insecure();
+                $verifySsl = false;
+                [$body, $status, $error] = curl_fetch($url, false);
             }
-            [$body, $status, $error] = curl_fetch($url, false);
+
+            if ($body !== false && $status < 400) {
+                return ensure_utf8((string)$body);
+            }
+
+            $lastStatus = $status;
+            $lastError = $error;
+            if ($attempt >= TAIKEI_FETCH_MAX_ATTEMPTS || !should_retry_fetch($status, $error)) {
+                break;
+            }
+
+            wait_for_fetch_retry($url, $attempt, $status, $error);
         }
 
-        if ($body === false || $status >= 400) {
-            throw new RuntimeException("Failed to fetch {$url}: HTTP {$status} {$error}");
+        throw new RuntimeException("Failed to fetch {$url}: " . format_fetch_failure($lastStatus, $lastError));
+    }
+
+    $verifySsl = true;
+    $lastStatus = 0;
+    $lastError = '';
+
+    for ($attempt = 1; $attempt <= TAIKEI_FETCH_MAX_ATTEMPTS; $attempt++) {
+        [$body, $status, $error] = stream_fetch($url, $verifySsl);
+        if ($body === false && $verifySsl && should_retry_insecure($error)) {
+            warn_retry_insecure();
+            $verifySsl = false;
+            [$body, $status, $error] = stream_fetch($url, false);
         }
-        return ensure_utf8((string)$body);
+
+        if ($body !== false && $status < 400) {
+            return ensure_utf8($body);
+        }
+
+        $lastStatus = $status;
+        $lastError = $error;
+        if ($attempt >= TAIKEI_FETCH_MAX_ATTEMPTS || !should_retry_fetch($status, $error)) {
+            break;
+        }
+
+        wait_for_fetch_retry($url, $attempt, $status, $error);
     }
 
-    $context = stream_context_create([
-        'http' => [
-            'method' => 'GET',
-            'header' => implode("\r\n", [
-                'User-Agent: ' . TAIKEI_USER_AGENT,
-                'Accept-Language: ja,en-US;q=0.9,en;q=0.8',
-            ]),
-            'timeout' => 120,
-            'follow_location' => 1,
-        ],
-        'ssl' => [
-            'verify_peer' => true,
-            'verify_peer_name' => true,
-        ],
-    ]);
-
-    $body = @file_get_contents($url, false, $context);
-    if ($body === false) {
-        $error = error_get_last();
-        $message = is_array($error) ? (string)($error['message'] ?? 'unknown error') : 'unknown error';
-        throw new RuntimeException("Failed to fetch {$url}: {$message}");
-    }
-    return ensure_utf8($body);
+    throw new RuntimeException("Failed to fetch {$url}: " . format_fetch_failure($lastStatus, $lastError));
 }
 
 function curl_fetch(string $url, bool $verifySsl): array
@@ -570,6 +587,36 @@ function curl_fetch(string $url, bool $verifySsl): array
     return [$body, $status, $error];
 }
 
+function stream_fetch(string $url, bool $verifySsl): array
+{
+    $context = stream_context_create([
+        'http' => [
+            'method' => 'GET',
+            'header' => implode("\r\n", [
+                'User-Agent: ' . TAIKEI_USER_AGENT,
+                'Accept-Language: ja,en-US;q=0.9,en;q=0.8',
+            ]),
+            'timeout' => 120,
+            'follow_location' => 1,
+        ],
+        'ssl' => [
+            'verify_peer' => $verifySsl,
+            'verify_peer_name' => $verifySsl,
+        ],
+    ]);
+
+    $body = @file_get_contents($url, false, $context);
+    $headers = isset($http_response_header) && is_array($http_response_header) ? $http_response_header : [];
+    $status = http_status_from_headers($headers);
+    $error = '';
+    if ($body === false) {
+        $lastError = error_get_last();
+        $error = is_array($lastError) ? (string)($lastError['message'] ?? 'unknown error') : 'unknown error';
+    }
+
+    return [$body, $status, $error];
+}
+
 function should_retry_insecure(string $error): bool
 {
     if ($error === '') {
@@ -579,6 +626,95 @@ function should_retry_insecure(string $error): bool
     return str_contains($error, 'certificate')
         || str_contains($error, 'issuer')
         || str_contains($error, 'ssl');
+}
+
+function should_retry_fetch(int $status, string $error): bool
+{
+    if (in_array($status, [0, 408, 425, 429, 500, 502, 503, 504], true)) {
+        return true;
+    }
+
+    if ($error === '') {
+        return false;
+    }
+
+    $error = strtolower($error);
+    foreach ([
+        'timed out',
+        'timeout',
+        'connection reset',
+        'recv failure',
+        'could not connect',
+        'failed to connect',
+        'empty reply',
+        'connection aborted',
+        'connection refused',
+        'temporarily unavailable',
+        'temporary failure',
+        'server returned nothing',
+        'network is unreachable',
+        'http/2 stream',
+    ] as $needle) {
+        if (str_contains($error, $needle)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function format_fetch_failure(int $status, string $error): string
+{
+    $detail = trim($error);
+    if ($detail !== '') {
+        return "HTTP {$status} {$detail}";
+    }
+    return "HTTP {$status}";
+}
+
+function wait_for_fetch_retry(string $url, int $attempt, int $status, string $error): void
+{
+    $delayUsec = fetch_retry_delay_usec($attempt);
+    fwrite(
+        STDERR,
+        sprintf(
+            "Warning: transient fetch failure for %s (%s); retrying in %.2fs [attempt %d/%d].\n",
+            $url,
+            format_fetch_failure($status, $error),
+            $delayUsec / 1000000,
+            $attempt + 1,
+            TAIKEI_FETCH_MAX_ATTEMPTS
+        )
+    );
+    usleep($delayUsec);
+}
+
+function fetch_retry_delay_usec(int $attempt): int
+{
+    return min(5_000_000, TAIKEI_FETCH_RETRY_BASE_USEC * max(1, $attempt));
+}
+
+function warn_retry_insecure(): void
+{
+    static $warned = false;
+    if ($warned) {
+        return;
+    }
+    fwrite(STDERR, "Warning: SSL certificate verification failed in this environment; retrying without local CA verification.\n");
+    $warned = true;
+}
+
+function http_status_from_headers(array $headers): int
+{
+    foreach ($headers as $header) {
+        if (!is_string($header)) {
+            continue;
+        }
+        if (preg_match('/^HTTP\/\S+\s+(\d{3})/i', $header, $matches) === 1) {
+            return (int)$matches[1];
+        }
+    }
+    return 0;
 }
 
 function create_dom(string $html): DOMDocument
@@ -794,6 +930,87 @@ function load_project_config(): array
     return $config;
 }
 
+function sanitize_slug_token(string $value): string
+{
+    $token = strtolower(trim($value));
+    $token = preg_replace('/[^a-z0-9-]+/', '-', $token) ?? '';
+    $token = trim($token, '-');
+    return preg_replace('/-{2,}/', '-', $token) ?? '';
+}
+
+function load_municipality_master_index(): array
+{
+    static $index = null;
+    if (is_array($index)) {
+        return $index;
+    }
+
+    $path = project_root() . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'municipalities' . DIRECTORY_SEPARATOR . 'municipality_master.tsv';
+    if (!is_file($path)) {
+        throw new RuntimeException("Missing municipality master: {$path}");
+    }
+
+    $handle = fopen($path, 'rb');
+    if ($handle === false) {
+        throw new RuntimeException("Failed to open {$path}");
+    }
+
+    $index = [];
+    $header = fgetcsv($handle, 0, "\t");
+    if (!is_array($header)) {
+        fclose($handle);
+        return $index;
+    }
+
+    $header = array_map(
+        static fn($value): string => trim((string)$value, "\xEF\xBB\xBF \t\n\r\0\x0B"),
+        $header
+    );
+
+    while (($row = fgetcsv($handle, 0, "\t")) !== false) {
+        if (!is_array($row) || count($row) === 0) {
+            continue;
+        }
+
+        $assoc = [];
+        foreach ($header as $offset => $column) {
+            if ($column === '') {
+                continue;
+            }
+            $assoc[$column] = isset($row[$offset]) ? trim((string)$row[$offset]) : '';
+        }
+
+        $code = trim((string)($assoc['jis_code'] ?? ''));
+        if ($code === '') {
+            continue;
+        }
+        $index[$code] = [
+            'entity_type' => trim((string)($assoc['entity_type'] ?? '')),
+            'name' => trim((string)($assoc['name'] ?? '')),
+            'name_kana' => trim((string)($assoc['name_kana'] ?? '')),
+            'full_name' => trim((string)($assoc['full_name'] ?? '')),
+            'name_romaji' => trim((string)($assoc['name_romaji'] ?? '')),
+        ];
+    }
+
+    fclose($handle);
+    return $index;
+}
+
+function implicit_municipality_slug(string $code, array $masterEntry = []): string
+{
+    $normalizedCode = preg_replace('/[^0-9]/', '', $code) ?? '';
+    if ($normalizedCode === '') {
+        $normalizedCode = '00000';
+    }
+
+    $token = sanitize_slug_token((string)($masterEntry['name_romaji'] ?? ''));
+    if ($token === '') {
+        $token = 'municipality';
+    }
+    return $normalizedCode . '-' . $token;
+}
+
 function load_local_reiki_url_index(): array
 {
     static $index = null;
@@ -801,7 +1018,7 @@ function load_local_reiki_url_index(): array
         return $index;
     }
 
-    $path = project_root() . DIRECTORY_SEPARATOR . 'work' . DIRECTORY_SEPARATOR . 'municipalities' . DIRECTORY_SEPARATOR . 'reiki_system_urls.tsv';
+    $path = project_root() . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'municipalities' . DIRECTORY_SEPARATOR . 'reiki_system_urls.tsv';
     if (!is_file($path)) {
         throw new RuntimeException("Missing local reiki URL list: {$path}");
     }
@@ -847,45 +1064,27 @@ function load_local_reiki_url_index(): array
     return $index;
 }
 
-function load_reiki_target(string $slug, string $expectedSystem): array
+function build_reiki_target_entry(string $slug, array $entry, array $urlEntry, array $masterEntry): array
 {
-    $municipalities = load_project_config()['MUNICIPALITIES'] ?? [];
-    if (!is_array($municipalities) || !is_array($municipalities[$slug] ?? null)) {
-        throw new RuntimeException("Municipality slug not found in config: {$slug}");
-    }
-
-    $entry = $municipalities[$slug];
-    $reiki = is_array($entry['reiki'] ?? null) ? $entry['reiki'] : [];
-    $code = trim((string)($entry['code'] ?? ''));
-    if ($code === '') {
-        throw new RuntimeException("Municipality code is missing for slug: {$slug}");
-    }
-
-    $urlIndex = load_local_reiki_url_index();
-    $urlEntry = $urlIndex[$code] ?? null;
-    if (!is_array($urlEntry)) {
-        throw new RuntimeException("Municipality code {$code} is missing from work/municipalities/reiki_system_urls.tsv");
-    }
-
+    $code = trim((string)($entry['code'] ?? $masterEntry['code'] ?? ''));
     $systemType = trim((string)($urlEntry['system_type'] ?? ''));
-    if ($systemType !== $expectedSystem) {
-        throw new RuntimeException(
-            "Municipality slug {$slug} uses system_type={$systemType}, expected {$expectedSystem}"
-        );
-    }
-
-    $sourceDirRelative = trim((string)($reiki['source_dir'] ?? $reiki['data_dir'] ?? "reiki/{$slug}/source"));
-    $htmlDirRelative = trim((string)($reiki['clean_html_dir'] ?? "reiki/{$slug}/html"));
-    $classificationDirRelative = trim((string)($reiki['classification_dir'] ?? "reiki/{$slug}/json"));
-    $imageDirRelative = trim((string)($reiki['image_dir'] ?? "reiki/{$slug}/images"));
-    $markdownDirRelative = trim((string)($reiki['markdown_dir'] ?? "reiki/{$slug}/markdown"));
-    $dbPathRelative = trim((string)($reiki['db_path'] ?? "reiki/{$slug}/ordinances.sqlite"));
+    // 例規スクレイパの保存先は slug から一意に決め、自治体ごとの path override は持たない。
+    $sourceDirRelative = "reiki/{$slug}/source";
+    $htmlDirRelative = "reiki/{$slug}/html";
+    $classificationDirRelative = "reiki/{$slug}/json";
+    $imageDirRelative = "reiki/{$slug}/images";
+    $markdownDirRelative = "reiki/{$slug}/markdown";
+    $dbPathRelative = "reiki/{$slug}/ordinances.sqlite";
 
     $sourceDir = build_work_path($sourceDirRelative);
+    $name = trim((string)($entry['name'] ?? $masterEntry['name'] ?? $slug)) ?: $slug;
 
     return [
         'slug' => $slug,
-        'name' => trim((string)($entry['name'] ?? $slug)) ?: $slug,
+        'name' => $name,
+        'name_kana' => trim((string)($entry['name_kana'] ?? $masterEntry['name_kana'] ?? '')),
+        'full_name' => trim((string)($entry['full_name'] ?? $masterEntry['full_name'] ?? $name)) ?: $name,
+        'name_romaji' => trim((string)($entry['name_romaji'] ?? $masterEntry['name_romaji'] ?? '')),
         'code' => $code,
         'system_type' => $systemType,
         'source_url' => trim((string)($urlEntry['url'] ?? '')),
@@ -899,6 +1098,66 @@ function load_reiki_target(string $slug, string $expectedSystem): array
         'markdown_dir' => build_work_path($markdownDirRelative),
         'db_path' => build_data_path($dbPathRelative),
     ];
+}
+
+function iter_reiki_targets(?string $expectedSystem = null, bool $configuredOnly = false): array
+{
+    // $configuredOnly は旧 CLI 互換の引数として受けるが、現在は全国マスタをそのまま使う。
+    $targets = [];
+    $urlIndex = load_local_reiki_url_index();
+    $masterIndex = load_municipality_master_index();
+
+    foreach ($urlIndex as $code => $urlEntry) {
+        $systemType = trim((string)($urlEntry['system_type'] ?? ''));
+        if ($expectedSystem !== null && $systemType !== $expectedSystem) {
+            continue;
+        }
+
+        $sourceUrl = trim((string)($urlEntry['url'] ?? ''));
+        if ($sourceUrl === '') {
+            continue;
+        }
+
+        $slug = implicit_municipality_slug($code, $masterIndex[$code] ?? []);
+        $entry = ['code' => $code];
+        $targets[] = build_reiki_target_entry($slug, $entry, $urlEntry, $masterIndex[$code] ?? []);
+    }
+
+    return $targets;
+}
+
+function reiki_target_matches_slug(array $target, string $slug): bool
+{
+    $candidate = trim($slug);
+    if ($candidate === '') {
+        return false;
+    }
+
+    $targetSlug = trim((string)($target['slug'] ?? ''));
+    $code = trim((string)($target['code'] ?? ''));
+    $nameRomaji = sanitize_slug_token((string)($target['name_romaji'] ?? ''));
+    $aliases = [$targetSlug];
+    if ($code !== '') {
+        $aliases[] = $code;
+    }
+    if ($nameRomaji !== '') {
+        $aliases[] = $nameRomaji;
+        if ($code !== '') {
+            $aliases[] = $code . '-' . $nameRomaji;
+        }
+    }
+
+    return in_array($candidate, $aliases, true);
+}
+
+function load_reiki_target(string $slug, string $expectedSystem): array
+{
+    foreach (iter_reiki_targets($expectedSystem, false) as $target) {
+        if (reiki_target_matches_slug($target, $slug)) {
+            return $target;
+        }
+    }
+    throw new RuntimeException("Municipality slug not found: {$slug}");
 }
 
 function load_reiki_target_from_cli(string $slug, string $expectedSystem, array $overrides): array
@@ -915,14 +1174,12 @@ function load_reiki_target_from_cli(string $slug, string $expectedSystem, array 
         throw new RuntimeException('--code と --source-url を一緒に指定してください。');
     }
 
-    $municipalities = load_project_config()['MUNICIPALITIES'] ?? [];
-    $entry = is_array($municipalities[$slug] ?? null) ? $municipalities[$slug] : [];
-    $reiki = is_array($entry['reiki'] ?? null) ? $entry['reiki'] : [];
+    $entry = [];
 
     $urlIndex = load_local_reiki_url_index();
     $urlEntry = $urlIndex[$code] ?? null;
     if (!is_array($urlEntry)) {
-        throw new RuntimeException("Municipality code {$code} is missing from work/municipalities/reiki_system_urls.tsv");
+        throw new RuntimeException("Municipality code {$code} is missing from data/municipalities/reiki_system_urls.tsv");
     }
 
     $systemType = trim((string)($urlEntry['system_type'] ?? ''));
@@ -932,72 +1189,32 @@ function load_reiki_target_from_cli(string $slug, string $expectedSystem, array 
         );
     }
 
-    $sourceDirRelative = trim((string)($reiki['source_dir'] ?? $reiki['data_dir'] ?? "reiki/{$slug}/source"));
-    $htmlDirRelative = trim((string)($reiki['clean_html_dir'] ?? "reiki/{$slug}/html"));
-    $classificationDirRelative = trim((string)($reiki['classification_dir'] ?? "reiki/{$slug}/json"));
-    $imageDirRelative = trim((string)($reiki['image_dir'] ?? "reiki/{$slug}/images"));
-    $markdownDirRelative = trim((string)($reiki['markdown_dir'] ?? "reiki/{$slug}/markdown"));
-    $dbPathRelative = trim((string)($reiki['db_path'] ?? "reiki/{$slug}/ordinances.sqlite"));
-
-    $sourceDir = build_work_path($sourceDirRelative);
-    $name = $nameOverride !== ''
-        ? $nameOverride
-        : (trim((string)($entry['name'] ?? $slug)) ?: $slug);
-
-    return [
-        'slug' => $slug,
-        'name' => $name,
-        'code' => $code,
-        'system_type' => $systemType,
-        'source_url' => $sourceUrlOverride,
-        'entry_url' => derive_taikei_entry_url($sourceUrlOverride),
-        'data_root' => build_data_path("reiki/{$slug}"),
-        'work_root' => dirname($sourceDir),
-        'source_dir' => $sourceDir,
-        'html_dir' => build_data_path($htmlDirRelative),
-        'classification_dir' => build_data_path($classificationDirRelative),
-        'image_dir' => build_data_path($imageDirRelative),
-        'markdown_dir' => build_work_path($markdownDirRelative),
-        'db_path' => build_data_path($dbPathRelative),
-    ];
+    $masterEntry = load_municipality_master_index()[$code] ?? [];
+    if ($nameOverride !== '') {
+        $entry['name'] = $nameOverride;
+    }
+    $entry['code'] = $code;
+    $urlEntry['url'] = $sourceUrlOverride;
+    return build_reiki_target_entry($slug, $entry, $urlEntry, $masterEntry);
 }
 
 function default_slug_for_system(string $expectedSystem): string
 {
     $config = load_project_config();
-    $municipalities = $config['MUNICIPALITIES'] ?? [];
-    if (!is_array($municipalities) || $municipalities === []) {
-        throw new RuntimeException('No municipalities are configured.');
-    }
-
-    $urlIndex = load_local_reiki_url_index();
     $preferredSlug = trim((string)($config['DEFAULT_SLUG'] ?? ''));
-    if ($preferredSlug !== '' && municipality_matches_system($municipalities, $urlIndex, $preferredSlug, $expectedSystem)) {
-        return $preferredSlug;
-    }
-
-    foreach (array_keys($municipalities) as $slug) {
-        if (is_string($slug) && municipality_matches_system($municipalities, $urlIndex, $slug, $expectedSystem)) {
-            return trim($slug);
+    if ($preferredSlug !== '') {
+        try {
+            return (string)load_reiki_target($preferredSlug, $expectedSystem)['slug'];
+        } catch (Throwable) {
         }
     }
 
+    $allTargets = iter_reiki_targets($expectedSystem, false);
+    if ($allTargets !== []) {
+        return (string)($allTargets[0]['slug'] ?? '');
+    }
+
     throw new RuntimeException("No municipality found for system_type={$expectedSystem}");
-}
-
-function municipality_matches_system(array $municipalities, array $urlIndex, string $slug, string $expectedSystem): bool
-{
-    $entry = $municipalities[$slug] ?? null;
-    if (!is_array($entry)) {
-        return false;
-    }
-
-    $code = trim((string)($entry['code'] ?? ''));
-    if ($code === '') {
-        return false;
-    }
-
-    return trim((string)($urlIndex[$code]['system_type'] ?? '')) === $expectedSystem;
 }
 
 function derive_taikei_entry_url(string $sourceUrl): string
@@ -1556,7 +1773,8 @@ SQL);
         $pdo->prepare('DELETE FROM ordinances_fts WHERE rowid = :rowid')->execute([':rowid' => $rowId]);
         $stmt = $pdo->prepare(<<<'SQL'
 UPDATE ordinances
-   SET title = :title,
+   SET filename = :filename,
+       title = :title,
        reading_kana = :reading_kana,
        sortable_kana = :sortable_kana,
        primary_class = :primary_class,

@@ -30,6 +30,19 @@
         }
     }
 
+    function renderFeatureIdentity(icon, label) {
+        const iconText = String(icon || '').trim();
+        const labelText = String(label || '').trim();
+        const parts = [];
+        if (iconText !== '') {
+            parts.push(`<span class="feature-icon-mark" aria-hidden="true">${escapeHtml(iconText)}</span>`);
+        }
+        if (labelText !== '') {
+            parts.push(`<span class="feature-label-text">${escapeHtml(labelText)}</span>`);
+        }
+        return parts.join('');
+    }
+
     function renderTaskMarkup(display) {
         if (!display || typeof display !== 'object') {
             return '';
@@ -62,7 +75,7 @@
 
         return `
             <div class="running-item">
-                <span class="running-service">${escapeHtml(entry.feature_label || '')}</span>
+                <span class="running-service">${renderFeatureIdentity(entry?.feature_icon, entry?.feature_label)}</span>
                 <span class="running-name">${escapeHtml(entry.municipality_name || '')}</span>
                 ${renderTaskMarkup(display)}
             </div>
@@ -78,7 +91,7 @@
         return `
             <div class="${classes}" title="${escapeHtml(feature.title || '')}">
                 <div class="feature-top">
-                    <div class="feature-title">${escapeHtml(feature.label || '')}</div>
+                    <div class="feature-title">${renderFeatureIdentity(feature.icon, feature.label)}</div>
                     <div class="feature-actions">
                         <span class="status ${escapeHtml(feature.status_class || '')}">${escapeHtml(feature.status_label || '')}</span>
                         ${actionMarkup}
@@ -106,6 +119,36 @@
                     ${features.map(renderFeature).join('')}
                 </div>
             </article>
+        `.trim();
+    }
+
+    function groupMunicipalitiesByPrefecture(municipalities) {
+        const groups = [];
+        const groupMap = new Map();
+        municipalities.forEach((card) => {
+            const prefectureLabel = String(card?.prefecture_label || 'その他').trim() || 'その他';
+            if (!groupMap.has(prefectureLabel)) {
+                const group = { label: prefectureLabel, cards: [] };
+                groupMap.set(prefectureLabel, group);
+                groups.push(group);
+            }
+            groupMap.get(prefectureLabel).cards.push(card);
+        });
+        return groups;
+    }
+
+    function renderPrefectureSection(group) {
+        const cards = Array.isArray(group?.cards) ? group.cards : [];
+        return `
+            <section class="prefecture-section">
+                <div class="prefecture-head">
+                    <h2 class="prefecture-title">${escapeHtml(group?.label || 'その他')}</h2>
+                    <span class="prefecture-count">${escapeHtml(`${cards.length}自治体`)}</span>
+                </div>
+                <div class="prefecture-grid">
+                    ${cards.map(renderMunicipalityCard).join('')}
+                </div>
+            </section>
         `.trim();
     }
 
@@ -151,7 +194,7 @@
             return;
         }
 
-        grid.innerHTML = municipalities.map(renderMunicipalityCard).join('');
+        grid.innerHTML = groupMunicipalitiesByPrefecture(municipalities).map(renderPrefectureSection).join('');
     }
 
     async function loadPayload() {

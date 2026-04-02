@@ -23,8 +23,7 @@ $slug = get_slug($_GET['slug'] ?? null);
 if ($slug === '') {
     $slug = get_default_slug();
 }
-$municipality = municipality_entry($slug);
-$allowOffset = (bool)($municipality['boards']['allow_offset'] ?? false) || is_admin($user);
+$allowOffset = is_admin($user);
 
 echo json_encode([
     'loggedIn' => (bool)$user,

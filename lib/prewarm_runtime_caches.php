@@ -7,6 +7,19 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . 'reiki_search.php';
 
 // deploy 直後の初回アクセスを軽くするため、重い ready 一覧とトップ payload を先に固めておく。
 
+function prewarm_forget_runtime_cache(string $path): void
+{
+    if (is_file($path)) {
+        @unlink($path);
+    }
+}
+
+// deploy 後は古い slug 判定や ready 一覧を引きずらないよう、関連 cache を毎回作り直す。
+prewarm_forget_runtime_cache(municipality_catalog_cache_path());
+prewarm_forget_runtime_cache(homepage_api_cache_path());
+prewarm_forget_runtime_cache(gijiroku_search_ready_cache_path());
+prewarm_forget_runtime_cache(reiki_search_ready_cache_path());
+
 function prewarm_step(string $label, callable $builder): void
 {
     $startedAt = microtime(true);
@@ -17,6 +30,7 @@ function prewarm_step(string $label, callable $builder): void
 }
 
 prewarm_step('municipality_catalog', static fn (): array => municipality_catalog());
-prewarm_step('homepage_api_payload', static fn (): array => homepage_build_api_payload());
+// homepage_build_api_payload() は配列を返すだけなので、prewarm では cache ファイルまで書き切る helper を使う。
+prewarm_step('homepage_api_payload', static fn (): array => homepage_rebuild_api_payload_cache());
 prewarm_step('gijiroku_ready', static fn (): array => gijiroku_search_ready_summaries());
 prewarm_step('reiki_ready', static fn (): array => reiki_search_ready_summaries());

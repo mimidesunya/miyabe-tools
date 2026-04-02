@@ -54,19 +54,14 @@ def cleanup_temp_key():
 
 def prepare_runtime_municipality_data():
     """Publishes municipality metadata for the web runtime under data/municipalities."""
-    # Web コンテナは work/ を見ないため、自治体マスタだけ data/municipalities へ複製して配る。
-    source_dir = os.path.join('work', 'municipalities')
-    dest_dir = os.path.join('data', 'municipalities')
-    os.makedirs(dest_dir, exist_ok=True)
-    copied = 0
+    # 自治体マスタは data/municipalities を git 管理された正本として扱う。
+    source_dir = os.path.join('data', 'municipalities')
+    os.makedirs(source_dir, exist_ok=True)
+    available = 0
     for filename in _RUNTIME_MUNICIPALITY_FILES:
-        source = os.path.join(source_dir, filename)
-        destination = os.path.join(dest_dir, filename)
-        if not os.path.exists(source):
-            continue
-        shutil.copy2(source, destination)
-        copied += 1
-    print(f"Prepared runtime municipality data: {copied} files")
+        if os.path.exists(os.path.join(source_dir, filename)):
+            available += 1
+    print(f"Using tracked runtime municipality data: {available} files")
 
 def load_config(config_path):
     with open(config_path, 'r') as f:
@@ -199,6 +194,10 @@ chgrp {web_group} {shared_data_dir}
 chgrp {web_group} {shared_data_dir}/reiki {shared_data_dir}/gijiroku
 chmod 2775 {shared_data_dir}
 chmod 2775 {shared_data_dir}/reiki {shared_data_dir}/gijiroku
+if [ -d {shared_data_dir}/reiki ]; then find {shared_data_dir}/reiki -type d -exec chmod 2775 {{}} +; fi
+if [ -d {shared_data_dir}/gijiroku ]; then find {shared_data_dir}/gijiroku -type d -exec chmod 2775 {{}} +; fi
+if [ -d {shared_data_dir}/reiki ]; then find {shared_data_dir}/reiki -type f -name '*.sqlite' -exec chmod 664 {{}} +; fi
+if [ -d {shared_data_dir}/gijiroku ]; then find {shared_data_dir}/gijiroku -type f -name '*.sqlite' -exec chmod 664 {{}} +; fi
 """
     ssh_exec(config, permission_cmd)
 
@@ -228,17 +227,20 @@ if [ -d {dest_dir}/data/gijiroku ]; then rsync -a --ignore-existing {dest_dir}/d
     ssh_exec(config, migration_cmd)
 
 def normalize_remote_municipality_storage(config, dest_dir, shared_data_dir):
-    """Normalizes remote gijiroku/reiki storage names and rebuilds task snapshots."""
+    """Normalizes remote municipality storage names and rebuilds task snapshots."""
     # 旧 slug の残骸があると一覧表示や task 集計がぶれるので、deploy 時に一度揃える。
+    # /workspace/data 配下には boards と、shared volume が重なった reiki/gijiroku の両方が見える。
     print("=== Normalizing Remote Municipality Storage ===")
     normalization_cmd = f"""
-mkdir -p {dest_dir}/tools {dest_dir}/work/municipalities {dest_dir}/data/background_tasks {shared_data_dir}/reiki {shared_data_dir}/gijiroku
+mkdir -p {dest_dir}/tools {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {shared_data_dir}/municipalities {shared_data_dir}/reiki {shared_data_dir}/gijiroku
+rsync -a {dest_dir}/data/municipalities/ {shared_data_dir}/municipalities/
 if [ -f {dest_dir}/docker-compose.scraping.yml ]; then
   cd {dest_dir}
-  docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml run --rm -T -v {shared_data_dir}:/remote-shared --entrypoint sh scraper-gijiroku -lc '
+  docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml stop scraper-gijiroku scraper-reiki >/dev/null 2>&1 || true
+  docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml run --rm -T -v {shared_data_dir}/reiki:/workspace/data/reiki --entrypoint sh scraper-gijiroku -lc '
 set -eu
-python3 /workspace/tools/normalize_municipality_storage.py --workspace-root /workspace --data-root /remote-shared --work-root /workspace/work --background-task-dir /workspace/data/background_tasks
-python3 /workspace/tools/backfill_background_tasks.py --workspace-root /workspace --data-root /remote-shared --work-root /workspace/work
+python3 /workspace/tools/normalize_municipality_storage.py --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work --background-task-dir /workspace/data/background_tasks
+python3 /workspace/tools/backfill_background_tasks.py --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work
 '
 else
   printf '%s\n' 'SKIP: remote municipality normalization requires docker-compose.scraping.yml'
@@ -292,7 +294,7 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
     # Ensure remote directories exist
     ssh_exec(
         config,
-        f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/src {dest_dir}/nginx {dest_dir}/docker/php {dest_dir}/tools {dest_dir}/work/municipalities {dest_dir}/data {dest_dir}/data/boards {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku"
+        f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/src {dest_dir}/nginx {dest_dir}/docker/php {dest_dir}/tools {dest_dir}/data {dest_dir}/data/boards {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku"
     )
 
     # Use rsync for better handling of large number of files
@@ -311,7 +313,6 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
         ("nginx/", f"{dest_dir}/nginx/"),
         ("docker/", f"{dest_dir}/docker/"),
         ("tools/", f"{dest_dir}/tools/"),
-        ("work/municipalities/", f"{dest_dir}/work/municipalities/"),
         ("data/municipalities/", f"{dest_dir}/data/municipalities/"),
         ("data/boards/", f"{dest_dir}/data/boards/"),
     ]

@@ -13,21 +13,22 @@
 
 ## 設定
 
-`data/config.json` の `MUNICIPALITIES.{slug}.gijiroku` を使います。
+通常は `data/config.json` に自治体ごとの設定は要りません。  
+全国マスタに載っている自治体は、保存先パスやタイトルを既定値から導出します。
 
 主な項目:
 
-- `enabled`
-- `title`
 - `assembly_name`
+- `skip_detection`
 - `data_dir`
 - `downloads_dir`
 - `index_json_path`
 - `db_path`
+  - 既定値と違う保存先にしたい場合だけ指定
 
 ## データ配置
 
-代表的な構成:
+既定の構成:
 
 本番データ (`data/`):
 
@@ -42,7 +43,7 @@
 - 収集結果CSV: `work/gijiroku/{slug}/run_result_*.csv`
 - レジューム状態: `work/gijiroku/{slug}/scrape_state.json`
 
-実際の参照先は設定で決まります。
+実際の参照先は `slug` からこの既定配置を組み立てます。`config.json` で個別パスを書きたいのは、既定配置を外したい場合だけです。
 
 ## 関連スクリプト
 
@@ -53,14 +54,14 @@
 - `tools/gijiroku/scrape_dbsr.py`
 - `tools/gijiroku/scrape_kensakusystem.py`
 
-`work/municipalities/assembly_minutes_system_urls.tsv` の `system_type` に合わせて命名しています。現時点で実装済みなのは `gijiroku.com` / `voices` 系、`kaigiroku.net` 系、`dbsr` / `db-search` / `kaigiroku-indexphp` 系、`kensakusystem` 系です。
+`data/municipalities/assembly_minutes_system_urls.tsv` の `system_type` に合わせて命名しています。現時点で実装済みなのは `gijiroku.com` / `voices` 系、`kaigiroku.net` 系、`dbsr` / `db-search` / `kaigiroku-indexphp` 系、`kensakusystem` 系です。
 
 ```bash
-python tools/gijiroku/scrape_gijiroku_com.py --slug kawasaki-shi --ack-robots
+python tools/gijiroku/scrape_gijiroku_com.py --slug 14130-kawasaki-shi --ack-robots
 ```
 
 ```bash
-python tools/gijiroku/scrape_kaigiroku_net.py --slug 01202-hakodate --ack-robots
+python tools/gijiroku/scrape_kaigiroku_net.py --slug hakodate-shi --ack-robots
 ```
 
 ```bash
@@ -68,7 +69,7 @@ python tools/gijiroku/scrape_dbsr.py --slug hino-shi --ack-robots
 ```
 
 ```bash
-python tools/gijiroku/scrape_kensakusystem.py --slug 02202-hirosaki --ack-robots
+python tools/gijiroku/scrape_kensakusystem.py --slug hirosaki-shi --ack-robots
 ```
 
 `gijiroku.com` / `voices` を使う自治体を既定設定（6 並列・自治体起動間隔 2 秒）で全国一括実行したい場合:
@@ -95,16 +96,18 @@ python tools/gijiroku/scrape_all_minutes.py --ack-robots --parallel 6 --per-host
 既存データの整理:
 
 ```bash
-php tools/gijiroku/organize_minutes_data.php --slug kawasaki-shi
+php tools/gijiroku/organize_minutes_data.php --slug 14130-kawasaki-shi
 ```
 
 全文検索 DB の手動生成:
 
 ```bash
-python tools/gijiroku/build_minutes_index.py --slug kawasaki-shi
+python tools/gijiroku/build_minutes_index.py --slug 14130-kawasaki-shi
 ```
 
-`--slug` を付けると、`data/config.json` から対象自治体の出力先を解決します。
+トップページで会議録が `要反映` と表示された場合は、ダウンロード件数は揃っている一方で `minutes.sqlite` など公開用成果物の検出が追いついていません。常駐の会議録サービスは各サイクルの先頭で `build_missing_minutes_indexes.py` を優先実行し、`要反映`、完了間近、未着手、反映済みの順で不足分補完を進めます。進行中の補完はトップページの `Scraping Now` に `会議録 反映` として出ます。すぐに直らない場合は、会議録サービス停止や build 失敗を疑ってください。
+
+`--slug` を付けると、`data/municipalities` の全国マスタから対象自治体の出力先を解決します。
 
 補足:
 
@@ -115,7 +118,7 @@ python tools/gijiroku/build_minutes_index.py --slug kawasaki-shi
 
 - 本文・調査用HTML・デバッグJSONは gzip を優先して保存し、同じ論理ファイルの平文重複を避けます。
 - スクレイパは既存ダウンロードと `scrape_state.json` を見て中断箇所から再開します。完全に最初からやり直したい場合は `--no-resume` を使います。
-- 新規追加の `slug` は `自治体コード-ローマ字名称` を推奨します。
+- 公開 URL の `slug` は `自治体コード-ローマ字名称` に統一します。既存 slug や自治体コードだけの指定も alias として受け付け、正規 URL へリダイレクトします。
 
 ## メモ
 
@@ -126,3 +129,4 @@ python tools/gijiroku/build_minutes_index.py --slug kawasaki-shi
 - `kensakusystem` 系は `See.exe` のツリーと `PRINT_ALL` の全文表示を使って、1文書ずつ本文を保存します。
 - 一方で、Web 画面と SQLite インデクサは自治体単位の切り替えを前提に整理しています。
 - `run_result_*.csv` や空の `pages/` は調査用の一時成果物なので、確認後に整理して構いません。
+- 画面上の時刻表示は `Asia/Tokyo` に揃えます。

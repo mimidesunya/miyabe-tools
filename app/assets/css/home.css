@@ -68,6 +68,7 @@
             display: inline-flex;
             width: fit-content;
             align-items: center;
+            gap: 6px;
             padding: 3px 8px;
             border-radius: 999px;
             background: rgba(17, 78, 114, 0.08);
@@ -139,6 +140,7 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            gap: 7px;
             min-width: 74px;
             padding: 7px 10px;
             border-radius: 999px;
@@ -147,6 +149,10 @@
             font-size: 12px;
             font-weight: 700;
             letter-spacing: 0.05em;
+        }
+        .hero-cta-icon {
+            font-size: 15px;
+            line-height: 1;
         }
         .hero-cta-body {
             display: grid;
@@ -197,6 +203,38 @@
             text-decoration: none;
         }
         .municipality-grid {
+            display: grid;
+            gap: 16px;
+            align-items: start;
+        }
+        .prefecture-section {
+            display: grid;
+            gap: 10px;
+        }
+        .prefecture-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .prefecture-title {
+            margin: 0;
+            font-size: 20px;
+            line-height: 1.3;
+        }
+        .prefecture-count {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(17, 78, 114, 0.12);
+            background: rgba(255, 255, 255, 0.86);
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .prefecture-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
             gap: 12px;
@@ -299,8 +337,19 @@
             flex-wrap: wrap;
         }
         .feature-title {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
             font-size: 13px;
             font-weight: 700;
+        }
+        .feature-icon-mark {
+            font-size: 15px;
+            line-height: 1;
+            flex: 0 0 auto;
+        }
+        .feature-label-text {
+            line-height: 1.3;
         }
         .feature-action {
             display: inline-flex;
@@ -342,6 +391,10 @@
         .status-unpublished {
             color: #475569;
             background: rgba(100, 116, 139, 0.12);
+        }
+        .status-needs-build {
+            color: #b45309;
+            background: rgba(245, 158, 11, 0.14);
         }
         .legend {
             display: flex;
@@ -447,7 +500,7 @@
             .running-board { padding: 14px 15px; border-radius: 16px; }
             .hero { padding: 18px; border-radius: 18px; }
             .municipality-card { padding: 14px 15px; border-radius: 16px; }
-            .municipality-grid { grid-template-columns: 1fr; }
+            .prefecture-grid { grid-template-columns: 1fr; }
             .running-list { grid-template-columns: 1fr; }
             .hero-actions { flex-direction: column; align-items: stretch; }
             .hero-cta { width: 100%; }

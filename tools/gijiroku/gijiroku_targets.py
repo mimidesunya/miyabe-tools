@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
-from municipality_slugs import code_name_slug
+from municipality_slugs import code_name_slug, sanitize_slug_token
 
 
 WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
@@ -33,6 +33,8 @@ SYSTEM_FAMILY_BY_TYPE = {
 
 
 def project_root() -> Path:
+    # 既存の一括バッチ群は repo ルート基準で batch/work/logs を組み立てる。
+    # target loader を薄くした後も、ここだけは互換 API を残しておく。
     return WORKSPACE_ROOT
 
 
@@ -63,15 +65,9 @@ def load_config() -> dict:
     return {}
 
 
-def load_configured_municipalities() -> dict[str, dict]:
-    config = load_config()
-    municipalities = config.get("MUNICIPALITIES", {})
-    return municipalities if isinstance(municipalities, dict) else {}
-
-
 def load_municipality_master_index() -> dict[str, dict[str, str]]:
     index: dict[str, dict[str, str]] = {}
-    path = WORKSPACE_ROOT / "work" / "municipalities" / "municipality_master.tsv"
+    path = DATA_ROOT / "municipalities" / "municipality_master.tsv"
     with open(path, "r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
         for row in reader:
@@ -84,6 +80,7 @@ def load_municipality_master_index() -> dict[str, dict[str, str]]:
                 "entity_type": str(row.get("entity_type", "")).strip(),
                 "pref_name": str(row.get("pref_name", "")).strip(),
                 "name": str(row.get("name", "")).strip(),
+                "name_kana": str(row.get("name_kana", "")).strip(),
                 "full_name": str(row.get("full_name", "")).strip(),
                 "name_romaji": str(row.get("name_romaji", "")).strip(),
             }
@@ -92,7 +89,7 @@ def load_municipality_master_index() -> dict[str, dict[str, str]]:
 
 def load_municipality_homepage_index() -> dict[str, str]:
     index: dict[str, str] = {}
-    path = WORKSPACE_ROOT / "work" / "municipalities" / "municipality_homepages.csv"
+    path = DATA_ROOT / "municipalities" / "municipality_homepages.csv"
     with open(path, "r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
         for row in reader:
@@ -107,7 +104,7 @@ def load_municipality_homepage_index() -> dict[str, str]:
 
 def load_local_minutes_url_index() -> dict[str, dict[str, str]]:
     index: dict[str, dict[str, str]] = {}
-    path = WORKSPACE_ROOT / "work" / "municipalities" / "assembly_minutes_system_urls.tsv"
+    path = DATA_ROOT / "municipalities" / "assembly_minutes_system_urls.tsv"
     with open(path, "r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
         for row in reader:
@@ -141,17 +138,6 @@ def build_work_path(relative_path: str) -> Path:
     return WORK_ROOT / Path(normalized)
 
 
-def configured_slug_by_code() -> dict[str, str]:
-    slug_map: dict[str, str] = {}
-    for slug, entry in load_configured_municipalities().items():
-        if not isinstance(slug, str) or not isinstance(entry, dict):
-            continue
-        code = str(entry.get("code", "")).strip()
-        if code and code not in slug_map:
-            slug_map[code] = slug.strip()
-    return slug_map
-
-
 def fallback_slug_for_minutes(
     code: str,
     source_url: str,
@@ -170,39 +156,46 @@ def fallback_slug_for_minutes(
     )
 
 
+def canonical_slug_for_minutes(
+    code: str,
+    source_url: str,
+    homepage_url: str = "",
+    *,
+    master_entry: dict[str, str] | None = None,
+) -> str:
+    return fallback_slug_for_minutes(
+        code,
+        source_url,
+        homepage_url,
+        master_entry=master_entry or {},
+    )
+
+
 def build_target_entry(
     *,
     slug: str,
     code: str,
     source_url: str,
     system_type: str,
-    municipality_entry: dict | None,
     master_entry: dict[str, str] | None,
 ) -> dict:
-    entry = municipality_entry if isinstance(municipality_entry, dict) else {}
-    gijiroku_config = entry.get("gijiroku", {})
-    if not isinstance(gijiroku_config, dict):
-        gijiroku_config = {}
-
-    name = str(entry.get("name", "")).strip()
-    if name == "":
-        name = str((master_entry or {}).get("name", "")).strip() or slug
-    assembly_name = str(gijiroku_config.get("assembly_name", "")).strip()
-    if assembly_name == "":
-        assembly_name = f"{name}議会"
-
-    data_dir = str(gijiroku_config.get("data_dir", f"gijiroku/{slug}")).strip()
-    downloads_dir = str(gijiroku_config.get("downloads_dir", f"gijiroku/{slug}/downloads")).strip()
-    index_json_path = str(gijiroku_config.get("index_json_path", f"gijiroku/{slug}/meetings_index.json")).strip()
-    db_path = str(gijiroku_config.get("db_path", f"{data_dir}/minutes.sqlite")).strip()
+    # 会議録スクレイパも保存先と議会名を slug / master から決め打ちし、個別 override は持たない。
+    name = str((master_entry or {}).get("name", "")).strip() or slug
+    assembly_name = f"{name}議会"
+    data_dir = f"gijiroku/{slug}"
+    downloads_dir = f"gijiroku/{slug}/downloads"
+    index_json_path = f"gijiroku/{slug}/meetings_index.json"
+    db_path = f"{data_dir}/minutes.sqlite"
 
     return {
         "slug": slug,
         "name": name,
+        "name_kana": str((master_entry or {}).get("name_kana", "")).strip(),
         "assembly_name": assembly_name,
         "code": code,
         "entity_type": str((master_entry or {}).get("entity_type", "")).strip(),
         "full_name": str((master_entry or {}).get("full_name", "")).strip() or name,
+        "name_romaji": str((master_entry or {}).get("name_romaji", "")).strip(),
         "system_type": system_type,
         "system_family": canonical_minutes_system_type(system_type),
         "source_url": source_url,
@@ -216,15 +209,12 @@ def build_target_entry(
     }
 
 
-def iter_gijiroku_targets(expected_system: str | None = None, configured_only: bool = False) -> list[dict]:
-    municipalities = load_configured_municipalities()
+def iter_gijiroku_targets(expected_system: str | None = None) -> list[dict]:
     url_index = load_local_minutes_url_index()
     master_index = load_municipality_master_index()
     homepage_index = load_municipality_homepage_index()
-    slugs_by_code = configured_slug_by_code()
     accepted_system_types = accepted_minutes_system_types(expected_system)
     targets: list[dict] = []
-    seen_codes: set[str] = set()
 
     for code, url_entry in sorted(url_index.items()):
         system_type = str(url_entry.get("system_type", "")).strip()
@@ -235,90 +225,69 @@ def iter_gijiroku_targets(expected_system: str | None = None, configured_only: b
         if source_url == "":
             continue
 
-        configured_slug = slugs_by_code.get(code, "")
-        if configured_slug:
-            slug = configured_slug
-            municipality_entry = municipalities.get(slug)
-        else:
-            if configured_only:
-                continue
-            municipality_entry = None
-
         master_entry = master_index.get(code)
-        if configured_slug:
-            slug = configured_slug
-        else:
-            slug = fallback_slug_for_minutes(
-                code,
-                source_url,
-                homepage_index.get(code, ""),
-                master_entry=master_entry,
-            )
+        slug = canonical_slug_for_minutes(
+            code,
+            source_url,
+            homepage_index.get(code, ""),
+            master_entry=master_entry,
+        )
         targets.append(
             build_target_entry(
                 slug=slug,
                 code=code,
                 source_url=source_url,
                 system_type=system_type,
-                municipality_entry=municipality_entry,
                 master_entry=master_entry,
             )
         )
-        seen_codes.add(code)
 
     return targets
 
 
 def default_slug_for_system(expected_system: str | None = None) -> str:
     config = load_config()
-    municipalities = load_configured_municipalities()
-    if municipalities:
-        preferred_slug = str(config.get("DEFAULT_SLUG", "")).strip()
-        if preferred_slug and preferred_slug in municipalities:
-            try:
-                target = load_gijiroku_target(preferred_slug, expected_system=expected_system)
-                return str(target["slug"])
-            except ValueError:
-                pass
+    preferred_slug = str(config.get("DEFAULT_SLUG", "")).strip()
+    if preferred_slug:
+        try:
+            target = load_gijiroku_target(preferred_slug, expected_system=expected_system)
+            return str(target["slug"])
+        except ValueError:
+            pass
 
-    configured_targets = iter_gijiroku_targets(expected_system=expected_system, configured_only=True)
-    if configured_targets:
-        return str(configured_targets[0]["slug"])
-
-    all_targets = iter_gijiroku_targets(expected_system=expected_system, configured_only=False)
+    all_targets = iter_gijiroku_targets(expected_system=expected_system)
     if all_targets:
         return str(all_targets[0]["slug"])
 
     if expected_system is None:
-        raise ValueError("No municipalities are configured.")
+        raise ValueError("No municipalities were found in data/municipalities.")
     raise ValueError(f"No municipality found for system_type={expected_system!r}")
 
 
 def load_gijiroku_target(slug: str, expected_system: str | None = None) -> dict:
-    for target in iter_gijiroku_targets(expected_system=expected_system, configured_only=False):
-        if str(target.get("slug", "")).strip() == slug:
+    for target in iter_gijiroku_targets(expected_system=expected_system):
+        if gijiroku_target_matches_slug(target, slug):
             return target
 
-    municipalities = load_configured_municipalities()
-    if slug in municipalities:
-        entry = municipalities.get(slug)
-        if not isinstance(entry, dict):
-            raise ValueError(f"Municipality slug not found in config: {slug}")
-        code = str(entry.get("code", "")).strip()
-        if code == "":
-            raise ValueError(f"Municipality code is missing for slug: {slug}")
-        url_index = load_local_minutes_url_index()
-        system_type = str(url_index.get(code, {}).get("system_type", "")).strip()
-        accepted_system_types = accepted_minutes_system_types(expected_system)
-        if accepted_system_types is not None and system_type not in accepted_system_types:
-            raise ValueError(
-                "Municipality slug "
-                f"{slug} uses system_type={system_type!r} "
-                f"(family={canonical_minutes_system_type(system_type)!r}), expected {expected_system!r}"
-            )
-        raise ValueError(f"Municipality code {code} is missing from work/municipalities/assembly_minutes_system_urls.tsv")
-
     raise ValueError(f"Municipality slug not found: {slug}")
+
+
+def gijiroku_target_matches_slug(target: dict, slug: str) -> bool:
+    candidate = str(slug).strip()
+    if candidate == "":
+        return False
+
+    target_slug = str(target.get("slug", "")).strip()
+    code = str(target.get("code", "")).strip()
+    name_romaji = sanitize_slug_token(str(target.get("name_romaji", "")).strip())
+    aliases = {target_slug}
+    if code:
+        aliases.add(code)
+    if name_romaji:
+        aliases.add(name_romaji)
+        if code:
+            aliases.add(f"{code}-{name_romaji}")
+    return candidate in aliases
 
 
 def derive_base_url(source_url: str) -> str:

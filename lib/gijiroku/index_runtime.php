@@ -9,6 +9,7 @@ $slug = get_slug();
 if ($slug === '') {
     $slug = get_default_slug();
 }
+$requestSlug = municipality_public_slug($slug);
 $municipality = municipality_entry($slug);
 if ($municipality === null) {
     http_response_code(404);
@@ -20,7 +21,7 @@ $featureAvailable = municipality_feature_enabled($slug, 'gijiroku');
 $switcherItems = municipality_switcher_items('gijiroku');
 $assemblyName = (string)($gijirokuFeature['assembly_name'] ?? ($municipality['name'] . '議会'));
 $pageTitle = (string)($gijirokuFeature['title'] ?? ($assemblyName . ' 会議録 全文検索'));
-$clearUrl = '/gijiroku/?slug=' . rawurlencode($slug);
+$clearUrl = '/gijiroku/?slug=' . rawurlencode($requestSlug);
 $featureNotice = $featureAvailable ? '' : ($assemblyName . 'の会議録は準備中です。');
 $dbPath = (string)($gijirokuFeature['db_path'] ?? '');
 $downloadsDir = (string)($gijirokuFeature['downloads_dir'] ?? '');

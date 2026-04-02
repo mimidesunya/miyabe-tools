@@ -18,6 +18,8 @@ from urllib.parse import urlsplit
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 sys.path.append(str(Path(__file__).parent))
 import batch_status
+import build_locks
+import gijiroku_priority
 import gijiroku_targets
 
 
@@ -46,11 +48,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--ack-robots",
         action="store_true",
         help="robots.txt・利用規約・許諾確認済みとして実行する",
-    )
-    parser.add_argument(
-        "--configured-only",
-        action="store_true",
-        help="config.json に登録済みの自治体だけを対象にする",
     )
     parser.add_argument(
         "--systems",
@@ -363,7 +360,7 @@ def launch_worker(
         "stderr_path": stderr_path,
         "stdout_handle": stdout_handle,
         "stderr_handle": stderr_handle,
-        "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "started_at": batch_status.now_text(),
         "state_path": Path(target["work_dir"]) / "scrape_state.json",
     }
 
@@ -395,23 +392,44 @@ def run_index_builder(
     slug = str(target["slug"])
     stdout_path = run_logs_dir / f"{slug}.index.log"
     stderr_path = run_logs_dir / f"{slug}.index.err.log"
-    with stdout_path.open("w", encoding="utf-8", newline="") as stdout_handle, stderr_path.open(
-        "w", encoding="utf-8", newline=""
-    ) as stderr_handle:
-        result = subprocess.run(
-            build_index_command(args, target),
-            cwd=str(gijiroku_targets.project_root()),
-            stdout=stdout_handle,
-            stderr=stderr_handle,
+    lock_path = build_locks.acquire_build_lock(
+        slug,
+        owner="scrape_all_minutes",
+        wait_seconds=600.0,
+    )
+    if lock_path is None:
+        stdout_path.write_text(
+            "別プロセスが minutes.sqlite を更新中のため、このバッチからのインデックス更新はスキップしました。\n",
+            encoding="utf-8",
         )
+        stderr_path.write_text("", encoding="utf-8")
+        return {
+            "status": "busy",
+            "returncode": 0,
+            "stdout_path": stdout_path,
+            "stderr_path": stderr_path,
+            "summary": "別プロセスが minutes.sqlite を更新中のため、このバッチからのインデックス更新はスキップしました",
+        }
+    try:
+        with stdout_path.open("w", encoding="utf-8", newline="") as stdout_handle, stderr_path.open(
+            "w", encoding="utf-8", newline=""
+        ) as stderr_handle:
+            result = subprocess.run(
+                build_index_command(args, target),
+                cwd=str(gijiroku_targets.project_root()),
+                stdout=stdout_handle,
+                stderr=stderr_handle,
+            )
 
-    return {
-        "status": "ok" if result.returncode == 0 else "failed",
-        "returncode": int(result.returncode),
-        "stdout_path": stdout_path,
-        "stderr_path": stderr_path,
-        "summary": summarize_worker(stdout_path, stderr_path),
-    }
+        return {
+            "status": "ok" if result.returncode == 0 else "failed",
+            "returncode": int(result.returncode),
+            "stdout_path": stdout_path,
+            "stderr_path": stderr_path,
+            "summary": summarize_worker(stdout_path, stderr_path),
+        }
+    finally:
+        build_locks.release_build_lock(lock_path)
 
 
 def close_worker_streams(worker: dict) -> None:
@@ -450,8 +468,9 @@ def count_active_by_host(active_workers: list[dict]) -> dict[str, int]:
 def list_targets(targets: list[dict]) -> None:
     print(f"[INFO] 対象自治体数: {len(targets)}")
     for target in targets:
+        priority = gijiroku_priority.target_priority_info(target)
         print(
-            f"{target['slug']}\t{target['code']}\t{target['system_type']}\t"
+            f"{target['slug']}\t{target['code']}\t{priority['priority_label']}\t{target['system_type']}\t"
             f"{target_host(target)}\t{target['name']}\t{target['source_url']}"
         )
 
@@ -476,7 +495,7 @@ def main() -> int:
 
     targets = [
         target
-        for target in gijiroku_targets.iter_gijiroku_targets(configured_only=args.configured_only)
+        for target in gijiroku_targets.iter_gijiroku_targets()
         if (
             str(target.get("system_type", "")).strip() in requested_systems
             or (
@@ -491,6 +510,7 @@ def main() -> int:
     if keyword:
         targets = [target for target in targets if target_matches(target, keyword)]
 
+    targets = gijiroku_priority.sort_targets_by_priority(targets)
     if args.max_targets > 0:
         targets = targets[: args.max_targets]
 
@@ -605,7 +625,7 @@ def main() -> int:
 
                 close_worker_streams(worker)
                 target = worker["target"]
-                finished_at = time.strftime("%Y-%m-%d %H:%M:%S")
+                finished_at = batch_status.now_text()
                 scrape_status = "ok" if returncode == 0 else "failed"
                 summary = summarize_worker(worker["stdout_path"], worker["stderr_path"])
                 overall_status = scrape_status
@@ -633,6 +653,8 @@ def main() -> int:
                     if index_result["returncode"] != 0:
                         overall_status = "failed"
                         overall_returncode = int(index_result["returncode"])
+                    else:
+                        batch_status.invalidate_runtime_caches()
 
                 writer.writerow(
                     {
@@ -671,6 +693,8 @@ def main() -> int:
                     **update_kwargs,
                 )
                 batch_status.write_state("gijiroku", status_state)
+                if overall_returncode == 0 and args.no_build_index:
+                    batch_status.invalidate_runtime_caches()
                 completed_count += 1
                 print(
                     f"[DONE {completed_count}/{len(targets)}] {target['slug']} "

@@ -10,7 +10,9 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 sys.path.append(str(Path(__file__).parent))
+import batch_status
 import gijiroku_targets
 
 
@@ -26,11 +28,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--ack-robots",
         action="store_true",
         help="robots.txt・利用規約・許諾確認済みとして実行する",
-    )
-    parser.add_argument(
-        "--configured-only",
-        action="store_true",
-        help="config.json に登録済みの自治体だけを対象にする",
     )
     parser.add_argument(
         "--max-targets",
@@ -206,7 +203,7 @@ def launch_worker(
         "stderr_path": stderr_path,
         "stdout_handle": stdout_handle,
         "stderr_handle": stderr_handle,
-        "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "started_at": batch_status.now_text(),
     }
 
 
@@ -244,10 +241,7 @@ def main() -> int:
         print("[ERROR] --parallel は 1 以上を指定してください。", flush=True)
         return 2
 
-    targets = gijiroku_targets.iter_gijiroku_targets(
-        expected_system="gijiroku.com",
-        configured_only=args.configured_only,
-    )
+    targets = gijiroku_targets.iter_gijiroku_targets(expected_system="gijiroku.com")
     keyword = str(args.filter or "").strip().lower()
     if keyword:
         targets = [target for target in targets if target_matches(target, keyword)]
@@ -327,7 +321,7 @@ def main() -> int:
                 close_worker_streams(worker)
                 completed_count += 1
                 target = worker["target"]
-                finished_at = time.strftime("%Y-%m-%d %H:%M:%S")
+                finished_at = batch_status.now_text()
                 status = "ok" if returncode == 0 else "failed"
                 writer.writerow(
                     {

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'session.php';
+require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'site_assets.php';
 
 function h(?string $value): string
 {
@@ -11,6 +12,7 @@ function h(?string $value): string
 $requestedSlug = $_GET['slug'] ?? null;
 redirect_to_canonical_boards_slug_if_needed(is_string($requestedSlug) ? $requestedSlug : null);
 $slug = get_slug();
+$requestSlug = municipality_public_slug($slug);
 $municipality = municipality_entry($slug);
 if ($municipality === null) {
     http_response_code(404);
@@ -27,6 +29,7 @@ $pageTitle = (string)($municipality['boards']['title'] ?? ($municipality['name']
   <meta charset="UTF-8">
   <title><?php echo h($pageTitle); ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <?php echo site_render_favicon_links(); ?>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <?php
   $assetDir = __DIR__ . '/assets';
@@ -111,7 +114,7 @@ $pageTitle = (string)($municipality['boards']['title'] ?? ($municipality['name']
   <div id="page-header">
     <div class="page-links">
       <a href="<?php echo h((string)$municipality['boards']['list_url']); ?>">一覧</a>
-      <a href="/boards/api/kml.php?slug=<?php echo h($slug); ?>" download class="kml-link">KML</a>
+      <a href="/boards/api/kml.php?slug=<?php echo h($requestSlug); ?>" download class="kml-link">KML</a>
       <select aria-label="自治体切り替え" onchange="if (this.value) { window.location.href = this.value; }">
         <?php foreach ($switcherItems as $item): ?>
           <?php if (!$item['enabled'] && $item['slug'] !== $slug) continue; ?>
@@ -125,7 +128,7 @@ $pageTitle = (string)($municipality['boards']['title'] ?? ($municipality['name']
   <div id="controls">
     <div id="auth" style="display:flex; gap:8px; align-items:center; justify-content:flex-end;">
       <span id="auth-name" style="display:none;"></span>
-      <a id="auth-login" href="/line/login.php?slug=<?php echo h($slug); ?>" style="display:none;">LINEでログインして編集</a>
+      <a id="auth-login" href="/line/login.php?slug=<?php echo h($requestSlug); ?>" style="display:none;">LINEでログインして編集</a>
       <a id="auth-logout" href="/line/logout.php" style="display:none;">ログアウト</a>
     </div>
     <div style="display:flex; gap:6px; align-items:center;">

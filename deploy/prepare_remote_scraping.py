@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-# スクレイパ専用の tools/work と compose 設定を remote へ配る。
+# スクレイパ専用の tools/data/work と compose 設定を remote へ配る。
 
 import argparse
 import sys
@@ -58,7 +58,7 @@ def rsync_file(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="リモートスクレイピング用の tools/work を同期します。")
+    parser = argparse.ArgumentParser(description="リモートスクレイピング用の tools/data/work を同期します。")
     parser.add_argument("config_file", nargs="?", default="deploy.json", help="デプロイ設定 JSON")
     parser.add_argument("--dry-run", action="store_true", help="実際には転送せず内容だけ確認する")
     parser.add_argument("--sync-gijiroku-work", action="store_true", help="work/gijiroku も追加同期する")
@@ -248,7 +248,7 @@ def main() -> int:
         config,
         (
             f"mkdir -p {dest_dir}/tools/gijiroku {dest_dir}/tools/reiki {dest_dir}/tools/remote "
-            f"{dest_dir}/work/municipalities {dest_dir}/work/gijiroku {dest_dir}/work/reiki "
+            f"{dest_dir}/data/municipalities {dest_dir}/work/gijiroku {dest_dir}/work/reiki "
             f"{dest_dir}/docker/scraper {dest_dir}/logs/scraping"
         ),
     )
@@ -257,11 +257,11 @@ def main() -> int:
     rsync_file(config, ssh_base, "tools/municipality_slugs.py", f"{dest_dir}/tools/municipality_slugs.py", dry_run=args.dry_run)
     rsync_file(config, ssh_base, "tools/requirements-scraping.txt", f"{dest_dir}/tools/requirements-scraping.txt", dry_run=args.dry_run)
     rsync_file(config, ssh_base, "data/config.json", f"{dest_dir}/data/config.json", dry_run=args.dry_run)
+    rsync_dir(config, ssh_base, "data/municipalities/", f"{dest_dir}/data/municipalities/", dry_run=args.dry_run, delete=True)
 
     rsync_dir(config, ssh_base, "tools/gijiroku/", f"{dest_dir}/tools/gijiroku/", dry_run=args.dry_run, delete=True)
     rsync_dir(config, ssh_base, "tools/reiki/", f"{dest_dir}/tools/reiki/", dry_run=args.dry_run, delete=True)
     rsync_dir(config, ssh_base, "tools/remote/", f"{dest_dir}/tools/remote/", dry_run=args.dry_run, delete=True)
-    rsync_dir(config, ssh_base, "work/municipalities/", f"{dest_dir}/work/municipalities/", dry_run=args.dry_run, delete=True)
     rsync_dir(config, ssh_base, "docker/scraper/", f"{dest_dir}/docker/scraper/", dry_run=args.dry_run, delete=True)
 
     if args.sync_gijiroku_work:

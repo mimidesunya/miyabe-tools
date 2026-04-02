@@ -4,6 +4,7 @@ from __future__ import annotations
 # 自治体コードを軸に、保存ディレクトリ名と background_tasks の slug を現行形へ揃える。
 
 import argparse
+from collections import Counter
 import filecmp
 import json
 import os
@@ -22,6 +23,19 @@ BACKGROUND_TASK_FILES = (
     ("reiki", "reiki.json"),
     ("reiki", "reiki_snapshot.json"),
 )
+BOARD_ONLY_CANONICAL_SLUGS = {
+    "kyoto-kita-ku": "26101-kyoto-kita-ku",
+    "kyoto-kamigyo-ku": "26102-kyoto-kamigyo-ku",
+    "kyoto-sakyo-ku": "26103-kyoto-sakyo-ku",
+    "kyoto-nakagyo-ku": "26104-kyoto-nakagyo-ku",
+    "kyoto-higashiyama-ku": "26105-kyoto-higashiyama-ku",
+    "kyoto-shimogyo-ku": "26106-kyoto-shimogyo-ku",
+    "kyoto-minami-ku": "26107-kyoto-minami-ku",
+    "kyoto-ukyo-ku": "26108-kyoto-ukyo-ku",
+    "kyoto-fushimi-ku": "26109-kyoto-fushimi-ku",
+    "kyoto-yamashina-ku": "26110-kyoto-yamashina-ku",
+    "kyoto-nishikyo-ku": "26111-kyoto-nishikyo-ku",
+}
 
 sys.path.append(str(TOOLS_DIR))
 sys.path.append(str(TOOLS_DIR / "gijiroku"))
@@ -29,6 +43,7 @@ sys.path.append(str(TOOLS_DIR / "reiki"))
 
 import gijiroku_targets
 import reiki_targets
+from municipality_slugs import sanitize_slug_token
 
 
 def configure_roots(
@@ -54,50 +69,121 @@ def configure_roots(
         module.WORK_ROOT = WORK_ROOT
 
 
-def directory_code(name: str) -> str:
-    stem = str(name).strip()
-    if "-" not in stem:
-        return ""
-    prefix = stem.split("-", 1)[0].strip()
-    return prefix if prefix.isdigit() else ""
+def target_aliases(target: dict[str, Any], *, allow_name_only: bool = True) -> set[str]:
+    aliases: set[str] = set()
+    slug = str(target.get("slug", "")).strip()
+    code = str(target.get("code", "")).strip()
+    name_romaji = sanitize_slug_token(str(target.get("name_romaji", "")).strip())
+
+    if slug != "":
+        aliases.add(slug)
+    if code != "":
+        aliases.add(code)
+    if allow_name_only and name_romaji != "":
+        aliases.add(name_romaji)
+    if code != "" and name_romaji != "":
+        aliases.add(f"{code}-{name_romaji}")
+    return aliases
 
 
-# gijiroku/reiki ごとに「この code なら data/work のどこへ置くべきか」を作る。
-def expected_directory_map() -> dict[str, dict[str, dict[str, Path]]]:
-    expected: dict[str, dict[str, dict[str, Path]]] = {
-        "gijiroku": {},
-        "reiki": {},
+def build_alias_index(entries: dict[str, set[str]]) -> dict[str, str]:
+    grouped: dict[str, set[str]] = {}
+    for canonical_slug, aliases in entries.items():
+        for alias in aliases:
+            normalized = str(alias).strip()
+            if normalized == "":
+                continue
+            grouped.setdefault(normalized, set()).add(canonical_slug)
+    return {
+        alias: next(iter(targets))
+        for alias, targets in grouped.items()
+        if len(targets) == 1
     }
 
+
+def expected_directory_specs() -> dict[str, dict[str, Any]]:
+    expected: dict[str, dict[str, Any]] = {}
+
+    gijiroku_paths: dict[str, dict[str, Path]] = {}
+    gijiroku_aliases: dict[str, set[str]] = {}
     for target in gijiroku_targets.iter_gijiroku_targets():
-        code = str(target.get("code", "")).strip()
-        if code == "":
+        slug = str(target.get("slug", "")).strip()
+        if slug == "":
             continue
-        expected["gijiroku"][code] = {
+        gijiroku_paths[slug] = {
             "data": Path(target["data_dir"]),
             "work": Path(target["work_dir"]),
         }
+        gijiroku_aliases[slug] = target_aliases(target, allow_name_only=True)
+    expected["gijiroku"] = {
+        "roots": {"data": DATA_ROOT / "gijiroku", "work": WORK_ROOT / "gijiroku"},
+        "paths": gijiroku_paths,
+        "aliases": build_alias_index(gijiroku_aliases),
+    }
 
+    reiki_paths: dict[str, dict[str, Path]] = {}
+    reiki_aliases: dict[str, set[str]] = {}
     for target in reiki_targets.iter_reiki_targets():
-        code = str(target.get("code", "")).strip()
-        if code == "":
+        slug = str(target.get("slug", "")).strip()
+        if slug == "":
             continue
-        expected["reiki"][code] = {
+        reiki_paths[slug] = {
             "data": Path(target["html_dir"]).parent,
             "work": Path(target["work_root"]),
         }
+        reiki_aliases[slug] = target_aliases(target, allow_name_only=True)
+    expected["reiki"] = {
+        "roots": {"data": DATA_ROOT / "reiki", "work": WORK_ROOT / "reiki"},
+        "paths": reiki_paths,
+        "aliases": build_alias_index(reiki_aliases),
+    }
+
+    master_index = gijiroku_targets.load_municipality_master_index()
+    romaji_counts = Counter(
+        sanitize_slug_token(str(entry.get("name_romaji", "")).strip())
+        for entry in master_index.values()
+        if sanitize_slug_token(str(entry.get("name_romaji", "")).strip()) != ""
+    )
+    boards_paths: dict[str, dict[str, Path]] = {}
+    boards_aliases: dict[str, set[str]] = {}
+    for code, entry in sorted(master_index.items()):
+        normalized_code = str(code).strip()
+        if normalized_code == "":
+            continue
+        token = sanitize_slug_token(str(entry.get("name_romaji", "")).strip()) or "municipality"
+        slug = f"{normalized_code}-{token}"
+        aliases = {slug, normalized_code}
+        if token != "municipality" and romaji_counts.get(token, 0) == 1:
+            aliases.add(token)
+        boards_paths[slug] = {"data": DATA_ROOT / "boards" / slug}
+        boards_aliases[slug] = aliases
+    for legacy_slug, canonical_slug in BOARD_ONLY_CANONICAL_SLUGS.items():
+        code = canonical_slug.split("-", 1)[0].strip()
+        aliases = {legacy_slug, canonical_slug}
+        if code != "":
+            aliases.add(code)
+        boards_paths[canonical_slug] = {"data": DATA_ROOT / "boards" / canonical_slug}
+        boards_aliases[canonical_slug] = aliases
+    expected["boards"] = {
+        "roots": {"data": DATA_ROOT / "boards"},
+        "paths": boards_paths,
+        "aliases": build_alias_index(boards_aliases),
+    }
 
     return expected
 
 
 def planned_directory_moves(
     collection: str,
-    expected_by_code: dict[str, dict[str, Path]],
+    spec: dict[str, Any],
 ) -> list[tuple[Path, Path]]:
     collection_roots = {
-        "data": DATA_ROOT / collection,
-        "work": WORK_ROOT / collection,
+        kind: path
+        for kind, path in (spec.get("roots") or {}).items()
+        if isinstance(path, Path)
     }
+    alias_index = spec.get("aliases") or {}
+    canonical_paths = spec.get("paths") or {}
     moves: list[tuple[Path, Path]] = []
 
     for kind, root in collection_roots.items():
@@ -106,11 +192,12 @@ def planned_directory_moves(
         for child in sorted(root.iterdir(), key=lambda item: item.name):
             if not child.is_dir():
                 continue
-            code = directory_code(child.name)
-            if code == "" or code not in expected_by_code:
+            canonical_slug = str(alias_index.get(child.name, "")).strip()
+            if canonical_slug == "":
                 continue
-
-            target = expected_by_code[code][kind]
+            target = canonical_paths.get(canonical_slug, {}).get(kind)
+            if not isinstance(target, Path):
+                continue
             if child == target:
                 continue
             moves.append((child, target))
@@ -313,11 +400,11 @@ def main() -> int:
         work_root=work_root,
         background_task_dir=background_task_dir,
     )
-    expected = expected_directory_map()
+    expected = expected_directory_specs()
 
     move_count = 0
-    for collection, expected_by_code in expected.items():
-        moves = planned_directory_moves(collection, expected_by_code)
+    for collection, spec in expected.items():
+        moves = planned_directory_moves(collection, spec)
         move_count += apply_directory_moves(moves, dry_run=args.dry_run)
 
     task_count = normalize_task_status_files(dry_run=args.dry_run)

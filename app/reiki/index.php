@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'reiki' . DIRECTORY_SEPARATOR . 'index_runtime.php';
+require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'site_assets.php';
 
 // 例規集ページの画面骨格は app 側に置き、前処理だけ lib 側へ分ける。
 ?><!doctype html>
@@ -10,11 +11,12 @@ require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPAR
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?php echo h($pageTitle); ?></title>
+    <?php echo site_render_favicon_links(); ?>
     <?php $cssVer = @filemtime(__DIR__ . '/assets/css/reiki.css') ?: 1; ?>
     <?php $jsVer  = @filemtime(__DIR__ . '/assets/js/reiki.js')  ?: 1; ?>
     <link rel="stylesheet" href="/reiki/assets/css/reiki.css?v=<?php echo $cssVer; ?>">
 </head>
-<body data-reiki-slug="<?php echo h($slug); ?>">
+<body data-reiki-slug="<?php echo h($requestSlug); ?>">
 <header class="header">
     <div style="display:flex; align-items:center; gap:10px;">
         <h1><a href="<?php echo h($clearUrl); ?>" style="color:inherit; text-decoration:none;"><?php echo h($pageTitle); ?></a></h1>
@@ -44,7 +46,7 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
     </nav>
     <aside class="sidebar">
         <form class="search" method="get">
-            <input type="hidden" name="slug" value="<?php echo h($slug); ?>">
+            <input type="hidden" name="slug" value="<?php echo h($requestSlug); ?>">
             <input type="text" name="q" value="<?php echo h($q); ?>" placeholder="タイトル・ファイル名で検索">
             <?php if ($selectedRecord): ?>
                 <input type="hidden" name="file" value="<?php echo h($selectedRecord['name']); ?>">
@@ -186,7 +188,7 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
                                 <?php 
                                     $enactmentYear = (int)substr($record['enactment_date'], 0, 4);
                                     if ($enactmentYear > 1000) {
-                                        $currentYear = (int)date('Y');
+                                        $currentYear = (int)app_now_tokyo('Y');
                                         $elapsed = $currentYear - $enactmentYear;
                                         if ($elapsed > 0) {
                                             $style = $elapsed >= 50 ? 'color:#dc2626; font-weight:bold;' : '';
@@ -263,7 +265,7 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
                     <?php endif; ?>
                     <?php if (!empty($selectedClassification['analyzedAt'])): ?>
                         <div class="meta" style="margin-bottom:10px; font-size:13px; color:#6b7280;">
-                            AI評価日時: <?php try { echo h((new DateTime($selectedClassification['analyzedAt']))->setTimezone(new DateTimeZone('Asia/Tokyo'))->format('Y-m-d H:i:s')); } catch(Exception $e) { echo h($selectedClassification['analyzedAt']); } ?>
+                            AI評価日時: <?php echo h(app_format_tokyo_datetime((string)$selectedClassification['analyzedAt'])); ?>
                             <?php if (!empty($selectedClassification['modelName'])): ?>
                                 (Model: <?php echo h((string)$selectedClassification['modelName']); ?>)
                             <?php endif; ?>
@@ -314,7 +316,7 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
 
             <!-- Feedback Section -->
             <?php $filenameStem = pathinfo($selectedRecord['name'], PATHINFO_FILENAME); ?>
-            <section class="card" id="feedback-section" data-filename="<?php echo h($filenameStem); ?>" data-slug="<?php echo h($slug); ?>">
+            <section class="card" id="feedback-section" data-filename="<?php echo h($filenameStem); ?>" data-slug="<?php echo h($requestSlug); ?>">
                 <div class="feedback-row">
                     <span style="font-size:14px; font-weight:600; color:#334155;">このAI評価はどうですか？</span>
                     <div class="feedback-buttons">

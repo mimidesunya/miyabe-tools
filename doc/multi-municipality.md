@@ -4,10 +4,12 @@
 
 ## 基本方針
 
-- 自治体の定義は `data/config.json` の `MUNICIPALITIES` に集約する
-- 全国自治体コードの基礎マスタは `work/municipalities/municipality_master.tsv` を使う
+- 全国自治体コードの基礎マスタは `data/municipalities/municipality_master.tsv` を使う
+- 例規 URL / 会議録 URL / 公式ホームページ URL も `data/municipalities/*.tsv|csv` を正本にする
+- 現在の標準構成では `data/config.json` に自治体一覧を持たない
 - 画面は `slug` ごとにデータ参照先を切り替える
-- 新しく追加する `slug` は `自治体コード-ローマ字名称` を推奨する
+- 内部保存先も公開 URL も、正規形は `自治体コード-ローマ字名称`
+- 公開用の正規 URL は常に `自治体コード-ローマ字名称` を使う
 - 未対応機能は別自治体のデータを流用せず、「準備中」と表示する
 
 ## URL ルール
@@ -15,50 +17,35 @@
 - 掲示場: `/boards/{slug}/`
 - 例規集: `/reiki/?slug={slug}`
 - 会議録: `/gijiroku/?slug={slug}`
-- `slug` に自治体コードだけ、自治体名ローマ字だけ、自治体名そのものを渡した場合も、サーバー側で canonical slug に解決し、GET 画面は正規 URL へリダイレクトする
+- `slug` に自治体コードだけ、自治体名ローマ字だけ、自治体名そのものを渡した場合も、サーバー側で `自治体コード-ローマ字名称` に解決し、GET 画面は正規 URL へリダイレクトする
 
 ## 設定例
 
 ```json
 {
-  "DEFAULT_SLUG": "kawasaki-shi",
-  "MUNICIPALITIES": {
-    "kawasaki-shi": {
-      "name": "川崎市",
-      "boards": {
-        "enabled": true,
-        "allow_offset": false
-      },
-      "reiki": {
-        "enabled": true,
-        "source_dir": "reiki/kawasaki-shi/source",
-        "classification_dir": "reiki/kawasaki-shi/json",
-        "db_path": "reiki/kawasaki-shi/ordinances.sqlite"
-      },
-      "gijiroku": {
-        "enabled": true,
-        "assembly_name": "川崎市議会",
-        "data_dir": "gijiroku/kawasaki-shi",
-        "db_path": "gijiroku/kawasaki-shi/minutes.sqlite"
-      }
-    }
-  }
+  "DEFAULT_SLUG": "14130-kawasaki-shi"
 }
 ```
 
+全国マスタに載っている自治体は、`config.json` に書かなくても各機能のタイトル・説明・保存先パスを既定値から組み立てます。  
+`DEFAULT_SLUG` も公開用の `自治体コード-ローマ字名称` を書いておくと分かりやすいです。
+
 ## 追加手順
 
-1. `MUNICIPALITIES` に新しい `slug` を追加する
-   例: `01202-hakodate`
-2. `boards` / `reiki` / `gijiroku` の各機能で `enabled` とデータパスを定義する
-3. 必要なデータファイルを `data/` 配下に配置する
-4. 例規集や会議録は対応する初期化スクリプトを `--slug` 付きで実行する
+1. まず `data/municipalities/*.tsv|csv` に自治体コード・URL・`name_romaji` が載っていることを確認する
+2. 例規集や会議録は対応する初期化スクリプトを `--slug` 付きで実行する
+3. CLI では旧 `name-only` slug も alias として受け付けるが、保存先と公開 URL は `自治体コード-ローマ字名称` に統一される
+
+`name_kana` がある自治体は、例規一覧のかな順ソート用接頭辞も自動生成します。
 
 ## 実装ポイント
 
 - PHP 側は `lib/municipalities.php` が共通レジストリ
-- 掲示場の権限 (`allow_offset`) も自治体設定から読む
+- 掲示場の位置調整権限は管理者のみ
 - 例規集のフィードバック集計は `slug` を含むキーで分離する
 - トップページは `/api/home.php` が visible な自治体・機能だけを JSON で返し、`app/assets/js/home.js` がその結果を描画する
+- トップページは都道府県ごとに自治体カードを束ね、`🪧 掲示板` `📝 会議録` `📚 例規集` のアイコン付きで機能を並べる
+- トップページや公開画面で表示する日時は `Asia/Tokyo` に揃える
 - 空の自治体カードは API 側で除外し、クライアント側では「返ってきた配列だけ」を描画する
 - `/api/home.php` は短時間のサーバー側キャッシュを持ち、同じ集計結果を数秒だけ使い回してトップの読み込みを軽くする
+- トップの `要反映` は、取得件数は揃っているが公開用の DB / HTML が未反映の状態を表す。逐次 build や一括 build の失敗時はこの状態になりうる

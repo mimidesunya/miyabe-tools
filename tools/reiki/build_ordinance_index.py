@@ -210,18 +210,45 @@ def open_sqlite_connection(path: Path) -> sqlite3.Connection:
     return connection
 
 
-def configured_sortable_prefixes(slug: str) -> list[str]:
-    municipalities = reiki_targets.load_configured_municipalities()
-    entry = municipalities.get(slug, {})
-    if not isinstance(entry, dict):
-        return []
-    feature = entry.get("reiki", {})
-    if not isinstance(feature, dict):
-        return []
-    raw = feature.get("sortable_prefixes", [])
-    if not isinstance(raw, list):
-        return []
-    return [str(value).strip() for value in raw if str(value).strip()]
+def strip_municipality_name_kana_suffix(name: str, name_kana: str) -> str:
+    normalized_name = str(name).strip()
+    normalized_kana = normalize_space(name_kana).replace(" ", "")
+    if normalized_name == "" or normalized_kana == "":
+        return ""
+    if normalized_name == "北海道":
+        return ""
+
+    suffix_map = (
+        ("都", ("と",)),
+        ("道", ("どう",)),
+        ("府", ("ふ",)),
+        ("県", ("けん",)),
+        ("市", ("し",)),
+        ("区", ("く",)),
+        ("町", ("ちょう", "まち")),
+        ("村", ("むら", "そん")),
+    )
+    for kanji_suffix, kana_suffixes in suffix_map:
+        if not normalized_name.endswith(kanji_suffix):
+            continue
+        for kana_suffix in kana_suffixes:
+            if normalized_kana.endswith(kana_suffix) and len(normalized_kana) > len(kana_suffix):
+                return normalized_kana[: -len(kana_suffix)]
+    return ""
+
+
+def municipality_sortable_prefixes(slug: str) -> list[str]:
+    target = reiki_targets.load_reiki_target(str(slug).strip())
+    name = str(target.get("name", "")).strip()
+    name_kana = normalize_space(str(target.get("name_kana", "")).strip()).replace(" ", "")
+    prefixes: list[str] = []
+    for candidate in (
+        name_kana,
+        strip_municipality_name_kana_suffix(name, name_kana),
+    ):
+        if candidate and candidate not in prefixes:
+            prefixes.append(candidate)
+    return prefixes
 
 
 def decode_html_text(value: object) -> str:
@@ -637,6 +664,14 @@ def recreate_output_db(output_db: Path) -> None:
         connection.commit()
 
 
+def ensure_output_db_permissions(path: Path) -> None:
+    try:
+        if path.exists():
+            path.chmod(0o664)
+    except Exception:
+        pass
+
+
 def ensure_output_db(output_db: Path) -> None:
     output_db.parent.mkdir(parents=True, exist_ok=True)
     recreate = False
@@ -646,10 +681,12 @@ def ensure_output_db(output_db: Path) -> None:
     if recreate:
         # 旧 taikei の簡易 DB は列が足りないので、逐次追加へ切り替える前に作り直す。
         recreate_output_db(output_db)
+        ensure_output_db_permissions(output_db)
         return
     with open_sqlite_connection(output_db) as connection:
         ensure_db_schema(connection)
         connection.commit()
+    ensure_output_db_permissions(output_db)
 
 
 def resolve_record_paths(
@@ -797,7 +834,7 @@ def upsert_source_key(
         markdown_path,
         classification_path,
         manifest_row,
-        configured_sortable_prefixes(slug),
+        municipality_sortable_prefixes(slug),
     )
     if record is None:
         return False
@@ -807,6 +844,7 @@ def upsert_source_key(
         ensure_db_schema(connection)
         upsert_record(connection, record)
         connection.commit()
+    ensure_output_db_permissions(output_db)
     return True
 
 
@@ -844,7 +882,7 @@ def backfill_missing_rows(
     markdown_files = build_alias_map(collect_preferred_files(markdown_dir, {".md"}))
     classification_files = build_alias_map(collect_preferred_files(classification_dir, {".json"}))
     manifest_index = load_manifest_index(manifest_json)
-    prefixes = configured_sortable_prefixes(slug)
+    prefixes = municipality_sortable_prefixes(slug)
 
     ensure_output_db(output_db)
     with open_sqlite_connection(output_db) as connection:
@@ -933,6 +971,7 @@ def backfill_missing_rows(
                         }
                     )
         connection.commit()
+    ensure_output_db_permissions(output_db)
 
     return {
         "added": added,
@@ -961,7 +1000,7 @@ def build_index(
     markdown_files = build_alias_map(collect_preferred_files(markdown_dir, {".md"}))
     classification_files = build_alias_map(collect_preferred_files(classification_dir, {".json"}))
     manifest_index = load_manifest_index(manifest_json)
-    prefixes = configured_sortable_prefixes(slug)
+    prefixes = municipality_sortable_prefixes(slug)
 
     output_db.parent.mkdir(parents=True, exist_ok=True)
     temp_fd, temp_name = tempfile.mkstemp(prefix=f"{output_db.name}.", suffix=".tmp", dir=str(output_db.parent))
@@ -1059,6 +1098,7 @@ def build_index(
         connection.commit()
         connection.close()
         temp_db.replace(output_db)
+        ensure_output_db_permissions(output_db)
     except Exception:
         try:
             temp_db.unlink(missing_ok=True)

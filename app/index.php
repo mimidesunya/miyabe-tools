@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'site_assets.php';
+
 function homepage_h(?string $value): string
 {
     return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -21,6 +23,7 @@ function homepage_asset_url(string $relativePath): string
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>miyabe-tools</title>
+    <?php echo site_render_favicon_links(); ?>
     <link rel="stylesheet" href="<?php echo homepage_h(homepage_asset_url('css/home.css')); ?>">
 </head>
 <body>
@@ -32,15 +35,15 @@ function homepage_asset_url(string $relativePath): string
                 ポスター掲示場、会議録、例規集を自治体単位で整理しています。使える機能はすぐ開けて、準備中のものは進捗つきで追えます。
             </div>
             <div class="hero-actions">
-                <a class="hero-cta" href="/gijiroku/cross.php">
-                    <span class="hero-cta-kicker">会議録</span>
+                <a class="hero-cta" href="/gijiroku/cross.php" target="_blank" rel="noopener">
+                    <span class="hero-cta-kicker"><span class="hero-cta-icon" aria-hidden="true">🏛️</span><span>会議録</span></span>
                     <span class="hero-cta-body">
                         <span class="hero-cta-title">会議録横断検索を開く</span>
                         <span class="hero-cta-sub">自治体をまたいで全文検索し、気になる自治体へそのまま切り替え</span>
                     </span>
                 </a>
-                <a class="hero-cta" href="/reiki/cross.php">
-                    <span class="hero-cta-kicker">例規集</span>
+                <a class="hero-cta" href="/reiki/cross.php" target="_blank" rel="noopener">
+                    <span class="hero-cta-kicker"><span class="hero-cta-icon" aria-hidden="true">⚖️</span><span>例規集</span></span>
                     <span class="hero-cta-body">
                         <span class="hero-cta-title">例規集横断検索を開く</span>
                         <span class="hero-cta-sub">条例・規則・要綱を自治体横断で探し、該当自治体へ移動</span>
@@ -71,6 +74,7 @@ function homepage_asset_url(string $relativePath): string
         <div class="legend">
             <span>利用可能: 画面とデータを公開中です</span>
             <span>休止中: データはあるものの公開を止めています</span>
+            <span>要反映: 取得は完了したが公開用データの反映待ちです</span>
             <span>未公開: データ未生成ですが取得タスクの進捗は確認できます</span>
         </div>
 

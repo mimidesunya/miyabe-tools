@@ -4,6 +4,7 @@
 
 declare(strict_types=1);
 require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'session.php';
+require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'site_assets.php';
 
 // HTML エスケープ用ヘルパー（list.php と同等）
 function h(?string $s): string {
@@ -99,6 +100,7 @@ $slug = get_slug();
 if ($slug === '') {
     die('自治体(slug)が正しく指定されていません。');
 }
+$requestSlug = municipality_public_slug($slug);
 
 $municipality = municipality_entry($slug);
 $municipalityName = (string)($municipality['name'] ?? $slug);
@@ -222,6 +224,7 @@ if (!is_admin($me)) {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ユーザー一覧 - <?php echo h($municipalityName); ?> 掲示場タスク</title>
+  <?php echo site_render_favicon_links(); ?>
   <style>
     :root { --bg:#f6f8fb; --card:#fff; --text:#222; --muted:#667788; --accent:#275ea3; --success:#10b981; --error:#ef4444; --warning:#f59e0b; }
     body { margin:0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', Meiryo, Arial, sans-serif; background: var(--bg); color: var(--text); }
@@ -275,8 +278,8 @@ if (!is_admin($me)) {
     </div>
     <div class="links">
       <a href="/">トップ</a>
-      <a href="/boards/<?php echo h($slug); ?>/">マップ</a>
-      <a href="/boards/list.php?slug=<?php echo h($slug); ?>">一覧</a>
+      <a href="/boards/<?php echo h($requestSlug); ?>/">マップ</a>
+      <a href="/boards/list.php?slug=<?php echo h($requestSlug); ?>">一覧</a>
       <select aria-label="自治体切り替え" onchange="if (this.value) { window.location.href = this.value; }">
         <?php foreach ($switcherItems as $item): ?>
           <?php $switchMunicipality = municipality_entry((string)$item['slug']); ?>
@@ -295,14 +298,14 @@ if (!is_admin($me)) {
   <div class="container">
     <div class="toolbar">
       <div>並び替え:</div>
-      <a href="?slug=<?php echo h($slug); ?>&sort=done">掲示が多い順</a>
-      <a href="?slug=<?php echo h($slug); ?>&sort=in_progress">着手が多い順</a>
-      <a href="?slug=<?php echo h($slug); ?>&sort=issue">異常が多い順</a>
-      <a href="?slug=<?php echo h($slug); ?>&sort=boards">更新地点が多い順</a>
-      <a href="?slug=<?php echo h($slug); ?>&sort=last">最終更新が新しい順</a>
-      <a href="?slug=<?php echo h($slug); ?>&sort=name">名前順</a>
+      <a href="?slug=<?php echo h($requestSlug); ?>&sort=done">掲示が多い順</a>
+      <a href="?slug=<?php echo h($requestSlug); ?>&sort=in_progress">着手が多い順</a>
+      <a href="?slug=<?php echo h($requestSlug); ?>&sort=issue">異常が多い順</a>
+      <a href="?slug=<?php echo h($requestSlug); ?>&sort=boards">更新地点が多い順</a>
+      <a href="?slug=<?php echo h($requestSlug); ?>&sort=last">最終更新が新しい順</a>
+      <a href="?slug=<?php echo h($requestSlug); ?>&sort=name">名前順</a>
       <div style="margin-left:auto;">
-        <?php if ($me) { echo '<span class="muted">ログイン中: ' . h($me['name'] ?? '') . '</span>'; } else { echo '<a href="/line/login.php?slug=' . h($slug) . '">LINEでログイン</a>'; } ?>
+        <?php if ($me) { echo '<span class="muted">ログイン中: ' . h($me['name'] ?? '') . '</span>'; } else { echo '<a href="/line/login.php?slug=' . h($requestSlug) . '">LINEでログイン</a>'; } ?>
       </div>
     </div>
 
@@ -311,7 +314,7 @@ if (!is_admin($me)) {
       <h3>📋 一括割り振り</h3>
       <p class="muted" style="margin: 0 0 12px 0;">自分が着手中の掲示板を他のユーザーに一括で割り振ることができます。</p>
       <form id="bulkReassignForm" onsubmit="handleBulkReassign(event)">
-        <input type="hidden" name="slug" value="<?php echo h($slug); ?>">
+        <input type="hidden" name="slug" value="<?php echo h($requestSlug); ?>">
         <div class="form-row">
           <div class="form-group">
             <label for="toUserId">割り振り先ユーザー</label>
@@ -371,7 +374,7 @@ if (!is_admin($me)) {
               <div class="meta">
                 <div>更新地点: <strong><?php echo (int)$u['boards_updated']; ?></strong></div>
                 <div>コメント: <strong><?php echo (int)$u['comments_count']; ?></strong></div>
-                <div>最終更新: <strong><?php echo $u['last_activity'] ? h($u['last_activity']) : '—'; ?></strong></div>
+                <div>最終更新: <strong><?php echo $u['last_activity'] ? h(app_format_tokyo_datetime((string)$u['last_activity'])) : '—'; ?></strong></div>
               </div>
             </div>
           </div>

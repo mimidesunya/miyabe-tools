@@ -3,6 +3,74 @@ declare(strict_types=1);
 
 // 自治体マスタ、config.json、実データ配置を突き合わせて公開用の自治体カタログを組み立てる。
 
+function app_utc_timezone(): DateTimeZone
+{
+    static $timezone = null;
+    if ($timezone === null) {
+        $timezone = new DateTimeZone('UTC');
+    }
+    return $timezone;
+}
+
+function app_tokyo_timezone(): DateTimeZone
+{
+    static $timezone = null;
+    if ($timezone === null) {
+        $timezone = new DateTimeZone('Asia/Tokyo');
+    }
+    return $timezone;
+}
+
+function app_parse_timestamp_utc(?string $value): ?DateTimeImmutable
+{
+    $value = trim((string)$value);
+    if ($value === '') {
+        return null;
+    }
+
+    if (preg_match('/(?:Z|[+-]\d{2}:\d{2}|[+-]\d{4})$/', $value) === 1) {
+        try {
+            return new DateTimeImmutable($value);
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    $normalized = str_replace('T', ' ', $value);
+    foreach (['Y-m-d H:i:s', 'Y-m-d H:i', 'Y-m-d'] as $format) {
+        $parsed = DateTimeImmutable::createFromFormat('!' . $format, $normalized, app_utc_timezone());
+        if ($parsed instanceof DateTimeImmutable) {
+            return $parsed;
+        }
+    }
+
+    try {
+        return new DateTimeImmutable($value, app_utc_timezone());
+    } catch (Throwable) {
+        return null;
+    }
+}
+
+function app_parse_timestamp_utc_unix(?string $value): ?int
+{
+    $parsed = app_parse_timestamp_utc($value);
+    return $parsed instanceof DateTimeImmutable ? $parsed->getTimestamp() : null;
+}
+
+function app_format_tokyo_datetime(?string $value, string $format = 'Y-m-d H:i:s'): string
+{
+    $parsed = app_parse_timestamp_utc($value);
+    if (!$parsed instanceof DateTimeImmutable) {
+        return trim((string)$value);
+    }
+    return $parsed->setTimezone(app_tokyo_timezone())->format($format);
+}
+
+function app_now_tokyo(string $format = 'Y-m-d H:i:s'): string
+{
+    return (new DateTimeImmutable('now', app_tokyo_timezone()))->format($format);
+}
+
 function project_root_path(): string
 {
     return dirname(__DIR__);
@@ -54,6 +122,20 @@ function municipality_catalog_cache_ttl_seconds(): int
     // 自治体マスタや保存先は deploy / バッチのタイミングでしか大きく変わらない。
     // 毎リクエストで全自治体を再判定しないよう、ここは長めに保持する。
     return 300;
+}
+
+function municipality_catalog_cache_is_compatible(array $cached): bool
+{
+    foreach ($cached as $entry) {
+        if (!is_array($entry)) {
+            return false;
+        }
+        $publicSlug = trim((string)($entry['public_slug'] ?? ''));
+        if ($publicSlug === '') {
+            return false;
+        }
+    }
+    return true;
 }
 
 function data_path(string $relative): string
@@ -245,7 +327,9 @@ function sqlite_table_max_id(string $dbPath, string $table): int
         $value = $pdo->query('SELECT COALESCE(MAX(id), 0) FROM ' . $table)->fetchColumn();
         $cache[$cacheKey] = max(0, (int)$value);
     } catch (Throwable) {
-        $cache[$cacheKey] = 0;
+        // 一時的な lock / open 失敗を 0 件として固定すると、
+        // 同一リクエスト内の self-heal まで潰してしまうため失敗結果は cache しない。
+        return 0;
     }
 
     return $cache[$cacheKey];
@@ -257,10 +341,34 @@ function sqlite_table_has_rows(string $dbPath, string $table): bool
     return sqlite_table_max_id($dbPath, $table) > 0;
 }
 
-function raw_municipality_entries(): array
+function municipality_feature_live_has_data(string $feature, array $featureConfig): bool
 {
-    $entries = load_config()['MUNICIPALITIES'] ?? [];
-    return is_array($entries) ? $entries : [];
+    switch ($feature) {
+        case 'boards':
+            $dbPath = trim((string)($featureConfig['db_path'] ?? ''));
+            return $dbPath !== '' && is_file($dbPath);
+
+        case 'reiki':
+            $dbPath = trim((string)($featureConfig['db_path'] ?? ''));
+            if ($dbPath !== '' && sqlite_table_has_rows($dbPath, 'ordinances')) {
+                return true;
+            }
+            $htmlDir = trim((string)($featureConfig['clean_html_dir'] ?? ''));
+            return $htmlDir !== '' && directory_contains_matching_file(
+                $htmlDir,
+                ['/\.(?:html|htm)(?:\.gz)?$/i']
+            );
+
+        case 'gijiroku':
+            $dbPath = trim((string)($featureConfig['db_path'] ?? ''));
+            if ($dbPath !== '' && sqlite_table_has_rows($dbPath, 'minutes')) {
+                return true;
+            }
+            $indexJsonPath = trim((string)($featureConfig['index_json_path'] ?? ''));
+            return $indexJsonPath !== '' && json_array_has_items_auto($indexJsonPath);
+    }
+
+    return !empty($featureConfig['has_data']);
 }
 
 function sanitize_slug_token(string $value): string
@@ -283,74 +391,39 @@ function normalize_slug_alias_value(string $value): string
     return strtolower($value);
 }
 
-function municipality_default_name(string $slug): string
-{
-    $slug = trim($slug);
-    return match ($slug) {
-        'kawasaki-shi' => '川崎市',
-        'higashikurume-shi' => '東久留米市',
-        'hino-shi' => '日野市',
-        default => $slug,
-    };
-}
-
-function legacy_reiki_defaults(string $slug): array
-{
-    $slug = trim($slug);
-    return [
-        'source_dir' => "reiki/{$slug}/source",
-        'clean_html_dir' => "reiki/{$slug}/html",
-        'classification_dir' => "reiki/{$slug}/json",
-        'image_dir' => "reiki/{$slug}/images",
-        'markdown_dir' => "reiki/{$slug}/markdown",
-        'db_path' => "reiki/{$slug}/ordinances.sqlite",
-    ];
-}
-
-function legacy_gijiroku_defaults(string $slug, string $name): array
-{
-    $slug = trim($slug);
-    $defaultDataDir = "gijiroku/{$slug}";
-    return [
-        'assembly_name' => "{$name}議会",
-        'data_dir' => $defaultDataDir,
-        'downloads_dir' => $defaultDataDir . '/downloads',
-        'index_json_path' => $defaultDataDir . '/meetings_index.json',
-        'db_path' => $defaultDataDir . '/minutes.sqlite',
-    ];
-}
-
 function normalize_municipality_entry(string $slug, array $entry): array
 {
-    $name = trim((string)($entry['name'] ?? $entry['label'] ?? municipality_default_name($slug)));
+    $code = trim((string)($entry['code'] ?? ''));
+    $masterEntry = $code !== '' ? (load_municipality_master_index()[$code] ?? []) : [];
+    // 保存先も公開 URL も canonical な code-name_romaji slug をそのまま使う。
+    $name = trim((string)($entry['name'] ?? $entry['label'] ?? $masterEntry['name'] ?? $slug));
     if ($name === '') {
         $name = $slug;
     }
-    $fullName = trim((string)($entry['full_name'] ?? ''));
+    $fullName = trim((string)($entry['full_name'] ?? $masterEntry['full_name'] ?? ''));
     if ($fullName === '') {
         $fullName = $name;
     }
+    $nameKana = trim((string)($entry['name_kana'] ?? $masterEntry['name_kana'] ?? ''));
+    $nameRomaji = trim((string)($entry['name_romaji'] ?? $masterEntry['name_romaji'] ?? ''));
+    $publicSlug = $slug;
 
     $boardsConfig = is_array($entry['boards'] ?? null) ? $entry['boards'] : [];
-    $boardsDbRelative = trim((string)($boardsConfig['db_path'] ?? "boards/{$slug}/boards.sqlite"));
-    $boardsTasksDbRelative = trim((string)($boardsConfig['tasks_db_path'] ?? "boards/{$slug}/tasks.sqlite"));
+    $boardsDbRelative = normalize_data_relative_path(trim((string)($boardsConfig['db_path'] ?? "boards/{$slug}/boards.sqlite")));
+    $boardsTasksDbRelative = normalize_data_relative_path(trim((string)($boardsConfig['tasks_db_path'] ?? "boards/{$slug}/tasks.sqlite")));
     $boardsDbPath = data_path($boardsDbRelative);
     $boardsTasksDbPath = data_path($boardsTasksDbRelative);
     $boardsDetected = is_file($boardsDbPath);
     $boardsEnabled = feature_enabled_value($boardsConfig['enabled'] ?? null, $boardsDetected);
-    $boardsAllowOffset = (bool)($boardsConfig['allow_offset'] ?? $entry['allow_offset'] ?? false);
-    $code = trim((string)($entry['code'] ?? ''));
 
     $reikiConfig = is_array($entry['reiki'] ?? null) ? $entry['reiki'] : [];
     $reikiSkipDetection = !empty($reikiConfig['skip_detection']);
-    $reikiDefaults = legacy_reiki_defaults($slug);
-    $reikiSourceRelative = trim((string)($reikiConfig['source_dir'] ?? $reikiConfig['data_dir'] ?? $reikiDefaults['source_dir']));
-    $reikiCleanHtmlRelative = trim((string)($reikiConfig['clean_html_dir'] ?? $reikiDefaults['clean_html_dir']));
-    $reikiClassificationRelative = trim((string)($reikiConfig['classification_dir'] ?? $reikiDefaults['classification_dir']));
-    $reikiImageRelative = trim((string)($reikiConfig['image_dir'] ?? $reikiDefaults['image_dir']));
-    $reikiMarkdownRelative = trim((string)($reikiConfig['markdown_dir'] ?? $reikiDefaults['markdown_dir']));
-    $reikiDbRelative = trim((string)($reikiConfig['db_path'] ?? $reikiDefaults['db_path']));
-    // 掲示板と同じ canonical slug を正として扱い、旧保存先への暗黙 fallback は持たない。
+    $reikiSourceRelative = normalize_data_relative_path(trim((string)($reikiConfig['source_dir'] ?? $reikiConfig['data_dir'] ?? "reiki/{$slug}/source")));
+    $reikiCleanHtmlRelative = normalize_data_relative_path(trim((string)($reikiConfig['clean_html_dir'] ?? "reiki/{$slug}/html")));
+    $reikiClassificationRelative = normalize_data_relative_path(trim((string)($reikiConfig['classification_dir'] ?? "reiki/{$slug}/json")));
+    $reikiImageRelative = normalize_data_relative_path(trim((string)($reikiConfig['image_dir'] ?? "reiki/{$slug}/images")));
+    $reikiMarkdownRelative = normalize_data_relative_path(trim((string)($reikiConfig['markdown_dir'] ?? "reiki/{$slug}/markdown")));
+    $reikiDbRelative = normalize_data_relative_path(trim((string)($reikiConfig['db_path'] ?? "reiki/{$slug}/ordinances.sqlite")));
     $reikiDbPath = data_path($reikiDbRelative);
     $reikiSourcePath = work_path($reikiSourceRelative);
     $reikiCleanHtmlPath = data_path($reikiCleanHtmlRelative);
@@ -371,12 +444,11 @@ function normalize_municipality_entry(string $slug, array $entry): array
 
     $gijirokuConfig = is_array($entry['gijiroku'] ?? null) ? $entry['gijiroku'] : [];
     $gijirokuSkipDetection = !empty($gijirokuConfig['skip_detection']);
-    $gijirokuDefaults = legacy_gijiroku_defaults($slug, $name);
-    $gijirokuDataRelative = trim((string)($gijirokuConfig['data_dir'] ?? $gijirokuDefaults['data_dir']));
-    $gijirokuDownloadsRelative = trim((string)($gijirokuConfig['downloads_dir'] ?? $gijirokuDefaults['downloads_dir']));
-    $gijirokuIndexJsonRelative = trim((string)($gijirokuConfig['index_json_path'] ?? $gijirokuDefaults['index_json_path']));
-    $gijirokuDbRelative = trim((string)($gijirokuConfig['db_path'] ?? $gijirokuDefaults['db_path']));
-    $assemblyName = trim((string)($gijirokuConfig['assembly_name'] ?? $gijirokuDefaults['assembly_name']));
+    $gijirokuDataRelative = normalize_data_relative_path(trim((string)($gijirokuConfig['data_dir'] ?? "gijiroku/{$slug}")));
+    $gijirokuDownloadsRelative = normalize_data_relative_path(trim((string)($gijirokuConfig['downloads_dir'] ?? "gijiroku/{$slug}/downloads")));
+    $gijirokuIndexJsonRelative = normalize_data_relative_path(trim((string)($gijirokuConfig['index_json_path'] ?? "gijiroku/{$slug}/meetings_index.json")));
+    $gijirokuDbRelative = normalize_data_relative_path(trim((string)($gijirokuConfig['db_path'] ?? "gijiroku/{$slug}/minutes.sqlite")));
+    $assemblyName = trim((string)($gijirokuConfig['assembly_name'] ?? "{$name}議会"));
     $gijirokuDataPath = data_path($gijirokuDataRelative);
     $gijirokuWorkPath = work_path($gijirokuDataRelative);
     $gijirokuDownloadsPath = work_path($gijirokuDownloadsRelative);
@@ -393,19 +465,20 @@ function normalize_municipality_entry(string $slug, array $entry): array
 
     return [
         'slug' => $slug,
+        'public_slug' => $publicSlug,
         'code' => $code,
         'name' => $name,
+        'name_kana' => $nameKana,
         'full_name' => $fullName,
-        'name_romaji' => trim((string)($entry['name_romaji'] ?? '')),
+        'name_romaji' => $nameRomaji,
         'boards' => [
             'enabled' => $boardsEnabled,
             'has_data' => $boardsDetected,
-            'allow_offset' => $boardsAllowOffset,
             'title' => trim((string)($boardsConfig['title'] ?? "{$name} ポスター掲示場")),
             'description' => trim((string)($boardsConfig['description'] ?? '選挙ポスター掲示場の位置確認と作業状況共有')),
-            'url' => "/boards/{$slug}/",
-            'list_url' => '/boards/list.php?slug=' . rawurlencode($slug),
-            'users_url' => '/boards/users.php?slug=' . rawurlencode($slug),
+            'url' => "/boards/{$publicSlug}/",
+            'list_url' => '/boards/list.php?slug=' . rawurlencode($publicSlug),
+            'users_url' => '/boards/users.php?slug=' . rawurlencode($publicSlug),
             'db_path_rel' => normalize_data_relative_path($boardsDbRelative),
             'tasks_db_path_rel' => normalize_data_relative_path($boardsTasksDbRelative),
             'db_path' => $boardsDbPath,
@@ -416,7 +489,7 @@ function normalize_municipality_entry(string $slug, array $entry): array
             'has_data' => $reikiDetected,
             'title' => trim((string)($reikiConfig['title'] ?? ($reikiDefaults['title'] ?? "{$name}例規集 AI評価ビューア"))),
             'description' => trim((string)($reikiConfig['description'] ?? '例規集の検索とAI評価結果の閲覧')),
-            'url' => '/reiki/?slug=' . rawurlencode($slug),
+            'url' => '/reiki/?slug=' . rawurlencode($publicSlug),
             'source_dir_rel' => normalize_data_relative_path($reikiSourceRelative),
             'clean_html_dir_rel' => normalize_data_relative_path($reikiCleanHtmlRelative),
             'classification_dir_rel' => normalize_data_relative_path($reikiClassificationRelative),
@@ -437,7 +510,7 @@ function normalize_municipality_entry(string $slug, array $entry): array
             'title' => trim((string)($gijirokuConfig['title'] ?? ($gijirokuDefaults['title'] ?? "{$assemblyName} 会議録 全文検索"))),
             'description' => trim((string)($gijirokuConfig['description'] ?? "{$assemblyName}の会議録を全文検索")),
             'assembly_name' => $assemblyName,
-            'url' => '/gijiroku/?slug=' . rawurlencode($slug),
+            'url' => '/gijiroku/?slug=' . rawurlencode($publicSlug),
             'data_dir_rel' => normalize_data_relative_path($gijirokuDataRelative),
             'downloads_dir_rel' => normalize_data_relative_path($gijirokuDownloadsRelative),
             'index_json_path_rel' => normalize_data_relative_path($gijirokuIndexJsonRelative),
@@ -512,6 +585,7 @@ function load_municipality_master_index(): array
         $index[$code] = [
             'entity_type' => trim((string)($row['entity_type'] ?? '')),
             'name' => trim((string)($row['name'] ?? '')),
+            'name_kana' => trim((string)($row['name_kana'] ?? '')),
             'full_name' => trim((string)($row['full_name'] ?? '')),
             'name_romaji' => trim((string)($row['name_romaji'] ?? '')),
         ];
@@ -543,25 +617,11 @@ function load_system_url_index(string $relativePath): array
     return $index;
 }
 
-function configured_slug_by_code(): array
+function municipality_public_slug(string $slug): string
 {
-    static $slugMap = null;
-    if ($slugMap !== null) {
-        return $slugMap;
-    }
-
-    $slugMap = [];
-    foreach (raw_municipality_entries() as $slug => $entry) {
-        if (!is_string($slug) || !is_array($entry)) {
-            continue;
-        }
-        $code = trim((string)($entry['code'] ?? ''));
-        if ($code === '' || isset($slugMap[$code])) {
-            continue;
-        }
-        $slugMap[$code] = trim($slug);
-    }
-    return $slugMap;
+    // 公開 URL と保存先 slug は統一済みなので、ここは alias 解決だけ担う。
+    $resolved = resolve_municipality_slug($slug);
+    return $resolved !== '' ? $resolved : trim($slug);
 }
 
 function implicit_municipality_slug(string $code, array $masterEntry = []): string
@@ -578,52 +638,6 @@ function implicit_municipality_slug(string $code, array $masterEntry = []): stri
     return $normalizedCode . '-' . $token;
 }
 
-function municipality_registry(): array
-{
-    static $registry = null;
-    if ($registry !== null) {
-        return $registry;
-    }
-
-    $entries = raw_municipality_entries();
-    $config = load_config();
-    $defaultSlug = trim((string)($config['DEFAULT_SLUG'] ?? ''));
-    $validSlugs = [];
-    foreach (array_keys($entries) as $slug) {
-        if (is_string($slug)) {
-            $slug = trim($slug);
-        }
-        if (is_string($slug) && preg_match('/^[a-z0-9_-]+$/', $slug) === 1) {
-            $validSlugs[] = $slug;
-        }
-    }
-
-    $singleMunicipality = count($validSlugs) <= 1;
-    $registry = [];
-    foreach ($entries as $slug => $entry) {
-        if (is_string($slug)) {
-            $slug = trim($slug);
-        }
-        if (!is_string($slug) || preg_match('/^[a-z0-9_-]+$/', $slug) !== 1) {
-            continue;
-        }
-
-        $normalizedEntry = is_array($entry) ? $entry : [];
-        $isDefaultSlug = $slug === $defaultSlug || ($defaultSlug === '' && $registry === []);
-        $registry[$slug] = normalize_municipality_entry($slug, $normalizedEntry);
-    }
-
-    uasort($registry, function (array $a, array $b): int {
-        $ca = (string)($a['code'] ?? '');
-        $cb = (string)($b['code'] ?? '');
-        if ($ca === '' && $cb === '') return 0;
-        if ($ca === '') return 1;
-        if ($cb === '') return -1;
-        return strcmp($ca, $cb);
-    });
-    return $registry;
-}
-
 function municipality_catalog(): array
 {
     static $catalog = null;
@@ -634,16 +648,17 @@ function municipality_catalog(): array
     $cachePath = municipality_catalog_cache_path();
     $ttlSeconds = municipality_catalog_cache_ttl_seconds();
     $cached = read_json_cache_file($cachePath, $ttlSeconds);
-    if (is_array($cached)) {
+    if (is_array($cached) && municipality_catalog_cache_is_compatible($cached)) {
         $catalog = $cached;
         return $catalog;
     }
 
-    $catalog = municipality_registry();
+    // 公開カタログは全国マスタと system URL 一覧だけから復元する。
+    // これで config に自治体一覧を持たなくても、公開対象候補を毎回組み立てられる。
+    $catalog = [];
     $masterIndex = load_municipality_master_index();
     $minutesIndex = load_system_url_index('municipalities/assembly_minutes_system_urls.tsv');
     $reikiIndex = load_system_url_index('municipalities/reiki_system_urls.tsv');
-    $slugsByCode = configured_slug_by_code();
     $allCodes = [];
     foreach ([$masterIndex, $minutesIndex, $reikiIndex] as $index) {
         foreach ($index as $code => $_entry) {
@@ -656,10 +671,6 @@ function municipality_catalog(): array
     }
 
     foreach (array_values(array_unique($allCodes)) as $code) {
-        if (isset($slugsByCode[$code]) && isset($catalog[$slugsByCode[$code]])) {
-            continue;
-        }
-
         $masterEntry = $masterIndex[$code] ?? [];
         $slug = implicit_municipality_slug($code, $masterEntry);
         if (isset($catalog[$slug])) {
@@ -669,9 +680,9 @@ function municipality_catalog(): array
         $entry = [
             'code' => $code,
             'name' => trim((string)($masterEntry['name'] ?? '')) ?: $slug,
+            'name_kana' => trim((string)($masterEntry['name_kana'] ?? '')),
             'full_name' => trim((string)($masterEntry['full_name'] ?? '')),
             'name_romaji' => trim((string)($masterEntry['name_romaji'] ?? '')),
-            'boards' => ['enabled' => false],
         ];
         if (!isset($minutesIndex[$code])) {
             $entry['gijiroku'] = ['enabled' => false, 'skip_detection' => true];
@@ -706,6 +717,7 @@ function municipality_slug_alias_index(): array
 
     $aliasIndex = [];
     foreach (municipality_catalog() as $slug => $entry) {
+        // 内部 slug / 公開 slug / code / romaji / 日本語名のどれから来ても同じ自治体へ寄せる。
         $aliases = [$slug];
         $code = trim((string)($entry['code'] ?? ''));
         $name = trim((string)($entry['name'] ?? ''));
@@ -717,6 +729,9 @@ function municipality_slug_alias_index(): array
         }
         if (preg_match('/^\d{5}-(.+)$/', $slug, $matches) === 1) {
             $aliases[] = trim((string)($matches[1] ?? ''));
+        }
+        if ($code !== '' && $nameRomaji !== '') {
+            $aliases[] = $code . '-' . $nameRomaji;
         }
         if ($nameRomaji !== '') {
             $aliases[] = $nameRomaji;
@@ -768,7 +783,13 @@ function requested_canonical_slug(?string $input = null): ?string
         return null;
     }
 
-    $canonical = resolve_municipality_slug($requested);
+    $resolved = resolve_municipality_slug($requested);
+    if ($resolved === '') {
+        return null;
+    }
+
+    // 画面の正規 URL は常に code-name_romaji 形式を返す。
+    $canonical = municipality_public_slug($resolved);
     if ($canonical === '' || normalize_slug_alias_value($canonical) === normalize_slug_alias_value($requested)) {
         return null;
     }
@@ -824,8 +845,11 @@ function get_default_slug(): string
 {
     $registry = municipality_catalog();
     $configured = trim((string)(load_config()['DEFAULT_SLUG'] ?? ''));
-    if ($configured !== '' && isset($registry[$configured])) {
-        return $configured;
+    if ($configured !== '') {
+        $resolvedConfigured = resolve_municipality_slug($configured);
+        if ($resolvedConfigured !== '' && isset($registry[$resolvedConfigured])) {
+            return $resolvedConfigured;
+        }
     }
 
     $first = array_key_first($registry);
@@ -868,9 +892,9 @@ function municipality_feature_enabled(string $slug, string $feature): bool
         return false;
     }
 
-    // 「enabled」は設定上の公開可否、「has_data」は実データ有無として扱う。
-    // 画面や API の入口では両方を満たすものだけを公開状態とみなす。
-    return !empty($featureConfig['enabled']) && !empty($featureConfig['has_data']);
+    // runtime cache が古くても、実データが見えていれば公開状態へ自動回復させる。
+    $hasData = !empty($featureConfig['has_data']) || municipality_feature_live_has_data($feature, $featureConfig);
+    return $hasData;
 }
 
 function municipality_switcher_items(string $feature): array

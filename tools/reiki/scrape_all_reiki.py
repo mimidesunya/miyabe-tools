@@ -18,6 +18,7 @@ from urllib.parse import urlsplit
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 sys.path.append(str(Path(__file__).parent))
 import batch_status
+import reiki_priority
 import reiki_targets
 
 
@@ -38,11 +39,6 @@ def now_ts() -> str:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="reiki_system_urls.tsv の対応済み system_type をまとめてスクレイピングします。"
-    )
-    parser.add_argument(
-        "--configured-only",
-        action="store_true",
-        help="config.json に登録済みの自治体だけを対象にする",
     )
     parser.add_argument(
         "--systems",
@@ -323,7 +319,7 @@ def launch_worker(
         "stderr_path": stderr_path,
         "stdout_handle": stdout_handle,
         "stderr_handle": stderr_handle,
-        "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "started_at": batch_status.now_text(),
         "state_path": Path(target["work_root"]) / "scrape_state.json",
     }
 
@@ -415,8 +411,9 @@ def count_active_by_host(active_workers: list[dict]) -> dict[str, int]:
 def list_targets(targets: list[dict]) -> None:
     print(f"[INFO] 対象自治体数: {len(targets)}")
     for target in targets:
+        priority = reiki_priority.target_priority_info(target)
         print(
-            f"{target['slug']}\t{target['code']}\t{target['system_type']}\t"
+            f"{target['slug']}\t{target['code']}\t{priority['priority_label']}\t{target['system_type']}\t"
             f"{target_host(target)}\t{target['name']}\t{target['source_url']}"
         )
 
@@ -438,7 +435,7 @@ def main() -> int:
 
     targets = [
         target
-        for target in reiki_targets.iter_reiki_targets(configured_only=args.configured_only)
+        for target in reiki_targets.iter_reiki_targets()
         if str(target.get("system_type", "")) in requested_systems
     ]
 
@@ -446,6 +443,7 @@ def main() -> int:
     if keyword:
         targets = [target for target in targets if target_matches(target, keyword)]
 
+    targets = reiki_priority.sort_targets_by_priority(targets)
     if args.max_targets > 0:
         targets = targets[: args.max_targets]
 
@@ -560,7 +558,7 @@ def main() -> int:
 
                 close_worker_streams(worker)
                 target = worker["target"]
-                finished_at = time.strftime("%Y-%m-%d %H:%M:%S")
+                finished_at = batch_status.now_text()
                 scrape_status = "ok" if returncode == 0 else "failed"
                 summary = summarize_worker(worker["stdout_path"], worker["stderr_path"])
                 overall_status = scrape_status
@@ -588,6 +586,8 @@ def main() -> int:
                     if index_result["returncode"] != 0:
                         overall_status = "failed"
                         overall_returncode = int(index_result["returncode"])
+                    else:
+                        batch_status.invalidate_runtime_caches()
 
                 writer.writerow(
                     {
@@ -626,6 +626,8 @@ def main() -> int:
                     **update_kwargs,
                 )
                 batch_status.write_state("reiki", status_state)
+                if overall_returncode == 0 and (args.no_build_index or args.crawl_only):
+                    batch_status.invalidate_runtime_caches()
                 completed_count += 1
                 print(
                     f"[DONE {completed_count}/{len(targets)}] {target['slug']} "

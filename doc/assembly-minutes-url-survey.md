@@ -1,6 +1,6 @@
 # 会議録URL調査
 
-`work/municipalities/assembly_minutes_system_urls.tsv` は、全国自治体マスタ (`work/municipalities/municipality_master.tsv`) に対応する地方議会会議録URL一覧です。
+`data/municipalities/assembly_minutes_system_urls.tsv` は、全国自治体マスタ (`data/municipalities/municipality_master.tsv`) に対応する地方議会会議録URL一覧です。
 
 ## ソース
 
@@ -9,7 +9,7 @@
 - `db-search.com` の死に URL は、自治体種別と都道府県スラッグから `*.dbsr.jp` へ補修
 - `和歌山県議会` は公式会議録ページを個別確認して補完
 - 候補URLには実際にアクセスし、到達できたURLだけを採用
-- `App Mints` で拾えなかった自治体は `work/municipalities/municipality_homepages.csv` を起点に再探索
+- `App Mints` で拾えなかった自治体は `data/municipalities/municipality_homepages.csv` を起点に再探索
 - 再探索では公式ホームページ内を最大3階層まで辿り、`議会` / `会議録` / `議事録` 系リンクを優先します
 
 ## 収録ルール
@@ -58,4 +58,4 @@
 pwsh -File tools/municipalities/build_assembly_minutes_system_urls_tsv.ps1
 ```
 
-必要に応じて `-HomepageCsv work/municipalities/municipality_homepages.csv` を明示できます。
+必要に応じて `-HomepageCsv data/municipalities/municipality_homepages.csv` を明示できます。

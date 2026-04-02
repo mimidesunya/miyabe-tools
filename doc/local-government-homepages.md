@@ -1,6 +1,6 @@
 # 自治体ホームページ一覧
 
-`work/municipalities/municipality_homepages.csv` は、全国自治体マスタに対応する公式ホームページ URL 一覧です。
+`data/municipalities/municipality_homepages.csv` は、全国自治体マスタに対応する公式ホームページ URL 一覧です。
 
 ## ソース
 
@@ -13,7 +13,7 @@
 
 ## 収録方針
 
-- [municipality_master.tsv](../work/municipalities/municipality_master.tsv) の `jis_code` を基準に突き合わせます
+- [municipality_master.tsv](../data/municipalities/municipality_master.tsv) の `jis_code` を基準に突き合わせます
 - 都道府県 URL は `prefjp-utf8.csv` から採用します
 - 市町村・特別区 URL は `localgovjp-utf8.csv` の `lgcode` 先頭5桁を使って採用します
 - 政令指定都市の行政区は全国自治体マスタ側に無いので出力対象外です

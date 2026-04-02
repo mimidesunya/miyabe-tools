@@ -89,7 +89,7 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False):
 def main():
     default_slug = reiki_targets.default_slug_for_system("d1-law")
     parser = argparse.ArgumentParser(description="Download ordinances from D1-Law systems.")
-    parser.add_argument("--slug", default=default_slug, help="Municipality slug in data/config.json")
+    parser.add_argument("--slug", default=default_slug, help="Municipality slug resolved from data/municipalities")
     parser.add_argument("--force", action="store_true", help="Redownload source HTML and rebuild outputs")
     parser.add_argument("--check-updates", action="store_true", help="既存条例も再取得して更新を確認する")
     args = parser.parse_args()

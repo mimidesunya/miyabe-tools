@@ -11,8 +11,8 @@
 
 例:
 
-- `/boards/kawasaki-shi/`
-- `/boards/higashikurume-shi/`
+- `/boards/14130-kawasaki-shi/`
+- `/boards/13222-higashikurume-shi/`
 
 ## データ構成
 
@@ -28,29 +28,29 @@
 
 ## 設定
 
-`data/config.json` の `MUNICIPALITIES.{slug}.boards` を使います。
+通常は `data/config.json` に自治体ごとの設定は要りません。  
+`data/municipalities` のマスタと `slug` から、DB パスや表示名を既定値で導出します。
 
 主な項目:
 
-- `enabled`: 画面を有効化するか
-- `title`: 画面表示名
-- `allow_offset`: 位置調整モードを許可するか
+- `db_path` / `tasks_db_path`
+  - 既定値と違う保存先にしたい場合だけ指定
 
 ## 初期化
 
 ```bash
-python tools/boards/init_db.py kawasaki-shi
+python tools/boards/init_db.py 14130-kawasaki-shi
 python tools/boards/init_users_db.py
 ```
 
 TSV だけ更新したい場合:
 
 ```bash
-python tools/boards/import_tsv.py kawasaki-shi
+python tools/boards/import_tsv.py 14130-kawasaki-shi
 ```
 
 ## メモ
 
-- URL は `slug` ごとに固定です。
+- 公開 URL は `自治体コード-ローマ字名称` に統一します。
 - ログイン後の戻り先も `slug` を保持します。
-- 位置調整権限は自治体ごとに切り替えられます。
+- 位置調整権限は管理者のみです。

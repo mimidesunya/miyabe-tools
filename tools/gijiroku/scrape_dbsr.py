@@ -677,13 +677,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--slug",
         default=default_slug,
-        help="自治体slug。data/config.json と work/municipalities/assembly_minutes_system_urls.tsv から対象を解決します。",
+        help="自治体slug。data/municipalities から対象を解決します。",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=None,
-        help="取得データの保存先ディレクトリ（未指定時は config の gijiroku.data_dir）",
+        help="取得データの保存先ディレクトリ（未指定時は slug 規約から自動決定）",
     )
     parser.add_argument(
         "--headful",
