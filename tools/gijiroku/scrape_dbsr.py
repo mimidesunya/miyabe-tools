@@ -782,7 +782,11 @@ def main() -> int:
             encoding="utf-8",
         )
         minutes_meta_map = minutes_index_builder.parse_source_meta(index_json)
-        minutes_index_builder.ensure_output_db(output_db)
+        indexing_enabled = minutes_index_builder.prepare_incremental_index(
+            output_db,
+            logger=lambda message: print(message, flush=True),
+            context=str(target["slug"]),
+        )
         emit_progress(0, len(meeting_items), state_path, state)
 
         with result_csv.open("w", encoding="utf-8", newline="") as handle:
@@ -821,12 +825,16 @@ def main() -> int:
                         "updated_at": now_ts(),
                     }
                     gijiroku_storage.save_state(state_path, state)
-                    minutes_index_builder.upsert_source_file(
+                    index_result = minutes_index_builder.best_effort_upsert_source_file(
                         output_db,
                         downloads_dir,
                         existing_output,
                         meta_map=minutes_meta_map,
+                        logger=lambda message: print(message, flush=True),
+                        context=f"{target['slug']} {item.title}",
                     )
+                    if index_result == "error":
+                        indexing_enabled = False
                     writer.writerow(
                         {
                             "title": item.title,
@@ -880,15 +888,19 @@ def main() -> int:
                     "updated_at": now_ts(),
                 }
                 gijiroku_storage.save_state(state_path, state)
-                if output_path:
+                if indexing_enabled and output_path:
                     indexed_output = Path(output_path)
                     if gijiroku_storage.logical_suffix(indexed_output) in {".txt", ".html", ".htm"}:
-                        minutes_index_builder.upsert_source_file(
+                        index_result = minutes_index_builder.best_effort_upsert_source_file(
                             output_db,
                             downloads_dir,
                             indexed_output,
                             meta_map=minutes_meta_map,
+                            logger=lambda message: print(message, flush=True),
+                            context=f"{target['slug']} {item.title}",
                         )
+                        if index_result == "error":
+                            indexing_enabled = False
 
                 writer.writerow(
                     {

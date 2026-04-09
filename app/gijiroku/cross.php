@@ -54,7 +54,7 @@ $jsVer = @filemtime(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'app' . DIRECTOR
         <div class="hero-main">
             <div class="eyebrow">Cross-Municipality Minutes Search</div>
             <h1>会議録を、<br>自治体をまたいで全文検索</h1>
-            <p class="hero-copy">キーワードを一度投げると、検索可能な自治体の会議録 DB を順に走査して、ヒットした自治体へそのまま切り替えられます。自治体別ページへ飛ばずに、まず全体の当たりを付けるための入口です。</p>
+            <p class="hero-copy">キーワードを一度投げると、検索可能な自治体の会議録 DB を順に走査して、まずは自治体をまたいだ最新ヒットを上から並べます。さらに掘りたいときだけ自治体を選んで、その自治体の結果を詳しく見ます。</p>
             <div class="hero-tags">
                 <span class="hero-tag">SQLite FTS5</span>
                 <span class="hero-tag">自治体ごとに動的切替</span>
@@ -72,7 +72,7 @@ $jsVer = @filemtime(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'app' . DIRECTOR
             </div>
             <div class="hero-metric">
                 <span>検索の流れ</span>
-                <strong>集計して切替</strong>
+                <strong>最新100件を混合表示</strong>
             </div>
             <div class="hero-metric">
                 <span>詳細閲覧</span>
@@ -129,7 +129,7 @@ $jsVer = @filemtime(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'app' . DIRECTOR
             <section class="panel municipality-panel">
                 <div class="section-head">
                     <h2>自治体切り替え</h2>
-                    <p>ヒット件数の多い自治体が上に寄ります。検索中でも先に見たい自治体へ切り替えられます。</p>
+                    <p>最新ヒットが新しい自治体ほど上に寄ります。まずは混合表示で全体を見て、続きが必要な自治体だけここから切り替えます。</p>
                 </div>
                 <div id="municipality-list" class="municipality-list"></div>
             </section>
@@ -140,9 +140,10 @@ $jsVer = @filemtime(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'app' . DIRECTOR
                 <div>
                     <div class="eyebrow">Result Workspace</div>
                     <h2 id="selected-title">まずキーワードを入れてください</h2>
-                    <p id="selected-meta" class="results-meta">会議録 DB を横断して、該当自治体と上位ヒットを並べます。</p>
+                    <p id="selected-meta" class="results-meta">会議録 DB を横断して、最新 100 件を自治体混合で並べます。続きを見たい自治体だけ左から切り替えます。</p>
                 </div>
                 <div class="results-links">
+                    <button id="selected-mixed-button" class="button-secondary is-disabled" type="button" aria-disabled="true">最新100件へ戻る</button>
                     <a id="selected-open-link" class="button-secondary is-disabled" href="#" aria-disabled="true">自治体ページを開く</a>
                 </div>
             </div>

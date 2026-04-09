@@ -386,9 +386,31 @@ def create_minutes_fts(conn: sqlite3.Connection) -> None:
     )
 
 
-def rebuild_minutes_fts(conn: sqlite3.Connection) -> None:
+def emit_heartbeat(
+    heartbeat_callback: Callable[[], None] | None,
+    last_heartbeat_at: float,
+    *,
+    force: bool = False,
+    interval_seconds: float = 5.0,
+) -> float:
+    if heartbeat_callback is None:
+        return last_heartbeat_at
+    now = time.monotonic()
+    if not force and last_heartbeat_at and (now - last_heartbeat_at) < interval_seconds:
+        return last_heartbeat_at
+    heartbeat_callback()
+    return now
+
+
+def rebuild_minutes_fts(
+    conn: sqlite3.Connection,
+    *,
+    heartbeat_callback: Callable[[], None] | None = None,
+) -> None:
     conn.execute("DROP TABLE IF EXISTS minutes_fts")
     create_minutes_fts(conn)
+    last_heartbeat_at = emit_heartbeat(heartbeat_callback, 0.0, force=True)
+    processed = 0
 
     # 旧 schema の DB でも base table は流用できるので、FTS だけ作り直して再投入する。
     for row_id, title, meeting_name, content in conn.execute(
@@ -406,6 +428,10 @@ def rebuild_minutes_fts(conn: sqlite3.Connection) -> None:
                 japanese_search_tokenizer.document_terms_text(str(content or "")),
             ),
         )
+        processed += 1
+        if processed % 250 == 0:
+            last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at)
+    emit_heartbeat(heartbeat_callback, last_heartbeat_at, force=True)
 
 
 def parse_source_meta(index_json: Path) -> dict[tuple[str, str, str], SourceMeta]:
@@ -546,11 +572,15 @@ def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(schema_path().read_text(encoding="utf-8"))
 
 
-def ensure_db_schema(conn: sqlite3.Connection) -> None:
+def ensure_db_schema(
+    conn: sqlite3.Connection,
+    *,
+    heartbeat_callback: Callable[[], None] | None = None,
+) -> None:
     # 逐次更新時は既存 DB を消さず、最小限の CREATE IF NOT EXISTS だけを流す。
     conn.executescript(INCREMENTAL_SCHEMA_SQL)
     if not minutes_fts_schema_matches(conn):
-        rebuild_minutes_fts(conn)
+        rebuild_minutes_fts(conn, heartbeat_callback=heartbeat_callback)
     else:
         create_minutes_fts(conn)
 
@@ -572,12 +602,36 @@ def ensure_output_db_permissions(path: Path) -> None:
         pass
 
 
-def ensure_output_db(output_db: Path) -> None:
+def ensure_output_db(
+    output_db: Path,
+    *,
+    heartbeat_callback: Callable[[], None] | None = None,
+) -> None:
     output_db.parent.mkdir(parents=True, exist_ok=True)
     with open_sqlite_connection(output_db) as conn:
-        ensure_db_schema(conn)
+        ensure_db_schema(conn, heartbeat_callback=heartbeat_callback)
         conn.commit()
     ensure_output_db_permissions(output_db)
+
+
+def prepare_incremental_index(
+    output_db: Path,
+    *,
+    logger: Callable[[str], None] | None = None,
+    context: str = "",
+) -> bool:
+    # 会議録取得そのものは止めず、逐次 index だけを optional 扱いにする。
+    try:
+        ensure_output_db(output_db)
+        return True
+    except Exception as exc:
+        if logger is not None:
+            prefix = f"{context}: " if context else ""
+            logger(
+                f"[WARN] {prefix}minutes.sqlite の準備に失敗したため、逐次インデックス更新を無効化します: "
+                f"[{type(exc).__name__}] db={output_db} error={exc}"
+            )
+        return False
 
 
 def upsert_record(conn: sqlite3.Connection, record: MinuteRecord) -> int:
@@ -664,19 +718,53 @@ def upsert_source_file(
         return False
 
     output_db.parent.mkdir(parents=True, exist_ok=True)
+    if not output_db.exists():
+        # 通常は起動時の prepare_incremental_index() が一度だけ schema を揃える。
+        # ここでは cold start 時だけ補完し、1 件ごとの upsert では DDL を避ける。
+        ensure_output_db(output_db)
     with open_sqlite_connection(output_db) as conn:
-        ensure_db_schema(conn)
         upsert_record(conn, record)
         conn.commit()
     ensure_output_db_permissions(output_db)
     return True
 
 
+def best_effort_upsert_source_file(
+    output_db: Path,
+    downloads_dir: Path,
+    source_file: Path,
+    *,
+    meta_map: dict[tuple[str, str, str], SourceMeta] | None = None,
+    index_json: Path | None = None,
+    indexed_at: str | None = None,
+    logger: Callable[[str], None] | None = None,
+    context: str = "",
+) -> str:
+    # 増分 index の失敗で自治体スクレイパ全体を落とさないためのラッパー。
+    try:
+        updated = upsert_source_file(
+            output_db,
+            downloads_dir,
+            source_file,
+            meta_map=meta_map,
+            index_json=index_json,
+            indexed_at=indexed_at,
+        )
+    except Exception as exc:
+        if logger is not None:
+            prefix = f"{context}: " if context else ""
+            logger(
+                f"[WARN] {prefix}minutes.sqlite への逐次反映に失敗しました: "
+                f"[{type(exc).__name__}] db={output_db} source={source_file} error={exc}"
+            )
+        return "error"
+    return "ok" if updated else "skipped"
+
+
 def existing_rel_paths(output_db: Path) -> set[str]:
     if not output_db.exists():
         return set()
     with open_sqlite_connection(output_db) as conn:
-        ensure_db_schema(conn)
         return {str(row[0]) for row in conn.execute("SELECT rel_path FROM minutes")}
 
 
@@ -686,6 +774,7 @@ def backfill_missing_rows(
     output_db: Path,
     *,
     progress_callback: Callable[[dict[str, int | str]], None] | None = None,
+    heartbeat_callback: Callable[[], None] | None = None,
 ) -> dict[str, int]:
     # 既存 DB を壊さず、rel_path で未登録の会議録だけを後追いで差し込む。
     source_files = choose_source_files(downloads_dir)
@@ -705,10 +794,13 @@ def backfill_missing_rows(
             }
         )
 
-    ensure_output_db(output_db)
+    last_heartbeat_at = emit_heartbeat(heartbeat_callback, 0.0, force=True)
+    ensure_output_db(output_db, heartbeat_callback=heartbeat_callback)
+    last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at)
     indexed_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     meta_map = parse_source_meta(index_json)
     existing = existing_rel_paths(output_db)
+    last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at)
     added = 0
     existing_count = 0
     skipped = 0
@@ -726,9 +818,10 @@ def backfill_missing_rows(
                 "skipped": 0,
             }
         )
+    last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at)
 
     with open_sqlite_connection(output_db) as conn:
-        ensure_db_schema(conn)
+        # prepare_db 済みなので、ここでは行追加だけにして schema lock の競合を減らす。
         for file_path in source_files:
             rel_path = file_path.relative_to(downloads_dir).as_posix()
             if rel_path in existing:
@@ -748,6 +841,7 @@ def backfill_missing_rows(
                                 "skipped": skipped,
                             }
                         )
+                        last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at, force=True)
                 continue
             record = build_record(file_path, downloads_dir, meta_map, indexed_at)
             if record is None:
@@ -767,6 +861,7 @@ def backfill_missing_rows(
                                 "skipped": skipped,
                             }
                         )
+                        last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at, force=True)
                 continue
             upsert_record(conn, record)
             existing.add(rel_path)
@@ -786,7 +881,9 @@ def backfill_missing_rows(
                             "skipped": skipped,
                         }
                     )
+                    last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at, force=True)
         conn.commit()
+    emit_heartbeat(heartbeat_callback, last_heartbeat_at, force=True)
     ensure_output_db_permissions(output_db)
 
     return {
@@ -803,6 +900,7 @@ def build_index(
     output_db: Path,
     *,
     progress_callback: Callable[[dict[str, int | str]], None] | None = None,
+    heartbeat_callback: Callable[[], None] | None = None,
 ) -> tuple[int, int]:
     if not downloads_dir.exists():
         raise FileNotFoundError(f"downloads dir not found: {downloads_dir}")
@@ -822,6 +920,7 @@ def build_index(
     try:
         conn = open_sqlite_connection(temp_db)
         init_db(conn)
+        last_heartbeat_at = emit_heartbeat(heartbeat_callback, 0.0, force=True)
 
         indexed = 0
         skipped = 0
@@ -851,6 +950,7 @@ def build_index(
                     "skipped": 0,
                 }
             )
+        last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at)
 
         for file_path in source_files:
             record = build_record(file_path, downloads_dir, meta_map, indexed_at)
@@ -871,6 +971,7 @@ def build_index(
                                 "skipped": skipped,
                             }
                         )
+                        last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at, force=True)
                 continue
 
             cur.execute(
@@ -927,9 +1028,11 @@ def build_index(
                             "skipped": skipped,
                         }
                     )
+                    last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at, force=True)
 
         conn.commit()
         conn.close()
+        emit_heartbeat(heartbeat_callback, last_heartbeat_at, force=True)
         temp_db.replace(output_db)
         ensure_output_db_permissions(output_db)
         return indexed, skipped

@@ -29,20 +29,13 @@ function background_task_is_stale(array $taskStatus, int $staleSeconds = 900): b
         return false;
     }
 
-    $updatedAt = strtotime((string)($taskStatus['updated_at'] ?? ''));
+    // updated_at は「件数や表示文が最後に変わった時刻」で、
+    // 長い build 中は止めておきたい。死活監視は heartbeat_at を優先する。
+    $updatedAt = strtotime((string)($taskStatus['heartbeat_at'] ?? ($taskStatus['updated_at'] ?? '')));
     if ($updatedAt === false) {
         return false;
     }
     return (time() - $updatedAt) > $staleSeconds;
-}
-
-// これは全国バッチ全体の進捗で、自治体カード内の件数とは別物。
-function background_task_progress_detail(int $completedCount, int $totalCount): string
-{
-    if ($totalCount <= 0) {
-        return '';
-    }
-    return sprintf('全国バッチ %d/%d 自治体完了', $completedCount, $totalCount);
 }
 
 function background_task_item_progress_numbers(array $item): array
@@ -138,6 +131,7 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
     }
 
     $status = trim((string)($item['status'] ?? ''));
+    $message = trim((string)($item['message'] ?? ''));
     $running = (bool)($taskStatus['running'] ?? false);
     $stale = background_task_is_stale($taskStatus);
     $taskName = trim((string)($taskStatus['task'] ?? ''));
@@ -185,8 +179,14 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
         ];
     }
     if ($running && $status === 'running') {
+        $label = $isReflectTask ? '反映中' : 'スクレイピング中';
+        if ($message === 'インデックス更新中') {
+            $label = $message;
+        } elseif ($isReflectTask && $message !== '' && $message !== '反映中') {
+            $label = $message;
+        }
         return [
-            'label' => $isReflectTask ? '反映中' : 'スクレイピング中',
+            'label' => $label,
             'class' => 'task-running',
             'detail' => $detail,
             'progress_current' => $progress['current'],

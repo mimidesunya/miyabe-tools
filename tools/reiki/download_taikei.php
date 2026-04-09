@@ -48,7 +48,19 @@ function main(array $argv): void
     ensure_dir($jsonDir);
     ensure_dir($imageDir);
     ensure_dir($markdownDir);
-    $indexPdo = open_ordinance_index($dbPath);
+    $indexPdo = null;
+    $indexUpdatesEnabled = true;
+    try {
+        $indexPdo = open_ordinance_index($dbPath);
+    } catch (Throwable $e) {
+        // 本文取得は継続し、逐次 index だけを停止して親バッチ側の再 build に委ねる。
+        fwrite(
+            STDERR,
+            "Warning: failed to prepare ordinances.sqlite incremental update for {$slug} "
+            . '[' . get_class($e) . "] db={$dbPath}; continuing without it: {$e->getMessage()}\n"
+        );
+        $indexUpdatesEnabled = false;
+    }
 
     echo "Crawling {$target['name']} reiki taxonomy...\n";
     $crawl = crawl_taxonomy((string)$target['entry_url']);
@@ -141,9 +153,19 @@ function main(array $argv): void
         $manifestEntry['checked_updates'] = $checkUpdates;
         $manifestEntry['updated_at'] = gmdate('c');
         $manifests[] = $manifestEntry;
-        if ($indexPdo instanceof PDO) {
+        if ($indexUpdatesEnabled && $indexPdo instanceof PDO) {
             // 再利用した既存 HTML もここで拾うことで、DB の取りこぼしを次の完了待ちなしで埋める。
-            upsert_ordinance_index_row($indexPdo, $manifestEntry, $htmlPath, $storedMarkdownPath);
+            try {
+                upsert_ordinance_index_row($indexPdo, $manifestEntry, $htmlPath, $storedMarkdownPath);
+            } catch (Throwable $e) {
+                fwrite(
+                    STDERR,
+                    "Warning: failed to incrementally update ordinances.sqlite for {$slug} {$sourceFileName} "
+                    . '[' . get_class($e) . "] db={$dbPath}; disabling further incremental updates: {$e->getMessage()}\n"
+                );
+                $indexUpdatesEnabled = false;
+                $indexPdo = null;
+            }
         }
         emit_progress($index + 1, $total, $statePath);
 
@@ -1444,6 +1466,8 @@ function open_sqlite_pdo(string $dbPath): PDO
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->exec('PRAGMA journal_mode = WAL');
     $pdo->exec('PRAGMA synchronous = NORMAL');
+    // 親バッチの再 build や検索 read と競合しても、すぐ失敗せず少し待つ。
+    $pdo->exec('PRAGMA busy_timeout = 30000');
     return $pdo;
 }
 

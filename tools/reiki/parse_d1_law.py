@@ -6,7 +6,7 @@ import re
 import sys
 import time
 from pathlib import Path
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import requests
 from bs4 import BeautifulSoup
@@ -17,6 +17,11 @@ import reiki_targets
 
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+
+def is_opensearch_mokuji_source_url(source_url):
+    parts = urlsplit(source_url.strip())
+    return parts.netloc.lower().endswith("d1-law.com") and parts.path.lower().endswith("/opensearch/srmjf01/init")
 
 
 def wareki_to_seireki(wareki_str):
@@ -39,6 +44,11 @@ def wareki_to_seireki(wareki_str):
     return "0000-00-00"
 
 
+def extract_wareki_date(raw_text):
+    match = re.search(r"(明治|大正|昭和|平成|令和)[0-9０-９元]+年[0-9０-９]+月[0-9０-９]+日", raw_text)
+    return match.group(0) if match else ""
+
+
 def derive_d1_law_base_url(source_url):
     parts = urlsplit(source_url)
     path = parts.path or "/"
@@ -47,6 +57,8 @@ def derive_d1_law_base_url(source_url):
     marker_index = lower_path.find(marker)
     if marker_index >= 0:
         base_path = path[: marker_index + len(marker)]
+    elif is_opensearch_mokuji_source_url(source_url):
+        base_path = "/opensearch/"
     elif lower_path.endswith(("/reiki.html", "/reiki.htm", "/index.html", "/index.htm")):
         base_path = path.rsplit("/", 1)[0] + "/"
     else:
@@ -85,8 +97,101 @@ def download_image(img_filename, kno, images_dir, base_url, stats=None):
         return img_filename
 
 
+def parse_opensearch_html(soup, *, base_url, image_public_url):
+    content_div = soup.find("div", id="result")
+    if content_div is None:
+        return None
+
+    content_soup = BeautifulSoup(str(content_div), "html.parser")
+    normalized_content = content_soup.find("div", id="result")
+    if normalized_content is None:
+        return None
+
+    for button_area in normalized_content.select("div.btnlistarea"):
+        button_area.decompose()
+
+    title = ""
+    title_div = normalized_content.find("div", string=re.compile(r"^○"))
+    if title_div is not None:
+        title = title_div.get_text(" ", strip=True).lstrip("○").strip()
+    if title == "":
+        title_tag = soup.find("title")
+        if title_tag is not None:
+            raw_title = title_tag.get_text(" ", strip=True)
+            title = re.sub(r"\s+[^\s]*例規.*$", "", raw_title).strip() or raw_title
+
+    raw_date_text = "不明"
+    date_str = "0000-00-00"
+    date_div = normalized_content.find("div", string=re.compile(r"(明治|大正|昭和|平成|令和).+日"))
+    if date_div is not None:
+        raw_date_text = date_div.get_text(" ", strip=True)
+        wareki_date = extract_wareki_date(raw_date_text)
+        if wareki_date != "":
+            date_str = wareki_to_seireki(wareki_date)
+
+    markdown_content = []
+    for child in normalized_content.children:
+        if getattr(child, "name", None) == "br":
+            if markdown_content and markdown_content[-1] != "":
+                markdown_content.append("")
+            continue
+        if getattr(child, "name", None) not in {"div", "table"}:
+            continue
+        text = child.get_text(" ", strip=True)
+        text = re.sub(r"\s+", " ", text).strip()
+        if text == "":
+            continue
+        if text == f"○{title}" or text == title:
+            continue
+        if raw_date_text != "不明" and text == raw_date_text:
+            continue
+        if markdown_content and markdown_content[-1] == text:
+            continue
+        markdown_content.append(text)
+
+    while markdown_content and markdown_content[-1] == "":
+        markdown_content.pop()
+
+    full_markdown = f"# {title}\n\n"
+    if raw_date_text != "不明":
+        full_markdown += f"**日付:** {raw_date_text} ({date_str})\n\n"
+    full_markdown += "---\n\n"
+    full_markdown += "\n\n".join(markdown_content)
+
+    for img in normalized_content.find_all("img"):
+        src = str(img.get("src", "")).strip()
+        if src == "":
+            continue
+        if src.startswith("../images/") or src.startswith("../kawasaki_images/"):
+            img["src"] = f"{image_public_url.rstrip('/')}/{Path(src).name}"
+        elif not src.startswith("http://") and not src.startswith("https://"):
+            img["src"] = urljoin(base_url, src)
+
+    html_parts = [f'<div class="law-title">{title}</div>']
+    if raw_date_text != "不明":
+        html_parts.append(f'<div class="law-date">{raw_date_text} ({date_str})</div>')
+    html_parts.append('<div class="law-content">')
+    for child in normalized_content.children:
+        if getattr(child, "name", None) == "br":
+            html_parts.append("<br/>")
+            continue
+        if getattr(child, "name", None) in {"div", "table"}:
+            html_parts.append(str(child))
+    html_parts.append("</div>")
+
+    return raw_date_text, title, full_markdown, "\n".join(html_parts)
+
+
 def parse_html(file_path, *, base_url, images_dir, image_public_url, stats=None):
     soup = BeautifulSoup(reiki_io.read_text_auto(file_path), "html.parser")
+
+    opensearch_parsed = parse_opensearch_html(
+        soup,
+        base_url=base_url,
+        image_public_url=image_public_url,
+    )
+    if opensearch_parsed is not None:
+        return opensearch_parsed
 
     logical_source = reiki_io.logical_path(Path(file_path))
     kno = logical_source.stem.replace("_j", "")

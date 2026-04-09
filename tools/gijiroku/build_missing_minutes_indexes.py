@@ -237,6 +237,9 @@ def main() -> int:
                 continue
 
             try:
+                def heartbeat() -> None:
+                    batch_status.write_state("gijiroku_reflect", status_state)
+
                 def on_progress(progress: dict[str, int | str]) -> None:
                     log_target_progress(target, index, len(targets), progress)
                     total_files = int(progress.get("total_files", 0) or 0)
@@ -257,6 +260,7 @@ def main() -> int:
                         Path(target["index_json_path"]),
                         Path(target["db_path"]),
                         progress_callback=on_progress,
+                        heartbeat_callback=heartbeat,
                     )
                 except Exception as exc:
                     if not looks_like_corrupt_minutes_db(exc):
@@ -282,6 +286,7 @@ def main() -> int:
                         Path(target["index_json_path"]),
                         db_path,
                         progress_callback=on_progress,
+                        heartbeat_callback=heartbeat,
                     )
                     stats = {
                         "added": indexed,

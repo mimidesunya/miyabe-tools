@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -35,6 +36,7 @@ def acquire_build_lock(
     wait_seconds: float = 0.0,
     poll_seconds: float = 1.0,
     stale_seconds: float = 4 * 60 * 60,
+    on_wait: Callable[[], None] | None = None,
 ) -> Path | None:
     path = build_lock_path(slug)
     ensure_parent(path)
@@ -58,6 +60,11 @@ def acquire_build_lock(
                 continue
             if time.time() >= deadline:
                 return None
+            if on_wait is not None:
+                try:
+                    on_wait()
+                except Exception:
+                    pass
             time.sleep(max(0.1, poll_seconds))
             continue
 

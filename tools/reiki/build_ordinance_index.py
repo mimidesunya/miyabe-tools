@@ -434,13 +434,35 @@ def create_ordinances_fts(connection: sqlite3.Connection) -> None:
     )
 
 
+def emit_heartbeat(
+    heartbeat_callback: Callable[[], None] | None,
+    last_heartbeat_at: float,
+    *,
+    force: bool = False,
+    interval_seconds: float = 5.0,
+) -> float:
+    if heartbeat_callback is None:
+        return last_heartbeat_at
+    now = time.monotonic()
+    if not force and last_heartbeat_at and (now - last_heartbeat_at) < interval_seconds:
+        return last_heartbeat_at
+    heartbeat_callback()
+    return now
+
+
 def ordinance_search_terms_text(value: object) -> str:
     return japanese_search_tokenizer.document_terms_text(normalize_space(decode_html_text(value)))
 
 
-def rebuild_ordinances_fts(connection: sqlite3.Connection) -> None:
+def rebuild_ordinances_fts(
+    connection: sqlite3.Connection,
+    *,
+    heartbeat_callback: Callable[[], None] | None = None,
+) -> None:
     connection.execute("DROP TABLE IF EXISTS ordinances_fts")
     create_ordinances_fts(connection)
+    last_heartbeat_at = emit_heartbeat(heartbeat_callback, 0.0, force=True)
+    processed = 0
 
     # base table の内容はそのまま使えるので、FTS のみ Sudachi 用 terms カラムへ再投入する。
     for row in connection.execute(
@@ -491,6 +513,10 @@ def rebuild_ordinances_fts(connection: sqlite3.Connection) -> None:
                 ordinance_search_terms_text(taxonomy_path),
             ),
         )
+        processed += 1
+        if processed % 250 == 0:
+            last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at)
+    emit_heartbeat(heartbeat_callback, last_heartbeat_at, force=True)
 
 
 def detect_document_type(title: str, number: str) -> str:
@@ -633,11 +659,15 @@ def init_db(connection: sqlite3.Connection) -> None:
     connection.executescript(SCHEMA_SQL)
 
 
-def ensure_db_schema(connection: sqlite3.Connection) -> None:
+def ensure_db_schema(
+    connection: sqlite3.Connection,
+    *,
+    heartbeat_callback: Callable[[], None] | None = None,
+) -> None:
     # 逐次追加では既存 DB を温存しながら、必要なテーブルだけを補う。
     connection.executescript(INCREMENTAL_SCHEMA_SQL)
     if not ordinance_fts_schema_matches(connection):
-        rebuild_ordinances_fts(connection)
+        rebuild_ordinances_fts(connection, heartbeat_callback=heartbeat_callback)
     else:
         create_ordinances_fts(connection)
 
@@ -657,10 +687,14 @@ def schema_is_compatible(connection: sqlite3.Connection) -> bool:
     return True
 
 
-def recreate_output_db(output_db: Path) -> None:
+def recreate_output_db(
+    output_db: Path,
+    *,
+    heartbeat_callback: Callable[[], None] | None = None,
+) -> None:
     output_db.unlink(missing_ok=True)
     with open_sqlite_connection(output_db) as connection:
-        ensure_db_schema(connection)
+        ensure_db_schema(connection, heartbeat_callback=heartbeat_callback)
         connection.commit()
 
 
@@ -672,7 +706,11 @@ def ensure_output_db_permissions(path: Path) -> None:
         pass
 
 
-def ensure_output_db(output_db: Path) -> None:
+def ensure_output_db(
+    output_db: Path,
+    *,
+    heartbeat_callback: Callable[[], None] | None = None,
+) -> None:
     output_db.parent.mkdir(parents=True, exist_ok=True)
     recreate = False
     if output_db.exists():
@@ -680,13 +718,33 @@ def ensure_output_db(output_db: Path) -> None:
             recreate = not schema_is_compatible(connection)
     if recreate:
         # 旧 taikei の簡易 DB は列が足りないので、逐次追加へ切り替える前に作り直す。
-        recreate_output_db(output_db)
+        recreate_output_db(output_db, heartbeat_callback=heartbeat_callback)
         ensure_output_db_permissions(output_db)
         return
     with open_sqlite_connection(output_db) as connection:
-        ensure_db_schema(connection)
+        ensure_db_schema(connection, heartbeat_callback=heartbeat_callback)
         connection.commit()
     ensure_output_db_permissions(output_db)
+
+
+def prepare_incremental_index(
+    output_db: Path,
+    *,
+    logger: Callable[[str], None] | None = None,
+    context: str = "",
+) -> bool:
+    # 例規本文の取得は進めつつ、逐次 index だけを best effort に落とす。
+    try:
+        ensure_output_db(output_db)
+        return True
+    except Exception as exc:
+        if logger is not None:
+            prefix = f"{context}: " if context else ""
+            logger(
+                f"[WARN] {prefix}ordinances.sqlite の準備に失敗したため、逐次インデックス更新を無効化します: "
+                f"[{type(exc).__name__}] db={output_db} error={exc}"
+            )
+        return False
 
 
 def resolve_record_paths(
@@ -839,13 +897,51 @@ def upsert_source_key(
     if record is None:
         return False
 
-    ensure_output_db(output_db)
+    if not output_db.exists():
+        # 通常は起動時の prepare_incremental_index() が schema を整える。
+        # 1 件ごとの逐次反映では、未作成時だけ初期化して DDL 競合を減らす。
+        ensure_output_db(output_db)
     with open_sqlite_connection(output_db) as connection:
-        ensure_db_schema(connection)
         upsert_record(connection, record)
         connection.commit()
     ensure_output_db_permissions(output_db)
     return True
+
+
+def best_effort_upsert_source_key(
+    *,
+    slug: str,
+    clean_html_dir: Path,
+    classification_dir: Path,
+    markdown_dir: Path,
+    output_db: Path,
+    key: str,
+    manifest: dict[str, Any] | None = None,
+    manifest_json: Path | None = None,
+    logger: Callable[[str], None] | None = None,
+    context: str = "",
+) -> str:
+    # 条例ごとの逐次反映失敗は warning に落とし、自治体ワーカー本体は継続させる。
+    try:
+        updated = upsert_source_key(
+            slug=slug,
+            clean_html_dir=clean_html_dir,
+            classification_dir=classification_dir,
+            markdown_dir=markdown_dir,
+            output_db=output_db,
+            key=key,
+            manifest=manifest,
+            manifest_json=manifest_json,
+        )
+    except Exception as exc:
+        if logger is not None:
+            prefix = f"{context}: " if context else ""
+            logger(
+                f"[WARN] {prefix}ordinances.sqlite への逐次反映に失敗しました: "
+                f"[{type(exc).__name__}] db={output_db} key={key} error={exc}"
+            )
+        return "error"
+    return "ok" if updated else "skipped"
 
 
 def backfill_missing_rows(
@@ -857,6 +953,7 @@ def backfill_missing_rows(
     manifest_json: Path,
     output_db: Path,
     progress_callback: Callable[[dict[str, int | str]], None] | None = None,
+    heartbeat_callback: Callable[[], None] | None = None,
 ) -> dict[str, int]:
     # 既に clean HTML があるのに ordinances.sqlite に無い行だけを、自治体単位で補完する。
     if not clean_html_dir.exists():
@@ -884,13 +981,16 @@ def backfill_missing_rows(
     manifest_index = load_manifest_index(manifest_json)
     prefixes = municipality_sortable_prefixes(slug)
 
-    ensure_output_db(output_db)
+    last_heartbeat_at = emit_heartbeat(heartbeat_callback, 0.0, force=True)
+    ensure_output_db(output_db, heartbeat_callback=heartbeat_callback)
+    last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at)
     with open_sqlite_connection(output_db) as connection:
-        ensure_db_schema(connection)
+        # prepare_db 済みの接続で既存行を読み、ここでは DDL を挟まない。
         existing = {
             str(row[0])
             for row in connection.execute("SELECT filename FROM ordinances")
         }
+        last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at)
         added = 0
         existing_count = 0
         skipped = 0
@@ -907,6 +1007,7 @@ def backfill_missing_rows(
                     "skipped": 0,
                 }
             )
+        last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at)
         for key, html_path in html_files.items():
             if key in existing:
                 existing_count += 1
@@ -925,6 +1026,7 @@ def backfill_missing_rows(
                                 "skipped": skipped,
                             }
                         )
+                        last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at, force=True)
                 continue
             record = build_record(
                 key,
@@ -951,6 +1053,7 @@ def backfill_missing_rows(
                                 "skipped": skipped,
                             }
                         )
+                        last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at, force=True)
                 continue
             upsert_record(connection, record)
             existing.add(key)
@@ -970,7 +1073,9 @@ def backfill_missing_rows(
                             "skipped": skipped,
                         }
                     )
+                    last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at, force=True)
         connection.commit()
+    emit_heartbeat(heartbeat_callback, last_heartbeat_at, force=True)
     ensure_output_db_permissions(output_db)
 
     return {

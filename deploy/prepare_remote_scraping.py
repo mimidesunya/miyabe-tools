@@ -20,6 +20,7 @@ from deploy import (
     run_command,
     ssh_copy_content,
     ssh_exec,
+    verify_scraping_services_running,
 )
 
 
@@ -134,7 +135,7 @@ def build_scraping_compose(
                     "./tools/remote/run_gijiroku_service.sh",
                     "--ack-robots",
                     "--parallel",
-                    "6",
+                    "8",
                     "--per-host-parallel",
                     "1",
                     "--per-host-start-interval",
@@ -161,7 +162,7 @@ def build_scraping_compose(
                     "sh",
                     "./tools/remote/run_reiki_service.sh",
                     "--parallel",
-                    "6",
+                    "8",
                     "--per-host-parallel",
                     "1",
                     "--per-host-start-interval",
@@ -228,10 +229,11 @@ def ensure_scraper_image(config: dict, dest_dir: str, image_name: str, *, build_
 def restart_scraping_services(config: dict, dest_dir: str, image_name: str) -> None:
     ssh_exec(
         config,
-        remote_scraping_compose_cmd(dest_dir, "up -d --force-recreate --remove-orphans")
-        + " && "
-        + remote_scraper_cleanup_cmd(image_name),
+        remote_scraper_cleanup_cmd(image_name)
+        + "\n"
+        + remote_scraping_compose_cmd(dest_dir, "up -d --force-recreate --remove-orphans"),
     )
+    verify_scraping_services_running(config, dest_dir)
 
 
 def main() -> int:
@@ -294,11 +296,11 @@ def main() -> int:
     print(f"docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml logs -f scraper-reiki")
     print(f"docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml restart scraper-gijiroku scraper-reiki")
     print(
-        "nohup sh ./tools/remote/run_gijiroku_remote.sh --ack-robots --parallel 6 --per-host-parallel 1 --per-host-start-interval 2 "
+        "nohup sh ./tools/remote/run_gijiroku_remote.sh --ack-robots --parallel 8 --per-host-parallel 1 --per-host-start-interval 2 "
         "> logs/scraping/gijiroku.out 2>&1 &"
     )
     print(
-        "nohup sh ./tools/remote/run_reiki_remote.sh --parallel 6 --per-host-parallel 1 --per-host-start-interval 2 --check-updates "
+        "nohup sh ./tools/remote/run_reiki_remote.sh --parallel 8 --per-host-parallel 1 --per-host-start-interval 2 --check-updates "
         "> logs/scraping/reiki.out 2>&1 &"
     )
     return 0

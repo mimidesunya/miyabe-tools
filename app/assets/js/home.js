@@ -152,8 +152,8 @@
         `.trim();
     }
 
-    function renderTaskSummaries(taskSummaries) {
-        const summaries = Array.isArray(taskSummaries) ? taskSummaries.filter((item) => item && item.running) : [];
+    function renderFeatureSummaries(featureSummaries) {
+        const summaries = Array.isArray(featureSummaries) ? featureSummaries.filter((item) => item) : [];
         if (summaries.length === 0) {
             return '';
         }
@@ -174,7 +174,7 @@
             generatedAtElement.textContent = `更新: ${String(payload?.generated_at || '不明')}`;
         }
         if (taskSummariesElement) {
-            taskSummariesElement.innerHTML = renderTaskSummaries(payload?.task_summaries);
+            taskSummariesElement.innerHTML = renderFeatureSummaries(payload?.feature_summaries);
         }
 
         if (runningSection && runningList) {
@@ -199,10 +199,18 @@
 
     async function loadPayload() {
         const response = await fetch(`${apiUrl}?t=${Date.now()}`, { cache: 'no-store' });
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
+        const responseText = await response.text();
+        let payload;
+        try {
+            payload = JSON.parse(responseText);
+        } catch (error) {
+            throw new Error(`Invalid JSON from homepage API (HTTP ${response.status})`);
         }
-        return await response.json();
+        if (!response.ok) {
+            const apiError = payload && typeof payload === 'object' ? payload.error : '';
+            throw new Error(String(apiError || `HTTP ${response.status}`));
+        }
+        return payload;
     }
 
     let refreshing = false;
@@ -214,7 +222,9 @@
         try {
             const payload = await loadPayload();
             renderPayload(payload);
-        } catch (_error) {
+        } catch (error) {
+            // 利用者向け文言は抑えめにしつつ、実原因は console で追えるようにする。
+            console.error('homepage refresh failed', error);
             if (loadingPanel && loadingPanel.isConnected) {
                 loadingPanel.textContent = '自治体一覧の読み込みに失敗しました。しばらくしてから再度お試しください。';
             }

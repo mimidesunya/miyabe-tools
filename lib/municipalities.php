@@ -179,9 +179,43 @@ function read_json_cache_file(string $path, int $ttlSeconds = 0): ?array
     return is_array($decoded) ? $decoded : null;
 }
 
+function json_cache_file_is_fresh(string $path, int $ttlSeconds = 0, array $dependencyPaths = []): bool
+{
+    if (!is_file($path)) {
+        return false;
+    }
+
+    $cacheMtime = (int)@filemtime($path);
+    if ($cacheMtime <= 0) {
+        return false;
+    }
+
+    if ($ttlSeconds > 0) {
+        $ageSeconds = time() - $cacheMtime;
+        if ($ageSeconds < 0 || $ageSeconds > $ttlSeconds) {
+            return false;
+        }
+    }
+
+    foreach ($dependencyPaths as $dependencyPath) {
+        $dependencyPath = trim((string)$dependencyPath);
+        if ($dependencyPath === '' || !is_file($dependencyPath)) {
+            continue;
+        }
+        if ((int)@filemtime($dependencyPath) > $cacheMtime) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 function write_json_cache_file(string $path, array $payload): void
 {
-    $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $encoded = json_encode(
+        $payload,
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE
+    );
     if (!is_string($encoded)) {
         return;
     }
@@ -369,6 +403,85 @@ function municipality_feature_live_has_data(string $feature, array $featureConfi
     }
 
     return !empty($featureConfig['has_data']);
+}
+
+function municipality_feature_ready_cache_paths(string $feature): array
+{
+    return match ($feature) {
+        'gijiroku' => [data_path('background_tasks/gijiroku_ready_municipalities.json')],
+        'reiki' => [data_path('background_tasks/reiki_ready_municipalities.json')],
+        default => [],
+    };
+}
+
+function municipality_invalidate_feature_ready_caches(string $feature): void
+{
+    foreach (municipality_feature_ready_cache_paths($feature) as $path) {
+        if (is_file($path)) {
+            @unlink($path);
+        }
+    }
+}
+
+function municipality_cache_mark_feature_available(string $slug, string $feature): void
+{
+    $slug = trim($slug);
+    $feature = trim($feature);
+    if ($slug === '' || $feature === '') {
+        return;
+    }
+
+    $cachePath = municipality_catalog_cache_path();
+    $cached = read_json_cache_file($cachePath);
+    if (!is_array($cached)) {
+        return;
+    }
+
+    $changed = false;
+    if (isset($cached[$slug]) && is_array($cached[$slug])) {
+        $featureConfig = $cached[$slug][$feature] ?? null;
+        if (is_array($featureConfig) && empty($featureConfig['has_data'])) {
+            $featureConfig['has_data'] = true;
+            if (array_key_exists('enabled', $featureConfig)) {
+                $featureConfig['enabled'] = true;
+            }
+            $cached[$slug][$feature] = $featureConfig;
+            $changed = true;
+        }
+    } else {
+        foreach ($cached as $key => $entry) {
+            if (!is_array($entry) || trim((string)($entry['public_slug'] ?? '')) !== $slug) {
+                continue;
+            }
+            $featureConfig = $entry[$feature] ?? null;
+            if (!is_array($featureConfig) || !empty($featureConfig['has_data'])) {
+                break;
+            }
+            $featureConfig['has_data'] = true;
+            if (array_key_exists('enabled', $featureConfig)) {
+                $featureConfig['enabled'] = true;
+            }
+            $entry[$feature] = $featureConfig;
+            $cached[$key] = $entry;
+            $changed = true;
+            break;
+        }
+    }
+
+    if ($changed) {
+        write_json_cache_file($cachePath, $cached);
+        // ready 一覧は自治体 catalog の has_data を前提にするので、self-heal 後は作り直す。
+        municipality_invalidate_feature_ready_caches($feature);
+    }
+}
+
+function municipality_feature_live_has_data_with_cache_heal(string $slug, string $feature, array $featureConfig): bool
+{
+    $hasData = municipality_feature_live_has_data($feature, $featureConfig);
+    if ($hasData && empty($featureConfig['has_data'])) {
+        municipality_cache_mark_feature_available($slug, $feature);
+    }
+    return $hasData;
 }
 
 function sanitize_slug_token(string $value): string
@@ -893,7 +1006,7 @@ function municipality_feature_enabled(string $slug, string $feature): bool
     }
 
     // runtime cache が古くても、実データが見えていれば公開状態へ自動回復させる。
-    $hasData = !empty($featureConfig['has_data']) || municipality_feature_live_has_data($feature, $featureConfig);
+    $hasData = !empty($featureConfig['has_data']) || municipality_feature_live_has_data_with_cache_heal($slug, $feature, $featureConfig);
     return $hasData;
 }
 

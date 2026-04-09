@@ -86,7 +86,13 @@ function reiki_search_ready_summaries(): array
     }
 
     $cachePath = reiki_search_ready_cache_path();
-    $cached = read_json_cache_file($cachePath, reiki_search_ready_cache_ttl_seconds());
+    $catalogCachePath = municipality_catalog_cache_path();
+    // 自治体 catalog が self-heal されたら、ready 一覧も古い cache を使わず追従させる。
+    if (json_cache_file_is_fresh($cachePath, reiki_search_ready_cache_ttl_seconds(), [$catalogCachePath])) {
+        $cached = read_json_cache_file($cachePath);
+    } else {
+        $cached = null;
+    }
     if (is_array($cached)) {
         $cache = array_values(array_filter($cached, 'is_array'));
         return $cache;

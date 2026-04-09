@@ -174,6 +174,9 @@ def main() -> int:
             batch_status.write_state("reiki_reflect", status_state)
 
             try:
+                def heartbeat() -> None:
+                    batch_status.write_state("reiki_reflect", status_state)
+
                 def on_progress(progress: dict[str, int | str]) -> None:
                     log_target_progress(target, index, len(targets), progress)
                     total_html = int(progress.get("total_html", 0) or 0)
@@ -196,6 +199,7 @@ def main() -> int:
                     manifest_json=manifest_json,
                     output_db=Path(target["db_path"]),
                     progress_callback=on_progress,
+                    heartbeat_callback=heartbeat,
                 )
             except Exception as exc:
                 failures += 1

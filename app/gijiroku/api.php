@@ -131,7 +131,7 @@ if ($action === 'search_preview') {
     $result = gijiroku_search_execute_preview(
         $readyMunicipalities[$slug],
         $query,
-        request_int('per_page', 3, 1, 6)
+        request_int('per_page', 3, 1, 100)
     );
     respond_json($result);
 }

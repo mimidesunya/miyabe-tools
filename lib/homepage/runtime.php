@@ -340,58 +340,217 @@ function homepage_task_display_is_done_success(?array $display): bool
         && homepage_task_display_is_complete($display);
 }
 
+function homepage_feature_runtime_displays(
+    string $featureKey,
+    string $slug,
+    array $feature,
+    array $backgroundTaskStatuses,
+    array $backgroundTaskSnapshots
+): array {
+    $taskDisplay = null;
+    if (isset($backgroundTaskStatuses[$featureKey]) && is_array($backgroundTaskStatuses[$featureKey])) {
+        $taskDisplay = background_task_item_display($backgroundTaskStatuses[$featureKey], $slug);
+    }
+
+    $snapshotDisplay = null;
+    $fallbackDisplay = null;
+    if (isset($backgroundTaskSnapshots[$featureKey]) && is_array($backgroundTaskSnapshots[$featureKey])) {
+        $snapshotDisplay = background_task_item_display($backgroundTaskSnapshots[$featureKey], $slug);
+        $fallbackDisplay = background_task_item_fallback_display($backgroundTaskSnapshots[$featureKey], $slug);
+    }
+    if ($fallbackDisplay === null) {
+        $fallbackDisplay = homepage_feature_fallback_display($featureKey, $feature);
+    }
+
+    $primaryDisplay = $taskDisplay !== null
+        ? homepage_merge_task_display($taskDisplay, $fallbackDisplay)
+        : ($snapshotDisplay ?? $fallbackDisplay);
+    if (homepage_task_display_should_hide($primaryDisplay)) {
+        $primaryDisplay = null;
+    }
+
+    $publishDisplay = null;
+    $publishTaskKey = homepage_feature_publish_task_key($featureKey);
+    if ($publishTaskKey !== null && isset($backgroundTaskStatuses[$publishTaskKey])) {
+        $publishDisplay = background_task_item_display($backgroundTaskStatuses[$publishTaskKey], $slug);
+        if (homepage_task_display_should_hide($publishDisplay)) {
+            $publishDisplay = null;
+        }
+    }
+
+    return [
+        'task' => $taskDisplay,
+        'snapshot' => $snapshotDisplay,
+        'fallback' => $fallbackDisplay,
+        'primary' => $primaryDisplay,
+        'publish' => $publishDisplay,
+    ];
+}
+
+function homepage_feature_has_available_data(
+    string $slug,
+    string $featureKey,
+    array $feature,
+    ?array $primaryDisplay,
+    ?array $publishDisplay
+): bool {
+    $hasData = (bool)($feature['has_data'] ?? false);
+    if (!$hasData && homepage_task_display_is_done_success($publishDisplay)) {
+        // 反映タスク自身が完了成功を返しているなら、その結果を公開可否の最優先根拠にする。
+        $hasData = true;
+    }
+    if (!$hasData && $primaryDisplay !== null && homepage_task_display_is_complete($primaryDisplay)) {
+        // 反映直後に municipality_catalog cache だけ古いときは、実ファイルを見て self-heal する。
+        $hasData = municipality_feature_live_has_data_with_cache_heal($slug, $featureKey, $feature);
+    }
+    return $hasData;
+}
+
+function homepage_feature_target_codes(string $featureKey): array
+{
+    static $cache = [];
+    if (array_key_exists($featureKey, $cache)) {
+        return $cache[$featureKey];
+    }
+
+    $index = match ($featureKey) {
+        'gijiroku' => load_system_url_index('municipalities/assembly_minutes_system_urls.tsv'),
+        'reiki' => load_system_url_index('municipalities/reiki_system_urls.tsv'),
+        default => [],
+    };
+
+    $codes = [];
+    foreach ($index as $code => $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        if (trim((string)($row['url'] ?? '')) === '') {
+            continue;
+        }
+        $codes[] = trim((string)$code);
+    }
+    $cache[$featureKey] = $codes;
+    return $cache[$featureKey];
+}
+
+function homepage_build_feature_runtime_states(
+    array $municipalities,
+    array $featureLabels,
+    array $backgroundTaskStatuses,
+    array $backgroundTaskSnapshots
+): array {
+    $states = [];
+    foreach ($municipalities as $slug => $municipality) {
+        if (!is_array($municipality)) {
+            continue;
+        }
+
+        $normalizedSlug = (string)$slug;
+        foreach (array_keys($featureLabels) as $featureKey) {
+            $feature = is_array($municipality[$featureKey] ?? null) ? $municipality[$featureKey] : [];
+            $displays = homepage_feature_runtime_displays(
+                $featureKey,
+                $normalizedSlug,
+                $feature,
+                $backgroundTaskStatuses,
+                $backgroundTaskSnapshots
+            );
+            $states[$normalizedSlug][$featureKey] = [
+                'feature' => $feature,
+                'displays' => $displays,
+                'has_data' => homepage_feature_has_available_data(
+                    $normalizedSlug,
+                    $featureKey,
+                    $feature,
+                    $displays['primary'],
+                    $displays['publish']
+                ),
+            ];
+        }
+    }
+
+    return $states;
+}
+
+function homepage_feature_summaries(
+    array $municipalities,
+    array $featureLabels,
+    array $featureIcons,
+    array $featureRuntimeStates
+): array {
+    $summaries = [];
+    foreach (['gijiroku', 'reiki'] as $featureKey) {
+        $targetCodes = array_values(array_filter(
+            homepage_feature_target_codes($featureKey),
+            static fn(mixed $code): bool => trim((string)$code) !== ''
+        ));
+        $targetLookup = array_fill_keys($targetCodes, true);
+        $availableCount = 0;
+
+        foreach ($municipalities as $slug => $municipality) {
+            if (!is_array($municipality)) {
+                continue;
+            }
+            $code = trim((string)($municipality['code'] ?? ''));
+            if ($code === '' || !isset($targetLookup[$code])) {
+                continue;
+            }
+
+            $runtimeState = $featureRuntimeStates[(string)$slug][$featureKey] ?? null;
+            if (is_array($runtimeState) && !empty($runtimeState['has_data'])) {
+                $availableCount += 1;
+            }
+        }
+
+        $label = (string)($featureLabels[$featureKey] ?? $featureKey);
+        $icon = (string)($featureIcons[$featureKey] ?? '');
+        $targetCount = count($targetLookup);
+        $summaries[] = [
+            'feature_key' => $featureKey,
+            'label' => $label,
+            'icon' => $icon,
+            'target_count' => $targetCount,
+            'available_count' => $availableCount,
+            'text' => sprintf('%s %s: 対象 %d / 利用可能 %d', $icon, $label, $targetCount, $availableCount),
+        ];
+    }
+
+    return $summaries;
+}
+
 function homepage_collect_visible_features(
     array $municipality,
     string $slug,
     array $featureLabels,
     array $featureIcons,
     array $backgroundTaskStatuses,
-    array $backgroundTaskSnapshots
+    array $backgroundTaskSnapshots,
+    array $featureRuntimeStates = []
 ): array {
     $visibleFeatures = [];
     $readyVisibleCount = 0;
 
     foreach ($featureLabels as $featureKey => $label) {
-        $feature = is_array($municipality[$featureKey] ?? null) ? $municipality[$featureKey] : [];
+        $runtimeState = $featureRuntimeStates[$featureKey] ?? null;
+        $feature = is_array($runtimeState['feature'] ?? null)
+            ? $runtimeState['feature']
+            : (is_array($municipality[$featureKey] ?? null) ? $municipality[$featureKey] : []);
         $featureTitle = (string)($feature['title'] ?? (($municipality['name'] ?? $slug) . $label));
-        $taskDisplay = null;
-        if (isset($backgroundTaskStatuses[$featureKey]) && is_array($backgroundTaskStatuses[$featureKey])) {
-            $taskDisplay = background_task_item_display($backgroundTaskStatuses[$featureKey], $slug);
-        }
-        $snapshotDisplay = null;
-        $fallbackDisplay = null;
-        if (isset($backgroundTaskSnapshots[$featureKey]) && is_array($backgroundTaskSnapshots[$featureKey])) {
-            $snapshotDisplay = background_task_item_display($backgroundTaskSnapshots[$featureKey], $slug);
-            $fallbackDisplay = background_task_item_fallback_display($backgroundTaskSnapshots[$featureKey], $slug);
-        }
-        if ($fallbackDisplay === null) {
-            $fallbackDisplay = homepage_feature_fallback_display($featureKey, $feature);
-        }
-        $primaryDisplay = $taskDisplay !== null
-            ? homepage_merge_task_display($taskDisplay, $fallbackDisplay)
-            : ($snapshotDisplay ?? $fallbackDisplay);
-        if (homepage_task_display_should_hide($primaryDisplay)) {
-            $primaryDisplay = null;
-        }
+        $displays = is_array($runtimeState['displays'] ?? null)
+            ? $runtimeState['displays']
+            : homepage_feature_runtime_displays(
+                $featureKey,
+                $slug,
+                $feature,
+                $backgroundTaskStatuses,
+                $backgroundTaskSnapshots
+            );
+        $primaryDisplay = $displays['primary'];
+        $publishDisplay = $displays['publish'];
 
-        $publishDisplay = null;
-        $publishTaskKey = homepage_feature_publish_task_key($featureKey);
-        if ($publishTaskKey !== null && isset($backgroundTaskStatuses[$publishTaskKey])) {
-            $publishDisplay = background_task_item_display($backgroundTaskStatuses[$publishTaskKey], $slug);
-            if (homepage_task_display_should_hide($publishDisplay)) {
-                $publishDisplay = null;
-            }
-        }
-
-        $hasData = (bool)($feature['has_data'] ?? false);
-        if (!$hasData && homepage_task_display_is_done_success($publishDisplay)) {
-            // 反映タスク自身が完了成功を返しているなら、その結果を公開可否の最優先根拠にする。
-            $hasData = true;
-        }
-        if (!$hasData && $primaryDisplay !== null && homepage_task_display_is_complete($primaryDisplay)) {
-            // 反映直後に municipality_catalog cache だけ古いときは、実ファイルを見て self-heal する。
-            $hasData = municipality_feature_live_has_data($featureKey, $feature);
-        }
+        $hasData = is_array($runtimeState) && array_key_exists('has_data', $runtimeState)
+            ? (bool)$runtimeState['has_data']
+            : homepage_feature_has_available_data($slug, $featureKey, $feature, $primaryDisplay, $publishDisplay);
         $isEnabled = $hasData;
         $display = $primaryDisplay;
         if (!$hasData && $publishDisplay !== null) {
@@ -481,6 +640,12 @@ function homepage_build_context(): array
         'gijiroku' => homepage_normalize_task_status_items(load_background_task_status('gijiroku_snapshot')),
         'reiki' => homepage_normalize_task_status_items(load_background_task_status('reiki_snapshot')),
     ];
+    $featureRuntimeStates = homepage_build_feature_runtime_states(
+        $municipalities,
+        $featureLabels,
+        $backgroundTaskStatuses,
+        $backgroundTaskSnapshots
+    );
     $runningTaskDefinitions = [
         ['task_key' => 'gijiroku_reflect', 'feature_key' => 'gijiroku', 'running_label' => '会議録 反映'],
         ['task_key' => 'gijiroku', 'feature_key' => 'gijiroku', 'running_label' => '会議録'],
@@ -513,7 +678,8 @@ function homepage_build_context(): array
             $featureLabels,
             $featureIcons,
             $backgroundTaskStatuses,
-            $backgroundTaskSnapshots
+            $backgroundTaskSnapshots,
+            is_array($featureRuntimeStates[(string)$slug] ?? null) ? $featureRuntimeStates[(string)$slug] : []
         );
         if (($summary['visible_features'] ?? []) === []) {
             continue;
@@ -543,14 +709,24 @@ function homepage_build_context(): array
                 continue;
             }
 
-            $display = background_task_item_display($taskStatus, (string)$slug);
+            $normalizedSlug = (string)$slug;
+            $municipality = is_array($municipalities[$normalizedSlug] ?? null) ? $municipalities[$normalizedSlug] : [];
+            $runtimeState = is_array($featureRuntimeStates[$normalizedSlug][$featureKey] ?? null)
+                ? $featureRuntimeStates[$normalizedSlug][$featureKey]
+                : null;
+            if ($taskKey === $featureKey) {
+                $display = is_array($runtimeState['displays'] ?? null)
+                    ? ($runtimeState['displays']['primary'] ?? null)
+                    : null;
+            } else {
+                $display = background_task_item_display($taskStatus, $normalizedSlug);
+            }
             if (!is_array($display) || ($display['class'] ?? '') !== 'task-running') {
                 continue;
             }
 
-            $municipality = is_array($municipalities[$slug] ?? null) ? $municipalities[$slug] : [];
             $runningTaskEntries[] = [
-                'slug' => (string)$slug,
+                'slug' => $normalizedSlug,
                 'municipality_name' => (string)($municipality['name'] ?? ($item['name'] ?? $slug)),
                 'feature_key' => $featureKey,
                 'feature_label' => $featureLabel,
@@ -577,6 +753,7 @@ function homepage_build_context(): array
         'featureIcons' => $featureIcons,
         'backgroundTaskStatuses' => $backgroundTaskStatuses,
         'backgroundTaskSnapshots' => $backgroundTaskSnapshots,
+        'featureRuntimeStates' => $featureRuntimeStates,
         'runningTaskDefinitions' => $runningTaskDefinitions,
     ];
 }
@@ -588,27 +765,15 @@ function homepage_build_api_payload(): array
     $displayMunicipalities = is_array($context['displayMunicipalities'] ?? null) ? $context['displayMunicipalities'] : [];
     $backgroundTaskStatuses = is_array($context['backgroundTaskStatuses'] ?? null) ? $context['backgroundTaskStatuses'] : [];
     $runningTaskEntries = is_array($context['runningTaskEntries'] ?? null) ? $context['runningTaskEntries'] : [];
-    $runningTaskDefinitions = is_array($context['runningTaskDefinitions'] ?? null) ? $context['runningTaskDefinitions'] : [];
-
-    $taskSummaries = [];
-    foreach ($runningTaskDefinitions as $taskDefinition) {
-        $taskKey = (string)($taskDefinition['task_key'] ?? '');
-        $featureKey = (string)($taskDefinition['feature_key'] ?? '');
-        $label = (string)($taskDefinition['running_label'] ?? $featureKey);
-        $taskStatus = is_array($backgroundTaskStatuses[$taskKey] ?? null) ? $backgroundTaskStatuses[$taskKey] : [];
-        $isReflectTask = str_ends_with($taskKey, '_reflect');
-        $taskSummaries[] = [
-            'feature_key' => $featureKey,
-            'label' => $label,
-            'running' => (bool)($taskStatus['running'] ?? false),
-            'text' => sprintf(
-                '%s%s: %s',
-                $label,
-                $isReflectTask ? '' : 'スクレイピング',
-                background_task_progress_detail((int)($taskStatus['completed_count'] ?? 0), (int)($taskStatus['total_count'] ?? 0))
-            ),
-        ];
-    }
+    $featureLabels = is_array($context['featureLabels'] ?? null) ? $context['featureLabels'] : [];
+    $featureIcons = is_array($context['featureIcons'] ?? null) ? $context['featureIcons'] : [];
+    $featureRuntimeStates = is_array($context['featureRuntimeStates'] ?? null) ? $context['featureRuntimeStates'] : [];
+    $featureSummaries = homepage_feature_summaries(
+        $municipalities,
+        $featureLabels,
+        $featureIcons,
+        $featureRuntimeStates
+    );
 
     $municipalityCards = [];
     foreach ($displayMunicipalities as $card) {
@@ -673,7 +838,7 @@ function homepage_build_api_payload(): array
         'generated_at' => app_now_tokyo(),
         'municipality_count' => count($municipalities),
         'display_municipality_count' => count($municipalityCards),
-        'task_summaries' => $taskSummaries,
+        'feature_summaries' => $featureSummaries,
         'running_tasks' => $runningTasks,
         'municipalities' => $municipalityCards,
     ];
@@ -741,7 +906,7 @@ function homepage_cached_payload_needs_self_heal(array $payload): bool
             if (!in_array($statusLabel, ['要反映', '未公開'], true)) {
                 continue;
             }
-            if (municipality_feature_live_has_data($featureKey, $feature)) {
+            if (municipality_feature_live_has_data_with_cache_heal($slug, $featureKey, $feature)) {
                 return true;
             }
         }
@@ -750,7 +915,7 @@ function homepage_cached_payload_needs_self_heal(array $payload): bool
     return false;
 }
 
-function homepage_build_api_payload_cached(int $ttlSeconds = 60): array
+function homepage_build_api_payload_cached(int $ttlSeconds = 15): array
 {
     $cachePath = homepage_api_cache_path();
     if ($ttlSeconds > 0) {
@@ -764,7 +929,7 @@ function homepage_build_api_payload_cached(int $ttlSeconds = 60): array
     }
 
     // トップ API は 5 秒ごとに複数クライアントから叩かれるため、
-    // 毎分程度の遅延は許容して、同じ payload を再利用して SQLite/JSON 走査を減らす。
+    // 数十秒単位の遅延は許容して、同じ payload を再利用して SQLite/JSON 走査を減らす。
     // ttlSeconds=0 は「強制再生成」として扱い、debug / prewarm からも迷わず使えるようにする。
     return homepage_rebuild_api_payload_cache();
 }

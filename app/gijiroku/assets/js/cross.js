@@ -20,6 +20,7 @@
 
     const municipalityBySlug = new Map(municipalities.map((item) => [item.slug, item]));
     const selectedFromBoot = String(boot.selectedSlug || '');
+    const mixedResultLimit = 100;
 
     const refs = {
         form: document.getElementById('cross-search-form'),
@@ -34,6 +35,7 @@
         municipalityList: document.getElementById('municipality-list'),
         selectedTitle: document.getElementById('selected-title'),
         selectedMeta: document.getElementById('selected-meta'),
+        selectedMixedButton: document.getElementById('selected-mixed-button'),
         selectedOpenLink: document.getElementById('selected-open-link'),
         resultsSummary: document.getElementById('results-summary'),
         resultsBody: document.getElementById('results-body'),
@@ -130,6 +132,81 @@
         }).join('');
     }
 
+    function resultLatestHitDate(result) {
+        const latest = String(result?.stats?.latest_hit_date || '');
+        if (latest) {
+            return latest;
+        }
+        const rows = Array.isArray(result?.preview_rows) && result.preview_rows.length > 0
+            ? result.preview_rows
+            : (Array.isArray(result?.rows) ? result.rows : []);
+        return String(rows[0]?.held_on || '');
+    }
+
+    function compareRecentRows(a, b) {
+        const aHeldOn = String(a?.held_on || '');
+        const bHeldOn = String(b?.held_on || '');
+        if (aHeldOn !== bHeldOn) {
+            return bHeldOn.localeCompare(aHeldOn);
+        }
+
+        const aCode = String(a?.municipality_code || '');
+        const bCode = String(b?.municipality_code || '');
+        if (aCode !== bCode) {
+            return aCode.localeCompare(bCode);
+        }
+
+        const aId = Number(a?.id || 0);
+        const bId = Number(b?.id || 0);
+        if (aId !== bId) {
+            return bId - aId;
+        }
+
+        return String(a?.title || '').localeCompare(String(b?.title || ''));
+    }
+
+    function mixedResultsInfo() {
+        const rows = [];
+        let hasOverflow = false;
+
+        for (const municipality of municipalities) {
+            const result = state.results.get(municipality.slug);
+            if (!result || result.status !== 'ok') {
+                continue;
+            }
+
+            if (result.has_more) {
+                hasOverflow = true;
+            }
+
+            const sourceRows = Array.isArray(result.preview_rows) && result.preview_rows.length > 0
+                ? result.preview_rows
+                : (Array.isArray(result.rows) ? result.rows : []);
+            for (const row of sourceRows) {
+                if (!row || typeof row !== 'object') {
+                    continue;
+                }
+                rows.push({
+                    ...row,
+                    municipality_slug: String(row.municipality_slug || municipality.slug),
+                    municipality_name: String(row.municipality_name || municipality.name),
+                    assembly_name: String(row.assembly_name || municipality.assembly_name),
+                    municipality_code: String(municipality.code || ''),
+                });
+            }
+        }
+
+        rows.sort(compareRecentRows);
+        if (rows.length > mixedResultLimit) {
+            hasOverflow = true;
+        }
+
+        return {
+            rows: rows.slice(0, mixedResultLimit),
+            hasOverflow,
+        };
+    }
+
     function searchSummary() {
         let hitMunicipalities = 0;
         let totalHits = 0;
@@ -174,7 +251,7 @@
         const items = municipalities.map((municipality) => {
             const result = state.results.get(municipality.slug);
             const total = Number(result?.total || 0);
-            const lastDate = String(result?.stats?.last_date || '');
+            const latestHitDate = resultLatestHitDate(result);
             let mode = 'idle';
             if (state.query) {
                 if (!result) {
@@ -190,7 +267,7 @@
                 }
             }
 
-            return { ...municipality, result, total, lastDate, mode };
+            return { ...municipality, result, total, latestHitDate, mode };
         });
 
         items.sort((a, b) => {
@@ -199,11 +276,11 @@
             if (aRank !== bRank) {
                 return bRank - aRank;
             }
+            if (a.latestHitDate !== b.latestHitDate) {
+                return b.latestHitDate.localeCompare(a.latestHitDate);
+            }
             if (a.total !== b.total) {
                 return b.total - a.total;
-            }
-            if (a.lastDate !== b.lastDate) {
-                return b.lastDate.localeCompare(a.lastDate);
             }
             if (a.code !== b.code) {
                 return a.code.localeCompare(b.code);
@@ -212,19 +289,6 @@
         });
 
         return items;
-    }
-
-    function preferredSlug() {
-        const current = state.selectedSlug;
-        if (current && municipalityBySlug.has(current)) {
-            const currentResult = state.results.get(current);
-            if (!state.query || currentResult?.status === 'loading' || currentResult?.status === 'ok') {
-                return current;
-            }
-        }
-
-        const hits = sortedMunicipalities().filter((item) => item.total > 0);
-        return hits[0]?.slug || current || '';
     }
 
     function updateUrl() {
@@ -248,6 +312,15 @@
         }
         const joiner = municipality.url.includes('?') ? '&' : '?';
         return `${municipality.url}${joiner}q=${encodeURIComponent(state.query)}`;
+    }
+
+    function setMixedButtonEnabled(enabled) {
+        if (!refs.selectedMixedButton) {
+            return;
+        }
+        refs.selectedMixedButton.disabled = !enabled;
+        refs.selectedMixedButton.classList.toggle('is-disabled', !enabled);
+        refs.selectedMixedButton.setAttribute('aria-disabled', enabled ? 'false' : 'true');
     }
 
     function setOpenLink(url) {
@@ -275,9 +348,9 @@
         if (!state.query) {
             refs.progressCopy.textContent = 'キーワードを入れると、対象自治体を順に走査します。';
         } else if (state.searching) {
-            refs.progressCopy.textContent = `${summary.scanned}/${summary.totalMunicipalities} 自治体を走査中です。結果が出た自治体から先に切り替えできます。`;
+            refs.progressCopy.textContent = `${summary.scanned}/${summary.totalMunicipalities} 自治体を走査中です。最新ヒットは自治体混合で先に並びます。`;
         } else {
-            refs.progressCopy.textContent = `${summary.totalMunicipalities} 自治体の走査が終わりました。ヒット自治体を切り替えて確認できます。`;
+            refs.progressCopy.textContent = `${summary.totalMunicipalities} 自治体の走査が終わりました。まず最新ヒットを見て、必要な自治体だけ切り替えできます。`;
         }
 
         refs.progressSummary.innerHTML = [
@@ -315,8 +388,8 @@
                         ? `${item.total}件以上`
                         : `${item.total}件`;
                     helper = item.result.total_exact === false
-                        ? '上位ヒットあり'
-                        : (item.lastDate ? `最新開催日 ${item.lastDate}` : 'ヒットあり');
+                        ? (item.latestHitDate ? `最新ヒット ${item.latestHitDate}` : '上位ヒットあり')
+                        : (item.latestHitDate ? `最新ヒット ${item.latestHitDate}` : 'ヒットあり');
                 } else if (item.result.status === 'ok') {
                     badge = '0件';
                     helper = 'この条件では該当なし';
@@ -352,14 +425,19 @@
 
     function renderResultsSummary(selected, result) {
         const summary = searchSummary();
+        const mixed = mixedResultsInfo();
         const cards = [
             { label: 'ヒット自治体', value: `${summary.hitMunicipalities}` },
             { label: '総ヒット件数', value: `${summary.totalHits}${summary.totalHitsApprox ? '+' : ''}` },
-            { label: '選択中の自治体', value: selected ? selected.name : '未選択' },
+            { label: '表示', value: selected ? selected.name : `混合上位${mixedResultLimit}件` },
         ];
 
         if (result?.status === 'ok') {
-            cards[2].value = result.total_exact === false ? `${result.total}件以上` : `${result.total}件`;
+            cards[2].value = result.total_exact === false ? `${selected?.name || ''} ${result.total}件以上` : `${selected?.name || ''} ${result.total}件`;
+        } else if (!selected) {
+            cards[2].value = mixed.hasOverflow
+                ? `最新${mixedResultLimit}件を表示`
+                : `最新${mixed.rows.length}件を表示`;
         }
 
         refs.resultsSummary.innerHTML = cards.map((item) => `
@@ -380,35 +458,81 @@
         refs.resultsPagination.innerHTML = '';
     }
 
+    function renderResultCards(rows, { showMunicipality = false, rankOffset = 0 } = {}) {
+        return `
+            <ul class="result-list">
+                ${rows.map((row, index) => `
+                    <li class="result-card">
+                        <div class="result-top">
+                            <div class="result-rank">結果 ${escapeHtml(String(rankOffset + index + 1))}</div>
+                            <div class="badges">
+                                ${row.held_on ? `<span class="badge">${escapeHtml(row.held_on)}</span>` : ''}
+                                ${row.year_label ? `<span class="badge">${escapeHtml(row.year_label)}</span>` : ''}
+                            </div>
+                        </div>
+                        <h3 class="result-title">${escapeHtml(row.title || '')}</h3>
+                        <div class="result-meta">
+                            ${showMunicipality && row.municipality_name ? `<div><span class="result-label">自治体</span> ${escapeHtml(row.municipality_name)}</div>` : ''}
+                            ${row.meeting_name ? `<div><span class="result-label">会議</span> ${escapeHtml(row.meeting_name)}</div>` : ''}
+                            ${row.rel_path ? `<div><span class="result-label">ファイル</span> ${escapeHtml(row.rel_path)}</div>` : ''}
+                        </div>
+                        <div class="result-excerpt">${renderExcerpt(row.excerpt || '')}</div>
+                        <div class="result-links">
+                            <a class="link-pill" href="${escapeHtml(row.detail_url || row.browse_url || '')}">自治体ページで詳細を見る</a>
+                            ${showMunicipality && row.browse_url ? `<a class="link-pill is-subtle" href="${escapeHtml(row.browse_url)}">この自治体の一覧を見る</a>` : ''}
+                            ${row.source_url ? `<a class="link-pill is-subtle" href="${escapeHtml(row.source_url)}" target="_blank" rel="noreferrer">原サイト</a>` : ''}
+                        </div>
+                    </li>
+                `).join('')}
+            </ul>
+        `;
+    }
+
     function renderResults() {
         const selected = state.selectedSlug ? municipalityBySlug.get(state.selectedSlug) : null;
         const result = selected ? state.results.get(selected.slug) : null;
+        const mixed = mixedResultsInfo();
 
         renderResultsSummary(selected, result);
 
         if (!state.query) {
             refs.selectedTitle.textContent = 'まずキーワードを入れてください';
-            refs.selectedMeta.textContent = '会議録 DB を横断して、該当自治体と上位ヒットを並べます。';
-            setOpenLink(selected ? municipalityBrowseUrl(selected) : '');
-            renderEmptyState('横断検索の準備ができています。', 'キーワードを入れて実行すると、ヒットした自治体ごとに結果を切り替えられます。');
+            refs.selectedMeta.textContent = '会議録 DB を横断して、最新 100 件を自治体混合で並べます。続きを見たい自治体だけ左から切り替えます。';
+            setMixedButtonEnabled(false);
+            setOpenLink('');
+            renderEmptyState('横断検索の準備ができています。', 'キーワードを入れて実行すると、まず最新ヒットを自治体混合で並べます。');
             return;
         }
 
         if (!selected) {
-            refs.selectedTitle.textContent = state.searching ? '検索対象を走査しています' : '条件に一致する自治体がありません';
-            refs.selectedMeta.textContent = state.searching
-                ? 'ヒットした自治体が見つかり次第、ここに結果を表示します。'
-                : '別のキーワードにすると、ヒットする自治体が見つかるかもしれません。';
+            refs.selectedTitle.textContent = state.searching ? `最新ヒット ${mixedResultLimit}件を集約中です` : `最新ヒット ${mixed.rows.length}件`;
+            refs.selectedMeta.textContent = [
+                '新しい開催日順',
+                mixed.hasOverflow ? `最新${mixedResultLimit}件を表示中。続きは左の自治体から確認できます。` : '現在見つかったヒットをそのまま表示しています。',
+                state.searching ? '結果は検索中もリアルタイムで追加されます。' : '',
+            ].filter(Boolean).join(' / ');
+            setMixedButtonEnabled(false);
             setOpenLink('');
-            renderEmptyState(
-                state.searching ? '検索中です。' : '該当する会議録がありません。',
-                state.searching ? '先に見たい自治体があれば左の一覧から選択できます。' : '検索語を少し広げるか、演算子を減らして試してください。',
-                state.searching ? 'is-loading' : ''
-            );
+
+            if (mixed.rows.length === 0) {
+                renderEmptyState(
+                    state.searching ? '検索中です。' : '該当する会議録がありません。',
+                    state.searching ? '新しいヒットが見つかり次第、ここへ自治体混合で追加していきます。' : '検索語を少し広げるか、演算子を減らして試してください。',
+                    state.searching ? 'is-loading' : ''
+                );
+                return;
+            }
+
+            refs.resultsBody.innerHTML = renderResultCards(mixed.rows, {
+                showMunicipality: true,
+                rankOffset: 0,
+            });
+            refs.resultsPagination.innerHTML = '';
             return;
         }
 
         refs.selectedTitle.textContent = selected.name;
+        setMixedButtonEnabled(true);
         setOpenLink(municipalityBrowseUrl(selected));
 
         if (!result) {
@@ -433,14 +557,14 @@
             ? `${result.start}-${result.end}件を表示`
             : '該当なし';
         const previewCopy = !result.fullLoaded && Number(result.end || 0) > 0
-            ? '上位のみ先行表示'
+            ? `最新${Math.min(mixedResultLimit, Number(result.end || 0))}件の先行表示`
             : '';
         refs.selectedMeta.textContent = [
             `${selected.assembly_name}`,
             result.total_exact === false ? `${result.total}件以上ヒット` : `${result.total}件ヒット`,
             rangeCopy,
             previewCopy,
-            result.stats?.last_date ? `最新開催日 ${result.stats.last_date}` : '',
+            result.stats?.latest_hit_date ? `最新ヒット ${result.stats.latest_hit_date}` : '',
         ].filter(Boolean).join(' / ');
 
         if (!Array.isArray(result.rows) || result.rows.length === 0) {
@@ -448,31 +572,10 @@
             return;
         }
 
-        refs.resultsBody.innerHTML = `
-            <ul class="result-list">
-                ${result.rows.map((row, index) => `
-                    <li class="result-card">
-                        <div class="result-top">
-                            <div class="result-rank">結果 ${escapeHtml(String(((Number(result.page || 1) - 1) * Number(result.per_page || 0)) + index + 1))}</div>
-                            <div class="badges">
-                                ${row.held_on ? `<span class="badge">${escapeHtml(row.held_on)}</span>` : ''}
-                                ${row.year_label ? `<span class="badge">${escapeHtml(row.year_label)}</span>` : ''}
-                            </div>
-                        </div>
-                        <h3 class="result-title">${escapeHtml(row.title || '')}</h3>
-                        <div class="result-meta">
-                            ${row.meeting_name ? `<div><span class="result-label">会議</span> ${escapeHtml(row.meeting_name)}</div>` : ''}
-                            ${row.rel_path ? `<div><span class="result-label">ファイル</span> ${escapeHtml(row.rel_path)}</div>` : ''}
-                        </div>
-                        <div class="result-excerpt">${renderExcerpt(row.excerpt || '')}</div>
-                        <div class="result-links">
-                            <a class="link-pill" href="${escapeHtml(row.detail_url || row.browse_url || '')}">自治体ページで詳細を見る</a>
-                            ${row.source_url ? `<a class="link-pill is-subtle" href="${escapeHtml(row.source_url)}" target="_blank" rel="noreferrer">原サイト</a>` : ''}
-                        </div>
-                    </li>
-                `).join('')}
-            </ul>
-        `;
+        refs.resultsBody.innerHTML = renderResultCards(result.rows, {
+            showMunicipality: false,
+            rankOffset: ((Number(result.page || 1) - 1) * Number(result.per_page || 0)),
+        });
 
         if (!result.fullLoaded) {
             refs.resultsPagination.innerHTML = '';
@@ -556,9 +659,20 @@
                 return;
             }
             if (data.status === 'ok') {
-                state.results.set(slug, { ...municipality, ...data, fullLoaded: true, detail_error: '' });
+                state.results.set(slug, {
+                    ...municipality,
+                    ...data,
+                    preview_rows: Array.isArray(current?.preview_rows) ? current.preview_rows : [],
+                    fullLoaded: true,
+                    detail_error: '',
+                });
             } else if (!restorePreviewResult(String(data.error || ''))) {
-                state.results.set(slug, { ...municipality, ...data, fullLoaded: false });
+                state.results.set(slug, {
+                    ...municipality,
+                    ...data,
+                    preview_rows: Array.isArray(current?.preview_rows) ? current.preview_rows : [],
+                    fullLoaded: false,
+                });
             }
             renderAll();
         } catch (error) {
@@ -601,6 +715,7 @@
         state.progressTotal = municipalities.length;
         state.results = new Map();
         state.activeRequests.clear();
+        state.selectedSlug = '';
         updateUrl();
         renderAll();
 
@@ -609,8 +724,6 @@
         }
 
         const token = state.requestToken;
-        const preferred = state.selectedSlug && municipalityBySlug.has(state.selectedSlug) ? state.selectedSlug : '';
-        state.selectedSlug = preferred;
         state.searching = true;
         renderAll();
 
@@ -626,13 +739,18 @@
                 const data = await fetchJson(new URLSearchParams({
                     action: 'search_preview',
                     q: state.query,
-                    per_page: '3',
+                    per_page: String(mixedResultLimit),
                     slug,
                 }));
                 if (token !== state.requestToken) {
                     return;
                 }
-                state.results.set(municipality.slug, { ...municipality, ...data, fullLoaded: false });
+                state.results.set(municipality.slug, {
+                    ...municipality,
+                    ...data,
+                    preview_rows: Array.isArray(data.rows) ? data.rows : [],
+                    fullLoaded: false,
+                });
             } catch (error) {
                 if (token !== state.requestToken) {
                     return;
@@ -644,6 +762,7 @@
                     rows: [],
                     total: 0,
                     total_exact: true,
+                    preview_rows: [],
                 });
             } finally {
                 setActiveRequest(slug, 'preview', false);
@@ -651,9 +770,6 @@
                     return;
                 }
                 state.progressDone = Math.min(state.progressTotal, state.progressDone + 1);
-                if (!state.selectedSlug) {
-                    state.selectedSlug = preferredSlug();
-                }
                 renderAll();
             }
         };
@@ -665,15 +781,7 @@
 
         state.searching = false;
         state.activeRequests.clear();
-        state.selectedSlug = preferredSlug();
         renderAll();
-
-        if (state.selectedSlug) {
-            const selectedResult = state.results.get(state.selectedSlug);
-            if (selectedResult?.status === 'ok' && !selectedResult.fullLoaded) {
-                await loadMunicipalityPage(state.selectedSlug, 1);
-            }
-        }
     }
 
     refs.form?.addEventListener('submit', (event) => {
@@ -708,6 +816,12 @@
         if (state.query && current?.status === 'ok' && !current.fullLoaded) {
             loadMunicipalityPage(slug, 1);
         }
+    });
+
+    refs.selectedMixedButton?.addEventListener('click', () => {
+        state.selectedSlug = '';
+        updateUrl();
+        renderAll();
     });
 
     refs.resultsPagination?.addEventListener('click', (event) => {

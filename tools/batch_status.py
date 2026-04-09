@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -24,14 +25,16 @@ def status_path(task_name: str) -> Path:
     return status_root() / f"{task_name}.json"
 
 
-def runtime_cache_paths() -> list[Path]:
+def runtime_cache_paths(include_homepage_payload: bool = False) -> list[Path]:
     root = status_root()
-    return [
+    paths = [
         root / "municipality_catalog_cache.json",
-        root / "home_api_payload.json",
         root / "gijiroku_ready_municipalities.json",
         root / "reiki_ready_municipalities.json",
     ]
+    if include_homepage_payload:
+        paths.insert(1, root / "home_api_payload.json")
+    return paths
 
 
 def now_text() -> str:
@@ -58,6 +61,7 @@ def build_state(task_name: str, run_id: str, total_count: int, summary_path: Pat
         "running": True,
         "started_at": now_text(),
         "finished_at": "",
+        "heartbeat_at": now_text(),
         "updated_at": now_text(),
         "total_count": total_count,
         "completed_count": 0,
@@ -207,8 +211,15 @@ def finish_batch(state: dict[str, Any]) -> None:
     state["running"] = False
     state["active_count"] = 0
     state["finished_at"] = now_text()
+    state["heartbeat_at"] = state["finished_at"]
     state["updated_at"] = state["finished_at"]
     refresh_counts(state)
+
+
+def touch_heartbeat(state: dict[str, Any]) -> None:
+    # stale 判定は「最後に JSON を正常に書けた時刻」で見たいので、
+    # 実データ件数とは別に heartbeat を持つ。
+    state["heartbeat_at"] = now_text()
 
 
 def write_state(task_name: str, state: dict[str, Any]) -> Path:
@@ -216,14 +227,28 @@ def write_state(task_name: str, state: dict[str, Any]) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     path = status_path(task_name)
     temp_path = path.with_suffix(".json.tmp")
+    touch_heartbeat(state)
     payload = json.dumps(state, ensure_ascii=False, indent=2) + "\n"
-    temp_path.write_text(payload, encoding="utf-8")
-    os.replace(temp_path, path)
+    try:
+        temp_path.write_text(payload, encoding="utf-8")
+        os.replace(temp_path, path)
+    except Exception as exc:
+        # 進捗 JSON は UI 補助なので、ここで本体バッチまで止めない。
+        try:
+            temp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        print(
+            f"[WARN] background task state write failed task={task_name} path={path} "
+            f"[{type(exc).__name__}] {exc}",
+            file=sys.stderr,
+            flush=True,
+        )
     return path
 
 
-def invalidate_runtime_caches() -> None:
-    for path in runtime_cache_paths():
+def invalidate_runtime_caches(*, include_homepage_payload: bool = False) -> None:
+    for path in runtime_cache_paths(include_homepage_payload=include_homepage_payload):
         try:
             path.unlink(missing_ok=True)
         except Exception:

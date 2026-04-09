@@ -37,7 +37,13 @@ function gijiroku_search_ready_summaries(): array
     }
 
     $cachePath = gijiroku_search_ready_cache_path();
-    $cached = read_json_cache_file($cachePath, gijiroku_search_ready_cache_ttl_seconds());
+    $catalogCachePath = municipality_catalog_cache_path();
+    // 自治体 catalog が self-heal されたら、ready 一覧も古い cache を使わず追従させる。
+    if (json_cache_file_is_fresh($cachePath, gijiroku_search_ready_cache_ttl_seconds(), [$catalogCachePath])) {
+        $cached = read_json_cache_file($cachePath);
+    } else {
+        $cached = null;
+    }
     if (is_array($cached)) {
         $cache = array_values(array_filter($cached, 'is_array'));
         return $cache;
@@ -147,6 +153,25 @@ function gijiroku_search_last_date(PDO $pdo): ?string
     return $value !== '' ? $value : null;
 }
 
+function gijiroku_search_latest_match_date(PDO $pdo, string $ftsQuery): ?string
+{
+    // 横断検索は「関連度」より「新しさ」で当たりを見たいので、MATCH 後の最新開催日を別で取る。
+    $stmt = $pdo->prepare(
+        "SELECT m.held_on AS latest_hit_date
+           FROM minutes_fts
+           JOIN minutes m ON m.id = minutes_fts.rowid
+          WHERE minutes_fts MATCH :q
+            AND m.held_on IS NOT NULL
+       ORDER BY m.held_on DESC, m.id DESC
+          LIMIT 1"
+    );
+    $stmt->bindValue(':q', $ftsQuery, PDO::PARAM_STR);
+    $stmt->execute();
+    $row = $stmt->fetch();
+    $value = is_array($row) ? (string)($row['latest_hit_date'] ?? '') : '';
+    return $value !== '' ? $value : null;
+}
+
 function gijiroku_search_execute(array $municipality, string $query, int $page = 1, int $perPage = 8): array
 {
     $preparedQuery = japanese_search_prepare_query($query);
@@ -170,6 +195,7 @@ function gijiroku_search_execute(array $municipality, string $query, int $page =
             'end' => 0,
             'stats' => [
                 'last_date' => null,
+                'latest_hit_date' => null,
             ],
         ];
     }
@@ -187,6 +213,7 @@ function gijiroku_search_execute(array $municipality, string $query, int $page =
             'end' => 0,
             'stats' => [
                 'last_date' => null,
+                'latest_hit_date' => null,
             ],
         ];
     }
@@ -206,16 +233,22 @@ function gijiroku_search_execute(array $municipality, string $query, int $page =
             'end' => 0,
             'stats' => [
                 'last_date' => null,
+                'latest_hit_date' => null,
             ],
         ];
     }
 
     try {
         $lastDate = gijiroku_search_last_date($pdo);
+        $latestHitDate = gijiroku_search_latest_match_date($pdo, (string)$preparedQuery['fts_query']);
 
-        // 横断検索の自治体詳細では exact COUNT(*) を取らず、必要な窓だけ読む。
-        // これでヒット件数が多い自治体でも初回表示を軽く保つ。
-        $stmt = $pdo->prepare('SELECT m.id, m.title, m.meeting_name, m.year_label, m.held_on, m.rel_path, m.source_url, m.content AS excerpt_source, minutes_fts.rank AS score FROM minutes_fts JOIN minutes m ON m.id = minutes_fts.rowid WHERE minutes_fts MATCH :q ORDER BY score LIMIT :limit OFFSET :offset');
+        // 横断検索は「まず最近の議論をざっと見る」用途なので、新しい開催日を優先する。
+        $stmt = $pdo->prepare("SELECT m.id, m.title, m.meeting_name, m.year_label, m.held_on, m.rel_path, m.source_url, m.content AS excerpt_source
+                                 FROM minutes_fts
+                                 JOIN minutes m ON m.id = minutes_fts.rowid
+                                WHERE minutes_fts MATCH :q
+                             ORDER BY COALESCE(m.held_on, '') DESC, m.id DESC
+                                LIMIT :limit OFFSET :offset");
         $stmt->bindValue(':q', (string)$preparedQuery['fts_query'], PDO::PARAM_STR);
         $stmt->bindValue(':limit', $perPage + 1, PDO::PARAM_INT);
         $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
@@ -234,6 +267,7 @@ function gijiroku_search_execute(array $municipality, string $query, int $page =
             'end' => 0,
             'stats' => [
                 'last_date' => $lastDate,
+                'latest_hit_date' => null,
             ],
         ];
     }
@@ -265,6 +299,7 @@ function gijiroku_search_execute(array $municipality, string $query, int $page =
         'end' => $offset + count($serializedRows),
         'stats' => [
             'last_date' => $lastDate,
+            'latest_hit_date' => $latestHitDate,
         ],
     ];
 }
@@ -275,7 +310,7 @@ function gijiroku_search_execute_preview(array $municipality, string $query, int
     $summary = gijiroku_search_public_summary($municipality);
     $feature = is_array($municipality['gijiroku'] ?? null) ? $municipality['gijiroku'] : [];
     $dbPath = trim((string)($feature['db_path'] ?? ''));
-    $perPage = max(1, min(6, $perPage));
+    $perPage = max(1, min(100, $perPage));
 
     if (($preparedQuery['raw_query'] ?? '') === '' || ($preparedQuery['fts_query'] ?? '') === '') {
         return $summary + [
@@ -292,6 +327,7 @@ function gijiroku_search_execute_preview(array $municipality, string $query, int
             'end' => 0,
             'stats' => [
                 'last_date' => null,
+                'latest_hit_date' => null,
             ],
         ];
     }
@@ -311,6 +347,7 @@ function gijiroku_search_execute_preview(array $municipality, string $query, int
             'end' => 0,
             'stats' => [
                 'last_date' => null,
+                'latest_hit_date' => null,
             ],
         ];
     }
@@ -332,13 +369,20 @@ function gijiroku_search_execute_preview(array $municipality, string $query, int
             'end' => 0,
             'stats' => [
                 'last_date' => null,
+                'latest_hit_date' => null,
             ],
         ];
     }
 
     try {
-        // 横断検索の一覧では exact COUNT(*) を避け、上位数件だけでヒット判定する。
-        $stmt = $pdo->prepare('SELECT m.id, m.title, m.meeting_name, m.year_label, m.held_on, m.rel_path, m.source_url, m.content AS excerpt_source, minutes_fts.rank AS score FROM minutes_fts JOIN minutes m ON m.id = minutes_fts.rowid WHERE minutes_fts MATCH :q ORDER BY score LIMIT :limit');
+        // preview は自治体混合の並び替え用なので、本文全文はここでは引かない。
+        // `content` を 100 件ぶん PDO へ載せると、大きな会議録ではここが支配的に重くなる。
+        $stmt = $pdo->prepare("SELECT m.id, m.title, m.meeting_name, m.year_label, m.held_on, m.rel_path, m.source_url
+                                 FROM minutes_fts
+                                 JOIN minutes m ON m.id = minutes_fts.rowid
+                                WHERE minutes_fts MATCH :q
+                             ORDER BY COALESCE(m.held_on, '') DESC, m.id DESC
+                                LIMIT :limit");
         $stmt->bindValue(':q', (string)$preparedQuery['fts_query'], PDO::PARAM_STR);
         $stmt->bindValue(':limit', $perPage + 1, PDO::PARAM_INT);
         $stmt->execute();
@@ -358,12 +402,20 @@ function gijiroku_search_execute_preview(array $municipality, string $query, int
             'end' => 0,
             'stats' => [
                 'last_date' => null,
+                'latest_hit_date' => null,
             ],
         ];
     }
 
     $hasMore = count($rows) > $perPage;
     $rows = array_slice($rows, 0, $perPage);
+    $latestHitDate = null;
+    if (isset($rows[0]) && is_array($rows[0])) {
+        $heldOn = trim((string)($rows[0]['held_on'] ?? ''));
+        if ($heldOn !== '') {
+            $latestHitDate = $heldOn;
+        }
+    }
     $serializedRows = [];
     foreach ($rows as $row) {
         if (!is_array($row)) {
@@ -387,6 +439,7 @@ function gijiroku_search_execute_preview(array $municipality, string $query, int
         'end' => $knownTotal,
         'stats' => [
             'last_date' => null,
+            'latest_hit_date' => $latestHitDate,
         ],
     ];
 }
@@ -415,6 +468,9 @@ function gijiroku_search_result_row(array $municipalitySummary, string $query, a
 
     return [
         'id' => (int)($row['id'] ?? 0),
+        'municipality_slug' => (string)($municipalitySummary['slug'] ?? ''),
+        'municipality_name' => (string)($municipalitySummary['name'] ?? ''),
+        'assembly_name' => (string)($municipalitySummary['assembly_name'] ?? ''),
         'title' => (string)($row['title'] ?? ''),
         'meeting_name' => (string)($row['meeting_name'] ?? ''),
         'year_label' => (string)($row['year_label'] ?? ''),

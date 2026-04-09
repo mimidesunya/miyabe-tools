@@ -86,7 +86,7 @@ python tools/reiki/download_d1_law.py --slug 14130-kawasaki-shi --check-updates
 実装済みの `d1-law` / `taikei` をまとめて回す場合:
 
 ```bash
-python tools/reiki/scrape_all_reiki.py --parallel 6 --per-host-parallel 1 --per-host-start-interval 2 --check-updates
+python tools/reiki/scrape_all_reiki.py --parallel 8 --per-host-parallel 1 --per-host-start-interval 2 --check-updates
 ```
 
 `scrape_all_reiki.py` は自治体ごとのスクレイプ完了後に `ordinances.sqlite` を自動で再構築します。  

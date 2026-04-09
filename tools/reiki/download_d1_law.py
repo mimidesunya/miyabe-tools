@@ -6,6 +6,7 @@ import re
 import sys
 import time
 from pathlib import Path
+from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
 import requests
 
@@ -18,6 +19,14 @@ import reiki_targets
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 DELAY = 0.5
+OPENSEARCH_TOP_LEVEL_RE = re.compile(r"mkjG\('([0-9]{3}:[0-9]{2}:[0-9]{2})'\)")
+OPENSEARCH_RESULT_RE = re.compile(
+    r"doViewJobunFromJsp\('(?P<jctcd>[^']+)',\s*'(?P<houcd>[^']+)',\s*"
+    r"(?P<sedno>null|'[^']*'),\s*(?P<sededa>null|'[^']*'),\s*"
+    r"'(?P<no>[^']+)',\s*'(?P<total_count>[^']+)',\s*"
+    r"(?P<ichikey>null|'[^']*'),\s*'(?P<from_jsp>[^']+)'\)"
+)
+OPENSEARCH_PAGING_RE = re.compile(r"doPaging\('([0-9]+)'\)")
 
 
 def emit_progress(current: int, total: int, state_path: Path | None = None) -> None:
@@ -26,14 +35,15 @@ def emit_progress(current: int, total: int, state_path: Path | None = None) -> N
     print(f"[PROGRESS] unit=ordinance current={max(0, current)} total={max(0, total)}", flush=True)
 
 
-def download_file(url, dest_path, force=False, check_updates=False):
+def download_file(url, dest_path, force=False, check_updates=False, session: requests.Session | None = None):
     existing_path = reiki_io.existing_path(dest_path)
     if not force and existing_path and existing_path.stat().st_size > 0 and not check_updates:
         return False, existing_path, reiki_io.sha256_path(existing_path)
 
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        response = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=15)
+        requester = session or requests
+        response = requester.get(url, headers={"User-Agent": USER_AGENT}, timeout=15)
         response.raise_for_status()
         source_hash = reiki_io.sha256_bytes(response.content)
         if existing_path and reiki_io.sha256_path(existing_path) == source_hash and not force:
@@ -86,6 +96,136 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False):
     return sorted(hno_set)
 
 
+def normalize_source_url(source_url: str) -> str:
+    parts = urlsplit(source_url.strip())
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, ""))
+
+
+def normalize_js_value(raw_value: str) -> str:
+    value = str(raw_value).strip()
+    if value.lower() == "null":
+        return ""
+    if value.startswith("'") and value.endswith("'"):
+        return value[1:-1]
+    return value
+
+
+def build_opensearch_detail_url(site_root: str, entry: dict[str, str]) -> str:
+    query = {
+        "jctcd": entry["jctcd"],
+        "houcd": entry["houcd"],
+        "no": entry["no"],
+        "totalCount": entry["total_count"],
+        "fromJsp": entry["from_jsp"],
+    }
+    if entry["sedno"] != "":
+        query["sedno"] = entry["sedno"]
+    if entry["sededa"] != "":
+        query["sededa"] = entry["sededa"]
+    if entry["ichikey"] != "":
+        query["ichikey"] = entry["ichikey"]
+    return f"{site_root}/opensearch/SrJbF01/init?{urlencode(query)}"
+
+
+def fetch_opensearch_pages(
+    session: requests.Session,
+    *,
+    source_url: str,
+    site_root: str,
+    mokujicd: str,
+) -> list[str]:
+    parts = urlsplit(source_url)
+    query_params = parse_qs(parts.query)
+    jctcd = str(query_params.get("jctcd", [""])[0]).strip()
+    referer = source_url
+    search_data = {
+        "typeSearch": "SrMj_Genko",
+        "typeSearchFacet": "SrMj_Genko",
+        "mokujicd": mokujicd,
+        "haishiyear": "",
+        "saveHistory": "false",
+        "initialLevel": "1",
+        "listSort": "D",
+        "mishikouJbnHide": "false",
+        "downloadname": "",
+    }
+    search_url = f"{site_root}/opensearch/SrMjF01/search"
+    if jctcd != "":
+        search_url += f"?{urlencode({'jctcd': jctcd})}"
+    response = session.post(search_url, headers={"User-Agent": USER_AGENT, "Referer": referer}, data=search_data, timeout=15)
+    response.raise_for_status()
+    pages = [response.text]
+
+    for offset in sorted({int(value) for value in OPENSEARCH_PAGING_RE.findall(response.text)}):
+        paging_url = f"{site_root}/opensearch/SrMjF01/paging?{urlencode({'offset': offset})}"
+        paging_response = session.get(
+            paging_url,
+            headers={"User-Agent": USER_AGENT, "Referer": search_url},
+            timeout=15,
+        )
+        paging_response.raise_for_status()
+        pages.append(paging_response.text)
+
+    return pages
+
+
+def collect_opensearch_entries(source_url: str) -> tuple[requests.Session, list[dict[str, str]]]:
+    normalized_source_url = normalize_source_url(source_url)
+    parts = urlsplit(normalized_source_url)
+    site_root = urlunsplit((parts.scheme or "https", parts.netloc, "", "", "")).rstrip("/")
+    session = requests.Session()
+    init_response = session.get(normalized_source_url, headers={"User-Agent": USER_AGENT}, timeout=15)
+    init_response.raise_for_status()
+
+    top_level_codes = []
+    seen_codes = set()
+    # top-level tree categories partition the current ordinances, so we can avoid
+    # walking every nested node while still covering the full catalog.
+    for mokujicd in OPENSEARCH_TOP_LEVEL_RE.findall(init_response.text):
+        if mokujicd in seen_codes:
+            continue
+        seen_codes.add(mokujicd)
+        top_level_codes.append(mokujicd)
+
+    if not top_level_codes:
+        raise ValueError(f"No top-level mokujicd found in opensearch page: {source_url}")
+
+    print(f"Discovered {len(top_level_codes)} top-level opensearch categories.", flush=True)
+
+    entries_by_houcd: dict[str, dict[str, str]] = {}
+    for index, mokujicd in enumerate(top_level_codes, start=1):
+        pages = fetch_opensearch_pages(
+            session,
+            source_url=normalized_source_url,
+            site_root=site_root,
+            mokujicd=mokujicd,
+        )
+        page_entry_count = 0
+        for page in pages:
+            for match in OPENSEARCH_RESULT_RE.finditer(page):
+                entry = {
+                    "jctcd": normalize_js_value(match.group("jctcd")),
+                    "houcd": normalize_js_value(match.group("houcd")),
+                    "sedno": normalize_js_value(match.group("sedno")),
+                    "sededa": normalize_js_value(match.group("sededa")),
+                    "no": normalize_js_value(match.group("no")),
+                    "total_count": normalize_js_value(match.group("total_count")),
+                    "ichikey": normalize_js_value(match.group("ichikey")),
+                    "from_jsp": normalize_js_value(match.group("from_jsp")),
+                    "mokujicd": mokujicd,
+                }
+                entry["detail_url"] = build_opensearch_detail_url(site_root, entry)
+                entries_by_houcd.setdefault(entry["houcd"], entry)
+                page_entry_count += 1
+        print(
+            f"[INFO] opensearch category {index}/{len(top_level_codes)} {mokujicd}: "
+            f"{page_entry_count} hits / {len(entries_by_houcd)} unique",
+            flush=True,
+        )
+
+    return session, list(entries_by_houcd.values())
+
+
 def main():
     default_slug = reiki_targets.default_slug_for_system("d1-law")
     parser = argparse.ArgumentParser(description="Download ordinances from D1-Law systems.")
@@ -113,18 +253,42 @@ def main():
     print(f"Target directory: {source_dir}")
     source_dir.mkdir(parents=True, exist_ok=True)
 
-    hno_list = get_hno_list(base_url, source_dir, force=args.force, check_updates=args.check_updates)
-    print(f"Found {len(hno_list)} unique regulation IDs.")
-    emit_progress(0, len(hno_list), state_path)
-    ordinance_index_builder.ensure_output_db(output_db)
+    opensearch_session: requests.Session | None = None
+    hno_list: list[str] = []
+    opensearch_entries: list[dict[str, str]] = []
+    if parse_d1_law.is_opensearch_mokuji_source_url(str(target["source_url"])):
+        opensearch_session, opensearch_entries = collect_opensearch_entries(str(target["source_url"]))
+        print(f"Found {len(opensearch_entries)} unique opensearch regulations.")
+    else:
+        hno_list = get_hno_list(base_url, source_dir, force=args.force, check_updates=args.check_updates)
+        print(f"Found {len(hno_list)} unique regulation IDs.")
+
+    total_regulations = len(opensearch_entries) if opensearch_entries else len(hno_list)
+    source_items = opensearch_entries if opensearch_entries else hno_list
+    if total_regulations <= 0:
+        print("[WARN] No regulations found.", flush=True)
+    emit_progress(0, total_regulations, state_path)
+    indexing_enabled = ordinance_index_builder.prepare_incremental_index(
+        output_db,
+        logger=lambda message: print(message, flush=True),
+        context=str(target["slug"]),
+    )
 
     downloaded_count = 0
     checked_count = 0
     parsed_count = 0
     manifest_entries = []
-    for index, hno in enumerate(hno_list):
-        filename = f"{hno}_j.html"
-        url = f"{base_url}{hno}/{filename}"
+    for index, source_item in enumerate(source_items):
+        if isinstance(source_item, dict):
+            code = str(source_item["houcd"])
+            url = str(source_item["detail_url"])
+            filename = f"{code}_j.html"
+            session = opensearch_session
+        else:
+            code = str(source_item)
+            filename = f"{code}_j.html"
+            url = f"{base_url}{code}/{filename}"
+            session = None
         dest_path = source_dir / filename
         source_file_path = reiki_io.existing_path(dest_path) or reiki_io.gzip_path(dest_path)
 
@@ -133,6 +297,7 @@ def main():
             dest_path,
             force=args.force,
             check_updates=args.check_updates,
+            session=session,
         )
         if downloaded:
             downloaded_count += 1
@@ -162,7 +327,7 @@ def main():
 
         manifest_entries.append(
             {
-                "code": hno,
+                "code": code,
                 "detail_url": url,
                 "source_file": logical_source.name,
                 "stored_source_file": source_file_path.name,
@@ -170,29 +335,38 @@ def main():
                 "checked_updates": bool(args.check_updates),
             }
         )
+        if isinstance(source_item, dict):
+            manifest_entries[-1]["mokujicd"] = str(source_item.get("mokujicd", ""))
 
         logical_key = Path(logical_source.name).with_suffix("").as_posix()
         # 既存 HTML の再利用時も含め、検索 DB 側は 1 件ずつ取りこぼしなく更新する。
-        ordinance_index_builder.upsert_source_key(
-            slug=str(target["slug"]),
-            clean_html_dir=html_dir,
-            classification_dir=classification_dir,
-            markdown_dir=markdown_dir,
-            output_db=output_db,
-            key=logical_key,
-            manifest=manifest_entries[-1],
-        )
+        if indexing_enabled:
+            index_result = ordinance_index_builder.best_effort_upsert_source_key(
+                slug=str(target["slug"]),
+                clean_html_dir=html_dir,
+                classification_dir=classification_dir,
+                markdown_dir=markdown_dir,
+                output_db=output_db,
+                key=logical_key,
+                manifest=manifest_entries[-1],
+                logger=lambda message: print(message, flush=True),
+                context=f"{target['slug']} {logical_key}",
+            )
+            if index_result == "error":
+                indexing_enabled = False
 
-        if ((index + 1) % 25) == 0 or (index + 1) == len(hno_list):
+        if ((index + 1) % 25) == 0 or (index + 1) == total_regulations:
             # 途中停止しても後追い補完が source_url 等を復元できるよう、manifest を定期保存する。
             reiki_io.write_json(manifest_path, manifest_entries, compress=True)
-        emit_progress(index + 1, len(hno_list), state_path)
+        emit_progress(index + 1, total_regulations, state_path)
 
     reiki_io.write_json(manifest_path, manifest_entries, compress=True)
     print(f"Finished. Downloaded {downloaded_count} files.")
     print(f"Checked existing: {checked_count}")
     print(f"Parsed outputs: {parsed_count}")
     print(f"Manifest: {manifest_path}")
+    if opensearch_session is not None:
+        opensearch_session.close()
 
 
 if __name__ == "__main__":
