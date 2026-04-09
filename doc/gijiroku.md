@@ -72,22 +72,22 @@ python tools/gijiroku/scrape_dbsr.py --slug hino-shi --ack-robots
 python tools/gijiroku/scrape_kensakusystem.py --slug hirosaki-shi --ack-robots
 ```
 
-`gijiroku.com` / `voices` を使う自治体を既定設定（6 並列・自治体起動間隔 2 秒）で全国一括実行したい場合:
+`gijiroku.com` / `voices` を使う自治体だけを既定設定（6 並列・同一ホスト起動間隔 2 秒）で全国一括実行したい場合:
 
 ```bash
-python tools/gijiroku/scrape_all_gijiroku_com.py --ack-robots --parallel 6 --delay-between-targets 2
+python tools/gijiroku/scrape_all_minutes.py --ack-robots --systems gijiroku.com --parallel 6 --per-host-start-interval 2
 ```
 
 まず 5 自治体だけに絞って、親プロセス側に進捗を表示する場合:
 
 ```bash
-python tools/gijiroku/scrape_all_gijiroku_com.py --ack-robots --max-targets 5 --parallel 5 --delay-between-targets 2
+python tools/gijiroku/scrape_all_minutes.py --ack-robots --systems gijiroku.com --max-targets 5 --parallel 5 --per-host-start-interval 2
 ```
 
 実装済みの `gijiroku.com` / `voices` / `kaigiroku.net` / `dbsr` / `db-search` / `kaigiroku-indexphp` / `kensakusystem` をまとめて回す場合:
 
 ```bash
-python tools/gijiroku/scrape_all_minutes.py --ack-robots --parallel 6 --per-host-parallel 1 --per-host-start-interval 2
+python tools/gijiroku/scrape_all_minutes.py --ack-robots --parallel 8 --per-host-parallel 1 --per-host-start-interval 2
 ```
 
 この一括実行では、自治体ごとのスクレイプ完了直後に `minutes.sqlite` も更新されるため、全国バッチの途中でも完了済み自治体から順に Web 検索可能になります。  

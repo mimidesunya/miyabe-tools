@@ -5,19 +5,27 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
-import os
 import re
 import shlex
 import subprocess
 import sys
 import time
 from pathlib import Path
-from urllib.parse import urlsplit
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 sys.path.append(str(Path(__file__).parent))
 import batch_status
+from batch_runner_common import (
+    close_worker_streams,
+    count_active_by_host,
+    extract_worker_progress_from_log as common_extract_worker_progress_from_log,
+    extract_worker_progress_from_state as common_extract_worker_progress_from_state,
+    now_ts,
+    run_logged_subprocess,
+    summarize_worker,
+    target_host,
+    target_matches,
+)
 import reiki_priority
 import reiki_targets
 
@@ -30,10 +38,6 @@ SUPPORTED_SYSTEMS = {
 PROGRESS_RE = re.compile(
     r"^\[PROGRESS\]\s+unit=(?P<unit>[a-z_]+)\s+current=(?P<current>\d+)\s+total=(?P<total>\d+)\s*$"
 )
-
-
-def now_ts() -> str:
-    return time.strftime("%Y%m%d_%H%M%S")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -146,26 +150,6 @@ def parse_requested_systems(value: str) -> list[str]:
     return systems
 
 
-def target_matches(target: dict, keyword: str) -> bool:
-    if keyword == "":
-        return True
-    haystacks = [
-        str(target.get("slug", "")).lower(),
-        str(target.get("code", "")).lower(),
-        str(target.get("name", "")).lower(),
-        str(target.get("full_name", "")).lower(),
-        str(target.get("system_type", "")).lower(),
-    ]
-    return any(keyword in value for value in haystacks)
-
-
-# 同一ホストへ過剰集中しないよう、source_url の host 単位で並列数を絞る。
-def target_host(target: dict) -> str:
-    source_url = str(target.get("source_url", "")).strip()
-    host = (urlsplit(source_url).hostname or "").strip().lower()
-    return host or "unknown-host"
-
-
 def build_child_command(args: argparse.Namespace, target: dict) -> list[str]:
     system_type = str(target["system_type"])
     runner_kind, script_name = SUPPORTED_SYSTEMS[system_type]
@@ -202,84 +186,12 @@ def build_child_command(args: argparse.Namespace, target: dict) -> list[str]:
     return cmd
 
 
-def tail_text_lines(path: Path, max_bytes: int = 8192) -> list[str]:
-    if not path.exists() or path.stat().st_size == 0:
-        return []
-    with path.open("rb") as handle:
-        size = handle.seek(0, os.SEEK_END)
-        read_size = min(size, max_bytes)
-        handle.seek(-read_size, os.SEEK_END)
-        chunk = handle.read(read_size)
-    text = chunk.decode("utf-8", errors="replace")
-    return [line.rstrip() for line in text.splitlines() if line.strip()]
-
-
-def summarize_worker(stdout_path: Path, stderr_path: Path) -> str:
-    if stderr_path.exists() and stderr_path.stat().st_size > 0:
-        return f"stderr {stderr_path.stat().st_size} bytes"
-
-    lines = tail_text_lines(stdout_path)
-    if not lines:
-        return "starting..."
-
-    for line in reversed(lines):
-        stripped = line.strip()
-        if not stripped:
-            continue
-        if stripped.startswith("[INFO] "):
-            return stripped[7:]
-        if stripped.startswith("[DONE] "):
-            return stripped[7:]
-        if stripped.startswith("[ERROR] "):
-            return stripped
-        if stripped.startswith("[PROGRESS] "):
-            continue
-        if re.match(r"^\[\d+/\d+\]", stripped):
-            return stripped
-        return stripped
-    return "starting..."
-
-
 def extract_worker_progress(stdout_path: Path) -> dict[str, object] | None:
-    lines = tail_text_lines(stdout_path, max_bytes=16_384)
-    for line in reversed(lines):
-        match = PROGRESS_RE.match(line.strip())
-        if not match:
-            continue
-        return {
-            "progress_current": int(match.group("current")),
-            "progress_total": int(match.group("total")),
-            "progress_unit": match.group("unit"),
-        }
-    return None
+    return common_extract_worker_progress_from_log(stdout_path, PROGRESS_RE)
 
 
 def extract_worker_progress_from_state(state_path: Path) -> dict[str, object] | None:
-    if not state_path.exists():
-        return None
-    try:
-        payload = json.loads(state_path.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-    if not isinstance(payload, dict):
-        return None
-
-    current = payload.get("progress_current")
-    total = payload.get("progress_total")
-    if current is None or total is None:
-        return None
-
-    try:
-        progress_current = int(current)
-        progress_total = int(total)
-    except Exception:
-        return None
-
-    return {
-        "progress_current": max(0, progress_current),
-        "progress_total": max(0, progress_total),
-        "progress_unit": str(payload.get("progress_unit") or "ordinance").strip() or "ordinance",
-    }
+    return common_extract_worker_progress_from_state(state_path, default_unit="ordinance")
 
 
 def extract_worker_progress_for_display(worker: dict) -> dict[str, object] | None:
@@ -346,25 +258,23 @@ def build_index_command(args: argparse.Namespace, target: dict) -> list[str]:
     )
     return cmd
 
-
 def run_index_builder(
     target: dict,
     *,
     args: argparse.Namespace,
     run_logs_dir: Path,
+    heartbeat_callback=None,
 ) -> dict:
     slug = str(target["slug"])
     stdout_path = run_logs_dir / f"{slug}.index.log"
     stderr_path = run_logs_dir / f"{slug}.index.err.log"
-    with stdout_path.open("w", encoding="utf-8", newline="") as stdout_handle, stderr_path.open(
-        "w", encoding="utf-8", newline=""
-    ) as stderr_handle:
-        result = subprocess.run(
-            build_index_command(args, target),
-            cwd=str(reiki_targets.project_root()),
-            stdout=stdout_handle,
-            stderr=stderr_handle,
-        )
+    result = run_logged_subprocess(
+        build_index_command(args, target),
+        cwd=str(reiki_targets.project_root()),
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+        heartbeat_callback=heartbeat_callback,
+    )
 
     return {
         "status": "ok" if result.returncode == 0 else "failed",
@@ -373,19 +283,6 @@ def run_index_builder(
         "stderr_path": stderr_path,
         "summary": summarize_worker(stdout_path, stderr_path),
     }
-
-
-def close_worker_streams(worker: dict) -> None:
-    for key in ("stdout_handle", "stderr_handle"):
-        handle = worker.get(key)
-        if handle is None:
-            continue
-        try:
-            handle.close()
-        except Exception:
-            pass
-        worker[key] = None
-
 
 def print_status(active_workers: list[dict], completed_count: int, total_count: int) -> None:
     stamp = time.strftime("%H:%M:%S")
@@ -399,13 +296,85 @@ def print_status(active_workers: list[dict], completed_count: int, total_count: 
             flush=True,
         )
 
-
-def count_active_by_host(active_workers: list[dict]) -> dict[str, int]:
-    counts: dict[str, int] = {}
+def refresh_active_worker_heartbeats(status_state: dict, task_name: str, active_workers: list[dict]) -> None:
+    if not active_workers:
+        return
     for worker in active_workers:
-        host = str(worker["host"])
-        counts[host] = counts.get(host, 0) + 1
-    return counts
+        target = worker["target"]
+        update_kwargs = {
+            "message": summarize_worker(worker["stdout_path"], worker["stderr_path"]),
+        }
+        progress = extract_worker_progress_for_display(worker)
+        if progress is not None:
+            update_kwargs.update(progress)
+        batch_status.update_item(
+            status_state,
+            str(target["slug"]),
+            **update_kwargs,
+        )
+    batch_status.write_state(task_name, status_state)
+
+
+def record_target_result(
+    writer,
+    handle,
+    *,
+    status_state: dict,
+    task_name: str,
+    target: dict,
+    host: str,
+    overall_status: str,
+    overall_returncode: int,
+    scrape_returncode: int,
+    index_status: str,
+    index_returncode: int | str,
+    started_at: str,
+    finished_at: str,
+    stdout_log: str,
+    stderr_log: str,
+    index_stdout_log: str,
+    index_stderr_log: str,
+    message: str,
+    progress: dict[str, object] | None = None,
+) -> None:
+    writer.writerow(
+        {
+            "slug": str(target["slug"]),
+            "code": str(target["code"]),
+            "name": str(target["name"]),
+            "system_type": str(target["system_type"]),
+            "host": host,
+            "source_url": str(target["source_url"]),
+            "status": overall_status,
+            "returncode": overall_returncode,
+            "scrape_returncode": scrape_returncode,
+            "index_status": index_status,
+            "index_returncode": index_returncode,
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "stdout_log": stdout_log,
+            "stderr_log": stderr_log,
+            "index_stdout_log": index_stdout_log,
+            "index_stderr_log": index_stderr_log,
+        }
+    )
+    handle.flush()
+    update_kwargs = {
+        "status": overall_status,
+        "message": message,
+        "finished_at": finished_at,
+        "returncode": int(overall_returncode),
+    }
+    if started_at:
+        update_kwargs["started_at"] = started_at
+    if progress is not None:
+        update_kwargs.update(progress)
+    batch_status.update_item(
+        status_state,
+        str(target["slug"]),
+        **update_kwargs,
+    )
+    batch_status.write_state(task_name, status_state)
 
 
 def list_targets(targets: list[dict]) -> None:
@@ -441,7 +410,7 @@ def main() -> int:
 
     keyword = str(args.filter or "").strip().lower()
     if keyword:
-        targets = [target for target in targets if target_matches(target, keyword)]
+        targets = [target for target in targets if target_matches(target, keyword, extra_fields=("system_type",))]
 
     targets = reiki_priority.sort_targets_by_priority(targets)
     if args.max_targets > 0:
@@ -507,9 +476,23 @@ def main() -> int:
 
         while pending_targets or active_workers:
             now = time.time()
-            host_active_counts = count_active_by_host(active_workers)
-            launched_any = False
+            made_progress = False
+            completed_workers: list[tuple[dict, int]] = []
+            still_running: list[dict] = []
 
+            for worker in active_workers:
+                returncode = worker["process"].poll()
+                if returncode is None:
+                    still_running.append(worker)
+                    continue
+                close_worker_streams(worker)
+                completed_workers.append((worker, int(returncode)))
+
+            active_workers = still_running
+            if completed_workers:
+                made_progress = True
+
+            host_active_counts = count_active_by_host(active_workers)
             while pending_targets and len(active_workers) < args.parallel:
                 launch_index = None
                 for index, target in enumerate(pending_targets):
@@ -528,11 +511,50 @@ def main() -> int:
                 target = pending_targets.pop(launch_index)
                 host = target_host(target)
                 launched_count += 1
-                worker = launch_worker(target, launched_count, args=args, run_logs_dir=run_logs_dir)
+                try:
+                    worker = launch_worker(target, launched_count, args=args, run_logs_dir=run_logs_dir)
+                except Exception as exc:
+                    finished_at = batch_status.now_text()
+                    stdout_path = run_logs_dir / f"{target['slug']}.log"
+                    stderr_path = run_logs_dir / f"{target['slug']}.err.log"
+                    error_message = f"起動失敗: {exc}"
+                    try:
+                        stderr_path.write_text(error_message + "\n", encoding="utf-8")
+                    except Exception:
+                        pass
+                    record_target_result(
+                        writer,
+                        handle,
+                        status_state=status_state,
+                        task_name="reiki",
+                        target=target,
+                        host=host,
+                        overall_status="failed",
+                        overall_returncode=-1,
+                        scrape_returncode=-1,
+                        index_status="skipped",
+                        index_returncode="",
+                        started_at="",
+                        finished_at=finished_at,
+                        stdout_log=str(stdout_path),
+                        stderr_log=str(stderr_path),
+                        index_stdout_log="",
+                        index_stderr_log="",
+                        message=error_message,
+                    )
+                    completed_count += 1
+                    made_progress = True
+                    print(
+                        f"[WARN] {target['slug']} の子プロセス起動に失敗しました: {exc}",
+                        flush=True,
+                    )
+                    now = time.time()
+                    continue
+
                 active_workers.append(worker)
                 host_active_counts[host] = host_active_counts.get(host, 0) + 1
                 host_last_start_at[host] = time.time()
-                launched_any = True
+                made_progress = True
                 batch_status.update_item(
                     status_state,
                     str(target["slug"]),
@@ -549,16 +571,8 @@ def main() -> int:
                 )
                 now = time.time()
 
-            still_running: list[dict] = []
-            for worker in active_workers:
-                returncode = worker["process"].poll()
-                if returncode is None:
-                    still_running.append(worker)
-                    continue
-
-                close_worker_streams(worker)
+            for worker, returncode in completed_workers:
                 target = worker["target"]
-                finished_at = batch_status.now_text()
                 scrape_status = "ok" if returncode == 0 else "failed"
                 summary = summarize_worker(worker["stdout_path"], worker["stderr_path"])
                 overall_status = scrape_status
@@ -574,58 +588,66 @@ def main() -> int:
                         str(target["slug"]),
                         status="running",
                         message="インデックス更新中",
+                        # 取得件数はここで打ち止めなので、index build 中は
+                        # 「100% のまま固まった」表示を避ける。
+                        progress_current=None,
+                        progress_total=None,
+                        progress_unit="",
                     )
                     batch_status.write_state("reiki", status_state)
                     print(f"[INDEX] {target['slug']} ordinances.sqlite を更新中", flush=True)
-                    index_result = run_index_builder(target, args=args, run_logs_dir=run_logs_dir)
-                    index_status = str(index_result["status"])
-                    index_returncode = int(index_result["returncode"])
-                    index_stdout_log = str(index_result["stdout_path"])
-                    index_stderr_log = str(index_result["stderr_path"])
-                    summary = f"{summary} / {index_result['summary']}"
-                    if index_result["returncode"] != 0:
+                    try:
+                        index_result = run_index_builder(
+                            target,
+                            args=args,
+                            run_logs_dir=run_logs_dir,
+                            heartbeat_callback=lambda: refresh_active_worker_heartbeats(
+                                status_state,
+                                "reiki",
+                                active_workers,
+                            ),
+                        )
+                    except Exception as exc:
+                        index_status = "failed"
+                        index_returncode = -1
+                        summary = f"{summary} / インデックス更新失敗: {exc}"
                         overall_status = "failed"
-                        overall_returncode = int(index_result["returncode"])
+                        overall_returncode = -1
                     else:
-                        batch_status.invalidate_runtime_caches()
+                        index_status = str(index_result["status"])
+                        index_returncode = int(index_result["returncode"])
+                        index_stdout_log = str(index_result["stdout_path"])
+                        index_stderr_log = str(index_result["stderr_path"])
+                        summary = f"{summary} / {index_result['summary']}"
+                        if index_result["returncode"] != 0:
+                            overall_status = "failed"
+                            overall_returncode = int(index_result["returncode"])
+                        else:
+                            batch_status.invalidate_runtime_caches()
 
-                writer.writerow(
-                    {
-                        "slug": str(target["slug"]),
-                        "code": str(target["code"]),
-                        "name": str(target["name"]),
-                        "system_type": str(target["system_type"]),
-                        "host": str(worker["host"]),
-                        "source_url": str(target["source_url"]),
-                        "status": overall_status,
-                        "returncode": overall_returncode,
-                        "scrape_returncode": int(returncode),
-                        "index_status": index_status,
-                        "index_returncode": index_returncode,
-                        "started_at": worker["started_at"],
-                        "finished_at": finished_at,
-                        "stdout_log": str(worker["stdout_path"]),
-                        "stderr_log": str(worker["stderr_path"]),
-                        "index_stdout_log": index_stdout_log,
-                        "index_stderr_log": index_stderr_log,
-                    }
-                )
-                handle.flush()
-                update_kwargs = {
-                    "status": overall_status,
-                    "message": summary,
-                    "finished_at": finished_at,
-                    "returncode": int(overall_returncode),
-                }
                 progress = extract_worker_progress_for_display(worker)
-                if progress is not None:
-                    update_kwargs.update(progress)
-                batch_status.update_item(
-                    status_state,
-                    str(target["slug"]),
-                    **update_kwargs,
+                finished_at = batch_status.now_text()
+                record_target_result(
+                    writer,
+                    handle,
+                    status_state=status_state,
+                    task_name="reiki",
+                    target=target,
+                    host=str(worker["host"]),
+                    overall_status=overall_status,
+                    overall_returncode=overall_returncode,
+                    scrape_returncode=int(returncode),
+                    index_status=index_status,
+                    index_returncode=index_returncode,
+                    started_at=str(worker["started_at"]),
+                    finished_at=finished_at,
+                    stdout_log=str(worker["stdout_path"]),
+                    stderr_log=str(worker["stderr_path"]),
+                    index_stdout_log=index_stdout_log,
+                    index_stderr_log=index_stderr_log,
+                    message=summary,
+                    progress=progress,
                 )
-                batch_status.write_state("reiki", status_state)
                 if overall_returncode == 0 and (args.no_build_index or args.crawl_only):
                     batch_status.invalidate_runtime_caches()
                 completed_count += 1
@@ -659,7 +681,7 @@ def main() -> int:
                 last_status_at = now
 
             if pending_targets or active_workers:
-                if not launched_any:
+                if not made_progress:
                     time.sleep(1.0)
 
         for worker in active_workers:
