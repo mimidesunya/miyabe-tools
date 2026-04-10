@@ -8,6 +8,7 @@ const TAIKEI_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit
 const TAIKEI_SLEEP_USEC = 120000;
 const TAIKEI_FETCH_MAX_ATTEMPTS = 4;
 const TAIKEI_FETCH_RETRY_BASE_USEC = 750000;
+const TAIKEI_INDEX_COMMIT_BATCH_SIZE = 25;
 
 main($argv);
 
@@ -85,6 +86,7 @@ function main(array $argv): void
     $skipped = 0;
     $parsed = 0;
     $reused = 0;
+    $indexPending = 0;
     $manifests = [];
     $selectedRecords = $limit > 0 ? array_slice($records, 0, $limit) : $records;
     $total = count($selectedRecords);
@@ -156,8 +158,15 @@ function main(array $argv): void
         if ($indexUpdatesEnabled && $indexPdo instanceof PDO) {
             // 再利用した既存 HTML もここで拾うことで、DB の取りこぼしを次の完了待ちなしで埋める。
             try {
+                begin_ordinance_index_batch($indexPdo);
                 upsert_ordinance_index_row($indexPdo, $manifestEntry, $htmlPath, $storedMarkdownPath);
+                $indexPending++;
+                if ($indexPending >= TAIKEI_INDEX_COMMIT_BATCH_SIZE) {
+                    commit_ordinance_index_batch($indexPdo);
+                    $indexPending = 0;
+                }
             } catch (Throwable $e) {
+                rollback_ordinance_index_batch($indexPdo);
                 fwrite(
                     STDERR,
                     "Warning: failed to incrementally update ordinances.sqlite for {$slug} {$sourceFileName} "
@@ -165,6 +174,7 @@ function main(array $argv): void
                 );
                 $indexUpdatesEnabled = false;
                 $indexPdo = null;
+                $indexPending = 0;
             }
         }
         emit_progress($index + 1, $total, $statePath);
@@ -185,6 +195,9 @@ function main(array $argv): void
         }
     }
 
+    if ($indexUpdatesEnabled && $indexPdo instanceof PDO && $indexPending > 0) {
+        commit_ordinance_index_batch($indexPdo);
+    }
     write_json_file($manifestPath, $manifests, true);
 
     echo "\nFinished {$target['name']} scrape.\n";
@@ -1468,7 +1481,30 @@ function open_sqlite_pdo(string $dbPath): PDO
     $pdo->exec('PRAGMA synchronous = NORMAL');
     // 親バッチの再 build や検索 read と競合しても、すぐ失敗せず少し待つ。
     $pdo->exec('PRAGMA busy_timeout = 30000');
+    $pdo->exec('PRAGMA temp_store = MEMORY');
+    $pdo->exec('PRAGMA cache_size = -32768');
     return $pdo;
+}
+
+function begin_ordinance_index_batch(PDO $pdo): void
+{
+    if (!$pdo->inTransaction()) {
+        $pdo->beginTransaction();
+    }
+}
+
+function commit_ordinance_index_batch(PDO $pdo): void
+{
+    if ($pdo->inTransaction()) {
+        $pdo->commit();
+    }
+}
+
+function rollback_ordinance_index_batch(PDO $pdo): void
+{
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
 }
 
 function ordinance_index_schema_compatible(PDO $pdo): bool

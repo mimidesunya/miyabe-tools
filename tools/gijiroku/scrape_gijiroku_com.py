@@ -647,6 +647,12 @@ def main() -> int:
                 emit_progress(idx, len(meeting_items), state_path, state)
                 time.sleep(max(args.delay_seconds, 0))
 
+        if indexing_enabled:
+            minutes_index_builder.finalize_incremental_index(
+                output_db,
+                logger=lambda message: print(message, flush=True),
+                context=str(target["slug"]),
+            )
         context.close()
         browser.close()
 

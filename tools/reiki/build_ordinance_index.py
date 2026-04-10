@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import html
 import os
 import re
@@ -27,6 +28,9 @@ NUMBER_PATTERN = re.compile(r'<div class="law-number">([^<]+)</div>', re.IGNOREC
 TAG_PATTERN = re.compile(r"<[^>]+>")
 SPACE_PATTERN = re.compile(r"[ \t\u3000]+")
 LINEBREAK_PATTERN = re.compile(r"\n{3,}")
+INCREMENTAL_COMMIT_BATCH_SIZE = 25
+SQLITE_INCREMENTAL_CACHE_SIZE_KIB = 32 * 1024
+SQLITE_BULK_LOAD_CACHE_SIZE_KIB = 128 * 1024
 
 SCHEMA_SQL = """
 CREATE TABLE ordinances (
@@ -178,6 +182,10 @@ REQUIRED_ORDINANCE_FTS_COLUMNS = [
 ]
 
 
+_PENDING_INCREMENTAL_RECORDS: dict[Path, list[dict[str, Any]]] = {}
+_ATEXIT_REGISTERED = False
+
+
 def parse_args() -> argparse.Namespace:
     default_slug = reiki_targets.default_slug_for_system()
     parser = argparse.ArgumentParser(
@@ -201,13 +209,77 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def open_sqlite_connection(path: Path) -> sqlite3.Connection:
+def _db_cache_size_pragma(kibibytes: int) -> str:
+    return str(-max(kibibytes, 1024))
+
+
+def open_sqlite_connection(path: Path, *, bulk_load: bool = False) -> sqlite3.Connection:
     connection = sqlite3.connect(path, timeout=30)
     # 逐次 upsert 中でも検索リクエストを止めにくいよう、WAL を基本にする。
     connection.execute("PRAGMA journal_mode=WAL")
-    connection.execute("PRAGMA synchronous=NORMAL")
+    connection.execute(f"PRAGMA synchronous={'OFF' if bulk_load else 'NORMAL'}")
     connection.execute("PRAGMA busy_timeout=30000")
+    connection.execute("PRAGMA temp_store=MEMORY")
+    connection.execute(
+        f"PRAGMA cache_size={_db_cache_size_pragma(SQLITE_BULK_LOAD_CACHE_SIZE_KIB if bulk_load else SQLITE_INCREMENTAL_CACHE_SIZE_KIB)}"
+    )
+    if bulk_load:
+        connection.execute("PRAGMA locking_mode=EXCLUSIVE")
     return connection
+
+
+def checkpoint_wal(connection: sqlite3.Connection) -> None:
+    try:
+        connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    except sqlite3.DatabaseError:
+        pass
+
+
+def incremental_db_key(output_db: Path) -> Path:
+    try:
+        return output_db.resolve()
+    except Exception:
+        return output_db
+
+
+def register_incremental_flush_at_exit() -> None:
+    global _ATEXIT_REGISTERED
+    if _ATEXIT_REGISTERED:
+        return
+    atexit.register(flush_all_incremental_indexes)
+    _ATEXIT_REGISTERED = True
+
+
+def drop_pending_incremental_records(output_db: Path) -> None:
+    _PENDING_INCREMENTAL_RECORDS.pop(incremental_db_key(output_db), None)
+
+
+def flush_incremental_index(output_db: Path) -> int:
+    key = incremental_db_key(output_db)
+    pending = _PENDING_INCREMENTAL_RECORDS.get(key)
+    if not pending:
+        return 0
+
+    output_db.parent.mkdir(parents=True, exist_ok=True)
+    if not output_db.exists():
+        ensure_output_db(output_db)
+
+    with open_sqlite_connection(output_db) as connection:
+        for record in pending:
+            upsert_record(connection, record)
+        connection.commit()
+    ensure_output_db_permissions(output_db)
+    flushed = len(pending)
+    _PENDING_INCREMENTAL_RECORDS.pop(key, None)
+    return flushed
+
+
+def flush_all_incremental_indexes() -> None:
+    for output_db in list(_PENDING_INCREMENTAL_RECORDS.keys()):
+        try:
+            flush_incremental_index(output_db)
+        except Exception:
+            drop_pending_incremental_records(output_db)
 
 
 def strip_municipality_name_kana_suffix(name: str, name_kana: str) -> str:
@@ -735,6 +807,7 @@ def prepare_incremental_index(
 ) -> bool:
     # 例規本文の取得は進めつつ、逐次 index だけを best effort に落とす。
     try:
+        register_incremental_flush_at_exit()
         ensure_output_db(output_db)
         return True
     except Exception as exc:
@@ -897,14 +970,12 @@ def upsert_source_key(
     if record is None:
         return False
 
-    if not output_db.exists():
-        # 通常は起動時の prepare_incremental_index() が schema を整える。
-        # 1 件ごとの逐次反映では、未作成時だけ初期化して DDL 競合を減らす。
-        ensure_output_db(output_db)
-    with open_sqlite_connection(output_db) as connection:
-        upsert_record(connection, record)
-        connection.commit()
-    ensure_output_db_permissions(output_db)
+    register_incremental_flush_at_exit()
+    key = incremental_db_key(output_db)
+    pending = _PENDING_INCREMENTAL_RECORDS.setdefault(key, [])
+    pending.append(record)
+    if len(pending) >= INCREMENTAL_COMMIT_BATCH_SIZE:
+        flush_incremental_index(output_db)
     return True
 
 
@@ -934,6 +1005,7 @@ def best_effort_upsert_source_key(
             manifest_json=manifest_json,
         )
     except Exception as exc:
+        drop_pending_incremental_records(output_db)
         if logger is not None:
             prefix = f"{context}: " if context else ""
             logger(
@@ -942,6 +1014,26 @@ def best_effort_upsert_source_key(
             )
         return "error"
     return "ok" if updated else "skipped"
+
+
+def finalize_incremental_index(
+    output_db: Path,
+    *,
+    logger: Callable[[str], None] | None = None,
+    context: str = "",
+) -> bool:
+    try:
+        flush_incremental_index(output_db)
+        return True
+    except Exception as exc:
+        drop_pending_incremental_records(output_db)
+        if logger is not None:
+            prefix = f"{context}: " if context else ""
+            logger(
+                f"[WARN] {prefix}ordinances.sqlite の増分バッチ flush に失敗しました: "
+                f"[{type(exc).__name__}] db={output_db} error={exc}"
+            )
+        return False
 
 
 def backfill_missing_rows(
@@ -1113,7 +1205,7 @@ def build_index(
     temp_db = Path(temp_name)
 
     try:
-        connection = open_sqlite_connection(temp_db)
+        connection = open_sqlite_connection(temp_db, bulk_load=True)
         init_db(connection)
         cursor = connection.cursor()
 
@@ -1175,32 +1267,13 @@ def build_index(
                     record["content_length"],
                 ),
             )
-            row_id = cursor.lastrowid
-            cursor.execute(
-                """
-                INSERT INTO ordinances_fts (
-                    rowid, title_terms, reading_terms, content_terms, department_terms,
-                    combined_reason_terms, reason_terms, secondary_terms, lens_terms, taxonomy_terms
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    row_id,
-                    record["title_terms"],
-                    record["reading_terms"],
-                    record["content_terms"],
-                    record["department_terms"],
-                    record["combined_reason_terms"],
-                    record["reason_terms"],
-                    record["secondary_terms"],
-                    record["lens_terms"],
-                    record["taxonomy_terms"],
-                ),
-            )
             indexed += 1
             if record["has_classification"]:
                 classified += 1
 
+        rebuild_ordinances_fts(connection)
         connection.commit()
+        checkpoint_wal(connection)
         connection.close()
         temp_db.replace(output_db)
         ensure_output_db_permissions(output_db)

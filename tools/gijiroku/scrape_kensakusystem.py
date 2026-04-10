@@ -645,6 +645,12 @@ def main() -> int:
             if args.delay_seconds > 0 and idx < len(meeting_items):
                 time.sleep(args.delay_seconds)
 
+    if indexing_enabled:
+        minutes_index_builder.finalize_incremental_index(
+            output_db,
+            logger=lambda message: print(message, flush=True),
+            context=str(target["slug"]),
+        )
     print(f"[DONE] Saved index: {index_json}")
     print(f"[DONE] Result log : {result_csv}")
     return 0

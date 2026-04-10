@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
 import os
 import re
@@ -31,6 +32,9 @@ DATE_PATTERN = re.compile(
 )
 YEAR_LABEL_PATTERN = re.compile(r"(昭和|平成|令和)\s*([元\d０-９]+)年(?:・(昭和|平成|令和)元年)?")
 FILE_DATE_PATTERN = re.compile(r"([0-9]{2})月([0-9]{2})日")
+INCREMENTAL_COMMIT_BATCH_SIZE = 25
+SQLITE_INCREMENTAL_CACHE_SIZE_KIB = 32 * 1024
+SQLITE_BULK_LOAD_CACHE_SIZE_KIB = 128 * 1024
 INCREMENTAL_SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS minutes (
     id INTEGER PRIMARY KEY,
@@ -129,6 +133,10 @@ class MinuteRecord:
     meeting_name_terms: str
     content_terms: str
     indexed_at: str
+
+
+_PENDING_INCREMENTAL_RECORDS: dict[Path, list[MinuteRecord]] = {}
+_ATEXIT_REGISTERED = False
 
 
 def parse_args() -> argparse.Namespace:
@@ -413,9 +421,11 @@ def rebuild_minutes_fts(
     processed = 0
 
     # 旧 schema の DB でも base table は流用できるので、FTS だけ作り直して再投入する。
-    for row_id, title, meeting_name, content in conn.execute(
-        "SELECT id, title, meeting_name, content FROM minutes"
+    for row_id, title, meeting_name, content, doc_type in conn.execute(
+        "SELECT id, title, meeting_name, content, doc_type FROM minutes"
     ):
+        if str(doc_type or "") != "minutes":
+            continue
         conn.execute(
             """
             INSERT INTO minutes_fts (rowid, title_terms, meeting_name_terms, content_terms)
@@ -585,13 +595,77 @@ def ensure_db_schema(
         create_minutes_fts(conn)
 
 
-def open_sqlite_connection(path: Path) -> sqlite3.Connection:
+def _db_cache_size_pragma(kibibytes: int) -> str:
+    return str(-max(kibibytes, 1024))
+
+
+def open_sqlite_connection(path: Path, *, bulk_load: bool = False) -> sqlite3.Connection:
     conn = sqlite3.connect(path, timeout=30)
     # 会議録 DB も逐次 upsert と検索が並行するため、WAL を基本にする。
     conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute(f"PRAGMA synchronous={'OFF' if bulk_load else 'NORMAL'}")
     conn.execute("PRAGMA busy_timeout=30000")
+    conn.execute("PRAGMA temp_store=MEMORY")
+    conn.execute(
+        f"PRAGMA cache_size={_db_cache_size_pragma(SQLITE_BULK_LOAD_CACHE_SIZE_KIB if bulk_load else SQLITE_INCREMENTAL_CACHE_SIZE_KIB)}"
+    )
+    if bulk_load:
+        conn.execute("PRAGMA locking_mode=EXCLUSIVE")
     return conn
+
+
+def checkpoint_wal(conn: sqlite3.Connection) -> None:
+    try:
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    except sqlite3.DatabaseError:
+        pass
+
+
+def incremental_db_key(output_db: Path) -> Path:
+    try:
+        return output_db.resolve()
+    except Exception:
+        return output_db
+
+
+def register_incremental_flush_at_exit() -> None:
+    global _ATEXIT_REGISTERED
+    if _ATEXIT_REGISTERED:
+        return
+    atexit.register(flush_all_incremental_indexes)
+    _ATEXIT_REGISTERED = True
+
+
+def drop_pending_incremental_records(output_db: Path) -> None:
+    _PENDING_INCREMENTAL_RECORDS.pop(incremental_db_key(output_db), None)
+
+
+def flush_incremental_index(output_db: Path) -> int:
+    key = incremental_db_key(output_db)
+    pending = _PENDING_INCREMENTAL_RECORDS.get(key)
+    if not pending:
+        return 0
+
+    output_db.parent.mkdir(parents=True, exist_ok=True)
+    if not output_db.exists():
+        ensure_output_db(output_db)
+
+    with open_sqlite_connection(output_db) as conn:
+        for record in pending:
+            upsert_record(conn, record)
+        conn.commit()
+    ensure_output_db_permissions(output_db)
+    flushed = len(pending)
+    _PENDING_INCREMENTAL_RECORDS.pop(key, None)
+    return flushed
+
+
+def flush_all_incremental_indexes() -> None:
+    for output_db in list(_PENDING_INCREMENTAL_RECORDS.keys()):
+        try:
+            flush_incremental_index(output_db)
+        except Exception:
+            drop_pending_incremental_records(output_db)
 
 
 def ensure_output_db_permissions(path: Path) -> None:
@@ -622,6 +696,7 @@ def prepare_incremental_index(
 ) -> bool:
     # 会議録取得そのものは止めず、逐次 index だけを optional 扱いにする。
     try:
+        register_incremental_flush_at_exit()
         ensure_output_db(output_db)
         return True
     except Exception as exc:
@@ -717,15 +792,12 @@ def upsert_source_file(
     if record is None:
         return False
 
-    output_db.parent.mkdir(parents=True, exist_ok=True)
-    if not output_db.exists():
-        # 通常は起動時の prepare_incremental_index() が一度だけ schema を揃える。
-        # ここでは cold start 時だけ補完し、1 件ごとの upsert では DDL を避ける。
-        ensure_output_db(output_db)
-    with open_sqlite_connection(output_db) as conn:
-        upsert_record(conn, record)
-        conn.commit()
-    ensure_output_db_permissions(output_db)
+    register_incremental_flush_at_exit()
+    key = incremental_db_key(output_db)
+    pending = _PENDING_INCREMENTAL_RECORDS.setdefault(key, [])
+    pending.append(record)
+    if len(pending) >= INCREMENTAL_COMMIT_BATCH_SIZE:
+        flush_incremental_index(output_db)
     return True
 
 
@@ -751,6 +823,7 @@ def best_effort_upsert_source_file(
             indexed_at=indexed_at,
         )
     except Exception as exc:
+        drop_pending_incremental_records(output_db)
         if logger is not None:
             prefix = f"{context}: " if context else ""
             logger(
@@ -759,6 +832,26 @@ def best_effort_upsert_source_file(
             )
         return "error"
     return "ok" if updated else "skipped"
+
+
+def finalize_incremental_index(
+    output_db: Path,
+    *,
+    logger: Callable[[str], None] | None = None,
+    context: str = "",
+) -> bool:
+    try:
+        flush_incremental_index(output_db)
+        return True
+    except Exception as exc:
+        drop_pending_incremental_records(output_db)
+        if logger is not None:
+            prefix = f"{context}: " if context else ""
+            logger(
+                f"[WARN] {prefix}minutes.sqlite の増分バッチ flush に失敗しました: "
+                f"[{type(exc).__name__}] db={output_db} error={exc}"
+            )
+        return False
 
 
 def existing_rel_paths(output_db: Path) -> set[str]:
@@ -918,7 +1011,7 @@ def build_index(
     temp_db = Path(temp_name)
 
     try:
-        conn = open_sqlite_connection(temp_db)
+        conn = open_sqlite_connection(temp_db, bulk_load=True)
         init_db(conn)
         last_heartbeat_at = emit_heartbeat(heartbeat_callback, 0.0, force=True)
 
@@ -1001,17 +1094,6 @@ def build_index(
                     record.indexed_at,
                 ),
             )
-            row_id = cur.lastrowid
-
-            if record.doc_type == "minutes":
-                cur.execute(
-                    """
-                    INSERT INTO minutes_fts (rowid, title_terms, meeting_name_terms, content_terms)
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    (row_id, record.title_terms, record.meeting_name_terms, record.content_terms),
-                )
-
             indexed += 1
             processed += 1
             if progress_callback is not None:
@@ -1030,7 +1112,20 @@ def build_index(
                     )
                     last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at, force=True)
 
+        if progress_callback is not None:
+            progress_callback(
+                {
+                    "stage": "rebuild_fts",
+                    "processed": processed,
+                    "total_files": total_files,
+                    "added": indexed,
+                    "existing": 0,
+                    "skipped": skipped,
+                }
+            )
+        rebuild_minutes_fts(conn, heartbeat_callback=heartbeat_callback)
         conn.commit()
+        checkpoint_wal(conn)
         conn.close()
         emit_heartbeat(heartbeat_callback, last_heartbeat_at, force=True)
         temp_db.replace(output_db)

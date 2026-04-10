@@ -360,6 +360,12 @@ def main():
             reiki_io.write_json(manifest_path, manifest_entries, compress=True)
         emit_progress(index + 1, total_regulations, state_path)
 
+    if indexing_enabled:
+        ordinance_index_builder.finalize_incremental_index(
+            output_db,
+            logger=lambda message: print(message, flush=True),
+            context=str(target["slug"]),
+        )
     reiki_io.write_json(manifest_path, manifest_entries, compress=True)
     print(f"Finished. Downloaded {downloaded_count} files.")
     print(f"Checked existing: {checked_count}")
