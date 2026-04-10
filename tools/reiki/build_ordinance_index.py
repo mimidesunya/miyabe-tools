@@ -31,6 +31,40 @@ LINEBREAK_PATTERN = re.compile(r"\n{3,}")
 INCREMENTAL_COMMIT_BATCH_SIZE = 25
 SQLITE_INCREMENTAL_CACHE_SIZE_KIB = 32 * 1024
 SQLITE_BULK_LOAD_CACHE_SIZE_KIB = 128 * 1024
+FTS_RUNTIME_AUTOMERGE = 8
+FTS_RUNTIME_CRISISMERGE = 64
+FTS_RUNTIME_MERGE_PAGES = 1000
+ORDINANCES_TERMS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS ordinances_terms (
+    id INTEGER PRIMARY KEY,
+    title_terms TEXT NOT NULL,
+    reading_terms TEXT NOT NULL,
+    content_terms TEXT NOT NULL,
+    department_terms TEXT NOT NULL,
+    combined_reason_terms TEXT NOT NULL,
+    reason_terms TEXT NOT NULL,
+    secondary_terms TEXT NOT NULL,
+    lens_terms TEXT NOT NULL,
+    taxonomy_terms TEXT NOT NULL,
+    FOREIGN KEY(id) REFERENCES ordinances(id) ON DELETE CASCADE
+);
+"""
+ORDINANCES_FTS_TABLE_SQL = """
+CREATE VIRTUAL TABLE IF NOT EXISTS ordinances_fts USING fts5(
+    title_terms,
+    reading_terms,
+    content_terms,
+    department_terms,
+    combined_reason_terms,
+    reason_terms,
+    secondary_terms,
+    lens_terms,
+    taxonomy_terms,
+    content = 'ordinances_terms',
+    content_rowid = 'id',
+    tokenize = 'unicode61'
+)
+"""
 
 SCHEMA_SQL = """
 CREATE TABLE ordinances (
@@ -64,6 +98,20 @@ CREATE TABLE ordinances (
     content_length INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE ordinances_terms (
+    id INTEGER PRIMARY KEY,
+    title_terms TEXT NOT NULL,
+    reading_terms TEXT NOT NULL,
+    content_terms TEXT NOT NULL,
+    department_terms TEXT NOT NULL,
+    combined_reason_terms TEXT NOT NULL,
+    reason_terms TEXT NOT NULL,
+    secondary_terms TEXT NOT NULL,
+    lens_terms TEXT NOT NULL,
+    taxonomy_terms TEXT NOT NULL,
+    FOREIGN KEY(id) REFERENCES ordinances(id) ON DELETE CASCADE
+);
+
 CREATE INDEX idx_ordinances_sortable_kana ON ordinances(sortable_kana);
 CREATE INDEX idx_ordinances_class ON ordinances(primary_class);
 CREATE INDEX idx_ordinances_necessity ON ordinances(necessity_score);
@@ -81,6 +129,8 @@ CREATE VIRTUAL TABLE ordinances_fts USING fts5(
     secondary_terms,
     lens_terms,
     taxonomy_terms,
+    content = 'ordinances_terms',
+    content_rowid = 'id',
     tokenize = 'unicode61'
 );
 """
@@ -117,6 +167,20 @@ CREATE TABLE IF NOT EXISTS ordinances (
     content_length INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS ordinances_terms (
+    id INTEGER PRIMARY KEY,
+    title_terms TEXT NOT NULL,
+    reading_terms TEXT NOT NULL,
+    content_terms TEXT NOT NULL,
+    department_terms TEXT NOT NULL,
+    combined_reason_terms TEXT NOT NULL,
+    reason_terms TEXT NOT NULL,
+    secondary_terms TEXT NOT NULL,
+    lens_terms TEXT NOT NULL,
+    taxonomy_terms TEXT NOT NULL,
+    FOREIGN KEY(id) REFERENCES ordinances(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_ordinances_sortable_kana ON ordinances(sortable_kana);
 CREATE INDEX IF NOT EXISTS idx_ordinances_class ON ordinances(primary_class);
 CREATE INDEX IF NOT EXISTS idx_ordinances_necessity ON ordinances(necessity_score);
@@ -134,6 +198,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS ordinances_fts USING fts5(
     secondary_terms,
     lens_terms,
     taxonomy_terms,
+    content = 'ordinances_terms',
+    content_rowid = 'id',
     tokenize = 'unicode61'
 );
 """
@@ -168,6 +234,18 @@ REQUIRED_ORDINANCE_COLUMNS = {
     "content_text",
     "content_length",
 }
+REQUIRED_ORDINANCES_TERMS_COLUMNS = [
+    "id",
+    "title_terms",
+    "reading_terms",
+    "content_terms",
+    "department_terms",
+    "combined_reason_terms",
+    "reason_terms",
+    "secondary_terms",
+    "lens_terms",
+    "taxonomy_terms",
+]
 
 REQUIRED_ORDINANCE_FTS_COLUMNS = [
     "title_terms",
@@ -265,6 +343,7 @@ def flush_incremental_index(output_db: Path) -> int:
         ensure_output_db(output_db)
 
     with open_sqlite_connection(output_db) as connection:
+        configure_ordinances_fts(connection)
         for record in pending:
             upsert_record(connection, record)
         connection.commit()
@@ -475,34 +554,132 @@ def normalize_document_type(value: str) -> str:
     return "その他"
 
 
-def ordinance_fts_columns(connection: sqlite3.Connection) -> list[str]:
+def table_columns(connection: sqlite3.Connection, table_name: str) -> list[str]:
     try:
-        rows = connection.execute("PRAGMA table_info(ordinances_fts)").fetchall()
+        rows = connection.execute(f"PRAGMA table_info({table_name})").fetchall()
     except sqlite3.DatabaseError:
         return []
     return [str(row[1]) for row in rows if len(row) >= 2]
 
 
+def table_sql(connection: sqlite3.Connection, table_name: str) -> str:
+    try:
+        row = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type IN ('table', 'view') AND name = ?",
+            (table_name,),
+        ).fetchone()
+    except sqlite3.DatabaseError:
+        return ""
+    if row is None or not row[0]:
+        return ""
+    return str(row[0])
+
+
+def fts_uses_external_content(
+    connection: sqlite3.Connection,
+    *,
+    table_name: str,
+    content_table: str,
+    content_rowid: str,
+) -> bool:
+    sql = re.sub(r"\s+", "", table_sql(connection, table_name).lower())
+    if not sql:
+        return False
+    return (
+        f"content='{content_table}'" in sql
+        and f"content_rowid='{content_rowid}'" in sql
+    )
+
+
+def ordinance_fts_columns(connection: sqlite3.Connection) -> list[str]:
+    return table_columns(connection, "ordinances_fts")
+
+
+def ordinance_terms_columns(connection: sqlite3.Connection) -> list[str]:
+    return table_columns(connection, "ordinances_terms")
+
+
 def ordinance_fts_schema_matches(connection: sqlite3.Connection) -> bool:
-    return ordinance_fts_columns(connection) == REQUIRED_ORDINANCE_FTS_COLUMNS
+    return (
+        ordinance_fts_columns(connection) == REQUIRED_ORDINANCE_FTS_COLUMNS
+        and fts_uses_external_content(
+            connection,
+            table_name="ordinances_fts",
+            content_table="ordinances_terms",
+            content_rowid="id",
+        )
+    )
+
+
+def ordinance_terms_schema_matches(connection: sqlite3.Connection) -> bool:
+    return ordinance_terms_columns(connection) == REQUIRED_ORDINANCES_TERMS_COLUMNS
+
+
+def create_ordinances_terms(connection: sqlite3.Connection) -> None:
+    connection.execute(ORDINANCES_TERMS_TABLE_SQL)
 
 
 def create_ordinances_fts(connection: sqlite3.Connection) -> None:
+    connection.execute(ORDINANCES_FTS_TABLE_SQL)
+
+
+def configure_ordinances_fts(connection: sqlite3.Connection) -> None:
+    connection.execute("INSERT INTO ordinances_fts(ordinances_fts, rank) VALUES('automerge', ?)", (FTS_RUNTIME_AUTOMERGE,))
+    connection.execute("INSERT INTO ordinances_fts(ordinances_fts, rank) VALUES('crisismerge', ?)", (FTS_RUNTIME_CRISISMERGE,))
+
+
+def merge_ordinances_fts(connection: sqlite3.Connection, *, pages: int = FTS_RUNTIME_MERGE_PAGES) -> None:
+    connection.execute("INSERT INTO ordinances_fts(ordinances_fts, rank) VALUES('merge', ?)", (pages,))
+
+
+def optimize_ordinances_fts(connection: sqlite3.Connection) -> None:
+    connection.execute("INSERT INTO ordinances_fts(ordinances_fts) VALUES('optimize')")
+
+
+def delete_ordinances_fts_row(connection: sqlite3.Connection, row_id: int, record: dict[str, Any]) -> None:
     connection.execute(
         """
-        CREATE VIRTUAL TABLE IF NOT EXISTS ordinances_fts USING fts5(
-            title_terms,
-            reading_terms,
-            content_terms,
-            department_terms,
-            combined_reason_terms,
-            reason_terms,
-            secondary_terms,
-            lens_terms,
-            taxonomy_terms,
-            tokenize = 'unicode61'
-        )
+        INSERT INTO ordinances_fts(
+            ordinances_fts, rowid, title_terms, reading_terms, content_terms, department_terms,
+            combined_reason_terms, reason_terms, secondary_terms, lens_terms, taxonomy_terms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "delete",
+            row_id,
+            record["title_terms"],
+            record["reading_terms"],
+            record["content_terms"],
+            record["department_terms"],
+            record["combined_reason_terms"],
+            record["reason_terms"],
+            record["secondary_terms"],
+            record["lens_terms"],
+            record["taxonomy_terms"],
+        ),
+    )
+
+
+def insert_ordinances_fts_row(connection: sqlite3.Connection, row_id: int, record: dict[str, Any]) -> None:
+    connection.execute(
         """
+        INSERT INTO ordinances_fts(
+            rowid, title_terms, reading_terms, content_terms, department_terms,
+            combined_reason_terms, reason_terms, secondary_terms, lens_terms, taxonomy_terms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            row_id,
+            record["title_terms"],
+            record["reading_terms"],
+            record["content_terms"],
+            record["department_terms"],
+            record["combined_reason_terms"],
+            record["reason_terms"],
+            record["secondary_terms"],
+            record["lens_terms"],
+            record["taxonomy_terms"],
+        ),
     )
 
 
@@ -526,17 +703,14 @@ def ordinance_search_terms_text(value: object) -> str:
     return japanese_search_tokenizer.document_terms_text(normalize_space(decode_html_text(value)))
 
 
-def rebuild_ordinances_fts(
+def rebuild_ordinances_terms(
     connection: sqlite3.Connection,
     *,
     heartbeat_callback: Callable[[], None] | None = None,
 ) -> None:
-    connection.execute("DROP TABLE IF EXISTS ordinances_fts")
-    create_ordinances_fts(connection)
+    connection.execute("DELETE FROM ordinances_terms")
     last_heartbeat_at = emit_heartbeat(heartbeat_callback, 0.0, force=True)
     processed = 0
-
-    # base table の内容はそのまま使えるので、FTS のみ Sudachi 用 terms カラムへ再投入する。
     for row in connection.execute(
         """
         SELECT
@@ -567,8 +741,8 @@ def rebuild_ordinances_fts(
         ) = row
         connection.execute(
             """
-            INSERT INTO ordinances_fts (
-                rowid, title_terms, reading_terms, content_terms, department_terms,
+            INSERT INTO ordinances_terms (
+                id, title_terms, reading_terms, content_terms, department_terms,
                 combined_reason_terms, reason_terms, secondary_terms, lens_terms, taxonomy_terms
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
@@ -589,6 +763,28 @@ def rebuild_ordinances_fts(
         if processed % 250 == 0:
             last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at)
     emit_heartbeat(heartbeat_callback, last_heartbeat_at, force=True)
+
+
+def ordinances_terms_needs_rebuild(connection: sqlite3.Connection) -> bool:
+    try:
+        ordinances_count = int(connection.execute("SELECT COUNT(*) FROM ordinances").fetchone()[0])
+        terms_count = int(connection.execute("SELECT COUNT(*) FROM ordinances_terms").fetchone()[0])
+    except Exception:
+        return True
+    return ordinances_count != terms_count
+
+
+def rebuild_ordinances_fts(
+    connection: sqlite3.Connection,
+    *,
+    heartbeat_callback: Callable[[], None] | None = None,
+) -> None:
+    connection.execute("DROP TABLE IF EXISTS ordinances_fts")
+    create_ordinances_fts(connection)
+    emit_heartbeat(heartbeat_callback, 0.0, force=True)
+    connection.execute("INSERT INTO ordinances_fts(ordinances_fts) VALUES('rebuild')")
+    configure_ordinances_fts(connection)
+    emit_heartbeat(heartbeat_callback, 0.0, force=True)
 
 
 def detect_document_type(title: str, number: str) -> str:
@@ -738,18 +934,23 @@ def ensure_db_schema(
 ) -> None:
     # 逐次追加では既存 DB を温存しながら、必要なテーブルだけを補う。
     connection.executescript(INCREMENTAL_SCHEMA_SQL)
-    if not ordinance_fts_schema_matches(connection):
+    terms_rebuilt = False
+    if not ordinance_terms_schema_matches(connection):
+        connection.execute("DROP TABLE IF EXISTS ordinances_terms")
+        create_ordinances_terms(connection)
+        terms_rebuilt = True
+    if ordinances_terms_needs_rebuild(connection):
+        rebuild_ordinances_terms(connection, heartbeat_callback=heartbeat_callback)
+        terms_rebuilt = True
+    if terms_rebuilt or not ordinance_fts_schema_matches(connection):
         rebuild_ordinances_fts(connection, heartbeat_callback=heartbeat_callback)
     else:
         create_ordinances_fts(connection)
+        configure_ordinances_fts(connection)
 
 
 def ordinance_table_columns(connection: sqlite3.Connection) -> set[str]:
-    try:
-        rows = connection.execute("PRAGMA table_info(ordinances)").fetchall()
-    except sqlite3.DatabaseError:
-        return set()
-    return {str(row[1]) for row in rows if len(row) >= 2}
+    return set(table_columns(connection, "ordinances"))
 
 
 def schema_is_compatible(connection: sqlite3.Connection) -> bool:
@@ -847,6 +1048,7 @@ def upsert_record(connection: sqlite3.Connection, record: dict[str, Any]) -> int
         "SELECT id FROM ordinances WHERE filename = ?",
         (record["filename"],),
     ).fetchone()
+    existing_terms: dict[str, Any] | None = None
 
     params = (
         record["filename"],
@@ -895,7 +1097,36 @@ def upsert_record(connection: sqlite3.Connection, record: dict[str, Any]) -> int
         row_id = int(cursor.lastrowid)
     else:
         row_id = int(existing_row[0])
-        connection.execute("DELETE FROM ordinances_fts WHERE rowid = ?", (row_id,))
+        terms_row = connection.execute(
+            """
+            SELECT
+                title_terms,
+                reading_terms,
+                content_terms,
+                department_terms,
+                combined_reason_terms,
+                reason_terms,
+                secondary_terms,
+                lens_terms,
+                taxonomy_terms
+            FROM ordinances_terms
+            WHERE id = ?
+            """,
+            (row_id,),
+        ).fetchone()
+        if terms_row is not None:
+            existing_terms = {
+                "title_terms": str(terms_row[0] or ""),
+                "reading_terms": str(terms_row[1] or ""),
+                "content_terms": str(terms_row[2] or ""),
+                "department_terms": str(terms_row[3] or ""),
+                "combined_reason_terms": str(terms_row[4] or ""),
+                "reason_terms": str(terms_row[5] or ""),
+                "secondary_terms": str(terms_row[6] or ""),
+                "lens_terms": str(terms_row[7] or ""),
+                "taxonomy_terms": str(terms_row[8] or ""),
+            }
+            delete_ordinances_fts_row(connection, row_id, existing_terms)
         connection.execute(
             """
             UPDATE ordinances
@@ -912,10 +1143,20 @@ def upsert_record(connection: sqlite3.Connection, record: dict[str, Any]) -> int
 
     connection.execute(
         """
-        INSERT INTO ordinances_fts (
-            rowid, title_terms, reading_terms, content_terms, department_terms,
+        INSERT INTO ordinances_terms (
+            id, title_terms, reading_terms, content_terms, department_terms,
             combined_reason_terms, reason_terms, secondary_terms, lens_terms, taxonomy_terms
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            title_terms = excluded.title_terms,
+            reading_terms = excluded.reading_terms,
+            content_terms = excluded.content_terms,
+            department_terms = excluded.department_terms,
+            combined_reason_terms = excluded.combined_reason_terms,
+            reason_terms = excluded.reason_terms,
+            secondary_terms = excluded.secondary_terms,
+            lens_terms = excluded.lens_terms,
+            taxonomy_terms = excluded.taxonomy_terms
         """,
         (
             row_id,
@@ -930,6 +1171,7 @@ def upsert_record(connection: sqlite3.Connection, record: dict[str, Any]) -> int
             record["taxonomy_terms"],
         ),
     )
+    insert_ordinances_fts_row(connection, row_id, record)
     return row_id
 
 
@@ -1023,7 +1265,11 @@ def finalize_incremental_index(
     context: str = "",
 ) -> bool:
     try:
-        flush_incremental_index(output_db)
+        if flush_incremental_index(output_db):
+            with open_sqlite_connection(output_db) as connection:
+                configure_ordinances_fts(connection)
+                merge_ordinances_fts(connection)
+                connection.commit()
         return True
     except Exception as exc:
         drop_pending_incremental_records(output_db)
@@ -1267,11 +1513,33 @@ def build_index(
                     record["content_length"],
                 ),
             )
+            row_id = int(cursor.lastrowid)
+            cursor.execute(
+                """
+                INSERT INTO ordinances_terms (
+                    id, title_terms, reading_terms, content_terms, department_terms,
+                    combined_reason_terms, reason_terms, secondary_terms, lens_terms, taxonomy_terms
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    row_id,
+                    record["title_terms"],
+                    record["reading_terms"],
+                    record["content_terms"],
+                    record["department_terms"],
+                    record["combined_reason_terms"],
+                    record["reason_terms"],
+                    record["secondary_terms"],
+                    record["lens_terms"],
+                    record["taxonomy_terms"],
+                ),
+            )
             indexed += 1
             if record["has_classification"]:
                 classified += 1
 
         rebuild_ordinances_fts(connection)
+        optimize_ordinances_fts(connection)
         connection.commit()
         checkpoint_wal(connection)
         connection.close()

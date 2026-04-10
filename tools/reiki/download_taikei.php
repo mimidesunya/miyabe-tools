@@ -9,6 +9,9 @@ const TAIKEI_SLEEP_USEC = 120000;
 const TAIKEI_FETCH_MAX_ATTEMPTS = 4;
 const TAIKEI_FETCH_RETRY_BASE_USEC = 750000;
 const TAIKEI_INDEX_COMMIT_BATCH_SIZE = 25;
+const TAIKEI_FTS_RUNTIME_AUTOMERGE = 8;
+const TAIKEI_FTS_RUNTIME_CRISISMERGE = 64;
+const TAIKEI_FTS_RUNTIME_MERGE_PAGES = 1000;
 
 main($argv);
 
@@ -196,6 +199,11 @@ function main(array $argv): void
     }
 
     if ($indexUpdatesEnabled && $indexPdo instanceof PDO && $indexPending > 0) {
+        commit_ordinance_index_batch($indexPdo);
+    }
+    if ($indexUpdatesEnabled && $indexPdo instanceof PDO) {
+        begin_ordinance_index_batch($indexPdo);
+        merge_ordinance_fts($indexPdo);
         commit_ordinance_index_batch($indexPdo);
     }
     write_json_file($manifestPath, $manifests, true);
@@ -1596,7 +1604,114 @@ function ordinance_index_fts_schema_matches(PDO $pdo): bool
         'secondary_terms',
         'lens_terms',
         'taxonomy_terms',
+    ] && ordinance_index_fts_uses_external_content($pdo);
+}
+
+function ordinance_terms_columns(PDO $pdo): array
+{
+    try {
+        $rows = $pdo->query('PRAGMA table_info(ordinances_terms)');
+        if (!$rows instanceof PDOStatement) {
+            return [];
+        }
+        return array_values(array_map(
+            static fn(array $row): string => trim((string)($row['name'] ?? '')),
+            $rows->fetchAll(PDO::FETCH_ASSOC)
+        ));
+    } catch (Throwable) {
+        return [];
+    }
+}
+
+function ordinance_terms_schema_matches(PDO $pdo): bool
+{
+    return ordinance_terms_columns($pdo) === [
+        'id',
+        'title_terms',
+        'reading_terms',
+        'content_terms',
+        'department_terms',
+        'combined_reason_terms',
+        'reason_terms',
+        'secondary_terms',
+        'lens_terms',
+        'taxonomy_terms',
     ];
+}
+
+function ordinance_index_fts_uses_external_content(PDO $pdo): bool
+{
+    try {
+        $stmt = $pdo->prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'ordinances_fts' LIMIT 1");
+        $stmt->execute();
+        $sql = (string)($stmt->fetchColumn() ?: '');
+    } catch (Throwable) {
+        return false;
+    }
+    if ($sql === '') {
+        return false;
+    }
+    $normalized = strtolower((string)preg_replace('/\s+/u', '', $sql));
+    return str_contains($normalized, "content='ordinances_terms'")
+        && str_contains($normalized, "content_rowid='id'");
+}
+
+function create_ordinance_terms_table(PDO $pdo): void
+{
+    $pdo->exec(<<<'SQL'
+CREATE TABLE IF NOT EXISTS ordinances_terms (
+    id INTEGER PRIMARY KEY,
+    title_terms TEXT NOT NULL,
+    reading_terms TEXT NOT NULL,
+    content_terms TEXT NOT NULL,
+    department_terms TEXT NOT NULL,
+    combined_reason_terms TEXT NOT NULL,
+    reason_terms TEXT NOT NULL,
+    secondary_terms TEXT NOT NULL,
+    lens_terms TEXT NOT NULL,
+    taxonomy_terms TEXT NOT NULL,
+    FOREIGN KEY(id) REFERENCES ordinances(id) ON DELETE CASCADE
+)
+SQL);
+}
+
+function create_ordinance_fts_table(PDO $pdo): void
+{
+    $pdo->exec(<<<'SQL'
+CREATE VIRTUAL TABLE IF NOT EXISTS ordinances_fts USING fts5(
+    title_terms,
+    reading_terms,
+    content_terms,
+    department_terms,
+    combined_reason_terms,
+    reason_terms,
+    secondary_terms,
+    lens_terms,
+    taxonomy_terms,
+    content = 'ordinances_terms',
+    content_rowid = 'id',
+    tokenize = 'unicode61'
+)
+SQL);
+}
+
+function configure_ordinance_fts(PDO $pdo): void
+{
+    $stmt = $pdo->prepare("INSERT INTO ordinances_fts(ordinances_fts, rank) VALUES('automerge', :value)");
+    $stmt->execute([':value' => TAIKEI_FTS_RUNTIME_AUTOMERGE]);
+    $stmt = $pdo->prepare("INSERT INTO ordinances_fts(ordinances_fts, rank) VALUES('crisismerge', :value)");
+    $stmt->execute([':value' => TAIKEI_FTS_RUNTIME_CRISISMERGE]);
+}
+
+function merge_ordinance_fts(PDO $pdo, int $pages = TAIKEI_FTS_RUNTIME_MERGE_PAGES): void
+{
+    $stmt = $pdo->prepare("INSERT INTO ordinances_fts(ordinances_fts, rank) VALUES('merge', :value)");
+    $stmt->execute([':value' => $pages]);
+}
+
+function optimize_ordinance_fts(PDO $pdo): void
+{
+    $pdo->exec("INSERT INTO ordinances_fts(ordinances_fts) VALUES('optimize')");
 }
 
 function ensure_ordinance_index_schema(PDO $pdo): void
@@ -1633,50 +1748,35 @@ CREATE TABLE IF NOT EXISTS ordinances (
     content_length INTEGER NOT NULL DEFAULT 0
 )
 SQL);
+    create_ordinance_terms_table($pdo);
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_ordinances_sortable_kana ON ordinances(sortable_kana)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_ordinances_class ON ordinances(primary_class)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_ordinances_necessity ON ordinances(necessity_score)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_ordinances_date ON ordinances(enactment_date)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_ordinances_combined_stance ON ordinances(combined_stance)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_ordinances_document_type ON ordinances(document_type)');
-    if (!ordinance_index_fts_schema_matches($pdo)) {
-        $pdo->exec('DROP TABLE IF EXISTS ordinances_fts');
-        $pdo->exec(<<<'SQL'
-CREATE VIRTUAL TABLE IF NOT EXISTS ordinances_fts USING fts5(
-    title_terms,
-    reading_terms,
-    content_terms,
-    department_terms,
-    combined_reason_terms,
-    reason_terms,
-    secondary_terms,
-    lens_terms,
-    taxonomy_terms,
-    tokenize = 'unicode61'
-)
-SQL);
+    $termsRebuilt = false;
+    if (!ordinance_terms_schema_matches($pdo)) {
+        $pdo->exec('DROP TABLE IF EXISTS ordinances_terms');
+        create_ordinance_terms_table($pdo);
+        $termsRebuilt = true;
+    }
+    if (ordinance_terms_need_rebuild($pdo)) {
+        rebuild_ordinance_terms($pdo);
+        $termsRebuilt = true;
+    }
+    if ($termsRebuilt || !ordinance_index_fts_schema_matches($pdo)) {
         rebuild_ordinance_index_fts($pdo);
         return;
     }
 
-    $pdo->exec(<<<'SQL'
-CREATE VIRTUAL TABLE IF NOT EXISTS ordinances_fts USING fts5(
-    title_terms,
-    reading_terms,
-    content_terms,
-    department_terms,
-    combined_reason_terms,
-    reason_terms,
-    secondary_terms,
-    lens_terms,
-    taxonomy_terms,
-    tokenize = 'unicode61'
-)
-SQL);
+    create_ordinance_fts_table($pdo);
+    configure_ordinance_fts($pdo);
 }
 
-function rebuild_ordinance_index_fts(PDO $pdo): void
+function rebuild_ordinance_terms(PDO $pdo): void
 {
+    $pdo->exec('DELETE FROM ordinances_terms');
     $stmt = $pdo->query(<<<'SQL'
 SELECT
     id,
@@ -1694,6 +1794,15 @@ SQL);
     if (!$stmt instanceof PDOStatement) {
         return;
     }
+    $insert = $pdo->prepare(<<<'SQL'
+INSERT INTO ordinances_terms (
+    id, title_terms, reading_terms, content_terms, department_terms,
+    combined_reason_terms, reason_terms, secondary_terms, lens_terms, taxonomy_terms
+) VALUES (
+    :id, :title_terms, :reading_terms, :content_terms, :department_terms,
+    :combined_reason_terms, :reason_terms, :secondary_terms, :lens_terms, :taxonomy_terms
+)
+SQL);
 
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
         $terms = japanese_search_document_terms_map([
@@ -1707,8 +1816,39 @@ SQL);
             'lens_terms' => (string)($row['lens_tags'] ?? ''),
             'taxonomy_terms' => (string)($row['taxonomy_path'] ?? ''),
         ]);
-        insert_ordinance_fts_row($pdo, (int)($row['id'] ?? 0), $terms);
+        $insert->execute([
+            ':id' => (int)($row['id'] ?? 0),
+            ':title_terms' => (string)($terms['title_terms'] ?? ''),
+            ':reading_terms' => (string)($terms['reading_terms'] ?? ''),
+            ':content_terms' => (string)($terms['content_terms'] ?? ''),
+            ':department_terms' => (string)($terms['department_terms'] ?? ''),
+            ':combined_reason_terms' => (string)($terms['combined_reason_terms'] ?? ''),
+            ':reason_terms' => (string)($terms['reason_terms'] ?? ''),
+            ':secondary_terms' => (string)($terms['secondary_terms'] ?? ''),
+            ':lens_terms' => (string)($terms['lens_terms'] ?? ''),
+            ':taxonomy_terms' => (string)($terms['taxonomy_terms'] ?? ''),
+        ]);
     }
+}
+
+function ordinance_terms_need_rebuild(PDO $pdo): bool
+{
+    try {
+        $ordinanceCount = (int)$pdo->query('SELECT COUNT(*) FROM ordinances')->fetchColumn();
+        $termsCount = (int)$pdo->query('SELECT COUNT(*) FROM ordinances_terms')->fetchColumn();
+    } catch (Throwable) {
+        return true;
+    }
+    return $ordinanceCount !== $termsCount;
+}
+
+function rebuild_ordinance_index_fts(PDO $pdo): void
+{
+    $pdo->exec('DROP TABLE IF EXISTS ordinances_fts');
+    create_ordinance_fts_table($pdo);
+    $pdo->exec("INSERT INTO ordinances_fts(ordinances_fts) VALUES('rebuild')");
+    configure_ordinance_fts($pdo);
+    optimize_ordinance_fts($pdo);
 }
 
 function insert_ordinance_fts_row(PDO $pdo, int $rowId, array $terms): void
@@ -1719,6 +1859,31 @@ INSERT INTO ordinances_fts (
     combined_reason_terms, reason_terms, secondary_terms, lens_terms, taxonomy_terms
 ) VALUES (
     :rowid, :title_terms, :reading_terms, :content_terms, :department_terms,
+    :combined_reason_terms, :reason_terms, :secondary_terms, :lens_terms, :taxonomy_terms
+)
+SQL);
+    $stmt->execute([
+        ':rowid' => $rowId,
+        ':title_terms' => (string)($terms['title_terms'] ?? ''),
+        ':reading_terms' => (string)($terms['reading_terms'] ?? ''),
+        ':content_terms' => (string)($terms['content_terms'] ?? ''),
+        ':department_terms' => (string)($terms['department_terms'] ?? ''),
+        ':combined_reason_terms' => (string)($terms['combined_reason_terms'] ?? ''),
+        ':reason_terms' => (string)($terms['reason_terms'] ?? ''),
+        ':secondary_terms' => (string)($terms['secondary_terms'] ?? ''),
+        ':lens_terms' => (string)($terms['lens_terms'] ?? ''),
+        ':taxonomy_terms' => (string)($terms['taxonomy_terms'] ?? ''),
+    ]);
+}
+
+function delete_ordinance_fts_row(PDO $pdo, int $rowId, array $terms): void
+{
+    $stmt = $pdo->prepare(<<<'SQL'
+INSERT INTO ordinances_fts (
+    ordinances_fts, rowid, title_terms, reading_terms, content_terms, department_terms,
+    combined_reason_terms, reason_terms, secondary_terms, lens_terms, taxonomy_terms
+) VALUES (
+    'delete', :rowid, :title_terms, :reading_terms, :content_terms, :department_terms,
     :combined_reason_terms, :reason_terms, :secondary_terms, :lens_terms, :taxonomy_terms
 )
 SQL);
@@ -1830,7 +1995,25 @@ SQL);
         $rowId = (int)$pdo->lastInsertId();
     } else {
         $rowId = (int)$rowId;
-        $pdo->prepare('DELETE FROM ordinances_fts WHERE rowid = :rowid')->execute([':rowid' => $rowId]);
+        $termsSelect = $pdo->prepare(<<<'SQL'
+SELECT
+    title_terms,
+    reading_terms,
+    content_terms,
+    department_terms,
+    combined_reason_terms,
+    reason_terms,
+    secondary_terms,
+    lens_terms,
+    taxonomy_terms
+FROM ordinances_terms
+WHERE id = :rowid
+SQL);
+        $termsSelect->execute([':rowid' => $rowId]);
+        $oldTerms = $termsSelect->fetch(PDO::FETCH_ASSOC) ?: null;
+        if (is_array($oldTerms)) {
+            delete_ordinance_fts_row($pdo, $rowId, $oldTerms);
+        }
         $stmt = $pdo->prepare(<<<'SQL'
 UPDATE ordinances
    SET filename = :filename,
@@ -1865,6 +2048,37 @@ SQL);
         $stmt->execute($params + [':rowid' => $rowId]);
     }
 
+    $termsStmt = $pdo->prepare(<<<'SQL'
+INSERT INTO ordinances_terms (
+    id, title_terms, reading_terms, content_terms, department_terms,
+    combined_reason_terms, reason_terms, secondary_terms, lens_terms, taxonomy_terms
+) VALUES (
+    :rowid, :title_terms, :reading_terms, :content_terms, :department_terms,
+    :combined_reason_terms, :reason_terms, :secondary_terms, :lens_terms, :taxonomy_terms
+)
+ON CONFLICT(id) DO UPDATE SET
+    title_terms = excluded.title_terms,
+    reading_terms = excluded.reading_terms,
+    content_terms = excluded.content_terms,
+    department_terms = excluded.department_terms,
+    combined_reason_terms = excluded.combined_reason_terms,
+    reason_terms = excluded.reason_terms,
+    secondary_terms = excluded.secondary_terms,
+    lens_terms = excluded.lens_terms,
+    taxonomy_terms = excluded.taxonomy_terms
+SQL);
+    $termsStmt->execute([
+        ':rowid' => $rowId,
+        ':title_terms' => (string)($terms['title_terms'] ?? ''),
+        ':reading_terms' => (string)($terms['reading_terms'] ?? ''),
+        ':content_terms' => (string)($terms['content_terms'] ?? ''),
+        ':department_terms' => (string)($terms['department_terms'] ?? ''),
+        ':combined_reason_terms' => (string)($terms['combined_reason_terms'] ?? ''),
+        ':reason_terms' => (string)($terms['reason_terms'] ?? ''),
+        ':secondary_terms' => (string)($terms['secondary_terms'] ?? ''),
+        ':lens_terms' => (string)($terms['lens_terms'] ?? ''),
+        ':taxonomy_terms' => (string)($terms['taxonomy_terms'] ?? ''),
+    ]);
     insert_ordinance_fts_row($pdo, $rowId, $terms);
 }
 

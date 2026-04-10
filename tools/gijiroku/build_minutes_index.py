@@ -35,6 +35,28 @@ FILE_DATE_PATTERN = re.compile(r"([0-9]{2})月([0-9]{2})日")
 INCREMENTAL_COMMIT_BATCH_SIZE = 25
 SQLITE_INCREMENTAL_CACHE_SIZE_KIB = 32 * 1024
 SQLITE_BULK_LOAD_CACHE_SIZE_KIB = 128 * 1024
+FTS_RUNTIME_AUTOMERGE = 8
+FTS_RUNTIME_CRISISMERGE = 64
+FTS_RUNTIME_MERGE_PAGES = 1000
+MINUTES_TERMS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS minutes_terms (
+    id INTEGER PRIMARY KEY,
+    title_terms TEXT NOT NULL,
+    meeting_name_terms TEXT NOT NULL,
+    content_terms TEXT NOT NULL,
+    FOREIGN KEY(id) REFERENCES minutes(id) ON DELETE CASCADE
+);
+"""
+MINUTES_FTS_TABLE_SQL = """
+CREATE VIRTUAL TABLE IF NOT EXISTS minutes_fts USING fts5(
+    title_terms,
+    meeting_name_terms,
+    content_terms,
+    content='minutes_terms',
+    content_rowid='id',
+    tokenize='unicode61'
+)
+"""
 INCREMENTAL_SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS minutes (
     id INTEGER PRIMARY KEY,
@@ -55,10 +77,20 @@ CREATE TABLE IF NOT EXISTS minutes (
     indexed_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS minutes_terms (
+    id INTEGER PRIMARY KEY,
+    title_terms TEXT NOT NULL,
+    meeting_name_terms TEXT NOT NULL,
+    content_terms TEXT NOT NULL,
+    FOREIGN KEY(id) REFERENCES minutes(id) ON DELETE CASCADE
+);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS minutes_fts USING fts5(
     title_terms,
     meeting_name_terms,
     content_terms,
+    content='minutes_terms',
+    content_rowid='id',
     tokenize='unicode61'
 );
 
@@ -68,6 +100,25 @@ CREATE INDEX IF NOT EXISTS idx_minutes_doc_type_held_on_id ON minutes(doc_type, 
 CREATE INDEX IF NOT EXISTS idx_minutes_source_fino ON minutes(source_fino);
 CREATE INDEX IF NOT EXISTS idx_minutes_year_label ON minutes(year_label);
 """
+REQUIRED_MINUTES_COLUMNS = {
+    "id",
+    "rel_path",
+    "title",
+    "meeting_name",
+    "year_label",
+    "held_on",
+    "gregorian_year",
+    "month",
+    "day",
+    "doc_type",
+    "ext",
+    "source_fino",
+    "source_year",
+    "source_url",
+    "content",
+    "indexed_at",
+}
+REQUIRED_MINUTES_TERMS_COLUMNS = ["id", "title_terms", "meeting_name_terms", "content_terms"]
 
 
 def project_root() -> Path:
@@ -369,29 +420,171 @@ def classify_doc_type(title: str, text: str) -> str:
     return "minutes"
 
 
-def minutes_fts_columns(conn: sqlite3.Connection) -> list[str]:
+def table_columns(conn: sqlite3.Connection, table_name: str) -> list[str]:
     try:
-        rows = conn.execute("PRAGMA table_info(minutes_fts)").fetchall()
+        rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
     except sqlite3.DatabaseError:
         return []
     return [str(row[1]) for row in rows if len(row) >= 2]
 
 
+def table_sql(conn: sqlite3.Connection, table_name: str) -> str:
+    try:
+        row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type IN ('table', 'view') AND name = ?",
+            (table_name,),
+        ).fetchone()
+    except sqlite3.DatabaseError:
+        return ""
+    if row is None or not row[0]:
+        return ""
+    return str(row[0])
+
+
+def fts_uses_external_content(
+    conn: sqlite3.Connection,
+    *,
+    table_name: str,
+    content_table: str,
+    content_rowid: str,
+) -> bool:
+    sql = re.sub(r"\s+", "", table_sql(conn, table_name).lower())
+    if not sql:
+        return False
+    return (
+        f"content='{content_table}'" in sql
+        and f"content_rowid='{content_rowid}'" in sql
+    )
+
+
+def minutes_fts_columns(conn: sqlite3.Connection) -> list[str]:
+    return table_columns(conn, "minutes_fts")
+
+
+def minutes_table_columns(conn: sqlite3.Connection) -> set[str]:
+    return set(table_columns(conn, "minutes"))
+
+
+def minutes_terms_columns(conn: sqlite3.Connection) -> list[str]:
+    return table_columns(conn, "minutes_terms")
+
+
+def minutes_table_schema_matches(conn: sqlite3.Connection) -> bool:
+    columns = minutes_table_columns(conn)
+    return columns == set() or REQUIRED_MINUTES_COLUMNS.issubset(columns)
+
+
+def minutes_terms_schema_matches(conn: sqlite3.Connection) -> bool:
+    return minutes_terms_columns(conn) == REQUIRED_MINUTES_TERMS_COLUMNS
+
+
 def minutes_fts_schema_matches(conn: sqlite3.Connection) -> bool:
-    return minutes_fts_columns(conn) == ["title_terms", "meeting_name_terms", "content_terms"]
+    return (
+        minutes_fts_columns(conn) == ["title_terms", "meeting_name_terms", "content_terms"]
+        and fts_uses_external_content(
+            conn,
+            table_name="minutes_fts",
+            content_table="minutes_terms",
+            content_rowid="id",
+        )
+    )
+
+
+def create_minutes_terms(conn: sqlite3.Connection) -> None:
+    conn.execute(MINUTES_TERMS_TABLE_SQL)
 
 
 def create_minutes_fts(conn: sqlite3.Connection) -> None:
+    conn.execute(MINUTES_FTS_TABLE_SQL)
+
+
+def configure_minutes_fts(conn: sqlite3.Connection) -> None:
+    conn.execute("INSERT INTO minutes_fts(minutes_fts, rank) VALUES('automerge', ?)", (FTS_RUNTIME_AUTOMERGE,))
+    conn.execute("INSERT INTO minutes_fts(minutes_fts, rank) VALUES('crisismerge', ?)", (FTS_RUNTIME_CRISISMERGE,))
+
+
+def merge_minutes_fts(conn: sqlite3.Connection, *, pages: int = FTS_RUNTIME_MERGE_PAGES) -> None:
+    conn.execute("INSERT INTO minutes_fts(minutes_fts, rank) VALUES('merge', ?)", (pages,))
+
+
+def optimize_minutes_fts(conn: sqlite3.Connection) -> None:
+    conn.execute("INSERT INTO minutes_fts(minutes_fts) VALUES('optimize')")
+
+
+def delete_minutes_fts_row(
+    conn: sqlite3.Connection,
+    row_id: int,
+    *,
+    title_terms: str,
+    meeting_name_terms: str,
+    content_terms: str,
+) -> None:
     conn.execute(
         """
-        CREATE VIRTUAL TABLE IF NOT EXISTS minutes_fts USING fts5(
-            title_terms,
-            meeting_name_terms,
-            content_terms,
-            tokenize='unicode61'
-        )
-        """
+        INSERT INTO minutes_fts(minutes_fts, rowid, title_terms, meeting_name_terms, content_terms)
+        VALUES('delete', ?, ?, ?, ?)
+        """,
+        (row_id, title_terms, meeting_name_terms, content_terms),
     )
+
+
+def insert_minutes_fts_row(
+    conn: sqlite3.Connection,
+    row_id: int,
+    *,
+    title_terms: str,
+    meeting_name_terms: str,
+    content_terms: str,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO minutes_fts(rowid, title_terms, meeting_name_terms, content_terms)
+        VALUES (?, ?, ?, ?)
+        """,
+        (row_id, title_terms, meeting_name_terms, content_terms),
+    )
+
+
+def rebuild_minutes_terms(
+    conn: sqlite3.Connection,
+    *,
+    heartbeat_callback: Callable[[], None] | None = None,
+) -> None:
+    conn.execute("DELETE FROM minutes_terms")
+    last_heartbeat_at = emit_heartbeat(heartbeat_callback, 0.0, force=True)
+    processed = 0
+    for row_id, title, meeting_name, content, doc_type in conn.execute(
+        "SELECT id, title, meeting_name, content, doc_type FROM minutes"
+    ):
+        if str(doc_type or "") != "minutes":
+            continue
+        conn.execute(
+            """
+            INSERT INTO minutes_terms(id, title_terms, meeting_name_terms, content_terms)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                int(row_id),
+                japanese_search_tokenizer.document_terms_text(str(title or "")),
+                japanese_search_tokenizer.document_terms_text(str(meeting_name or "")),
+                japanese_search_tokenizer.document_terms_text(str(content or "")),
+            ),
+        )
+        processed += 1
+        if processed % 250 == 0:
+            last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at)
+    emit_heartbeat(heartbeat_callback, last_heartbeat_at, force=True)
+
+
+def minutes_terms_needs_rebuild(conn: sqlite3.Connection) -> bool:
+    try:
+        indexed_count = int(
+            conn.execute("SELECT COUNT(*) FROM minutes WHERE doc_type = 'minutes'").fetchone()[0]
+        )
+        terms_count = int(conn.execute("SELECT COUNT(*) FROM minutes_terms").fetchone()[0])
+    except Exception:
+        return True
+    return indexed_count != terms_count
 
 
 def emit_heartbeat(
@@ -417,31 +610,10 @@ def rebuild_minutes_fts(
 ) -> None:
     conn.execute("DROP TABLE IF EXISTS minutes_fts")
     create_minutes_fts(conn)
-    last_heartbeat_at = emit_heartbeat(heartbeat_callback, 0.0, force=True)
-    processed = 0
-
-    # 旧 schema の DB でも base table は流用できるので、FTS だけ作り直して再投入する。
-    for row_id, title, meeting_name, content, doc_type in conn.execute(
-        "SELECT id, title, meeting_name, content, doc_type FROM minutes"
-    ):
-        if str(doc_type or "") != "minutes":
-            continue
-        conn.execute(
-            """
-            INSERT INTO minutes_fts (rowid, title_terms, meeting_name_terms, content_terms)
-            VALUES (?, ?, ?, ?)
-            """,
-            (
-                int(row_id),
-                japanese_search_tokenizer.document_terms_text(str(title or "")),
-                japanese_search_tokenizer.document_terms_text(str(meeting_name or "")),
-                japanese_search_tokenizer.document_terms_text(str(content or "")),
-            ),
-        )
-        processed += 1
-        if processed % 250 == 0:
-            last_heartbeat_at = emit_heartbeat(heartbeat_callback, last_heartbeat_at)
-    emit_heartbeat(heartbeat_callback, last_heartbeat_at, force=True)
+    emit_heartbeat(heartbeat_callback, 0.0, force=True)
+    conn.execute("INSERT INTO minutes_fts(minutes_fts) VALUES('rebuild')")
+    configure_minutes_fts(conn)
+    emit_heartbeat(heartbeat_callback, 0.0, force=True)
 
 
 def parse_source_meta(index_json: Path) -> dict[tuple[str, str, str], SourceMeta]:
@@ -589,10 +761,19 @@ def ensure_db_schema(
 ) -> None:
     # 逐次更新時は既存 DB を消さず、最小限の CREATE IF NOT EXISTS だけを流す。
     conn.executescript(INCREMENTAL_SCHEMA_SQL)
-    if not minutes_fts_schema_matches(conn):
+    terms_rebuilt = False
+    if not minutes_terms_schema_matches(conn):
+        conn.execute("DROP TABLE IF EXISTS minutes_terms")
+        create_minutes_terms(conn)
+        terms_rebuilt = True
+    if minutes_terms_needs_rebuild(conn):
+        rebuild_minutes_terms(conn, heartbeat_callback=heartbeat_callback)
+        terms_rebuilt = True
+    if terms_rebuilt or not minutes_fts_schema_matches(conn):
         rebuild_minutes_fts(conn, heartbeat_callback=heartbeat_callback)
     else:
         create_minutes_fts(conn)
+        configure_minutes_fts(conn)
 
 
 def _db_cache_size_pragma(kibibytes: int) -> str:
@@ -651,6 +832,7 @@ def flush_incremental_index(output_db: Path) -> int:
         ensure_output_db(output_db)
 
     with open_sqlite_connection(output_db) as conn:
+        configure_minutes_fts(conn)
         for record in pending:
             upsert_record(conn, record)
         conn.commit()
@@ -676,12 +858,31 @@ def ensure_output_db_permissions(path: Path) -> None:
         pass
 
 
+def recreate_output_db(
+    output_db: Path,
+    *,
+    heartbeat_callback: Callable[[], None] | None = None,
+) -> None:
+    output_db.unlink(missing_ok=True)
+    with open_sqlite_connection(output_db) as conn:
+        ensure_db_schema(conn, heartbeat_callback=heartbeat_callback)
+        conn.commit()
+
+
 def ensure_output_db(
     output_db: Path,
     *,
     heartbeat_callback: Callable[[], None] | None = None,
 ) -> None:
     output_db.parent.mkdir(parents=True, exist_ok=True)
+    recreate = False
+    if output_db.exists():
+        with open_sqlite_connection(output_db) as conn:
+            recreate = not minutes_table_schema_matches(conn)
+    if recreate:
+        recreate_output_db(output_db, heartbeat_callback=heartbeat_callback)
+        ensure_output_db_permissions(output_db)
+        return
     with open_sqlite_connection(output_db) as conn:
         ensure_db_schema(conn, heartbeat_callback=heartbeat_callback)
         conn.commit()
@@ -714,6 +915,7 @@ def upsert_record(conn: sqlite3.Connection, record: MinuteRecord) -> int:
         "SELECT id FROM minutes WHERE rel_path = ?",
         (record.rel_path,),
     ).fetchone()
+    existing_terms: tuple[str, str, str] | None = None
 
     params = (
         record.rel_path,
@@ -748,7 +950,23 @@ def upsert_record(conn: sqlite3.Connection, record: MinuteRecord) -> int:
         row_id = int(cur.lastrowid)
     else:
         row_id = int(existing_row[0])
-        conn.execute("DELETE FROM minutes_fts WHERE rowid = ?", (row_id,))
+        terms_row = conn.execute(
+            "SELECT title_terms, meeting_name_terms, content_terms FROM minutes_terms WHERE id = ?",
+            (row_id,),
+        ).fetchone()
+        if terms_row is not None:
+            existing_terms = (
+                str(terms_row[0] or ""),
+                str(terms_row[1] or ""),
+                str(terms_row[2] or ""),
+            )
+            delete_minutes_fts_row(
+                conn,
+                row_id,
+                title_terms=existing_terms[0],
+                meeting_name_terms=existing_terms[1],
+                content_terms=existing_terms[2],
+            )
         conn.execute(
             """
             UPDATE minutes
@@ -763,11 +981,24 @@ def upsert_record(conn: sqlite3.Connection, record: MinuteRecord) -> int:
     if record.doc_type == "minutes":
         conn.execute(
             """
-            INSERT INTO minutes_fts (rowid, title_terms, meeting_name_terms, content_terms)
+            INSERT INTO minutes_terms (id, title_terms, meeting_name_terms, content_terms)
             VALUES (?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                title_terms = excluded.title_terms,
+                meeting_name_terms = excluded.meeting_name_terms,
+                content_terms = excluded.content_terms
             """,
             (row_id, record.title_terms, record.meeting_name_terms, record.content_terms),
         )
+        insert_minutes_fts_row(
+            conn,
+            row_id,
+            title_terms=record.title_terms,
+            meeting_name_terms=record.meeting_name_terms,
+            content_terms=record.content_terms,
+        )
+    elif existing_terms is not None:
+        conn.execute("DELETE FROM minutes_terms WHERE id = ?", (row_id,))
     return row_id
 
 
@@ -841,7 +1072,11 @@ def finalize_incremental_index(
     context: str = "",
 ) -> bool:
     try:
-        flush_incremental_index(output_db)
+        if flush_incremental_index(output_db):
+            with open_sqlite_connection(output_db) as conn:
+                configure_minutes_fts(conn)
+                merge_minutes_fts(conn)
+                conn.commit()
         return True
     except Exception as exc:
         drop_pending_incremental_records(output_db)
@@ -1094,6 +1329,15 @@ def build_index(
                     record.indexed_at,
                 ),
             )
+            row_id = int(cur.lastrowid)
+            if record.doc_type == "minutes":
+                cur.execute(
+                    """
+                    INSERT INTO minutes_terms (id, title_terms, meeting_name_terms, content_terms)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (row_id, record.title_terms, record.meeting_name_terms, record.content_terms),
+                )
             indexed += 1
             processed += 1
             if progress_callback is not None:
@@ -1124,6 +1368,7 @@ def build_index(
                 }
             )
         rebuild_minutes_fts(conn, heartbeat_callback=heartbeat_callback)
+        optimize_minutes_fts(conn)
         conn.commit()
         checkpoint_wal(conn)
         conn.close()
