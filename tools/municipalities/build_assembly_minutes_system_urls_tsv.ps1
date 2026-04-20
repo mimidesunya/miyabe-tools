@@ -3,7 +3,9 @@ param(
     [string]$OutFile = (Join-Path $PSScriptRoot '..\..\data\municipalities\assembly_minutes_system_urls.tsv'),
     [string]$HomepageCsv = (Join-Path $PSScriptRoot '..\..\data\municipalities\municipality_homepages.csv'),
     [string]$IndexUrl = 'https://app-mints.com/kaigiroku/',
-    [int]$DelayMilliseconds = 150
+    [int]$DelayMilliseconds = 150,
+    [string]$SeedTsv = '',
+    [switch]$RefineCustomOnly
 )
 
 Set-StrictMode -Version Latest
@@ -694,51 +696,94 @@ function Find-MinutesUrlFromHomepage {
     return $null
 }
 
+function Resolve-CandidateMinutesUrl {
+    param(
+        [Parameter(Mandatory = $true)][string]$Url,
+        [Parameter(Mandatory = $true)][int]$RequestDelayMilliseconds
+    )
+
+    $inspection = Inspect-MinutesUrl -Url $Url
+    if (-not $inspection.reachable) {
+        return $null
+    }
+
+    if ([string]$inspection.system_type -ne '独自') {
+        return [PSCustomObject]@{
+            url = [string]$inspection.final_url
+            system_type = [string]$inspection.system_type
+        }
+    }
+
+    # Some catalog sources stop at a municipal landing page even when it links
+    # onward to a shared meeting-minutes service. Follow those links once more.
+    $refined = Find-MinutesUrlFromHomepage -HomepageUrl ([string]$inspection.final_url) -RequestDelayMilliseconds $RequestDelayMilliseconds
+    if ($null -ne $refined) {
+        return $refined
+    }
+
+    return [PSCustomObject]@{
+        url = [string]$inspection.final_url
+        system_type = [string]$inspection.system_type
+    }
+}
+
 $MasterTsv = Resolve-FullPath -Path $MasterTsv
 $OutFile = Resolve-FullPath -Path $OutFile
 $HomepageCsv = Resolve-FullPath -Path $HomepageCsv
+if ($SeedTsv -ne '') {
+    $SeedTsv = Resolve-FullPath -Path $SeedTsv
+}
 $script:WebPageCache = @{}
 $script:MinutesInspectionCache = @{}
 
-$masterRows = Import-Csv -Delimiter "`t" -Path $MasterTsv
+$inputRows = @()
 $homepageUrlByCode = @{}
-if (Test-Path -LiteralPath $HomepageCsv) {
-    foreach ($homepageRow in (Import-Csv -LiteralPath $HomepageCsv)) {
-        $homepageUrlByCode[[string]$homepageRow.jis_code] = [string]$homepageRow.url
-    }
-}
-$indexHtml = Get-Html -Url $IndexUrl
-$pages = Parse-IndexPages -Html $indexHtml
 $assemblyUrlByKey = @{}
 $prefSlugByName = @{}
-$manualUrlOverrides = @{
-    '01000' = 'https://pref-hokkaido.gijiroku.com/voices/g07v_search.asp'
-    '12000' = 'https://pref-chiba.gijiroku.com/'
-    '24000' = 'https://www.kensakusystem.jp/mie/index.html'
-    '25000' = 'https://www.shigaken-gikai.jp/voices/index.html'
-    '31000' = 'https://www.pref.tottori.dbsr.jp/'
-    '37000' = 'https://www.pref.kagawa.dbsr.jp/'
-    '41000' = 'https://www.pref.saga.dbsr.jp/'
-    '30000' = 'https://www.pref.wakayama.lg.jp/gijiroku/d00203238.html'
-}
+$manualUrlOverrides = @{}
 $reachableUrlByValue = @{}
 
-foreach ($page in $pages) {
-    if (-not $prefSlugByName.ContainsKey($page.pref_name) -and $page.slug -notlike 'hokkaido*') {
-        $prefSlugByName[$page.pref_name] = $page.slug
+if ($SeedTsv -ne '') {
+    $inputRows = @(Import-Csv -Delimiter "`t" -Path $SeedTsv)
+} else {
+    $masterRows = @(Import-Csv -Delimiter "`t" -Path $MasterTsv)
+    if (Test-Path -LiteralPath $HomepageCsv) {
+        foreach ($homepageRow in (Import-Csv -LiteralPath $HomepageCsv)) {
+            $homepageUrlByCode[[string]$homepageRow.jis_code] = [string]$homepageRow.url
+        }
+    }
+    $indexHtml = Get-Html -Url $IndexUrl
+    $pages = Parse-IndexPages -Html $indexHtml
+    $manualUrlOverrides = @{
+        '01000' = 'https://pref-hokkaido.gijiroku.com/voices/g07v_search.asp'
+        '12000' = 'https://pref-chiba.gijiroku.com/'
+        '24000' = 'https://www.kensakusystem.jp/mie/index.html'
+        '25000' = 'https://www.shigaken-gikai.jp/voices/index.html'
+        '31000' = 'https://www.pref.tottori.dbsr.jp/'
+        '37000' = 'https://www.pref.kagawa.dbsr.jp/'
+        '41000' = 'https://www.pref.saga.dbsr.jp/'
+        '30000' = 'https://www.pref.wakayama.lg.jp/gijiroku/d00203238.html'
     }
 
-    $pageUrl = [System.Uri]::new([System.Uri]$IndexUrl, "lg/$($page.slug)").AbsoluteUri
-    $pageHtml = Get-Html -Url $pageUrl
-    $items = Parse-AssemblyItems -Html $pageHtml -PrefName $page.pref_name
+    foreach ($page in $pages) {
+        if (-not $prefSlugByName.ContainsKey($page.pref_name) -and $page.slug -notlike 'hokkaido*') {
+            $prefSlugByName[$page.pref_name] = $page.slug
+        }
 
-    foreach ($item in $items) {
-        $key = "$($item.pref_name)|$($item.assembly)"
-        $url = if ($item.provided_none) { '' } else { Select-PreferredUrl -Links @($item.links) }
-        $assemblyUrlByKey[$key] = $url
+        $pageUrl = [System.Uri]::new([System.Uri]$IndexUrl, "lg/$($page.slug)").AbsoluteUri
+        $pageHtml = Get-Html -Url $pageUrl
+        $items = Parse-AssemblyItems -Html $pageHtml -PrefName $page.pref_name
+
+        foreach ($item in $items) {
+            $key = "$($item.pref_name)|$($item.assembly)"
+            $url = if ($item.provided_none) { '' } else { Select-PreferredUrl -Links @($item.links) }
+            $assemblyUrlByKey[$key] = $url
+        }
+
+        Start-Sleep -Milliseconds $DelayMilliseconds
     }
 
-    Start-Sleep -Milliseconds $DelayMilliseconds
+    $inputRows = @($masterRows | Sort-Object jis_code)
 }
 
 $lines = New-Object System.Collections.Generic.List[string]
@@ -746,50 +791,65 @@ $lines.Add("jis_code`turl`tsystem_type")
 $matchedCount = 0
 $blankCount = 0
 
-foreach ($row in ($masterRows | Sort-Object jis_code)) {
-    $assemblyName = if ($row.entity_type -eq 'prefecture') {
-        "$($row.pref_name)議会"
-    } else {
-        "$($row.name)議会"
-    }
-
-    $key = "$($row.pref_name)|$assemblyName"
+foreach ($row in ($inputRows | Sort-Object jis_code)) {
     $url = ''
-    if ($assemblyUrlByKey.ContainsKey($key)) {
-        $url = [string]$assemblyUrlByKey[$key]
-    }
-
-    if ($manualUrlOverrides.ContainsKey($row.jis_code)) {
-        $url = [string]$manualUrlOverrides[$row.jis_code]
-    } elseif ($url -like '*db-search.com*') {
-        if (-not $reachableUrlByValue.ContainsKey($url)) {
-            $reachableUrlByValue[$url] = Test-UrlReachable -Url $url
-        }
-        if (-not $reachableUrlByValue[$url]) {
-            $repairedUrl = Repair-DbSearchUrl -Url $url -Row $row -PrefSlugByName $prefSlugByName
-            $url = $repairedUrl
-        }
-    }
-
     $systemType = ''
-    if ($url -ne '') {
-        $inspection = Inspect-MinutesUrl -Url $url
-        if ($inspection.reachable) {
-            $url = [string]$inspection.final_url
-            $systemType = [string]$inspection.system_type
-        } else {
-            $url = ''
-            $systemType = ''
-        }
-    }
 
-    if ($url -eq '') {
-        $homepageUrl = [string]($homepageUrlByCode[[string]$row.jis_code] ?? '')
-        if ($homepageUrl -ne '') {
-            $homepageMatch = Find-MinutesUrlFromHomepage -HomepageUrl $homepageUrl -RequestDelayMilliseconds $DelayMilliseconds
-            if ($null -ne $homepageMatch) {
-                $url = [string]$homepageMatch.url
-                $systemType = [string]$homepageMatch.system_type
+    if ($SeedTsv -ne '') {
+        $url = [string]$row.url
+        $systemType = [string]$row.system_type
+        if (-not ($RefineCustomOnly -and $systemType -ne '独自')) {
+            if ($url -ne '') {
+                $resolvedUrl = Resolve-CandidateMinutesUrl -Url $url -RequestDelayMilliseconds $DelayMilliseconds
+                if ($null -ne $resolvedUrl) {
+                    $url = [string]$resolvedUrl.url
+                    $systemType = [string]$resolvedUrl.system_type
+                }
+            }
+        }
+    } else {
+        $assemblyName = if ($row.entity_type -eq 'prefecture') {
+            "$($row.pref_name)議会"
+        } else {
+            "$($row.name)議会"
+        }
+
+        $key = "$($row.pref_name)|$assemblyName"
+        if ($assemblyUrlByKey.ContainsKey($key)) {
+            $url = [string]$assemblyUrlByKey[$key]
+        }
+
+        if ($manualUrlOverrides.ContainsKey($row.jis_code)) {
+            $url = [string]$manualUrlOverrides[$row.jis_code]
+        } elseif ($url -like '*db-search.com*') {
+            if (-not $reachableUrlByValue.ContainsKey($url)) {
+                $reachableUrlByValue[$url] = Test-UrlReachable -Url $url
+            }
+            if (-not $reachableUrlByValue[$url]) {
+                $repairedUrl = Repair-DbSearchUrl -Url $url -Row $row -PrefSlugByName $prefSlugByName
+                $url = $repairedUrl
+            }
+        }
+
+        if ($url -ne '') {
+            $resolvedUrl = Resolve-CandidateMinutesUrl -Url $url -RequestDelayMilliseconds $DelayMilliseconds
+            if ($null -ne $resolvedUrl) {
+                $url = [string]$resolvedUrl.url
+                $systemType = [string]$resolvedUrl.system_type
+            } else {
+                $url = ''
+                $systemType = ''
+            }
+        }
+
+        if ($url -eq '') {
+            $homepageUrl = [string]($homepageUrlByCode[[string]$row.jis_code] ?? '')
+            if ($homepageUrl -ne '') {
+                $homepageMatch = Find-MinutesUrlFromHomepage -HomepageUrl $homepageUrl -RequestDelayMilliseconds $DelayMilliseconds
+                if ($null -ne $homepageMatch) {
+                    $url = [string]$homepageMatch.url
+                    $systemType = [string]$homepageMatch.system_type
+                }
             }
         }
     }

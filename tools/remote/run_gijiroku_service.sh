@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
 
+# Web 側の www-data でも SQLite を開けるよう、shared data は group writable で作る。
+umask 0002
+
 cd "$(dirname "$0")/../.."
 
 loop_seconds="${SCRAPER_LOOP_SECONDS:-21600}"

@@ -5,15 +5,15 @@ import sys
 import argparse
 import time
 import tempfile
-import shutil
 import atexit
 import shlex
 
 # Web アプリ本体の deploy 手順をまとめたスクリプト。
 # 共有データは remote 側に残しつつ、コードと設定だけを安全に更新する。
 
-# Store temp key path for cleanup
-_temp_key_path = None
+# Store temp key paths for cleanup
+_temp_key_paths = []
+_cleanup_registered = False
 _RUNTIME_MUNICIPALITY_FILES = (
     'municipality_master.tsv',
     'assembly_minutes_system_urls.tsv',
@@ -26,34 +26,124 @@ DEFAULT_GIJIROKU_LOOP_SECONDS = 21600
 DEFAULT_REIKI_LOOP_SECONDS = 21600
 DEFAULT_SCRAPER_FAIL_SLEEP_SECONDS = 900
 
-def prepare_ssh_key(key_path):
-    """Copy SSH key to a temp file with correct permissions for WSL."""
-    global _temp_key_path
-    
-    # Create a temp file
+def _current_windows_user_sid():
+    result = subprocess.run(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-Command",
+            "[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value",
+        ],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    sid = result.stdout.strip()
+    if not sid:
+        raise RuntimeError("Could not determine current Windows user SID.")
+    return sid
+
+
+def _restrict_private_key_permissions(path):
+    if os.name != 'nt':
+        os.chmod(path, 0o600)
+        return
+
+    sid = _current_windows_user_sid()
+    subprocess.run(
+        [
+            "icacls",
+            path,
+            "/inheritance:r",
+            "/grant:r",
+            f"*{sid}:F",
+        ],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+def _register_temp_key_for_cleanup(temp_path):
+    global _cleanup_registered
+    _temp_key_paths.append(temp_path)
+    if not _cleanup_registered:
+        atexit.register(cleanup_temp_keys)
+        _cleanup_registered = True
+
+
+def _write_temp_ssh_key(key_bytes, *, source_label):
     fd, temp_path = tempfile.mkstemp(prefix='ssh_key_')
     os.close(fd)
-    
-    # Copy the key content
-    shutil.copy2(key_path, temp_path)
-    
-    # Set correct permissions (600)
-    os.chmod(temp_path, 0o600)
-    
-    _temp_key_path = temp_path
-    
-    # Register cleanup
-    atexit.register(cleanup_temp_key)
-    
-    print(f"SSH key prepared at: {temp_path}")
+    with open(temp_path, 'wb') as handle:
+        handle.write(key_bytes)
+    _restrict_private_key_permissions(temp_path)
+    _register_temp_key_for_cleanup(temp_path)
+    print(f"SSH key prepared from {source_label}: {temp_path}")
     return temp_path
 
-def cleanup_temp_key():
-    """Remove the temporary SSH key file."""
-    global _temp_key_path
-    if _temp_key_path and os.path.exists(_temp_key_path):
-        os.remove(_temp_key_path)
-        print(f"Cleaned up temp SSH key: {_temp_key_path}")
+
+def prepare_ssh_key(key_path):
+    """Copy a local SSH key to a temp file with stable permissions."""
+    with open(key_path, 'rb') as handle:
+        key_bytes = handle.read()
+    return _write_temp_ssh_key(key_bytes, source_label=key_path)
+
+
+def prepare_ssh_key_from_wsl_path(wsl_key_path):
+    """Read an SSH key via WSL and copy it to a local temp file."""
+    if os.name != 'nt':
+        return prepare_ssh_key(wsl_key_path)
+
+    try:
+        result = subprocess.run(
+            ["wsl.exe", "sh", "-lc", f"cat {shlex.quote(wsl_key_path)}"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except FileNotFoundError:
+        print("Error: wsl.exe was not found, but deploy.json specifies wsl_key_path.")
+        sys.exit(1)
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode('utf-8', errors='replace')
+        print(f"Error reading SSH key from WSL path: {wsl_key_path}")
+        print(f"Stderr: {stderr}")
+        sys.exit(1)
+
+    if not result.stdout:
+        print(f"Error: SSH key at WSL path is empty: {wsl_key_path}")
+        sys.exit(1)
+
+    return _write_temp_ssh_key(result.stdout, source_label=wsl_key_path)
+
+
+def prepare_ssh_key_from_config(config):
+    """Resolve and stage the SSH key defined in deploy config."""
+    wsl_key_path = str(config.get('wsl_key_path', '')).strip()
+    key_path = str(config.get('key_path', '')).strip()
+
+    if wsl_key_path:
+        config['key_path'] = prepare_ssh_key_from_wsl_path(wsl_key_path)
+        return config['key_path']
+
+    if key_path:
+        config['key_path'] = prepare_ssh_key(key_path)
+        return config['key_path']
+
+    print("Error: deploy config must contain either key_path or wsl_key_path")
+    sys.exit(1)
+
+
+def cleanup_temp_keys():
+    """Remove temporary SSH key files."""
+    while _temp_key_paths:
+        temp_path = _temp_key_paths.pop()
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+            print(f"Cleaned up temp SSH key: {temp_path}")
 
 def prepare_runtime_municipality_data():
     """Publishes municipality metadata for the web runtime under data/municipalities."""
@@ -585,9 +675,8 @@ def main():
 
     config = load_config(args.config_file)
     
-    # Prepare SSH key (copy to temp with correct permissions for WSL)
-    original_key_path = config['key_path']
-    config['key_path'] = prepare_ssh_key(original_key_path)
+    # Prepare SSH key (copy to temp with restrictive permissions).
+    prepare_ssh_key_from_config(config)
     
     registry = config['registry_domain']
     # Image names

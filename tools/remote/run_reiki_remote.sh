@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
 
+# 旧単発実行でも shared data の新規作成物が group writable になるよう揃える。
+umask 0002
+
 cd "$(dirname "$0")/../.."
 
 image_name="${SCRAPER_IMAGE_NAME:-miyabe-tools-scraper}"

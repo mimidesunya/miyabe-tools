@@ -67,13 +67,31 @@ $stats = ['documents' => 0, 'years' => 0, 'first_date' => null, 'last_date' => n
 $yearOptions = [];
 $total = 0;
 
-if ($pdo) {
-    // stats / 年度候補 / 一覧 / 詳細の順に必要なデータをまとめて取得する。
-    $statsStmt = $pdo->query("SELECT COUNT(*) AS documents, COUNT(DISTINCT year_label) AS years, MIN(held_on) AS first_date, MAX(held_on) AS last_date FROM minutes WHERE doc_type = 'minutes'");
-    $stats = $statsStmt->fetch() ?: $stats;
+$indexSummary = $indexJsonPath !== '' ? gijiroku_index_summary_from_json($indexJsonPath) : null;
+if (is_array($indexSummary)) {
+    $summaryStats = $indexSummary['stats'] ?? null;
+    if (is_array($summaryStats)) {
+        $stats = array_merge($stats, $summaryStats);
+    }
+    $summaryYearOptions = $indexSummary['year_options'] ?? null;
+    if (is_array($summaryYearOptions)) {
+        $yearOptions = array_values(array_filter($summaryYearOptions, 'is_array'));
+    }
+}
 
-    $yearOptionsStmt = $pdo->query("SELECT year_label, COUNT(*) AS count, MAX(held_on) AS last_date FROM minutes WHERE doc_type = 'minutes' GROUP BY year_label ORDER BY last_date DESC, year_label DESC");
-    $yearOptions = $yearOptionsStmt->fetchAll();
+if ($pdo) {
+    if ((int)($stats['documents'] ?? 0) <= 0) {
+        $stats['documents'] = (int)$pdo->query("SELECT COUNT(*) FROM minutes WHERE doc_type = 'minutes'")->fetchColumn();
+    }
+    if ((int)($stats['years'] ?? 0) <= 0 && $yearOptions !== []) {
+        $stats['years'] = count($yearOptions);
+    }
+    if (empty($stats['first_date'])) {
+        $stats['first_date'] = gijiroku_index_boundary_date($pdo, 'ASC');
+    }
+    if (empty($stats['last_date'])) {
+        $stats['last_date'] = gijiroku_index_boundary_date($pdo, 'DESC');
+    }
 
     if ($q !== '') {
         // キーワード検索時だけ FTS を使い、未入力時は通常一覧として軽く返す。
@@ -94,7 +112,8 @@ if ($pdo) {
             if ($year !== '') {
                 $sql .= ' AND m.year_label = :year';
             }
-            $sql .= ' ORDER BY score LIMIT :limit OFFSET :offset';
+            // 自治体ページの検索結果は、関連度よりまず新しさで追える並びを優先する。
+            $sql .= ' ORDER BY COALESCE(m.held_on, \'\') DESC, score, m.id DESC LIMIT :limit OFFSET :offset';
 
             $stmt = $pdo->prepare($sql);
             $stmt->bindValue(':q', (string)($preparedQuery['fts_query'] ?? $q), PDO::PARAM_STR);
@@ -143,11 +162,6 @@ if ($pdo) {
         $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
         $rows = $stmt->fetchAll();
-    }
-
-    // 詳細指定が無いときは一覧の先頭を既定選択にして、右ペインを空にしない。
-    if ($selectedId === 0 && !empty($rows)) {
-        $selectedId = (int)$rows[0]['id'];
     }
 
     if ($selectedId > 0) {

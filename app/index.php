@@ -22,7 +22,7 @@ function homepage_asset_url(string $relativePath): string
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>miyabe-tools</title>
+    <title>宮部たつひこの自治体調査</title>
     <?php echo site_render_favicon_links(); ?>
     <link rel="stylesheet" href="<?php echo homepage_h(homepage_asset_url('css/home.css')); ?>">
 </head>
@@ -30,7 +30,7 @@ function homepage_asset_url(string $relativePath): string
     <div class="shell">
         <section class="hero">
             <div class="eyebrow">Municipal Data Hub</div>
-            <h1>自治体ごとの公開情報を、<br>ひとつの入口で</h1>
+            <h1>宮部たつひこの<br>自治体調査</h1>
             <div class="hero-copy">
                 ポスター掲示場、会議録、例規集を自治体単位で整理しています。使える機能はすぐ開けて、準備中のものは進捗つきで追えます。
             </div>

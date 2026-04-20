@@ -9,23 +9,23 @@ jis_code	url	system_type
 01207	https://ssp.kaigiroku.net/tenant/obihiro/SpMinuteSearch.html	kaigiroku.net
 01208	https://ssp.kaigiroku.net/tenant/kitami/MinuteSearch.html	kaigiroku.net
 01209	https://www.city.yubari.lg.jp/site/gikai/list13.html	独自
-01210	https://www.city.iwamizawa.hokkaido.jp/soshiki/gikai_jimukyoku/iwamizawashigikai/2/3531.html	独自
-01211	https://www.city.abashiri.hokkaido.jp/soshiki/32/1569.html	独自
+01210	https://iwamizawa-gikai.gijiroku.com/voices/	gijiroku.com
+01211	https://www.city.abashiri.hokkaido.jp/site/gikai/1581.html	独自
 01212	https://rumoi.gijiroku.com/voices/g07v_search.asp	gijiroku.com
 01213	https://ssp.kaigiroku.net/tenant/tomakomai/SpMinuteSearch.html	kaigiroku.net
 01214	https://ssp.kaigiroku.net/tenant/wakkanai/MinuteSearch.html	kaigiroku.net
 01215	https://www.city.bibai.hokkaido.jp/site/gikai/list16.html	独自
 01216	https://ssp.kaigiroku.net/tenant/ashibetsu/SpMinuteSearch.html	kaigiroku.net
-01217	https://www.city.ebetsu.hokkaido.jp/soshiki/hoskanri/148150.html	独自
-01218	https://www.city.akabira.hokkaido.jp/docs/2013011000349.html	独自
+01217	https://www.city.ebetsu.hokkaido.jp/soshiki/kodomokateika/38470.html	独自
+01218	https://www.city.akabira.hokkaido.jp/docs/7512.html	独自
 01219	https://mombetsu.jp/gikai/minutes/	独自
 01220		
 01221	https://ssp.kaigiroku.net/tenant/nayoro/MinuteSearch.html	kaigiroku.net
-01222	https://www.city.mikasa.hokkaido.jp/assembly/category/307.html	独自
+01222	https://www.city.mikasa.hokkaido.jp/assembly/detail/00016816.html	独自
 01223	https://ssp.kaigiroku.net/tenant/nemuro/MinuteSearch.html	kaigiroku.net
 01224	https://ssp.kaigiroku.net/tenant/chitose/MinuteSearch.html	kaigiroku.net
 01225	https://www.city.takikawa.lg.jp/page/2872.html	独自
-01226	https://www.city.sunagawa.hokkaido.jp/shisei/shigikai/kaigiroku/index.html	独自
+01226	https://www.city.sunagawa.hokkaido.jp/shisei/shigikai/kaigiroku/	独自
 01227	https://www.city.utashinai.hokkaido.jp/hotnews/detail/00003817.html	独自
 01228	https://fukagawa.gijiroku.com/voices/g08v_search.asp	gijiroku.com
 01229	https://www.city.furano.hokkaido.jp/shigikai/kaigi/teireikai/#teirei_kaigiroku	独自
@@ -39,9 +39,9 @@ jis_code	url	system_type
 01304		
 01331	https://www.town.matsumae.hokkaido.jp/hotnews/detail/00000317.html	独自
 01332		
-01333	https://www.town.shiriuchi.hokkaido.jp/chosei/gikai/kaigiroku/	独自
-01334	https://www.town.kikonai.hokkaido.jp/gikai/kaigiroku/	独自
-01337	https://www.town.nanae.hokkaido.jp/hotnews/category/444.html	独自
+01333	https://www.town.shiriuchi.hokkaido.jp/chosei/gikai/kaigiroku/r01/	独自
+01334	https://www.town.kikonai.hokkaido.jp/gikai/kaigiroku/R7/	独自
+01337	https://www.town.nanae.hokkaido.jp/hotnews/category/471.html	独自
 01343		
 01345	https://www.town.hokkaido-mori.lg.jp/gyoseijoho/gikai/1037.html	独自
 01346		
@@ -59,7 +59,7 @@ jis_code	url	system_type
 01394	https://www.town.rankoshi.hokkaido.jp/administration/town/detail.html?content=301	独自
 01395	https://www.town.niseko.lg.jp/chosei/gikai/kaigi/	独自
 01396	https://www.vill.makkari.lg.jp/songikai/kaigiroku/	独自
-01397	https://www.vill.rusutsu.lg.jp/hotnews/category/180.html	独自
+01397	https://www.vill.rusutsu.lg.jp/hotnews/detail/00004391.html	独自
 01398		
 01399		
 01400	https://ssp.kaigiroku.net/tenant/kutchan/SpTop.html	kaigiroku.net
@@ -77,15 +77,15 @@ jis_code	url	system_type
 01425	https://town.kamisunagawa.hokkaido.jp/gikai_jimukyoku/kekka/index.html	独自
 01427		
 01428	https://www.maoi-net.jp/kanko_nogyo/nogyoiinkai/nittei.html	独自
-01429	https://www.town.kuriyama.hokkaido.jp/site/gikai/list50-146.html	独自
+01429	https://www.town.kuriyama.hokkaido.jp/site/gikai/7389.html	独自
 01430		
 01431		
 01432	https://www.town.shintotsukawa.lg.jp/hotnews/detail/00001787.html	独自
-01433	https://www.town.moseushi.hokkaido.jp/gikai/gijiroku/index.html	独自
-01434	https://www.town.chippubetsu.hokkaido.jp/news/detail.html?news=299	独自
+01433	https://www.town.moseushi.hokkaido.jp/gikai/gijiroku/	独自
+01434	https://www.town.chippubetsu.hokkaido.jp/category/detail.html?category=town&content=636	独自
 01436		
-01437	http://www.town.hokuryu.hokkaido.jp/tyousei/gikai/gikaikaigiroku/	独自
-01438	https://www.town.numata.hokkaido.jp/section/gikai/h0opp2000000jzv9.html	独自
+01437	http://www.town.hokuryu.hokkaido.jp/gikaikaigiroku_r6/	独自
+01438	https://www.town.numata.hokkaido.jp/section/gikai/index.html#i21	独自
 01452		
 01453		
 01454		
@@ -93,11 +93,11 @@ jis_code	url	system_type
 01456		
 01457		
 01458		
-01459	https://town.biei.hokkaido.jp/administration/parliament/proceedings/	独自
-01460	https://www.town.kamifurano.hokkaido.jp/index.php?id=113	独自
+01459	https://town.biei.hokkaido.jp/administration/parliament/proceedings/proceedings8.html	独自
+01460	https://www.town.kamifurano.hokkaido.jp/index.php?id=146	独自
 01461		
 01462	https://www.town.minamifurano.hokkaido.jp/nougyou/%E8%BE%B2%E6%A5%AD%E5%A7%94%E5%93%A1%E4%BC%9A%E7%B7%8F%E4%BC%9A%E8%AD%B0%E4%BA%8B%E9%8C%B2/	独自
-01463	https://www.vill.shimukappu.lg.jp/shimukappu/section/gikai/nmudtq000000cgh1.html?cp=nmudtq0000001pzr&cs=c3	独自
+01463	https://www.vill.shimukappu.lg.jp/shimukappu/section/gikai/index.html#i5	独自
 01464	https://www.town.wassamu.hokkaido.jp/congress-secretariat/hearing-browse/	独自
 01465		
 01468	https://www.town.shimokawa.hokkaido.jp/section/2021/08/post-133-1.html	独自
@@ -108,11 +108,11 @@ jis_code	url	system_type
 01481		
 01482	https://www.town.obira.hokkaido.jp/hotnews/detail/00004061.html	独自
 01483		
-01484	https://www.town.haboro.lg.jp/gikai-iinkai/gikai/gijiroku/index.html	独自
+01484	https://www.town.haboro.lg.jp/gikai-iinkai/gikai/gijiroku/	独自
 01485	https://www.vill.shosanbetsu.lg.jp/topics/gikaijimu/20200401.html	独自
 01486	https://www.town.embetsu.hokkaido.jp/docs/4088.html	独自
 01487		
-01511	https://www.vill.sarufutsu.hokkaido.jp/hotnews/category/154.html	独自
+01511	https://www.vill.sarufutsu.hokkaido.jp/hotnews/detail/00004196.html	独自
 01512	http://www.town.hamatonbetsu.hokkaido.jp/town/detail.php?content=78	独自
 01513	https://www.town.nakatombetsu.hokkaido.jp/bunya/5988/	独自
 01514	https://www.esashi.jp/gikai/meeting/minutes.html	独自
@@ -124,7 +124,7 @@ jis_code	url	system_type
 01543	https://www.town.bihoro.hokkaido.jp/site/gikai/18672.html	独自
 01544	https://www.town.tsubetsu.hokkaido.jp/choseijoho/tsubetsugikai/2/index.html	独自
 01545		
-01546	https://www.town.kiyosato.hokkaido.jp/administration/?category=111	独自
+01546	https://www.town.kiyosato.hokkaido.jp/administration/?category=112	独自
 01547	https://www.town.koshimizu.hokkaido.jp/gikai/category/182.html	独自
 01549		
 01550	https://www.town.oketo.hokkaido.jp/gikai/kaigiroku/	独自
@@ -136,33 +136,33 @@ jis_code	url	system_type
 01562	https://www.vill.nishiokoppe.lg.jp/section/kyouiku/feeuub00000dgrzh.html	独自
 01563	http://www1.town.oumu.hokkaido.jp/dbp/phpdb.php?table=minutes&skin=folder	独自
 01564		
-01571	https://www.town.toyoura.hokkaido.jp/hotnews/category/308.html	独自
-01575	https://www.town.sobetsu.lg.jp/shinchaku/2026/02/post-745.html	独自
-01578	https://www.town.shiraoi.hokkaido.jp/docs/6603.html	独自
+01571	https://www.town.toyoura.hokkaido.jp/hotnews/detail/00006367.html	独自
+01575	https://www.town.sobetsu.lg.jp/shinchaku/2020/02/post-274.html	独自
+01578	https://www.town.shiraoi.hokkaido.jp/docs/7397.html	独自
 01581	https://ssp.kaigiroku.net/tenant/atsuma/SpMinuteSearch.html	kaigiroku.net
 01584	http://www.town.toyako.hokkaido.jp/town_administration/town_council/toc006/	独自
 01585	https://www.town.abira.lg.jp/gyosei/kaigiroku	独自
 01586	http://www.town.mukawa.lg.jp/2872.htm	独自
 01601	https://ssp.kaigiroku.net/tenant/hidakahokkaido/MinuteSearch.html	kaigiroku.net
-01602	https://www.town.biratori.hokkaido.jp/choseijoho/biratorichogikai/gikainokatsudo/1505.html	独自
+01602	https://www.town.biratori.hokkaido.jp/soshikikarasagasu/gikaijimukyoku/gijikakari_shomugakari/1/1/4/kaigiroku/2052.html	独自
 01604	https://www.niikappu.jp/gyose/gikai/gikai_kaigiroku.html	独自
 01607		
 01608		
 01609		
 01610	https://www.shinhidaka-hokkaido.jp/gikai/detail/00000185.html	独自
 01631	http://www.town.otofuke.hokkaido.dbsr.jp/index.php/	dbsr
-01632	https://www.shihoro.jp/assembly/minutes/	独自
-01633	https://www.kamishihoro.jp/entry/00006900	独自
+01632	https://www.shihoro.jp/assembly/news/detail.php?news=278	独自
+01633	https://www.kamishihoro.jp/page/00000112	独自
 01634	https://www.town.shikaoi.lg.jp/gikai/gijiroku/	独自
 01635	https://shintoku-town.jp/gyousei/gikai/kaigiroku/	独自
-01636	https://www.town.shimizu.hokkaido.jp/gikai/committee/	独自
+01636	https://www.town.shimizu.hokkaido.jp/gikai/past/kaigiroku2/index.html	独自
 01637	https://ssp.kaigiroku.net/tenant/memuro/SpMinuteSearch.html	kaigiroku.net
 01638	https://www.vill.nakasatsunai.hokkaido.jp/gikai/kaigiroku/	独自
-01639	https://www.sarabetsu.jp/shigoto/agri/nogyoiinnkai/gijiroku/nougyou_giji_2026y/	独自
+01639	https://www.sarabetsu.jp/shigoto/agri/nogyoiinnkai/gijiroku/	独自
 01641	https://www.town.taiki.hokkaido.jp/choseijoho/taikichogikai/1698.html	独自
-01642	https://www.town.hiroo.lg.jp/gikai/gikaikaigiroku/	独自
+01642	https://www.town.hiroo.lg.jp/gikai/gikaikaigiroku/gikaikaigiroku_r07/	独自
 01643	https://www.town.makubetsu.lg.jp/gikai/hongikai/gikaikaigiroku/	独自
-01644	https://www.town.hokkaido-ikeda.lg.jp/kodomo/kyoikuiinkai/r2-kaigiroku/	独自
+01644	https://www.town.hokkaido-ikeda.lg.jp/kodomo/kyoikuiinkai/r3-kaigiroku/	独自
 01645	https://www.toyokoro.jp/site/gikai/7050.html	独自
 01646	https://www.town.honbetsu.hokkaido.jp/web/parliament/parliament04.html	独自
 01647		
@@ -170,7 +170,7 @@ jis_code	url	system_type
 01649	https://www.urahoro.jp/council/?category=120	独自
 01661	http://www.town.kushiro.lg.jp/gikai/gijiroku/2026.html	独自
 01662	https://www.akkeshi-town.jp/chogikai/minutes/	独自
-01663	https://www.townhamanaka.jp/gyousei/kaigi/index.html	独自
+01663	https://www.townhamanaka.jp/gyousei/kaigi/	独自
 01664		
 01665		
 01667		
@@ -189,12 +189,12 @@ jis_code	url	system_type
 02201	http://www.city.aomori.aomori.dbsr.jp/index.php/	dbsr
 02202	http://www.kensakusystem.jp/hirosaki/index.html	kensakusystem
 02203	http://www2.city.hachinohe.aomori.jp/kaigiroku/voices/g07v_search.asp	voices
-02204	https://www.city.kuroishi.aomori.jp/shisei/gikai/gikai_kaigiroku.html	独自
+02204	https://www.city.kuroishi.aomori.jp/shisei/gikai/gikai_kaigiroku.html#R07	独自
 02205	https://www.city.goshogawara.lg.jp/gikai/7-1kaigiroku.html	独自
 02206	https://ssp.kaigiroku.net/tenant/towada/SpMinuteSearch.html	kaigiroku.net
 02207	https://www.city.misawa.lg.jp/index.cfm/10,56459,40,203,html	独自
 02208	https://ssp.kaigiroku.net/tenant/mutsu/MinuteSearch.html	kaigiroku.net
-02209	https://www.city.tsugaru.aomori.jp/joho/mokuteki/administration/shigikai/kaigiroku/index.html	独自
+02209	https://www.city.tsugaru.aomori.jp/joho/mokuteki/administration/shigikai/kaigiroku/5573.html	独自
 02210	https://www.city.hirakawa.lg.jp/jouhou/gikai/nittei/kaigiroku.html	独自
 02301	https://www.town.hiranai.aomori.jp/chosei/gikai/1422.html	独自
 02303	https://www.town.imabetsu.lg.jp/gyousei/gikai/2025-0317-1111-1.html	独自
@@ -205,27 +205,27 @@ jis_code	url	system_type
 02343		
 02361		
 02362	http://www.town.owani.lg.jp/gyousei/nougyouiinkai/gijiroku.html	独自
-02367	http://www.vill.inakadate.lg.jp/docs/2023062200070/	独自
+02367	http://www.vill.inakadate.lg.jp/docs/2025072300030/	独自
 02381	https://www.town.itayanagi.aomori.jp/administration/salary/sougoukyouikukaigi_siryoutou.html	独自
 02384		
 02387		
-02401	https://www.town.noheji.aomori.jp/life/chosei/gikai/2787	独自
-02402	https://www.town.shichinohe.lg.jp/gyosei/gikai/gikai/index.html	独自
-02405	https://www.town.rokunohe.aomori.jp/docs/2023101100002/	独自
+02401	https://www.town.noheji.aomori.jp/life/chosei/gikai/2787/3	独自
+02402	https://www.town.shichinohe.lg.jp/gyosei/gikai/post-455.html	独自
+02405	https://www.town.rokunohe.aomori.jp/docs/2023051900005/	独自
 02406	https://www.town.yokohama.lg.jp/index.cfm/10,0,47,html	独自
 02408	https://www.town.tohoku.lg.jp/chousei/gikai/gikai_kaigiroku.html	独自
 02411	https://www.vill.rokkasho.aomori.dbsr.jp/	dbsr
-02412	https://www.town.oirase.aomori.jp/site/gikai/kaigiroku2025.html	独自
+02412	https://www.town.oirase.aomori.jp/site/gikai/list19-60.html	独自
 02423		
 02424		
 02425		
 02426		
-02441	https://www.town.sannohe.aomori.jp/choseijoho/gikai/gikaijouhou/3/index.html	独自
-02442	https://www.town.gonohe.aomori.jp/chosei/gikai/gikai_kaigiroku.html	独自
+02441	https://www.town.sannohe.aomori.jp/choseijoho/gikai/gikaijouhou/3/3881.html	独自
+02442	https://www.town.gonohe.aomori.jp/chosei/gikai/gikai_kaigiroku_H28.html	独自
 02443	https://www.town.takko.lg.jp/index.cfm/13,0,45,190,html	独自
 02445		
 02446	https://www.town.hashikami.lg.jp/index.cfm/9,0,46,438,html	独自
-02450	https://www.vill.shingo.aomori.jp/page-25971/	独自
+02450	https://www.vill.shingo.aomori.jp/page-30802/	独自
 03000	https://www3.pref.iwate.jp/gikai/user/www/Kensaku/	独自
 03201	https://ssp.kaigiroku.net/tenant/morioka/MinuteSearch.html	kaigiroku.net
 03202	https://ssp.kaigiroku.net/tenant/miyako/SpMinuteSearch.html	kaigiroku.net
@@ -249,21 +249,21 @@ jis_code	url	system_type
 03366		
 03381	https://ssp.kaigiroku.net/tenant/kanegasaki/SpMinuteSearch.html	kaigiroku.net
 03402		
-03441	https://www.town.sumita.iwate.jp/docs/2023021500012/	独自
+03441	https://www.town.sumita.iwate.jp/tag/%E4%BC%9A%E8%AD%B0%E9%8C%B2	独自
 03461	https://www.town.otsuchi.iwate.jp/gyosei/gikai/kaigiroku/	独自
 03482	https://www.town.yamada.iwate.jp/chousei/gikai/kaigiroku/	独自
 03483	https://www.town.iwaizumi.lg.jp/docs/2018091200016/	独自
 03484	https://www.vill.tanohata.iwate.jp/docs/2018022800049/	独自
 03485	https://www.vill.fudai.iwate.jp/docs/300.html	独自
-03501	http://www.town.karumai.iwate.jp/article/gyosei/gikai/kaigirokudata/	独自
+03501	https://www.town.karumai.iwate.jp/article/gyosei/gikai/kaigirokudata/	独自
 03503	https://www.vill.noda.iwate.jp/soshiki/gikaijimukyoku/nodasongikai/1845.html	独自
-03506	https://www.vill.kunohe.iwate.jp/gyousei/50_gikaijimukyoku/kaigiroku/	独自
-03507	https://www.town.hirono.iwate.jp/category/mokuteki/koho/	独自
+03506	https://www.vill.kunohe.iwate.jp/docs/2709.html	独自
+03507	https://www.town.hirono.iwate.jp/doc/2026031300016/	独自
 03524	https://ssp.kaigiroku.net/tenant/ichinohe/SpTop.html	kaigiroku.net
 04000	https://ssp.kaigiroku.net/tenant/prefmiyagi/SpMinuteSearch.html	kaigiroku.net
 04100	https://www.city.sendai.miyagi.dbsr.jp/index.php/	dbsr
 04202	https://ssp.kaigiroku.net/tenant/ishinomaki/SpMinuteSearch.html	kaigiroku.net
-04203	https://www.city.shiogama.miyagi.jp/life/5/36/182/	独自
+04203	https://www.city.shiogama.miyagi.jp/soshiki/2/47219.html	独自
 04205	https://www.city.kesennuma.miyagi.dbsr.jp/index.php/	dbsr
 04206	http://www.city.shiroishi.miyagi.dbsr.jp/index.php/	dbsr
 04207	https://www.city.natori.miyagi.dbsr.jp/index.php/	dbsr
@@ -274,53 +274,53 @@ jis_code	url	system_type
 04213	https://www.city.kurihara.miyagi.dbsr.jp/index.php/	dbsr
 04214	https://ssp.kaigiroku.net/tenant/higashimatsushima/SpMinuteSearch.html	kaigiroku.net
 04215	https://ssp.kaigiroku.net/tenant/oosaki/SpMinuteSearch.html	kaigiroku.net
-04216	https://www.tomiya-city.miyagi.jp/shisei/shigikai/gijiroku/	独自
+04216	https://www.city.tomiya.miyagi.dbsr.jp/index.php/	dbsr
 04301		
 04302	https://town.shichikashuku.miyagi.jp/town/gikai/gijiroku.html	独自
 04321	https://www.town.ogawara.miyagi.dbsr.jp/index.php/	dbsr
 04322		
 04323	https://www.town.shibata.miyagi.dbsr.jp/index.php/	dbsr
-04324	https://www.town.kawasaki.miyagi.jp/site/gikai/list6-25.html	独自
+04324	https://www.town.kawasaki.miyagi.jp/site/gikai/10823.html	独自
 04341		
-04361	https://www.town.watari.miyagi.jp/council/detail.php?content=1085	独自
-04362	https://www.town.yamamoto.miyagi.jp/site/gikai/21087.html	独自
+04361	https://www.town.watari.miyagi.dbsr.jp/index.php/	dbsr
+04362	https://www.town.yamamoto.miyagi.dbsr.jp/	dbsr
 04401		
 04404	https://www.shichigahama.com/benricho/joho/gikai4-010-10126.html	独自
-04406	https://www.town.rifu.miyagi.jp/gyosei/chosei/rifuchogikai/2/index.html	独自
-04421	https://www.town.taiwa.miyagi.jp/choseijoho/gikai/kaigiroku/index.html	独自
+04406	https://www.town.rifu.miyagi.jp/gyosei/chosei/rifuchogikai/2/kaigirokur4.html	独自
+04421	https://www.town.taiwa.miyagi.jp/choseijoho/gikai/kaigiroku/4126.html	独自
 04422	https://www.town.miyagi-osato.lg.jp/site/oosato-gikai/kaigiroku.html	独自
 04424	https://www.village.ohira.miyagi.jp/6/4/3/1/index.html	独自
-04444	https://www.town.shikama.miyagi.jp/chosei/gikai/2363.html	独自
-04445	https://www.town.kami.miyagi.jp/choseijoho/kamimachigikai/gijiroku/index.html	独自
+04444	https://www.town.shikama.miyagi.jp/soshiki/gikai/1/kaigiroku/2235.html	独自
+04445	https://www.town.kami.miyagi.jp/choseijoho/kamimachigikai/gijiroku/5468.html	独自
 04501	https://www.town.wakuya.miyagi.jp/gyose/gikai/kaigiroku.html	独自
 04505	https://www.town.misato.miyagi.dbsr.jp/index.php/	dbsr
 04581	https://www.town.onagawa.miyagi.dbsr.jp/index.php/	dbsr
-04606	https://www.town.minamisanriku.miyagi.jp/gikai/minutes/index.html	独自
+04606	https://www.town.minamisanriku.miyagi.jp/gikai/minutes/20260304kaigiroku12gatukaigi.html	独自
 05000	https://ssp.kaigiroku.net/tenant/prefakita/SpMinuteSearch.html	kaigiroku.net
 05201	https://akitashigikai.gijiroku.com/voices/g07v_search.asp	gijiroku.com
 05202	https://ssp.kaigiroku.net/tenant/noshiro/SpMinuteSearch.html	kaigiroku.net
-05203	https://www.city.yokote.lg.jp/shigikai/1001553/1003538/index.html	独自
+05203	https://ssp.kaigiroku.net/tenant/yokote/pg/index.html	kaigiroku.net
 05204	https://www.city.odate.lg.jp/city/handbook/handbook13/page56/kaigiroku	独自
 05206	https://ssp.kaigiroku.net/tenant/oga/SpMinuteSearch.html	kaigiroku.net
 05207	https://ssp.kaigiroku.net/tenant/yuzawa/SpMinuteSearch.html	kaigiroku.net
 05209	http://www.kensakusystem.jp/kazuno/index.html	kensakusystem
 05210	https://ssp.kaigiroku.net/tenant/yurihonjo/SpMinuteSearch.html	kaigiroku.net
-05211	https://www.city.katagami.lg.jp/soshiki/gikaijimukyoku/kaigiroku/index.html	独自
+05211	https://www.city.katagami.lg.jp/soshiki/gikaijimukyoku/kaigiroku/4188.html	独自
 05212	https://www.city.daisen.lg.jp/genre/administration/council/plenarysession	独自
 05213	https://ssp.kaigiroku.net/tenant/kitaakita/SpMinuteSearch.html	kaigiroku.net
 05214		
 05215	https://ssp.kaigiroku.net/tenant/semboku/SpMinuteSearch.html	kaigiroku.net
-05303	https://www.town.kosaka.akita.jp/kurashi_gyosei/kosakamachigikai/kaigiroku/index.html	独自
+05303	https://www.town.kosaka.akita.jp/kurashi_gyosei/kosakamachigikai/kaigiroku/1655.html	独自
 05327	https://www.vill.kamikoani.akita.jp/info/663	独自
 05346		
-05348	https://www.town.mitane.akita.jp/gyoseijoho/gikai/2/3848.html	独自
+05348	https://www.town.mitane.akita.dbsr.jp/	dbsr
 05349	https://www.town.happo.lg.jp/genre/kurashi/ghosei/gikai/gijiroku	独自
 05361	https://www.town.gojome.akita.jp/town/gikai/kaigiroku/	独自
-05363	https://www.town.hachirogata.akita.jp/gikai/1001560/index.html	独自
+05363	https://www.town.hachirogata.akita.jp/gikai/1001560/1004527/index.html	独自
 05366		
 05368		
-05434	https://www.town.misato.akita.jp/archive/contents-3324/	独自
-05463	https://www.town.ugo.lg.jp/administration/detail.html?id=1247&category_id=51	独自
+05434	https://www.town.misato.akita.jp/genre/chousei/gikai/kaigiroku	独自
+05463	https://www.town.ugo.lg.jp/administration/detail.html?id=2314&category_id=51	独自
 05464		
 06000	https://ssp.kaigiroku.net/tenant/prefyamagata/SpMinuteSearch.html	kaigiroku.net
 06201	http://www.kensakusystem.jp/yamagata-c/index.html	kensakusystem
@@ -328,8 +328,8 @@ jis_code	url	system_type
 06203	https://ssp.kaigiroku.net/tenant/tsuruoka/SpMinuteSearch.html	kaigiroku.net
 06204	https://ssp.kaigiroku.net/tenant/sakata/MinuteSearch.html	kaigiroku.net
 06205	https://www.city.shinjo.yamagata.jp/s015/030/010/20150322115800.html	独自
-06206	https://www.city.sagae.yamagata.jp/shigikai/gijiroku/index.html	独自
-06207	https://www.city.kaminoyama.yamagata.jp/site/gikai/kaigirokusystem.html	独自
+06206	https://www.city.sagae.yamagata.jp/shigikai/gijiroku/search.html	独自
+06207	https://www.city.kaminoyama.yamagata.dbsr.jp/	dbsr
 06208	https://ssp.kaigiroku.net/tenant/murayama/SpMinuteSearch.html	kaigiroku.net
 06209	https://www.city.nagai.yamagata.jp/shigikai/kaigiroku/index.html	独自
 06210	https://ssp.kaigiroku.net/tenant/tendo/SpMinuteSearch.html	kaigiroku.net
@@ -338,15 +338,15 @@ jis_code	url	system_type
 06213	http://www.city.nanyo.yamagata.jp/gikaikaigiroku/	独自
 06301		
 06302	https://www.town.nakayama.yamagata.jp/gikai/bocho/2299.html	独自
-06321	https://www.town.kahoku.yamagata.jp/gyouseizyouhou/kahokutyougikai/kaigiroku/index.html	独自
-06322	https://www.town.nishikawa.yamagata.jp/site/gikai/list3-11.html	独自
+06321	https://www.town.kahoku.yamagata.jp/gyouseizyouhou/kahokutyougikai/kaigiroku/7635.html	独自
+06322	https://www.town.nishikawa.yamagata.jp/site/gikai/7120.html	独自
 06323		
-06324	https://www.town.oe.yamagata.jp/government/chousei/council/chougikai_kaigiroku/	独自
-06341	https://www.town.oishida.yamagata.jp/life/kekkokosodatekyouiku/kyouiku/soukyokaigi.html	独自
+06324	https://www.town.oe.yamagata.jp/government/chousei/council/chougikai_kaigiroku/1869	独自
+06341	https://www.town.oishida.yamagata.jp/chousei/chousei/kaigiroku/index.html	独自
 06361	https://www.town.kaneyama.yamagata.jp/kaneyamamachigikai/1325.html	独自
 06362		
 06363	https://www.town.funagata.yamagata.jp/li/gikai/010/index.html	独自
-06364	https://www.town.mamurogawa.yamagata.jp/chosei/gikai/2/index.html	独自
+06364	https://www.town.mamurogawa.yamagata.jp/chosei/gikai/2/4737.html	独自
 06365	https://www.vill.ohkura.yamagata.jp/gyoseijoho/okurasongikai/2301.html	独自
 06366		
 06367		
@@ -357,9 +357,9 @@ jis_code	url	system_type
 06403	https://www.town.iide.yamagata.jp/004/R40210.html	独自
 06426	https://www.town.mikawa.yamagata.jp/gikai/gikaikatutudoukekka/gikaikaigiroku.html	独自
 06428	https://ssp.kaigiroku.net/tenant/shounai/SpMinuteSearch.html	kaigiroku.net
-06461	https://www.town.yuza.yamagata.jp/archive/p20260312154033	独自
+06461	https://www.town.yuza.yamagata.jp/archive/contents-778	独自
 07000	https://ssp.kaigiroku.net/tenant/fukushima/SpMinuteSearch.html	kaigiroku.net
-07201	https://www.city.fukushima.fukushima.jp/gikai/kaigiroku/index.html	独自
+07201	https://www.city.fukushima.fukushima.jp/gikai/kaigiroku/3903.html	独自
 07202	https://ssp.kaigiroku.net/tenant/aizuwakamatsu/SpMinuteSearch.html	kaigiroku.net
 07203	https://ssp.kaigiroku.net/tenant/koriyama/SpMinuteSearch.html	kaigiroku.net
 07204	https://ssp.kaigiroku.net/tenant/iwaki/SpMinuteSearch.html	kaigiroku.net
@@ -376,24 +376,24 @@ jis_code	url	system_type
 07303	https://ssp.kaigiroku.net/tenant/kunimi/SpMinuteSearch.html	kaigiroku.net
 07308	http://www.kensakusystem.jp/kawamata/index.html	kensakusystem
 07322	https://www.vill.otama.fukushima.jp/otama_songikai/kaigiroku/	独自
-07342	https://www.town.kagamiishi.fukushima.jp/gikai/gijiroku/	独自
-07344	https://www.vill.tenei.fukushima.jp/site/gikai/kaigiroku-r07.html	独自
+07342	https://www.town.kagamiishi.fukushima.jp/gikai/gijiroku/2026/index.html	独自
+07344	https://www.vill.tenei.fukushima.jp/site/gikai/list19-54.html	独自
 07362	https://www.town.shimogo.fukushima.jp/shimogo/gikai/652.html	独自
 07364		
 07367	https://www.town.tadami.lg.jp/parliament/minutes/index.html	独自
-07368	https://www.town.minamiaizu.lg.jp/official/soshikikarasagasu/gikaijimukyoku/minamiaizumachigikai/2/izennnokaigiroku/index.html	独自
+07368	https://www.town.minamiaizu.lg.jp/official/soshikikarasagasu/gikaijimukyoku/minamiaizumachigikai/2/izennnokaigiroku/766.html	独自
 07402	https://www.kensakusystem.jp/kitashiobara-vod/index.html	kensakusystem
 07405		
 07407	https://www.town.bandai.fukushima.jp/site/gikai/teieri-record.html	独自
 07408		
 07421	https://www.town.aizubange.fukushima.jp/site/gikai/9700.html	独自
 07422		
-07423	https://www.town.yanaizu.fukushima.jp/docs/2015022500016/	独自
+07423	https://www.town.yanaizu.fukushima.jp/docs/2025121500022/	独自
 07444	https://www.town.mishima.fukushima.jp/soshiki/gikai/7023.html	独自
 07445		
 07446		
 07447		
-07461	https://www.vill.nishigo.fukushima.jp/sonseijoho/nishigomuragikai/5361.html	独自
+07461	https://ssp.kaigiroku.net/tenant/nishigo/pg/index.html	kaigiroku.net
 07464	https://ssp.kaigiroku.net/tenant/izumizaki/SpMinuteSearch.html	kaigiroku.net
 07465	https://ssp.kaigiroku.net/tenant/nakajima/SpMinuteSearch.html	kaigiroku.net
 07466	https://www.town.yabuki.fukushima.jp/page/dir000841.html	独自
@@ -405,7 +405,7 @@ jis_code	url	system_type
 07502	https://www.vill.tamakawa.fukushima.jp/gikai/	独自
 07503	https://ssp.kaigiroku.net/tenant/hirata/SpMinuteSearch.html	kaigiroku.net
 07504	https://www.town.asakawa.fukushima.jp/gikai/kiroku/	独自
-07505	https://www.town.furudono.fukushima.jp/gikai/kaigiroku/3318	独自
+07505	https://www.town.furudono.fukushima.jp/gikai/kaigiroku/	独自
 07521		
 07522		
 07541	https://www.town.hirono.fukushima.jp/faq/gikai/1001696/1002743.html	独自
@@ -413,7 +413,7 @@ jis_code	url	system_type
 07543	https://www.tomioka-town.jp/soshiki/gikai/1029.html	独自
 07544	https://ssp.kaigiroku.net/tenant/kawauchi/SpMinuteSearch.html	kaigiroku.net
 07545		
-07546	https://www.town.fukushima-futaba.lg.jp/6178.htm	独自
+07546	https://www.town.fukushima-futaba.lg.jp/12665.htm	独自
 07547	https://www.town.namie.fukushima.jp/site/gikai/gichou-kousai.html	独自
 07548		
 07561	http://shinchi-k.k-quick.net/index.html	独自
@@ -445,7 +445,7 @@ jis_code	url	system_type
 08228	https://ssp.kaigiroku.net/tenant/bando/SpMinuteSearch.html	kaigiroku.net
 08229	https://inashiki.gijiroku.com/voices/g08v_search.asp	gijiroku.com
 08230	https://ssp.kaigiroku.net/tenant/kasumigaura/SpMinuteSearch.html	kaigiroku.net
-08231	https://www.city.sakuragawa.lg.jp/gikai/page001741.html	独自
+08231	https://www.city.sakuragawa.lg.jp/data/gikai/kaigiroku/index.html	独自
 08232	https://ssp.kaigiroku.net/tenant/kamisu/SpMinuteSearch.html	kaigiroku.net
 08233	https://ssp.kaigiroku.net/tenant/namegata/SpMinuteSearch.html	kaigiroku.net
 08234	https://ssp.kaigiroku.net/tenant/hokota/MinuteSearch.html	kaigiroku.net
@@ -456,8 +456,8 @@ jis_code	url	system_type
 08310		
 08341	https://ssp.kaigiroku.net/tenant/tokai/SpMinuteSearch.html	kaigiroku.net
 08364	https://ssp.kaigiroku.net/tenant/daigo/SpMinuteSearch.html	kaigiroku.net
-08442	https://www.vill.miho.lg.jp/gyousei/mihomura-annai/gikai/gikaikaigiroku/page013511.html	独自
-08443	https://www.town.ami.lg.jp/category/2-19-11-0-0-0-0-0-0-0.html	独自
+08442	https://www.vill.miho.lg.jp/gyousei/mihomura-annai/gikai/gikaikaigiroku/	独自
+08443	https://www.town.ami.lg.jp/0000000309.html	独自
 08447	https://www.town.ibaraki-kawachi.lg.jp/page/dir000122.html	独自
 08521	https://www.town.ibaraki-yachiyo.lg.jp/page/dir000425.html	独自
 08542		
@@ -478,9 +478,9 @@ jis_code	url	system_type
 09214	https://ssp.kaigiroku.net/tenant/sakura/SpMinuteSearch.html	kaigiroku.net
 09215	https://www.city.nasukarasuyama.lg.jp/city-council/minutes/	独自
 09216	https://ssp.kaigiroku.net/tenant/shimotsuke/SpMinuteSearch.html	kaigiroku.net
-09301	https://www.town.kaminokawa.lg.jp/0192/genre2-0-001.html	独自
+09301	https://www.town.kaminokawa.lg.jp/0192/info-0000003595-0.html	独自
 09342	https://ssp.kaigiroku.net/tenant/mashiko/MinuteSearch.html	kaigiroku.net
-09343	https://www.town.motegi.tochigi.jp/motegi/nextpage.php?cd=17800&syurui=1	独自
+09343	https://www.town.motegi.tochigi.jp/motegi/nextpage.php?cd=5118&syurui=2	独自
 09344	https://ssp.kaigiroku.net/tenant/ichikai/SpMinuteSearch.html	kaigiroku.net
 09345	https://ssp.kaigiroku.net/tenant/haga/SpMinuteSearch.html	kaigiroku.net
 09361	https://ssp.kaigiroku.net/tenant/mibu/SpMinuteSearch.html	kaigiroku.net
@@ -506,11 +506,11 @@ jis_code	url	system_type
 10345		
 10366		
 10367		
-10382	https://www.town.shimonita.lg.jp/m08/m02/index.html	独自
+10382	https://www.town.shimonita.lg.jp/gikai/m01/m02/2024_gikai_kaigiroku.html	独自
 10383		
 10384	https://www.town.kanra.lg.jp/gikai/kaigiroku/index.html	独自
 10421	https://www.town.nakanojo.gunma.jp/site/nakanojo-gikai/1097.html	独自
-10424	https://www.town.naganohara.gunma.jp/www/contents/1456900555108/index.html	独自
+10424	https://www.town.naganohara.gunma.jp/administration/?category=72	独自
 10425		
 10426	https://www.town.kusatsu.gunma.jp/www/contents/1654156951891/index.html	独自
 10428	https://vill.takayama.gunma.jp/gikai/gijiroku.html	独自
@@ -518,13 +518,13 @@ jis_code	url	system_type
 10443	https://www.vill.katashina.gunma.jp/gaiyou/kakuka/gikai/2016-0330-1855-38.html	独自
 10444		
 10448		
-10449	https://www.town.minakami.gunma.jp/politics/08gikai/gijiroku/index.html	独自
-10464	https://www.town.tamamura.lg.jp/docs/2019052900044/	独自
+10449	https://www.town.minakami.gunma.jp/politics/08gikai/gijiroku/	独自
+10464	https://www.town.tamamura.lg.jp/docs/2025052200015/	独自
 10521	https://www.town.itakura.gunma.jp/d000070/d000030/index.html	独自
 10522		
 10523	https://www.town.chiyoda.gunma.jp/gikai/gikai15.html	独自
 10524	https://ssp.kaigiroku.net/tenant/oizumi/MinuteSearch.html	kaigiroku.net
-10525	https://www.town.ora.gunma.jp/s049/070/020/kaigiroku.html	独自
+10525	https://www.town.ora.gunma.jp/s049/070/020/077/gikai-kaigiroku-R7.html	独自
 11000	https://ssp.kaigiroku.net/tenant/prefsaitama/MinuteSearch.html	kaigiroku.net
 11100	https://ssp.kaigiroku.net/tenant/saitama/SpMinuteSearch.html	kaigiroku.net
 11201	https://www.city.kawagoe.saitama.dbsr.jp/index.php/	dbsr
@@ -570,12 +570,12 @@ jis_code	url	system_type
 11324	https://ssp.kaigiroku.net/tenant/miyoshi/SpMinuteSearch.html	kaigiroku.net
 11326	https://ssp.kaigiroku.net/tenant/moroyama/MinuteSearch.html	kaigiroku.net
 11327	https://ssp.kaigiroku.net/tenant/ogose/MinuteSearch.html	kaigiroku.net
-11341	https://www.town.namegawa.saitama.jp/choseijoho/gikai/2236.html	独自
-11342	https://www.town.ranzan.saitama.jp/category/2-19-9-0-0-0-0-0-0-0.html	独自
+11341	https://www.town.namegawa.saitama.jp/section/kaigiroku/R02/R0209K/index.html	独自
+11342	https://www.town.ranzan.saitama.jp/0000007893.html	独自
 11343	https://ssp.kaigiroku.net/tenant/ogawa/MinuteSearch.html	kaigiroku.net
 11346	https://ssp.kaigiroku.net/tenant/kawajima/SpMinuteSearch.html	kaigiroku.net
 11347	https://ssp.kaigiroku.net/tenant/yoshimi/MinuteSearch.html	kaigiroku.net
-11348	https://www.town.hatoyama.saitama.jp/gyousei/gikai/kaigiroku.html	独自
+11348	https://ssp.kaigiroku.net/tenant/hatoyama/pg/index.html	kaigiroku.net
 11349	https://www.town.tokigawa.lg.jp/info/156	独自
 11361		
 11362	https://www.town.minano.saitama.jp/section/gikai/815/	独自
@@ -592,7 +592,7 @@ jis_code	url	system_type
 12000	https://pref-chiba.gijiroku.com/	gijiroku.com
 12100	http://www.city.chiba.chiba.dbsr.jp/index.php/	dbsr
 12202	https://ssp.kaigiroku.net/tenant/choshi/SpMinuteSearch.html	kaigiroku.net
-12203	https://www.city.ichikawa.lg.jp/site/gikai/5244.html	独自
+12203	https://ssp.kaigiroku.net/tenant/ichikawa/SpTop.html	kaigiroku.net
 12204	https://funabashi.gijiroku.com/voices/g08v_search.asp	gijiroku.com
 12205	https://ssp.kaigiroku.net/tenant/tateyama/SpMinuteSearch.html	kaigiroku.net
 12206	http://www.city.kisarazu.chiba.dbsr.jp/index.php/	dbsr
@@ -629,16 +629,16 @@ jis_code	url	system_type
 12239	https://ssp.kaigiroku.net/tenant/oamishirasato/pg/index.html	kaigiroku.net
 12322	https://ssp.kaigiroku.net/tenant/shisui/SpTop.html	kaigiroku.net
 12329	http://www.kensakusystem.jp/sakae/index.html	kensakusystem
-12342	https://www.town.kozaki.chiba.jp/profile/gikai/2026-0303-1701-31.html	独自
+12342	https://www.town.kozaki.chiba.jp/profile/gikai/schedule/index.html	独自
 12347	https://www.town.tako.chiba.jp/docs/2024092100019/	独自
-12349	https://www.town.tohnosho.chiba.jp/soshiki/gikaijimukyoku/gyomu/tonoshochogikai/kaigiroku/index.html	独自
+12349	https://www.town.tohnosho.chiba.jp/soshiki/gikaijimukyoku/gyomu/tonoshochogikai/kaigiroku/8342.html	独自
 12403	https://ssp.kaigiroku.net/tenant/kujukuri/SpMinuteSearch.html	kaigiroku.net
 12409	https://ssp.kaigiroku.net/tenant/shibayama/SpMinuteSearch.html	kaigiroku.net
-12410	https://www.town.yokoshibahikari.chiba.jp/site/gikai/list20-138.html	独自
-12421	https://www.town.ichinomiya.chiba.jp/info/gikai/2/	独自
+12410	https://www.town.yokoshibahikari.chiba.jp/site/gikai/26918.html	独自
+12421	https://www.town.ichinomiya.chiba.jp/info/gikai/2/16.html	独自
 12422	https://www.town.mutsuzawa.chiba.jp/kurashi/gikai/cat84	独自
 12423	http://www.vill.chosei.chiba.dbsr.jp/index.php/	dbsr
-12424	https://www.town.shirako.lg.jp/category/11-13-0-0-0-0-0-0-0-0.html	独自
+12424	https://www.town.shirako.lg.jp/0000004888.html	独自
 12426	https://www.town.nagara.chiba.jp/site/gikai/9653.html	独自
 12427	https://www.town.chonan.chiba.jp/chousei/gikai/%E4%BC%9A%E8%AD%B0%E9%8C%B2/	独自
 12441	https://www.town.otaki.chiba.jp/gyousei/gikai/1423.html	独自
@@ -685,7 +685,7 @@ jis_code	url	system_type
 13215	https://www.city.kunitachi.tokyo.dbsr.jp/index.php/	dbsr
 13218	https://www.city.fussa.tokyo.dbsr.jp/index.php/	dbsr
 13219	https://www.city.komae.tokyo.dbsr.jp/index.php/	dbsr
-13220	https://www.city.higashiyamato.lg.jp/shisei/gikai/1005809/1010197.html	独自
+13220	https://ssp.kaigiroku.net/tenant/higashiyamato/pg/index.html	kaigiroku.net
 13221	https://ssp.kaigiroku.net/tenant/kiyose/SpMinuteSearch.html	kaigiroku.net
 13222	http://www.city.higashikurume.tokyo.dbsr.jp/index.php/	dbsr
 13223	https://ssp.kaigiroku.net/tenant/musashimurayama/SpMinuteSearch.html	kaigiroku.net
@@ -697,7 +697,7 @@ jis_code	url	system_type
 13303	https://ssp.kaigiroku.net/tenant/mizuho/SpMinuteSearch.html	kaigiroku.net
 13305	https://www.town.hinode.tokyo.dbsr.jp/	dbsr
 13307	http://www.vill.hinohara.tokyo.dbsr.jp/index.php/	dbsr
-13308	https://www.town.okutama.tokyo.jp/gyosei/8/okutamachogikai/kaigiroku/index.html	独自
+13308	https://www.town.okutama.tokyo.jp/gyosei/8/okutamachogikai/kaigiroku/3406.html	独自
 13361		
 13362		
 13363		
@@ -748,27 +748,27 @@ jis_code	url	system_type
 15205	http://www.kensakusystem.jp/kashiwazaki/index.html	kensakusystem
 15206	https://www.shibata-shigikai.jp/voices/g08v_search.asp	voices
 15208	https://ssp.kaigiroku.net/tenant/ojiya/SpMinuteSearch.html	kaigiroku.net
-15209	https://www.city.kamo.niigata.jp/shisei/gikai/kaigiroku/	独自
+15209	https://www.city.kamo.niigata.jp/docs/308565.html	独自
 15210	https://ssp.kaigiroku.net/tenant/tokamachi/SpMinuteSearch.html	kaigiroku.net
 15211	https://ssp.kaigiroku.net/tenant/mitsuke/SpMinuteSearch.html	kaigiroku.net
-15212	https://www.city.murakami.lg.jp/site/shigikai/gikai-iinkaikaigiroku-r07.html	独自
+15212	https://www.city.murakami.lg.jp/site/shigikai/list363.html	独自
 15213	https://ssp.kaigiroku.net/tenant/tsubame/SpMinuteSearch.html	kaigiroku.net
-15216	https://www.city.itoigawa.lg.jp/page/2783.html	独自
+15216	https://www.city.itoigawa.lg.jp/site/gikai/14782.html	独自
 15217	https://ssp.kaigiroku.net/tenant/myoko/SpMinuteSearch.html	kaigiroku.net
 15218	https://ssp.kaigiroku.net/tenant/gosen/SpMinuteSearch.html	kaigiroku.net
 15222	https://ssp.kaigiroku.net/tenant/joetsu/SpMinuteSearch.html	kaigiroku.net
-15223	https://www.city.agano.niigata.jp/shisei_machizukuri/gikai/honnkaigikaigiroku/index.html	独自
+15223	https://www.city.agano.niigata.jp/section/shigikai/kaigiroku/indx.html	独自
 15224	https://ssp.kaigiroku.net/tenant/sado/SpTop.html	kaigiroku.net
 15225		
-15226	https://www.city.minamiuonuma.niigata.jp/gikai/kaigiroku_giketsukekka/	独自
+15226	https://www.city.minamiuonuma.niigata.jp/gikai/kaigiroku_giketsukekka/honkaigigijiroku/	独自
 15227	https://ssp.kaigiroku.net/tenant/tainai/SpMinuteSearch.html	kaigiroku.net
-15307	https://www.town.seiro.niigata.jp/7/11/2877.html	独自
-15342	https://www.vill.yahiko.niigata.jp/administration/?category=99	独自
-15361	https://www.town.tagami.niigata.jp/gikai/kaigiroku/	独自
+15307	https://www.town.seiro.niigata.jp/section/gikai/kaigiroku.html	独自
+15342	https://www.vill.yahiko.niigata.jp/administration/?category=104	独自
+15361	https://www.town.tagami.niigata.jp/gikai/docs/8692.html	独自
 15385	https://ssp.kaigiroku.net/tenant/aga/SpMinuteSearch.html	kaigiroku.net
 15405	https://www.town.izumozaki.niigata.jp/gikai/kaigiroku/	独自
 15461	https://yuzawa-v.k-quick.net/html/giji/giji-000.html	独自
-15482	https://www.town.tsunan.niigata.jp/site/gikai/kaigiroku7.html	独自
+15482	https://www.town.tsunan.niigata.jp/site/gikai/list40-162.html	独自
 15504		
 15581	http://www.vill.sekikawa.niigata.jp/709/251/index.html	独自
 15586	https://www.vill.awashimaura.lg.jp/news/7010/	独自
@@ -783,7 +783,7 @@ jis_code	url	system_type
 16209	https://ssp.kaigiroku.net/tenant/oyabe/SpMinuteSearch.html	kaigiroku.net
 16210	https://ssp.kaigiroku.net/tenant/nanto/SpMinuteSearch.html	kaigiroku.net
 16211	https://ssp.kaigiroku.net/tenant/imizu/SpMinuteSearch.html	kaigiroku.net
-16321	https://www.vill.funahashi.toyama.jp/gyosei_new/gikai_giji.html	独自
+16321	https://www.vill.funahashi.toyama.jp/kaigiroku/17-6cont/houhou.html	独自
 16322	http://www.town.kamiichi.toyama.dbsr.jp/index.php/	dbsr
 16323	http://www.town.tateyama.toyama.dbsr.jp/index.php/	dbsr
 16342	https://www.town.nyuzen.toyama.dbsr.jp/index.php/	dbsr
@@ -802,11 +802,11 @@ jis_code	url	system_type
 17212	https://ssp.kaigiroku.net/tenant/nonoichi/SpMinuteSearch.html	kaigiroku.net
 17324	http://www.town.kawakita.ishikawa.jp/gyosei1/gikai/entry-1027.html	独自
 17361	https://www.town.tsubata.lg.jp/page/1738.html	独自
-17365	https://www.town.uchinada.lg.jp/site/gikai/list99-130.html	独自
-17384	https://www.town.shika.lg.jp/site/gikai/list23-19.html	独自
-17386	https://www.hodatsushimizu.jp/gyosei/gyosei/2/2/index.html	独自
+17365	https://www.town.uchinada.lg.jp/soshiki/gikai/12083.html	独自
+17384	https://www.town.shika.lg.jp/site/gikai/list23.html	独自
+17386	https://www.hodatsushimizu.jp/gyosei/gyosei/2/2/8023.html	独自
 17407	https://www.town.nakanoto.ishikawa.jp/parliament/3389.html	独自
-17461	https://www.town.anamizu.lg.jp/site/gikai/list15-68.html	独自
+17461	https://www.town.anamizu.lg.jp/site/gikai/100411.html	独自
 17463		
 18000	https://www.pref.fukui.dbsr.jp/index.php/	dbsr
 18201	https://ssp.kaigiroku.net/tenant/fukui/MinuteSearch.html	kaigiroku.net
@@ -814,16 +814,16 @@ jis_code	url	system_type
 18204	https://ssp.kaigiroku.net/tenant/obama/SpMinuteSearch.html	kaigiroku.net
 18205	https://ssp.kaigiroku.net/tenant/ono/SpMinuteSearch.html	kaigiroku.net
 18206	http://www.kensakusystem.jp/katsuyama-gikai/index.html	kensakusystem
-18207	https://www.city.sabae.fukui.jp/about_city/shigikai/hongikai-kaigiroku.html	独自
-18208	https://www.city.awara.lg.jp/gikai/kaigiroku/index.html	独自
-18209	https://www.city.echizen.lg.jp/office/110/010/kaigirokukennsaku.html	独自
+18207	https://www.city.sabae.fukui.dbsr.jp/	dbsr
+18208	https://www.city.awara.lg.jp/gikai/kaigiroku/p014799.html	独自
+18209	https://www.city.echizen.lg.jp/other/shigikai/kaigiroku/index.html	独自
 18210	http://www.city.sakai.fukui.dbsr.jp/index.php/	dbsr
 18322		
 18382		
 18404	https://www.town.minamiechizen.lg.jp/tyougikai/kaigiroku/index.html	独自
 18423	https://www.town.echizen.fukui.jp/chousei/04/06/index.html	独自
-18442	https://www.town.fukui-mihama.lg.jp/site/town-council/14259.html	独自
-18481	https://www.town.takahama.fukui.jp/gikai/gijiroku-search/index.html	独自
+18442	https://www.town.fukui-mihama.lg.jp/site/town-council/6535.html	独自
+18481	https://www.town.takahama.fukui.jp/page/gikai/p007127.html	独自
 18483	https://ssp.kaigiroku.net/tenant/ohi/SpMinuteSearch.html	kaigiroku.net
 18501	https://www.town.fukui-wakasa.lg.jp/gyoseijoho/wakasachogikai/1197.html	独自
 19000	https://kaigiroku.pref.yamanashi.jp/index.php/	kaigiroku-indexphp
@@ -875,7 +875,7 @@ jis_code	url	system_type
 20219	https://ssp.kaigiroku.net/tenant/tomi/SpMinuteSearch.html	kaigiroku.net
 20220	https://ssp.kaigiroku.net/tenant/azumino/SpMinuteSearch.html	kaigiroku.net
 20303	https://www.koumi-town.jp/office2/archives/gikai/post-167.html	独自
-20304	https://www.vill.kawakami.nagano.jp/www/genre/1745388292507/index.html	独自
+20304	https://www.vill.kawakami.nagano.jp/www/contents/1748241653956/index.html	独自
 20305		
 20306		
 20307		
@@ -884,15 +884,15 @@ jis_code	url	system_type
 20323		
 20324	https://www.town.tateshina.nagano.jp/gyoseijoho/gikai/kaigiroku/index.html	独自
 20349		
-20350	https://www.town.nagawa.nagano.jp/gyoseijoho/gikai/teireikai-rinjikai/1/index.html	独自
+20350	https://www.town.nagawa.nagano.jp/gyoseijoho/gikai/teireikai-rinjikai/1/2426.html	独自
 20361	https://shimosuwa.gijiroku.com/voices/index.html	gijiroku.com
 20362	https://fujimi.gijiroku.com/voices/index.html	gijiroku.com
 20363	https://haramuragikai.gijiroku.com/voices/index.html	gijiroku.com
 20382	https://www.town.tatsuno.lg.jp/gyosei/soshiki/gikaijimukyoku/choseijoho/1/gikaigijiroku/index.html	独自
 20383	https://ssp.kaigiroku.net/tenant/minowa/SpMinuteSearch.html	kaigiroku.net
 20384	https://www.town.iijima.lg.jp/soshikiichiran/gikaijimukyoku/gikai/gikai_kuroku/91.html	独自
-20385	https://www.vill.minamiminowa.lg.jp/soshiki/gikai/kaigirokukensaku.html	独自
-20386	https://www.vill.nakagawa.nagano.jp/site/rinia/list32-192.html	独自
+20385	https://www.kensakusystem.jp/minamiminowa/index.html	kensakusystem
+20386	https://www.vill.nakagawa.nagano.jp/site/rinia/2558.html	独自
 20388		
 20402	https://www.town.matsukawa.lg.jp/choseijoho/matsukawamachigikai/gikainokatsudo/2561.html	独自
 20403	https://www.town.nagano-takamori.lg.jp/docs/13408.html	独自
@@ -916,7 +916,7 @@ jis_code	url	system_type
 20446	https://www.vill.omi.nagano.jp/omimura/gikai/gikaijimukyoku536.html	独自
 20448		
 20450	https://www.vill.yamagata.nagano.jp/government/diet/minutes/	独自
-20451	https://www.vill.asahi.nagano.jp/special/asahimuragikai/giketsu_kaigiroku/index.html	独自
+20451	https://www.vill.asahi.nagano.jp/special/asahimuragikai/giketsu_kaigiroku/3957.html	独自
 20452		
 20481	https://www.ikedamachi.net/category/7-10-0-0-0-0-0-0-0-0.html	独自
 20482	https://matsukawa.gijiroku.com/voices/index.html	gijiroku.com
@@ -924,7 +924,7 @@ jis_code	url	system_type
 20486		
 20521		
 20541	https://www.town.obuse.nagano.jp/docs/315287.html	独自
-20543	https://www.vill.takayama.nagano.jp/docs/538546.html	独自
+20543	https://www.vill.takayama.nagano.jp/gikai/kaigiroku/	独自
 20561	https://www.town.yamanouchi.nagano.jp/soshiki/gikai_jimukyoku/gyomu/gikai/520.html	独自
 20562	https://www.vill.kijimadaira.lg.jp/categories/kubun/gyousei/gikai/kaigiroku/	独自
 20563		
@@ -939,7 +939,7 @@ jis_code	url	system_type
 21204	https://ssp.kaigiroku.net/tenant/tajimi/SpMinuteSearch.html	kaigiroku.net
 21205	https://ssp.kaigiroku.net/tenant/seki/SpMinuteSearch.html	kaigiroku.net
 21206	https://ssp.kaigiroku.net/tenant/nakatsugawa/MinuteSearch.html	kaigiroku.net
-21207	https://www.city.mino.gifu.jp/shisei/shigikai/gikaityuukei/	独自
+21207	https://www.city.mino.gifu.jp/docs/2720.html	独自
 21208	http://www.kensakusystem.jp/mizunami/index.html	kensakusystem
 21209	https://ssp.kaigiroku.net/tenant/hashima/SpMinuteSearch.html	kaigiroku.net
 21210	http://www.kensakusystem.jp/ena/index.html	kensakusystem
@@ -950,22 +950,22 @@ jis_code	url	system_type
 21215		
 21216	https://www.city.mizuho.lg.jp/13677.htm	独自
 21217	https://www.city.hida.gifu.jp/site/gikai/72604.html	独自
-21218	https://www.city.motosu.lg.jp/category/6-3-0-0-0-0-0-0-0-0.html	独自
+21218	https://www.city.motosu.lg.jp/0000001928.html	独自
 21219	https://www.city.gujo.gifu.jp/admin/gikai_kaigiroku/	独自
 21220	https://www.city.gero.lg.jp/site/gikai/list69.html	独自
-21221	https://www.city.kaizu.lg.jp/shisei/category/2-13-6-0-0-0-0-0-0-0.html	独自
+21221	https://www.city.kaizu.lg.jp/shisei/0000003911.html	独自
 21302	https://www.town.ginan.lg.jp/3638.htm	独自
 21303	https://www.town.kasamatsu.gifu.jp/category/bunya/chouno_jouhou/gikai/gikaikaigiroku/	独自
-21341	https://www.town.yoro.gifu.jp/government/assembly/1002278/1002284/index.html	独自
+21341	https://www.town.yoro.gifu.jp/government/assembly/1002278/1002284/1002286.html	独自
 21361	https://www.town.tarui.lg.jp/site/gikai/list32.html	独自
 21362	https://www.town.sekigahara.gifu.jp/2679.htm	独自
 21381	https://www.town.godo.gifu.jp/contents/gikai/gikai08.html	独自
 21382	https://town.wanouchi.gifu.jp/portal/town/parliament/kaigiroku-parliament/	独自
-21383	https://www.town.anpachi.lg.jp/category/9-3-0-0-0-0-0-0-0-0.html	独自
+21383	https://www.town.anpachi.lg.jp/0000002474.html	独自
 21401		
 21403		
 21404		
-21421	https://www.town.kitagata.gifu.jp/gyoseijoho/gikai/2/index.html	独自
+21421	https://www.town.kitagata.gifu.jp/gyoseijoho/gikai/2/3731.html	独自
 21501		
 21502		
 21503	https://www.kawabe-gifu.jp/?page_id=48191	独自
@@ -975,7 +975,7 @@ jis_code	url	system_type
 21507	https://www.vill.higashishirakawa.gifu.jp/sonsei/gikai/kaigiroku/	独自
 21521	https://www.town.mitake.lg.jp/portal/town/parliament/post0003625/	独自
 21604		
-22000	http://www2.pref.shizuoka.jp/all/ggiji.nsf/WebSearch	独自
+22000	http://www2.pref.shizuoka.jp/all/ggiji.nsf	独自
 22100	https://www.city.shizuoka.shizuoka.dbsr.jp/index.php/	dbsr
 22130	https://ssp.kaigiroku.net/tenant/hamamatsu/SpMinuteSearch.html	kaigiroku.net
 22203	https://ami-search.amivoice.com/numazu/usr/	amivoice
@@ -993,13 +993,13 @@ jis_code	url	system_type
 22216	http://www.city.fukuroi.shizuoka.dbsr.jp/index.php/	dbsr
 22219	https://www.city.shimoda.shizuoka.jp/category/090100kaigiroku/index.html	独自
 22220	https://ssp.kaigiroku.net/tenant/susono/MinuteSearch.html	kaigiroku.net
-22221	https://www.city.kosai.shizuoka.jp/gikai/8083.html	独自
+22221	https://www.city.kosai.shizuoka.jp/soshikiichiran/gikaijimukyoku/gyomuannai/kaigiroku/7/index.html	独自
 22222	https://ssp.kaigiroku.net/tenant/izu/pg/index.html	kaigiroku.net
 22223	https://ssp.kaigiroku.net/tenant/omaezaki/MinuteSearch.html	kaigiroku.net
 22224	https://ssp.kaigiroku.net/tenant/kikugawa/MinuteSearch.html	kaigiroku.net
 22225	https://ssp.kaigiroku.net/tenant/izunokuni/SpMinuteSearch.html	kaigiroku.net
 22226	http://www.kensakusystem.jp/makinohara/index.html	kensakusystem
-22301	https://www.town.higashiizu.lg.jp/gikai/kaigiroku/index.html	独自
+22301	https://www.town.higashiizu.lg.jp/gikai/kaigiroku/1130.html	独自
 22302		
 22304	https://www.town.minamiizu.shizuoka.jp/category/bunya/tyougikai/gijiroku/	独自
 22305	https://www.town.matsuzaki.shizuoka.jp/categories/guide/chogikai/kaigiroku/	独自
@@ -1009,8 +1009,8 @@ jis_code	url	system_type
 22342	http://www.town.nagaizumi.shizuoka.dbsr.jp/index.php/	dbsr
 22344		
 22424	https://www.town.yoshida.shizuoka.jp/1376.htm	独自
-22429	https://www.town.kawanehon.shizuoka.jp/soshiki/gikai/1/2/index.html	独自
-22461	https://www.town.morimachi.shizuoka.jp/gyosei/choseijoho/gikai/gikaikatsudo/1237.html	独自
+22429	https://www.town.kawanehon.shizuoka.jp/soshiki/gikai/1/2/2026kaigiroku/index.html	独自
+22461	https://www.town.morimachi.shizuoka.jp/gyosei/machinososhiki/gikaijimukyoku/giji_shomugakari/1/2/5/6498.html	独自
 23000	https://www.pref.aichi.dbsr.jp/index.php/	dbsr
 23100	https://ssp.kaigiroku.net/tenant/nagoya/SpMinuteSearch.html	kaigiroku.net
 23201	https://ssp.kaigiroku.net/tenant/toyohashi/SpMinuteSearch.html	kaigiroku.net
@@ -1038,15 +1038,15 @@ jis_code	url	system_type
 23224	https://ssp.kaigiroku.net/tenant/chita/SpMinuteSearch.html	kaigiroku.net
 23225	http://www.kensakusystem.jp/chiryu/index.html	kensakusystem
 23226	https://ssp.kaigiroku.net/tenant/owariasahi/SpMinuteSearch.html	kaigiroku.net
-23227	https://www.city.takahama.lg.jp/site/gikai/1529.html	独自
+23227	https://www.city.takahama.lg.jp/site/gikai/1548.html	独自
 23228	http://www.kensakusystem.jp/iwakura/index.html	kensakusystem
 23229	https://www.city.toyoake.aichi.dbsr.jp/	dbsr
 23230	https://ssp.kaigiroku.net/tenant/nisshin/MinuteSearch.html	kaigiroku.net
 23231	https://ssp.kaigiroku.net/tenant/tahara/SpMinuteSearch.html	kaigiroku.net
 23232	https://www.city.aisai.lg.jp/category/6-2-3-0-0-0-0-0-0-0.html	独自
-23233	https://www.city.kiyosu.aichi.jp/gikai/kaigiroku/index.html	独自
+23233	https://www.city.kiyosu.aichi.jp/gikai/kaigiroku/r7-kaigiroku.html	独自
 23234	https://ssp.kaigiroku.net/tenant/kitanagoya/SpMinuteSearch.html	kaigiroku.net
-23235	https://www.city.yatomi.lg.jp/gikai/1000077/index.html	独自
+23235	https://www.city.yatomi.lg.jp/gikai/1000077/1006656.html	独自
 23236	http://www.kensakusystem.jp/miyoshi-c/index.html	kensakusystem
 23237	https://www.city.ama.aichi.dbsr.jp/index.php/	dbsr
 23238	http://www.kensakusystem.jp/nagakute/index.html	kensakusystem
@@ -1059,11 +1059,11 @@ jis_code	url	system_type
 23427	https://ssp.kaigiroku.net/tenant/tobishima2/SpMinuteSearch.html	kaigiroku.net
 23441	https://ssp.kaigiroku.net/tenant/agui/MinuteSearch.html	kaigiroku.net
 23442	https://ssp.kaigiroku.net/tenant/higashiura/SpMinuteSearch.html	kaigiroku.net
-23445	https://www.town.minamichita.lg.jp/gyosei/gikai/1001930/index.html	独自
+23445	https://www.town.minamichita.lg.jp/gyosei/gikai/1001930/1003048.html	独自
 23446	https://www.town.aichi-mihama.lg.jp/gyoseijoho/shingikai-iinkai/2190.html	独自
 23447	https://ssp.kaigiroku.net/tenant/taketoyo/SpMinuteSearch.html	kaigiroku.net
-23501	https://www.town.kota.lg.jp/site/gikai/22429.html	独自
-23561	https://www.town.shitara.lg.jp/soshiki/9/1226.html	独自
+23501	https://www.town.kota.lg.jp/site/gikai/list11-78.html	独自
+23561	https://www.town.shitara.lg.jp/soshiki/9/4312.html#a	独自
 23562	https://www.town.toei.aichi.jp/1396.htm	独自
 23563		
 24000	https://www.kensakusystem.jp/mie/index.html	kensakusystem
@@ -1074,23 +1074,23 @@ jis_code	url	system_type
 24205	http://www.city.kuwana.mie.dbsr.jp/index.php/	dbsr
 24207	http://www.kensakusystem.jp/suzuka/index.html	kensakusystem
 24208	https://ssp.kaigiroku.net/tenant/nabari/MinuteSearch.html	kaigiroku.net
-24209	https://www.city.owase.lg.jp/category/4-1-2-0-0-0-0-0-0-0.html	独自
+24209	https://www.city.owase.lg.jp/0000021573.html	独自
 24210	http://www.kensakusystem.jp/kameyama-s/index.html	kensakusystem
 24211	https://ssp.kaigiroku.net/tenant/toba/SpMinuteSearch.html	kaigiroku.net
-24212	https://www.city.kumano.lg.jp/administration/?category=112	独自
+24212	https://www.city.kumano.lg.jp/administration/?content=2523	独自
 24214	http://www.kensakusystem.jp/inabe-s/index.html	kensakusystem
 24215	http://www.kensakusystem.jp/shima/index.html	kensakusystem
 24216	https://www.kensakusystem.jp/iga-s/index.html	kensakusystem
-24303	https://www.town.kisosaki.lg.jp/soshiki/8-6-0-0-0_9.html	独自
+24303	https://www.town.kisosaki.lg.jp/0000003055.html	独自
 24324	http://www.kensakusystem.jp/toin/index.html	kensakusystem
 24341	http://www.kensakusystem.jp/komono/index.html	kensakusystem
 24343	http://www.kensakusystem.jp/asahi/index.html	kensakusystem
 24344	http://www.kensakusystem.jp/kawagoe/index.html	kensakusystem
 24441	https://www.town.taki.mie.jp/life/soshiki/gikai_jimukyoku/kaigiroku/index.html	独自
-24442	https://www.town.meiwa.mie.jp/gyosei_joho/gikai/gijiroku/index.html	独自
+24442	https://www.town.meiwa.mie.jp/gyosei_joho/gikai/gijiroku/1914.html	独自
 24443	https://ssp.kaigiroku.net/tenant/odai/SpMinuteSearch.html	kaigiroku.net
-24461	https://kizuna.town.tamaki.mie.jp/chosei/senkyogikai/gikai/shingi/gijiroku.html	独自
-24470	https://www.town.watarai.lg.jp/category_list.php?frmCd=8-6-0-0-0	独自
+24461	https://kizuna.town.tamaki.mie.jp/chosei/senkyogikai/gikai/shingi/r8.html	独自
+24470	https://www.town.watarai.lg.jp/contents_detail.php?co=cat&frmId=3484&frmCd=8-6-0-0-0	独自
 24471		
 24472		
 24543		
@@ -1105,16 +1105,16 @@ jis_code	url	system_type
 25207	http://www.kensakusystem.jp/moriyama/index.html	kensakusystem
 25208	http://www.kensakusystem.jp/ritto/index.html	kensakusystem
 25209	https://ssp.kaigiroku.net/tenant/koka/MinuteSearch.html	kaigiroku.net
-25210	https://www.city.yasu.lg.jp/gyoseijoho/gikai/teireikai-rinjikaikaigiroku/index.html	独自
+25210	https://www.city.yasu.lg.jp/gyoseijoho/gikai/teireikai-rinjikaikaigiroku/7957.html	独自
 25211	https://ssp.kaigiroku.net/tenant/konan/MinuteSearch.html	kaigiroku.net
 25212	https://ssp.kaigiroku.net/tenant/takashima/SpMinuteSearch.html	kaigiroku.net
 25213	http://www.kensakusystem.jp/higashiomi/index.html	kensakusystem
 25214	http://www.kensakusystem.jp/maibara/index.html	kensakusystem
-25383	https://www.town.shiga-hino.lg.jp/category/32-3-6-0-0-0-0-0-0-0.html	独自
-25384	https://www.town.ryuoh.shiga.jp/parliament/gijiroku/gijiroku.html	独自
+25383	https://www.town.shiga-hino.lg.jp/category/32-3-6-15-0-0-0-0-0-0.html	独自
+25384	https://www.town.ryuoh.shiga.jp/parliament/gijiroku/gijiroku_kako.html	独自
 25425	https://www.town.aisho.shiga.jp/gikai/kaigiroku/index.html	独自
 25441	https://www.town.toyosato.shiga.jp/category/32-5-0-0-0-0-0-0-0-0.html	独自
-25442	https://www.kouratown.jp/cyonososhiki/gikaijimukyoku/gijikakari/chogikai/kaigiroku/index.html	独自
+25442	https://www.kouratown.jp/cyonososhiki/gikaijimukyoku/gijikakari/chogikai/kaigiroku/kaigiroku_02.html	独自
 25443	https://www.town.taga.lg.jp/category_list.php?frmCd=4-5-0-0-0	独自
 26000	http://www.pref.kyoto.dbsr.jp/index.php/	dbsr
 26100	https://ssp.kaigiroku.net/tenant/kyoto/MinuteSearch.html	kaigiroku.net
@@ -1127,7 +1127,7 @@ jis_code	url	system_type
 26207	http://www.kensakusystem.jp/joyo/index.html	kensakusystem
 26208	http://www.kensakusystem.jp/muko/index.html	kensakusystem
 26209	http://www.kensakusystem.jp/nagaokakyo/index.html	kensakusystem
-26210	https://www.city.yawata.kyoto.jp/category/1-6-1-0-0-0-0-0-0-0.html	独自
+26210	https://www.city.yawata.kyoto.jp/0000000208.html	独自
 26211	https://ssp.kaigiroku.net/tenant/kyotanabe/SpMinuteSearch.html	kaigiroku.net
 26212	http://www.kensakusystem.jp/kyotango/index.html	kensakusystem
 26213	https://www.kensakusystem.jp/nantan/index.html	kensakusystem
@@ -1141,7 +1141,7 @@ jis_code	url	system_type
 26366	https://www.kensakusystem.jp/seika/index.html	kensakusystem
 26367	http://www.kensakusystem.jp/minamiyamashiro/index.html	kensakusystem
 26407	https://www.town.kyotamba.kyoto.jp/kakukakarasagasu/gikaijimukyoku/gyomuannai/1/1232.html	独自
-26463	https://www.town.ine.kyoto.jp/chosei/gikai/4/index.html	独自
+26463	https://www.town.ine.kyoto.jp/chosei/gikai/4/648.html	独自
 26465	https://ssp.kaigiroku.net/tenant/yosano/MinuteSearch.html	kaigiroku.net
 27000	https://ssp.kaigiroku.net/tenant/prefosaka/SpMinuteSearch.html	kaigiroku.net
 27100	https://ssp.kaigiroku.net/tenant/cityosaka/SpMinuteSearch.html	kaigiroku.net
@@ -1166,7 +1166,7 @@ jis_code	url	system_type
 27219	https://ssp.kaigiroku.net/tenant/izumi/SpMinuteSearch.html	kaigiroku.net
 27220	https://ssp.kaigiroku.net/tenant/minoh/SpMinuteSearch.html	kaigiroku.net
 27221	https://ssp.kaigiroku.net/tenant/kashiwara/SpMinuteSearch.html	kaigiroku.net
-27222	https://www.city.habikino.lg.jp/soshiki/gikaijimu/gikaijimu_shigikai/940.html	独自
+27222	https://habikino.gijiroku.com/voices/	gijiroku.com
 27223	https://www03.gijiroku.com/kadoma/	gijiroku.com
 27224	https://ssp.kaigiroku.net/tenant/settsu/MinuteSearch.html	kaigiroku.net
 27225	https://ssp.kaigiroku.net/tenant/takaishi/SpMinuteSearch.html	kaigiroku.net
@@ -1177,16 +1177,16 @@ jis_code	url	system_type
 27230	https://ssp.kaigiroku.net/tenant/katano/SpMinuteSearch.html	kaigiroku.net
 27231	https://ssp.kaigiroku.net/tenant/osakasayama/SpMinuteSearch.html	kaigiroku.net
 27232	https://ssp.kaigiroku.net/tenant/hannan/SpMinuteSearch.html	kaigiroku.net
-27301	https://www.town.shimamoto.lg.jp/site/shimamotochogikai/31754.html	独自
-27321	https://www.town.toyono.osaka.jp/gyousei/gikai/kaigi-jouhou-kekka/kaigiroku-honkaigi/	独自
+27301	https://www.town.shimamoto.lg.jp/site/shimamotochogikai/list101.html	独自
+27321	https://www.town.toyono.osaka.jp/gyousei/gikai/kaigi-jouhou-kekka/kaigiroku-honkaigi/page005249.html	独自
 27322	http://www.kensakusystem.jp/nose/index.html	kensakusystem
-27341	https://www.town.tadaoka.osaka.jp/gyousei/gikai/2110.html	独自
-27361	https://www.town.kumatori.lg.jp/gyosei_joho/kumatori_gikai/10669.html	独自
+27341	https://www.town.tadaoka.osaka.jp/soshiki/gikai_jimukyoku/1/544.html	独自
+27361	https://www.town.kumatori.lg.jp/soshiki/gikai_somu/gyomu/kumatori_gikai/etsuran/14305.html	独自
 27362		
-27366	https://www.town.misaki.osaka.jp/soshiki/gikai/chogikai/gijiroku/index.html	独自
+27366	https://www.town.misaki.osaka.jp/soshiki/gikai/chogikai/gijiroku/438.html	独自
 27381	https://www.town.taishi.osaka.jp/busyo/gikai_jimu/taishichougikai/kaigirokunoetsuran/index.html	独自
-27382	https://www.town.kanan.osaka.jp/gyoseijoho/gikai/1/index.html	独自
-27383	https://www.vill.chihayaakasaka.osaka.jp/kakuka/gikai/2_1/kaigiroku/index.html	独自
+27382	https://www.town.kanan.osaka.jp/gyoseijoho/gikai/1/7996.html	独自
+27383	https://www.vill.chihayaakasaka.osaka.jp/kakuka/gikai/2_1/kaigiroku/11364.html	独自
 28000	https://www.kensakusystem.jp//hyogopref/index.html	kensakusystem
 28100	http://www.city.kobe.hyogo.dbsr.jp/index.php/	dbsr
 28201	http://himeji.gijiroku.com/voices/g08v_search.asp	gijiroku.com
@@ -1208,10 +1208,10 @@ jis_code	url	system_type
 28218	http://www.kensakusystem.jp/ono-c/index.html	kensakusystem
 28219	https://ssp.kaigiroku.net/tenant/sanda/MinuteSearch.html	kaigiroku.net
 28220	https://ssp.kaigiroku.net/tenant/kasai/SpMinuteSearch.html	kaigiroku.net
-28221	http://kensaku.sasayama.jp/	独自
+28221	https://kensaku.sasayama.jp/index.html	独自
 28222	https://www.city.yabu.hyogo.dbsr.jp/index.php/	dbsr
 28223	http://www.kensakusystem.jp/tamba/index.html	kensakusystem
-28224	https://www.city.minamiawaji.hyogo.jp/site/gikai/list269-474.html	独自
+28224	https://www.city.minamiawaji.hyogo.jp/site/gikai/kaigiroku.html	独自
 28225	https://www.voicetechno.net/MinutesSystem/Asago/	voicetechno
 28226	http://www.kensakusystem.jp/awaji/index.html	kensakusystem
 28227	http://www.kensakusystem.jp/shiso/index.html	kensakusystem
@@ -1223,10 +1223,10 @@ jis_code	url	system_type
 28382	http://www.kensakusystem.jp/harima/index.html	kensakusystem
 28442	http://www.kensakusystem.jp/ichikawa/index.html	kensakusystem
 28443	https://www.town.fukusaki.hyogo.jp/0000000984.html	独自
-28446	https://www.town.kamikawa.hyogo.jp/category/13-2-0-0-0-0-0-0-0-0.html	独自
-28464	https://www.town.hyogo-taishi.lg.jp/soshikikarasagasu/taishityougikai/honkaiginnokaigiroku/index.html	独自
+28446	https://www.town.kamikawa.hyogo.jp/0000003627.html	独自
+28464	https://www.town.hyogo-taishi.lg.jp/soshikikarasagasu/taishityougikai/honkaiginnokaigiroku/7320.html	独自
 28481	http://www.kensakusystem.jp/kamigori/index.html	kensakusystem
-28501	http://www.town.sayo.lg.jp/cms-sypher/www/info/detail.jsp?id=801	独自
+28501	http://www.town.sayo.lg.jp/cms-sypher/www/gov/result.jsp?life_genre=157	独自
 28585	https://www.town.kami.hyogo.dbsr.jp/index.php/	dbsr
 28586	https://www.town.shinonsen.hyogo.jp/p/list/C2608/	独自
 29000	https://ssp.kaigiroku.net/tenant/prefnara/SpMinuteSearch.html	kaigiroku.net
@@ -1243,22 +1243,22 @@ jis_code	url	system_type
 29211	http://www.city.katsuragi.nara.dbsr.jp/index.php/	dbsr
 29212	http://www.kensakusystem.jp/uda/index.html	kensakusystem
 29322		
-29342	https://www.town.heguri.nara.jp/site/gikai/list47-37.html	独自
+29342	https://www.town.heguri.nara.jp/site/gikai/list47.html	独自
 29343	https://www.town.sango.nara.jp/site/kaigi-gijiroku/	独自
 29344	https://www.town.ikaruga.nara.jp/0000000402.html	独自
 29345	https://www.town.ando.nara.jp/category/10-6-3-0-0-0-0-0-0-0.html	独自
-29361	https://www.town.nara-kawanishi.lg.jp/soshiki/5-0-0-0-0_80.html	独自
-29362	https://www.town.miyake.lg.jp/site/gikai/list15-57.html	独自
+29361	https://www.town.nara-kawanishi.lg.jp/0000008099.html	独自
+29362	https://www.town.miyake.lg.jp/site/gikai/list15.html	独自
 29363	https://ssp.kaigiroku.net/tenant/tawaramoto/SpMinuteSearch.html	kaigiroku.net
 29385		
 29386		
-29401	https://www.town.takatori.nara.jp/contents_detail.php?co=new&frmId=2539	独自
+29401	https://www.town.takatori.nara.jp/soshiki_view.php?so_cd1=2&so_cd2=2&so_cd3=0&so_cd4=0&so_cd5=0&bn_cd=12	独自
 29402	https://www.asukamura.jp/gyosei_gikai_kaigiroku.html	独自
-29424	https://www.town.kanmaki.nara.jp/soshiki/gikaijimu/gyomu/gikai/about_gikai/355.html	独自
+29424	https://www.town.kanmaki.nara.jp/soshiki/gikaijimu/gyomu/gikai/about_gikai/353.html	独自
 29425	https://ssp.kaigiroku.net/tenant/oji/SpMinuteSearch.html	kaigiroku.net
 29426	http://www.kensakusystem.jp/koryo/index.html	kensakusystem
-29427	https://www.town.kawai.nara.jp/10/1_1/zeninkyougikai/5669.html	独自
-29441	https://www.town.yoshino.nara.jp/gikai/kaigiroku/index.html	独自
+29427	https://www.town.kawai.nara.jp/10/1_1/index.html	独自
+29441	https://www.town.yoshino.nara.jp/gikai/kaigiroku/1870.html	独自
 29442		
 29443		
 29444		
@@ -1269,31 +1269,31 @@ jis_code	url	system_type
 29451		
 29452		
 29453		
-30000	https://www.pref.wakayama.lg.jp/gijiroku/d00203238.html	独自
+30000	https://www.pref.wakayama.lg.jp/gijiroku2/test.html	独自
 30201	https://ssp.kaigiroku.net/tenant/wakayama/SpMinuteSearch.html	kaigiroku.net
 30202	https://ssp.kaigiroku.net/tenant/kainan/SpMinuteSearch.html	kaigiroku.net
-30203	https://www.city.hashimoto.lg.jp/shigikai/kaigiannai/kaigiroku/index.html	独自
-30204	https://www.city.arida.lg.jp/shigikai/honkaigiroku/index.html	独自
+30203	https://www.city.hashimoto.lg.jp/shigikai/kaigiannai/kaigiroku/index.html?	独自
+30204	https://www.city.arida.lg.jp/shigikai/honkaigiroku/1005180/index.html	独自
 30205	https://ssp.kaigiroku.net/tenant/gobo/SpMinuteSearch.html	kaigiroku.net
 30206	http://www.kensakusystem.jp/tanabe/index.html	kensakusystem
 30207	https://ssp.kaigiroku.net/tenant/shingu/SpMinuteSearch.html	kaigiroku.net
 30208	https://www.kensakusystem.jp/kinokawa/index.html	kensakusystem
 30209	https://www.city.iwade.lg.jp/gikai/kaigiroku/index.html	独自
 30304	http://www.kensakusystem.jp/kimino/index.html	kensakusystem
-30341	https://www.town.katsuragi.wakayama.jp/gikai/kaigiroku/index.html	独自
+30341	https://www.kensakusystem.jp/katsuragi/index.html	kensakusystem
 30343		
 30344	http://www.kensakusystem.jp/koya/index.html	kensakusystem
 30361		
 30362		
 30366		
-30381	http://www.town.mihama.wakayama.jp/docs/2026022000024/	独自
+30381	http://www.town.mihama.wakayama.jp/bunya/gikai_kaigiroku/	独自
 30382	http://www.town.wakayama-hidaka.lg.jp/docs/2014090500379/	独自
 30383		
 30390	https://ssp.kaigiroku.net/tenant/inami/SpMinuteSearch.html	kaigiroku.net
 30391		
 30392	https://www.town.hidakagawa.lg.jp/gikai/boutyou.html	独自
-30401	https://www.town.shirahama.wakayama.jp/gyousei/gikai/2658.html	独自
-30404	http://www.town.kamitonda.lg.jp/chosei/gikai/kaigiroku/index.html	独自
+30401	https://www.town.shirahama.wakayama.jp/soshiki/gikai/gyomu/kaigiroku/saishinnokaigiroku/index.html	独自
+30404	https://www.town.kamitonda.lg.jp/chosei/gikai/kaigiroku/4548.html	独自
 30406		
 30421	https://www.town.nachikatsuura.wakayama.jp/info/1694	独自
 30422	https://www.town.taiji.wakayama.jp/gikai/kaigiroku.html	独自
@@ -1302,20 +1302,20 @@ jis_code	url	system_type
 30428	https://www.town.kushimoto.wakayama.jp/gikai/kaigiroku_search.html	独自
 31000	https://www.pref.tottori.dbsr.jp/	dbsr
 31201	https://www.city.tottori.tottori.dbsr.jp/index.php/	dbsr
-31202	https://www.city.yonago.lg.jp/2924.htm	独自
+31202	https://www.kensakusystem.jp/yonago-s/index.html	kensakusystem
 31203	https://www.kensakusystem.jp/kurayoshi/index.html	kensakusystem
 31204	http://www.kensakusystem.jp/sakaiminato/index.html	kensakusystem
 31302	https://ssp.kaigiroku.net/tenant/iwami/MinuteSearch.html	kaigiroku.net
 31325	https://www.town.wakasa.tottori.jp/soshikikarasagasu/gikaijimukyoku/1/1/524.html	独自
 31328		
 31329	https://www.kensakusystem.jp/yazu-s/index.html	kensakusystem
-31364	https://www.town.misasa.tottori.jp/315/319/333/442/	独自
+31364	https://www.town.misasa.tottori.jp/315/319/333/442/2047/	独自
 31370	http://www.kensakusystem.jp/yurihama/index.html	kensakusystem
 31371	http://www.kensakusystem.jp/kotoura/index.html	kensakusystem
 31372	http://www.kensakusystem.jp/hokuei/index.html	kensakusystem
 31384	https://www.hiezu.jp/list/gikai/y446/	独自
 31386		
-31389	https://www.town.nanbu.tottori.jp/admin/gikai/kaigiroku/	独自
+31389	https://www.town.nanbu.tottori.jp/admin/gikai/kaigiroku/n952/	独自
 31390	http://www.kensakusystem.jp/houki/index.html	kensakusystem
 31401		
 31402	https://www.town.hino.tottori.jp/1660.htm	独自
@@ -1334,7 +1334,7 @@ jis_code	url	system_type
 32441		
 32448		
 32449	https://www.town.ohnan.lg.jp/www/genre/1000100000201/index.html	独自
-32501	https://www.town.tsuwano.lg.jp/www/genre/1695774401159/index.html	独自
+32501	https://www.town.tsuwano.lg.jp/www/contents/1707956534539/index.html	独自
 32505	https://www.town.yoshika.lg.jp/about/gikaisenkyo/gikai/gijiroku.html	独自
 32525		
 32526		
@@ -1354,7 +1354,7 @@ jis_code	url	system_type
 33212	https://ssp.kaigiroku.net/tenant/setouchi/MinuteSearch.html	kaigiroku.net
 33213	https://ssp.kaigiroku.net/tenant/akaiwa/MinuteSearch.html	kaigiroku.net
 33214	https://ssp.kaigiroku.net/tenant/maniwa/MinuteSearch.html	kaigiroku.net
-33215	https://www.city.mimasaka.lg.jp/shisei/shigikai/5263.html	独自
+33215	https://ssp.kaigiroku.net/tenant/mimasaka/pg/index.html	kaigiroku.net
 33216	https://ssp.kaigiroku.net/tenant/asakuchi/MinuteSearch.html	kaigiroku.net
 33346	https://www.town.wake.lg.jp/gyoseijoho/wakichogikai/1121.html	独自
 33423	https://ssp.kaigiroku.net/tenant/hayashima/MinuteSearch.html	kaigiroku.net
@@ -1367,30 +1367,30 @@ jis_code	url	system_type
 33643	https://www.vill.nishiawakura.okayama.jp/wp/%E8%BE%B2%E6%A5%AD%E5%A7%94%E5%93%A1%E4%BC%9A%E8%AD%B0%E4%BA%8B%E9%8C%B2-2/	独自
 33663		
 33666	https://ssp.kaigiroku.net/tenant/misaki/MinuteSearch.html	kaigiroku.net
-33681	https://www.town.kibichuo.lg.jp/site/gikai/7847.html	独自
+33681	https://www.town.kibichuo.lg.jp/site/gikai/list74-237.html	独自
 34000	http://www.pref.hiroshima.dbsr.jp/index.php/	dbsr
-34100	https://www.city.hiroshima.lg.jp/gikai/kaigiroku/1010226.html	独自
+34100	https://hiroshima.gijiroku.com/voices/index.asp	gijiroku.com
 34202	https://ssp.kaigiroku.net/tenant/kure/MinuteSearch.html	kaigiroku.net
-34203	https://www.city.takehara.lg.jp/soshikikarasagasu/gikaijimukyoku/gyomuannai/1/1/2/index.html	独自
+34203	https://www.city.takehara.lg.jp/soshikikarasagasu/gikaijimukyoku/gyomuannai/1/1/2/7827.html	独自
 34204	https://ssp.kaigiroku.net/tenant/mihara/MinuteSearch.html	kaigiroku.net
 34205	https://ssp.kaigiroku.net/tenant/onomichi/MinuteSearch.html	kaigiroku.net
 34207	https://ssp.kaigiroku.net/tenant/fukuyama/MinuteSearch.html	kaigiroku.net
 34208	http://www.kensakusystem.jp/fuchu-c/index.html	kensakusystem
-34209	https://www.city.miyoshi.hiroshima.jp/site/council/2938.html	独自
+34209	https://www.city.miyoshi.hiroshima.jp/life/6/46/215/	独自
 34210	https://ssp.kaigiroku.net/tenant/shobara/SpMinuteSearch.html	kaigiroku.net
 34211	https://www.kensakusystem.jp/otake/index.html	kensakusystem
 34212	https://ssp.kaigiroku.net/tenant/higashihiroshima/MinuteSearch.html	kaigiroku.net
 34213	http://www.city.hatsukaichi.hiroshima.dbsr.jp/index.php/	dbsr
-34214	https://www.akitakata.jp/ja/parliament/gikai201/y205/	独自
+34214	https://www.kensakusystem.jp/akitakata/index.html	kensakusystem
 34215	https://www.city.etajima.hiroshima.jp/cms/categories/articles/178	独自
-34302	https://www.town.fuchu.hiroshima.jp/site/assembly/list158-1348.html	独自
-34304	https://www.town.kaita.lg.jp/site/gikai/505.html	独自
+34302	https://www.town.fuchu.hiroshima.jp/site/assembly/list158.html	独自
+34304	https://www.town.kaita.lg.jp/site/gikai/15804.html	独自
 34307	http://www.kensakusystem.jp/kumano-vod/index.html	kensakusystem
 34309	https://www.town.saka.lg.jp/2017/05/30/29/	独自
-34368	https://www.akiota.jp/site/gikai/list26-80.html	独自
-34369	https://www.town.kitahiroshima.lg.jp/site/gikai/list98-325.html	独自
-34431	https://www.town.osakikamijima.hiroshima.jp/machizukuri/chogikai/3954.html	独自
-34462	https://www.town.sera.hiroshima.jp/site/gikai/list79-240.html	独自
+34368	https://www.akiota.jp/site/gikai/list26.html	独自
+34369	https://www.town.kitahiroshima.lg.jp/site/gikai/list98.html	独自
+34431	https://www.town.osakikamijima.hiroshima.jp/soshiki/gikai/1/1/gikaikaigiroku/7787.html	独自
+34462	https://www.town.sera.hiroshima.jp/site/gikai/list79.html	独自
 34545	https://ssp.kaigiroku.net/tenant/jinsekikougen/MinuteSearch.html	kaigiroku.net
 35000	https://ssp.kaigiroku.net/tenant/prefyamaguchi/MinuteSearch.html	kaigiroku.net
 35201	https://ssp.kaigiroku.net/tenant/shimonoseki/MinuteSearch.html	kaigiroku.net
@@ -1410,7 +1410,7 @@ jis_code	url	system_type
 35321	https://www.town.waki.lg.jp/site/gikai/list11.html	独自
 35341	https://www.town.kaminoseki.lg.jp/%E4%B8%8A%E9%96%A2%E7%94%BA%E8%AD%B0%E4%BC%9A%E3%80%80%E8%AD%B0%E4%BA%8B%E9%8C%B2.html	独自
 35343		
-35344	https://www.town.hirao.lg.jp/soshiki/gikai/gikai/kaigiroku/index.html	独自
+35344	https://www.town.hirao.lg.jp/soshiki/gikai/gikai/kaigiroku/3289.html	独自
 35502	https://www.town.abu.lg.jp/guide/giziroku2/	独自
 36000	https://ssp.kaigiroku.net/tenant/tokushimapref/MinuteSearch.html	kaigiroku.net
 36201	http://voices.city.tokushima.tokushima.jp/voices/index2.html	voices
@@ -1419,7 +1419,7 @@ jis_code	url	system_type
 36204	https://ssp.kaigiroku.net/tenant/anan/MinuteSearch.html	kaigiroku.net
 36205	http://www2.city.yoshinogawa.lg.jp/e_service/proceeding/index.asp	独自
 36206	https://www.city.awa.lg.jp/gikai/category/bunya/kaigiroku/	独自
-36207	https://www.city.mima.lg.jp/gyosei/shisei/gikai/kaigiroku/	独自
+36207	https://www.city.mima.lg.jp/gyosei/docs/2558118.html	独自
 36208	https://ssp.kaigiroku.net/tenant/tmiyoshi/MinuteSearch.html	kaigiroku.net
 36301		
 36302		
@@ -1453,14 +1453,14 @@ jis_code	url	system_type
 37386		
 37387	https://www.town.ayagawa.lg.jp/docs/2025082600021/	独自
 37403	http://www.kensakusystem.jp/kotohira/index.html	kensakusystem
-37404	https://www.town.tadotsu.kagawa.jp/choseijoho/tadotsuchogikai/kaigiroku/index.html	独自
-37406	https://www.town.manno.lg.jp/life/4/25/88/	独自
+37404	https://www.town.tadotsu.kagawa.jp/choseijoho/tadotsuchogikai/kaigiroku/3720.html	独自
+37406	https://www.town.manno.lg.jp/site/gikai/7947.html	独自
 38000	https://www.kensakusystem.jp/ehime/index.html	kensakusystem
 38201	https://ssp.kaigiroku.net/tenant/matsuyama/MinuteSearch.html	kaigiroku.net
 38202	https://www.city.imabari.ehime.dbsr.jp/index.php/	dbsr
 38203	https://ssp.kaigiroku.net/tenant/uwajima/SpMinuteSearch.html	kaigiroku.net
-38204	https://www.city.yawatahama.ehime.jp/gikai/2026022500074/	独自
-38205	https://www.city.niihama.lg.jp/site/gikai/iinkai-kaigiroku.html	独自
+38204	https://www.city.yawatahama.ehime.jp/gikai/2026032700013/	独自
+38205	https://www.city.niihama.lg.jp/site/gikai/gikai-kaigiroku.html	独自
 38206	https://ssp.kaigiroku.net/tenant/saijo/SpMinuteSearch.html	kaigiroku.net
 38207	https://www.city.ozu.ehime.jp/kaigiroku/index.html	独自
 38210	https://ssp.kaigiroku.net/tenant/iyo/MinuteSearch.html	kaigiroku.net
@@ -1473,16 +1473,16 @@ jis_code	url	system_type
 38402		
 38422	https://www.town.uchiko.ehime.jp/site/kaigiroku/	独自
 38442		
-38484	https://www.town.matsuno.ehime.jp/site/gikai/16630.html	独自
+38484	https://www.town.matsuno.ehime.jp/site/gikai/list156.html	独自
 38488		
 38506	http://www.kensakusystem.jp/ainan/index.html	kensakusystem
 39000	https://ssp.kaigiroku.net/tenant/prefkochi/SpMinuteSearch.html	kaigiroku.net
 39201	https://ssp.kaigiroku.net/tenant/kochi/SpMinuteSearch.html	kaigiroku.net
 39202		
-39203	https://www.city.aki.kochi.jp/gijiroku/	独自
+39203	https://www.city.aki.kochi.jp/gijiroku/giji_search.php?hdnKatugi=999999	独自
 39204	https://www.city.nankoku.lg.jp/gijiroku/giji_search.php?hdnKatugi=999999	独自
 39205	https://ssp.kaigiroku.net/tenant/tosa/SpMinuteSearch.html	kaigiroku.net
-39206	https://www.city.susaki.lg.jp/life/detail.php?hdnKey=4717	独自
+39206	https://www.city.susaki.lg.jp/gijiroku/giji_kaisai.php?hdnID=113	独自
 39208		
 39209		
 39210	https://ssp.kaigiroku.net/tenant/shimanto/MinuteSearch.html	kaigiroku.net
@@ -1495,19 +1495,19 @@ jis_code	url	system_type
 39305		
 39306		
 39307		
-39341	https://www.town.motoyama.kochi.jp/soshikikarasagasu/gikaijimukyoku/teireirinnji/teireikairinzikaikaigiroku/index.html	独自
+39341	https://www.town.motoyama.kochi.jp/soshikikarasagasu/gikaijimukyoku/teireirinnji/teireikairinzikaikaigiroku/3349.html	独自
 39344		
 39363		
 39364		
 39386	https://ssp.kaigiroku.net/tenant/ino/SpMinuteSearch.html	kaigiroku.net
 39387		
 39401	https://www.town.nakatosa.lg.jp/gijiroku/	独自
-39402	https://www.town.sakawa.lg.jp/life/list.php?hdnSKBN=G&hdnKeyword=%E8%AD%B0%E4%BA%8B%E9%8C%B2	独自
+39402	https://www.town.sakawa.lg.jp/life/dtl.php?hdnKey=1076	独自
 39403		
-39405	https://www.town.yusuhara.lg.jp/life/list.php?hdnSKBN=B&hdnKeyword=%E8%AD%B0%E4%BA%8B%E9%8C%B2&hdnJPN=%E6%97%A5%E6%9C%AC%E8%AA%9E	独自
+39405	https://www.town.yusuhara.lg.jp/life/detail.php?hdnKey=108	独自
 39410		
 39411		
-39412	https://www.town.shimanto.lg.jp/gijiroku/	独自
+39412	https://www.town.shimanto.lg.jp/gijiroku/?hdnKatugi=130	独自
 39424		
 39427		
 39428	https://www.town.kuroshio.lg.jp/pb/cont/machi-gikai-giji	独自
@@ -1524,9 +1524,9 @@ jis_code	url	system_type
 40211	https://ssp.kaigiroku.net/tenant/chikugo/MinuteSearch.html	kaigiroku.net
 40212	https://www.city.okawa.lg.jp/s078/010/080/20150902133811.html	独自
 40213	https://ssp.kaigiroku.net/tenant/yukuhashi/MinuteSearch.html	kaigiroku.net
-40214	https://www.city.buzen.lg.jp/senkyo-gikai/gikai/gijiroku.html	独自
-40215	https://www.city.nakama.lg.jp/site/gikai/list47-150.html	独自
-40216	https://www.city.ogori.fukuoka.jp/3046/3287/3288	独自
+40214	https://www.city.buzen.lg.jp/senkyo-gikai/gikai/gijiroku_r3-3.html	独自
+40215	https://www.city.nakama.lg.jp/site/gikai/1122.html	独自
+40216	https://www.kensakusystem.jp/ogori/index.html	kensakusystem
 40217	https://www.city.chikushino.fukuoka.dbsr.jp/index.php/	dbsr
 40218	http://www.city.kasuga.fukuoka.dbsr.jp/index.php/	dbsr
 40219	http://www.city.onojo.fukuoka.dbsr.jp/index.php/	dbsr
@@ -1542,23 +1542,23 @@ jis_code	url	system_type
 40230	https://www.city.itoshima.fukuoka.dbsr.jp/index.php/	dbsr
 40231	https://ssp.kaigiroku.net/tenant/nakagawa/MinuteSearch.html	kaigiroku.net
 40341		
-40342	https://www.town.sasaguri.fukuoka.jp/soshiki/gikai/1_1/index.html	独自
+40342	https://www.town.sasaguri.fukuoka.jp/soshiki/gikai/1_1/5838.html	独自
 40343	https://ssp.kaigiroku.net/tenant/shime/SpMinuteSearch.html	kaigiroku.net
-40344	https://www.town.sue.fukuoka.jp/gyosei/gikai/1/index.html	独自
+40344	https://www.town.sue.fukuoka.jp/gyosei/gikai/1/1900.html	独自
 40345	https://www.town.shingu.fukuoka.jp/soshiki/gikai/1/4/7_2/7661.html	独自
 40348		
 40349		
-40381	https://www.town.ashiya.lg.jp/site/gikai/list433-45.html	独自
+40381	https://www.town.ashiya.lg.jp/site/gikai/list433.html	独自
 40382	https://www.town.mizumaki.lg.jp/li/gyosei/030/010/index.html	独自
 40383	https://ssp.kaigiroku.net/tenant/okagaki/MinuteSearch.html	kaigiroku.net
 40384	http://iasb-sv.town.onga.lg.jp/voices/g08v_search.asp	voices
 40401	https://town.kotake.lg.jp/gikai/hpkiji/pub/List.aspx?c_id=3&class_set_id=6&class_id=547	独自
-40402	https://www.town.kurate.lg.jp/gikai/minutes/2026.html	独自
+40402	https://www.town.kurate.lg.jp/gikai/minutes/index.html	独自
 40421	https://www.town.keisen.fukuoka.jp/gikai/kaigiroku.php	独自
 40447	https://www.town.chikuzen.fukuoka.jp/li/100/050/index.html	独自
 40448	https://vill.toho-info.com/50000/50100/index.html	独自
-40503	https://www.town.tachiarai.fukuoka.jp/list00612.html	独自
-40522	https://www.town.ooki.lg.jp/soshiki/gikai/gikai/gikaiarchive/9178.html	独自
+40503	https://www.town.tachiarai.fukuoka.jp/kiji0031522/index.html	独自
+40522	https://ssp.kaigiroku.net/tenant/ooki/pg/index.html	kaigiroku.net
 40544		
 40601		
 40602		
@@ -1570,7 +1570,7 @@ jis_code	url	system_type
 40621	https://ssp.kaigiroku.net/tenant/kanda/MinuteSearch.html	kaigiroku.net
 40625	https://ssp.kaigiroku.net/tenant/miyakomachi/MinuteSearch.html	kaigiroku.net
 40642		
-40646	https://www.town.koge.lg.jp/chosei/gikai/3022.html	独自
+40646	https://www.town.koge.lg.jp/soshiki/gikai/gikai/1/706.html	独自
 40647	https://www.town.chikujo.fukuoka.jp/li/020/070/040/index.html	独自
 41000	https://www.pref.saga.dbsr.jp/index.php/	dbsr
 41201	https://sagashi-gikai.gijiroku.com/voices/g08v_search.asp	gijiroku.com
@@ -1578,14 +1578,14 @@ jis_code	url	system_type
 41203	https://ssp.kaigiroku.net/tenant/tosu/SpMinuteSearch.html	kaigiroku.net
 41204	https://ssp.kaigiroku.net/tenant/taku/SpMinuteSearch.html	kaigiroku.net
 41205	https://ssp.kaigiroku.net/tenant/imari/MinuteSearch.html	kaigiroku.net
-41206	https://www.city.takeo.lg.jp/shisei/shigikai/kaigiroku/	独自
+41206	https://www.city.takeo.lg.jp/shisei/shigikai/kensaku/	独自
 41207	https://www.city.saga-kashima.lg.jp/main/107.html	独自
 41208	http://www.db-search.com/ogi-c/index.php/	db-search
 41209	https://www.city.ureshino.lg.jp/gikai/hokoku/394.html	独自
 41210	http://www.city.kanzaki.saga.dbsr.jp/index.php/	dbsr
 41327	https://www.town.yoshinogari.saga.dbsr.jp/index.php/	dbsr
-41341	https://www.town.kiyama.lg.jp/kiji0036391/index.html	独自
-41345	https://www.town.kamimine.lg.jp/list00204.html	独自
+41341	https://www.town.kiyama.lg.jp/gikai/list01207.html	独自
+41345	https://www.town.kamimine.saga.dbsr.jp/index.php/	dbsr
 41346	http://www.town.miyaki.saga.dbsr.jp/index.php/	dbsr
 41387	https://ssp.kaigiroku.net/tenant/genkai/pg/index.html	kaigiroku.net
 41401		
@@ -1602,41 +1602,41 @@ jis_code	url	system_type
 42207	https://ssp.kaigiroku.net/tenant/hirado/SpMinuteSearch.html	kaigiroku.net
 42208	http://www.city.matsuura.nagasaki.dbsr.jp/index.php/	dbsr
 42209	https://ssp.kaigiroku.net/tenant/tsushima/MinuteSearch.html	kaigiroku.net
-42210	https://www.city.iki.nagasaki.jp/soshiki/gikai_jimukyoku/shigikai/kaigiroku/index.html	独自
+42210	https://www.city.iki.nagasaki.jp/soshiki/gikai_jimukyoku/shigikai/kaigiroku/15696.html	独自
 42211	https://ssp.kaigiroku.net/tenant/goto/SpMinuteSearch.html	kaigiroku.net
 42212	https://ssp.kaigiroku.net/tenant/saikai/SpMinuteSearch.html	kaigiroku.net
 42213	https://ssp.kaigiroku.net/tenant/unzen/MinuteSearch.html	kaigiroku.net
 42214	https://ssp.kaigiroku.net/tenant/minamishimabara/SpMinuteSearch.html	kaigiroku.net
-42307	https://webtown.nagayo.jp/kiji0032679/index.html	独自
+42307	https://webtown.nagayo.jp/gikai/list00423.html	独自
 42308	http://www.kensakusystem.jp/togitsu-s/index.html	kensakusystem
 42321		
 42322	https://www.kawatana.jp/cat05/c5-11/post_267/index.html	独自
 42323		
 42383		
 42391	https://www.sazacho-nagasaki.jp/gikai/list00807.html	独自
-42411	https://official.shinkamigoto.net/goto_chosei.php?wcid=l00002x4	独自
+42411	https://official.shinkamigoto.net/goto_chosei.php?wcid=l00003x2	独自
 43000	https://ssp.kaigiroku.net/tenant/prefkumamoto/MinuteSearch.html	kaigiroku.net
 43100	https://kumamoto.gijiroku.com/voices/g08v_search.asp	gijiroku.com
 43202		
-43203	https://www.city.hitoyoshi.lg.jp/shisei/gikaijyoho/kaigiroku	独自
+43203	https://www.city.hitoyoshi.lg.jp/shisei/gikaijyoho/kaigiroku/2435435	独自
 43204	https://www.city.arao.kumamoto.dbsr.jp/index.php/	dbsr
 43205	http://www.kensakusystem.jp/minamata/index.html	kensakusystem
 43206	http://tamana.gijiroku.com/voices/g08v_search.asp	gijiroku.com
 43208	https://www.city.yamaga.kumamoto.jp/gikai/list00424.html	独自
-43210	https://www.city.kikuchi.lg.jp/article/list/1221.html	独自
+43210	https://www.city.kikuchi.lg.jp/category/list/1219.html#cate1221	独自
 43211	https://ssp.kaigiroku.net/tenant/uto/MinuteSearch.html	kaigiroku.net
-43212	https://www.city.kamiamakusa.kumamoto.jp/q/aview/103/20745.html	独自
+43212	https://www.city.kamiamakusa.kumamoto.jp/q/aview/103/18428.html	独自
 43213	https://ssp.kaigiroku.net/tenant/uki/MinuteSearch.html	kaigiroku.net
 43214	https://www.city.aso.kumamoto.jp/municipal/city_council/city_council/conference_proceedings/	独自
 43215	https://ssp.kaigiroku.net/tenant/amakusa/SpMinuteSearch.html	kaigiroku.net
-43216	https://www.city.koshi.lg.jp/gikai/list00708.html	独自
+43216	https://www.kensakusystem.jp/koshi/index.html	kensakusystem
 43348	https://www.town.kumamoto-misato.lg.jp/gyosei/gikai/2/1645.html	独自
-43364	https://www.town.gyokuto.kumamoto.jp/list00381.html	独自
+43364	https://www.town.gyokuto.kumamoto.jp/list00507.html	独自
 43367	https://www.town.nankan.lg.jp/tyosei/gikai/gijiroku/	独自
 43368	https://www.town.nagasu.kumamoto.dbsr.jp/index.php/	dbsr
 43369	https://www.town.nagomi.lg.jp/chougikai/kaigiroku/	独自
-43403	https://www.town.ozu.kumamoto.jp/site/ozugikai/list13-26.html	独自
-43404	https://www.town.kikuyo.lg.jp/gikai/list00327.html	独自
+43403	https://www.town.ozu.kumamoto.jp/site/ozugikai/19659.html	独自
+43404	https://www.town.kikuyo.lg.jp/gikai/kiji0034279/index.html	独自
 43423	https://www.town.minamioguni.lg.jp/gikai/post_1.html	独自
 43424		
 43425		
@@ -1648,25 +1648,25 @@ jis_code	url	system_type
 43443	https://www.town.mashiki.lg.jp/list00651.html	独自
 43444	https://www.town.kosa.lg.jp/q/list/149.html	独自
 43447	https://www.town.kumamoto-yamato.lg.jp/gikai/kiji0036495/index.html	独自
-43468	https://www.town.hikawa.kumamoto.jp/list00678.html	独自
+43468	https://www.town.hikawa.kumamoto.jp/gikai/list00412.html	独自
 43482		
 43484	https://www.town.tsunagi.lg.jp/hpkiji/pub/List.aspx?c_id=3&class_set_id=1&class_id=620	独自
 43501		
-43505	https://www.town.taragi.lg.jp/gyousei/soshiki/gikai/gikaikaigiroku/index.html	独自
+43505	https://www.town.taragi.lg.jp/gyousei/soshiki/gikai/gikaikaigiroku/3456.html	独自
 43506	https://www.town.yunomae.lg.jp/gikai/list00557.html	独自
 43507		
 43510	https://www.vill.sagara.lg.jp/q/aview/207/1988.html	独自
 43511		
 43512		
 43513		
-43514	https://www.town.asagiri.lg.jp/list00300.html	独自
+43514	https://www.town.asagiri.lg.jp/kiji0032563/index.html	独自
 43531		
 44000	https://ssp.kaigiroku.net/tenant/prefoita/MinuteSearch.html	kaigiroku.net
 44201	https://www.kensakusystem.jp/oita/index.html	kensakusystem
 44202	http://www.kensakusystem.jp/beppu/index.html	kensakusystem
 44203	https://ssp.kaigiroku.net/tenant/nakatsu/MinuteSearch.html	kaigiroku.net
 44204	https://ssp.kaigiroku.net/tenant/hita/MinuteSearch.html	kaigiroku.net
-44205	https://www.city.saiki.oita.jp/list05016.html	独自
+44205	https://www.city.saiki.oita.jp/kiji00310593/index.html	独自
 44206	https://ssp.kaigiroku.net/tenant/usuki/SpMinuteSearch.html	kaigiroku.net
 44207	http://www.kensakusystem.jp/tsukumi/index.html	kensakusystem
 44208	https://ssp.kaigiroku.net/tenant/taketa/SpMinuteSearch.html	kaigiroku.net
@@ -1690,23 +1690,23 @@ jis_code	url	system_type
 45207	http://www.kensakusystem.jp/kushima/index.html	kensakusystem
 45208	https://ssp.kaigiroku.net/tenant/saito/SpMinuteSearch.html	kaigiroku.net
 45209	http://www.kensakusystem.jp/ebino/index.html	kensakusystem
-45341	https://www.town.mimata.lg.jp/categories/index/kaigiroku	独自
+45341	https://www.town.mimata.lg.jp/contents/2219.html	独自
 45361	https://www.town.takaharu.lg.jp/site/gikai/296447.html	独自
 45382	http://www.town.kunitomi.miyazaki.jp/main/administration/town_council/page000865.html	独自
 45383	https://ssp.kaigiroku.net/tenant/aya/MinuteSearch.html	kaigiroku.net
-45401	https://www.town.takanabe.lg.jp/soshiki/gikai/1/3/index.html	独自
+45401	https://www.town.takanabe.lg.jp/soshiki/gikai/1/3/4898.html	独自
 45402	https://ssp.kaigiroku.net/tenant/shintomi/MinuteSearch.html	kaigiroku.net
 45403		
-45404	https://www.town.kijo.lg.jp/sosikikarasagasu/gikaizimukyoku/1/2/index.html	独自
+45404	https://www.town.kijo.lg.jp/sosikikarasagasu/gikaizimukyoku/1/2/1973.html	独自
 45405	https://www.town.kawaminami.miyazaki.jp/site/gikai/1028.html	独自
 45406		
 45421	https://ssp.kaigiroku.net/tenant/kadogawa/MinuteSearch.html	kaigiroku.net
 45429		
 45430		
-45431	https://www.town.miyazaki-misato.lg.jp/gikai/list00411.html	独自
+45431	https://www.town.miyazaki-misato.lg.jp/gikai/kiji0031234/index.html	独自
 45441		
 45442		
-45443	https://www.town.gokase.miyazaki.jp/kakuka/gikai/honkaigi/kaigiroku/index.html	独自
+45443	https://www.town.gokase.miyazaki.jp/kakuka/gikai/honkaigi/kaigiroku/1042.html	独自
 46000	http://www.pref.kagoshima.dbsr.jp/index.php/	dbsr
 46201	https://ssp.kaigiroku.net/tenant/kagoshima/MinuteSearch.html	kaigiroku.net
 46203	https://ssp.kaigiroku.net/tenant/kanoya/MinuteSearch.html	kaigiroku.net
@@ -1715,7 +1715,7 @@ jis_code	url	system_type
 46208	https://www.city.kagoshima-izumi.lg.jp/gikai/gijiroku/	独自
 46210		
 46213		
-46214	https://www.city.tarumizu.lg.jp/hisho/shise/shigi/kaigiroku/index.html	独自
+46214	https://www.city.tarumizu.lg.jp/gikaigiji/shise/shigi/kaigiroku/gijiroku.html	独自
 46215	https://ssp.kaigiroku.net/tenant/satsumasendai/MinuteSearch.html	kaigiroku.net
 46216	https://www.city.hioki.kagoshima.jp/gikai/shisejoho/shigikai/kaigiroku.html	独自
 46217	https://ssp.kaigiroku.net/tenant/soo/MinuteSearch.html	kaigiroku.net
@@ -1723,13 +1723,13 @@ jis_code	url	system_type
 46219	https://www.city.ichikikushikino.lg.jp/gikai1/gijirokukensaku.html	独自
 46220		
 46221	https://www.city.shibushi.lg.jp/site/gikai/2312.html	独自
-46222	https://www.city.amami.lg.jp/gikai/shise/shigikai/gaiyo.html	独自
+46222	https://www.city.amami.lg.jp/gikai/2020_2nd_kaigiroku.html	独自
 46223	https://ssp.kaigiroku.net/tenant/minamikyushu/MinuteSearch.html	kaigiroku.net
 46224	https://www.city.isa.kagoshima.dbsr.jp/index.php/	dbsr
 46225	https://ssp.kaigiroku.net/tenant/aira/MinuteSearch.html	kaigiroku.net
 46303		
 46304	https://www.tokara.jp/gikaireport/	独自
-46392	https://www.satsuma-net.jp/machinosugata/gikai/2/index.html	独自
+46392	https://www.satsuma-net.jp/machinosugata/gikai/2/1/index.html	独自
 46404		
 46452		
 46468	https://www.town.kagoshima-osaki.lg.jp/gj_shomu/machiannai/chogikai/kaigiroku/kaigiroku.html	独自
@@ -1742,13 +1742,13 @@ jis_code	url	system_type
 46505	https://www.town.yakushima.kagoshima.jp/gyosei/gikai/2/index.html	独自
 46523	https://www.vill.yamato.lg.jp/hpkanri/sonse/yamatosongikai/kaigiroku/kaigiroku.html	独自
 46524		
-46525	https://www.town.setouchi.lg.jp/gikai/kaigirokukohyo.html	独自
+46525	https://www.town.setouchi.lg.jp/gikai/gikaikaigiroku.html	独自
 46527	https://www.town.tatsugo.lg.jp/gikai/r402teirei.html	独自
 46529		
 46530	https://www.tokunoshima-town.org/gikaijimukyoku/chose/gikai/kaigiroku/index.html	独自
 46531	https://www.town.amagi.lg.jp/gikai/kaigiroku/	独自
-46532	https://www.town.isen.kagoshima.jp/gikai/chosejoho/gikai/r3kaigiroku.html	独自
-46533	https://www.town.wadomari.lg.jp/gikai/wadomaricho/gikai/kaigiroku.html	独自
+46532	https://www.town.isen.kagoshima.jp/gikai/chosejoho/gikai/kaigiroku.html	独自
+46533	https://www.town.wadomari.lg.jp/gikai/wadomaricho/gikai/gikaigijiroku/r7/r7_1_01.html	独自
 46534	https://www.town.china.lg.jp/chosei/gikai/2152.html	独自
 46535		
 47000	https://www2.pref.okinawa.jp/oki/Gikairep1.nsf/	独自
@@ -1771,22 +1771,22 @@ jis_code	url	system_type
 47311	https://ssp.kaigiroku.net/tenant/onna/SpMinuteSearch.html	kaigiroku.net
 47313	https://ssp.kaigiroku.net/tenant/ginoza/MinuteSearch.html	kaigiroku.net
 47314	http://gikai.town.kin.okinawa.jp/kinchou/kensaku/	独自
-47315	https://iegikai.iejima.org/r5-8-9-kaigiroku/	独自
-47324	https://www.vill.yomitan.okinawa.jp/gyosei_joho/gikai/kaigioku_gikai/index.html	独自
+47315	https://iegikai.iejima.org/category/kaigiroku/	独自
+47324	https://www.vill.yomitan.okinawa.jp/gyosei_joho/gikai/kaigioku_gikai/2165.html	独自
 47325	https://ssp.kaigiroku.net/tenant/kadena/SpMinuteSearch.html	kaigiroku.net
 47326	https://ssp.kaigiroku.net/tenant/chatan/SpMinuteSearch.html	kaigiroku.net
-47327	https://www.vill.kitanakagusuku.lg.jp/sonsei/gikai/618.html	独自
-47328	https://www.vill.nakagusuku.okinawa.jp/detail.jsp?id=99965&menuid=16662&funcid=1	独自
+47327	https://ssp.kaigiroku.net/tenant/kitanakagusuku/SpTop.html	kaigiroku.net
+47328	https://ssp.kaigiroku.net/tenant/nakagusuku/SpTop.html	kaigiroku.net
 47329	https://ssp.kaigiroku.net/tenant/nishihara/SpMinuteSearch.html	kaigiroku.net
 47348	https://ssp.kaigiroku.net/tenant/yonabaru/MinuteSearch.html	kaigiroku.net
-47350	https://www.town.haebaru.lg.jp/site/gikai/list64-90.html	独自
+47350	https://www.town.haebaru.lg.jp/site/gikai/15299.html	独自
 47353	https://www.vill.tokashiki.okinawa.jp/gyoseijoho/tokashikisongikai/2/2109.html	独自
 47354		
 47355		
 47356		
 47357		
 47358		
-47359	https://www.vill.iheya.okinawa.jp/site/sanngyou/2653.html	独自
+47359	https://www.vill.iheya.okinawa.jp/site/sanngyou/2534.html	独自
 47360	https://vill.izena.okinawa.jp/soshiki/gikai/kaigiroku/	独自
 47361	https://ssp.kaigiroku.net/tenant/kumejima/MinuteSearch.html	kaigiroku.net
 47362	https://ssp.kaigiroku.net/tenant/yaese/pg/index.html	kaigiroku.net

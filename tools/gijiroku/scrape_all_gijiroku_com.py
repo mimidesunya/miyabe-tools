@@ -32,6 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--save-html", action="store_true", help="ダウンロード失敗時に会議詳細HTMLを保存する")
     parser.add_argument("--headful", action="store_true", help="ブラウザを表示して実行する")
     parser.add_argument("--parallel", type=int, default=6, help="同時に走らせる自治体数")
+    parser.add_argument("--index-parallel", type=int, default=1, help="同時に走らせる自治体インデックス更新数")
     parser.add_argument("--refresh-seconds", type=float, default=5.0, help="進捗表示の更新間隔（秒）")
     parser.add_argument("--filter", default="", help="slug / code / name に部分一致する自治体だけを対象にする")
     parser.add_argument("--no-resume", action="store_true", help="既存の保存結果を無視して最初から取り直す")
@@ -50,6 +51,8 @@ def main() -> int:
         "gijiroku.com",
         "--parallel",
         str(args.parallel),
+        "--index-parallel",
+        str(args.index_parallel),
         "--per-host-parallel",
         "1",
         "--per-host-start-interval",

@@ -12,7 +12,7 @@ from deploy import (
     DEFAULT_SCRAPER_IMAGE_NAME,
     SCRAPING_COMPOSE_PROJECT,
     load_config,
-    prepare_ssh_key,
+    prepare_ssh_key_from_config,
     remote_scraper_cleanup_cmd,
     remote_scraping_compose_cmd,
     resolve_remote_dest_dir,
@@ -239,8 +239,7 @@ def restart_scraping_services(config: dict, dest_dir: str, image_name: str) -> N
 def main() -> int:
     args = build_parser().parse_args()
     config = load_config(args.config_file)
-    original_key_path = config["key_path"]
-    config["key_path"] = prepare_ssh_key(original_key_path)
+    prepare_ssh_key_from_config(config)
 
     dest_dir = resolve_remote_dest_dir(config["dest_dir"])
     shared_data_dir = resolve_remote_shared_data_dir(config)

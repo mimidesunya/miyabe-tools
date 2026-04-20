@@ -22,6 +22,138 @@ function render_excerpt(string $value): string
     return nl2br(str_replace(['[[[', ']]]'], ['<mark>', '</mark>'], h($value)));
 }
 
+function gijiroku_index_summary_cache_path(string $indexJsonPath): string
+{
+    return data_path('background_tasks/gijiroku_index_summary/' . sha1($indexJsonPath) . '.json');
+}
+
+function gijiroku_index_summary_candidates(string $path): array
+{
+    $normalized = trim($path);
+    if ($normalized === '') {
+        return [];
+    }
+
+    if (str_ends_with(strtolower($normalized), '.gz')) {
+        return [$normalized, substr($normalized, 0, -3)];
+    }
+
+    return [$normalized, $normalized . '.gz'];
+}
+
+function gijiroku_index_summary_from_json(string $indexJsonPath): ?array
+{
+    static $cache = [];
+
+    $candidates = gijiroku_index_summary_candidates($indexJsonPath);
+    if ($candidates === []) {
+        return null;
+    }
+
+    $existingPath = '';
+    foreach ($candidates as $candidate) {
+        if (is_file($candidate)) {
+            $existingPath = $candidate;
+            break;
+        }
+    }
+    if ($existingPath === '') {
+        return null;
+    }
+
+    $cacheKey = $existingPath . '|' . (string)@filemtime($existingPath);
+    if (isset($cache[$cacheKey])) {
+        return $cache[$cacheKey];
+    }
+
+    $cachePath = gijiroku_index_summary_cache_path($existingPath);
+    if (json_cache_file_is_fresh($cachePath, 3600, [$existingPath])) {
+        $cached = read_json_cache_file($cachePath);
+        if (is_array($cached)) {
+            return $cache[$cacheKey] = $cached;
+        }
+    }
+
+    $raw = @file_get_contents($existingPath);
+    if (!is_string($raw)) {
+        return null;
+    }
+    if (str_ends_with(strtolower($existingPath), '.gz')) {
+        $decoded = @gzdecode($raw);
+        if (!is_string($decoded)) {
+            return null;
+        }
+        $raw = $decoded;
+    }
+
+    $loaded = json_decode($raw, true);
+    if (!is_array($loaded)) {
+        return null;
+    }
+
+    $documents = 0;
+    $yearCounts = [];
+    $yearOrder = [];
+    foreach ($loaded as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $documents++;
+        $yearLabel = normalize_space((string)($row['year_label'] ?? ''));
+        if ($yearLabel === '') {
+            continue;
+        }
+
+        if (!isset($yearCounts[$yearLabel])) {
+            $yearCounts[$yearLabel] = [
+                'year_label' => $yearLabel,
+                'count' => 0,
+                'last_date' => null,
+            ];
+            $yearOrder[] = $yearLabel;
+        }
+        $yearCounts[$yearLabel]['count']++;
+    }
+
+    $yearOptions = [];
+    foreach ($yearOrder as $yearLabel) {
+        $yearOptions[] = $yearCounts[$yearLabel];
+    }
+
+    $summary = [
+        'stats' => [
+            'documents' => $documents,
+            'years' => count($yearOptions),
+            'first_date' => null,
+            'last_date' => null,
+        ],
+        'year_options' => $yearOptions,
+    ];
+    write_json_cache_file($cachePath, $summary);
+    return $cache[$cacheKey] = $summary;
+}
+
+function gijiroku_index_boundary_date(PDO $pdo, string $direction): ?string
+{
+    $direction = strtoupper(trim($direction));
+    if (!in_array($direction, ['ASC', 'DESC'], true)) {
+        $direction = 'DESC';
+    }
+
+    $stmt = $pdo->query(
+        "SELECT held_on
+           FROM minutes
+          WHERE doc_type = 'minutes'
+            AND held_on IS NOT NULL
+       ORDER BY held_on {$direction}, id {$direction}
+          LIMIT 1"
+    );
+    $row = $stmt->fetch();
+    $value = is_array($row) ? trim((string)($row['held_on'] ?? '')) : '';
+    return $value !== '' ? $value : null;
+}
+
 // FTS5 の演算子は残しつつ、ハイライト用の語だけを抜き出す。
 function extract_query_terms(string $query): array
 {

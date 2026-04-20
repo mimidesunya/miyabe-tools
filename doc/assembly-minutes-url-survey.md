@@ -59,3 +59,12 @@ pwsh -File tools/municipalities/build_assembly_minutes_system_urls_tsv.ps1
 ```
 
 必要に応じて `-HomepageCsv data/municipalities/municipality_homepages.csv` を明示できます。
+
+既存一覧のうち `独自` 行だけを再検証して、案内ページの先にある共通会議録システムを拾い直す場合:
+
+```powershell
+pwsh -File tools/municipalities/build_assembly_minutes_system_urls_tsv.ps1 `
+  -SeedTsv data/municipalities/assembly_minutes_system_urls.tsv `
+  -OutFile data/municipalities/assembly_minutes_system_urls.tsv `
+  -RefineCustomOnly
+```

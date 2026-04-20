@@ -78,6 +78,7 @@ python tools/gijiroku/scrape_all_minutes.py --ack-robots --systems gijiroku.com 
 python tools/gijiroku/scrape_all_minutes.py --ack-robots --parallel 8 --per-host-parallel 1 --per-host-start-interval 2
 ```
 
+`--parallel` はスクレイプ並列、`--index-parallel` は `minutes.sqlite` 更新並列です。  
 この一括実行では、各自治体のスクレイプ完了後に `minutes.sqlite` も更新されるため、バッチ進行中でも完了済み自治体から順に検索可能になります。  
 自動更新を止めたい場合だけ `--no-build-index` を付けてください。
 
@@ -136,6 +137,8 @@ php tools/gijiroku/organize_minutes_data.php --slug 14130-kawasaki-shi
 - `--delay-seconds` 会議ごとの待機秒数（既定: `1.5`）
 - `--max-meetings` 処理件数上限（`0` は無制限）
 - `--timeout-ms` 操作タイムアウト（ミリ秒）
+- `--parallel` 自治体スクレイパの同時実行数
+- `--index-parallel` `minutes.sqlite` 更新の同時実行数
 - `--ack-robots` 規約/robots 確認済みフラグ（必須）
 - `--save-html` ダウンロード失敗時に会議詳細HTMLを保存
 - `--max-years` `kaigiroku.net` 系で取得対象年数を制限

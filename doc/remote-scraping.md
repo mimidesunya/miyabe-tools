@@ -37,6 +37,13 @@ docker compose -f docker-compose.scraping.yml logs -f scraper-gijiroku
 docker compose -f docker-compose.scraping.yml restart scraper-gijiroku
 ```
 
+ローカルから単発のリモートコマンドを打ちたい場合は、`deploy.json` の鍵設定を使うヘルパーを使えます。
+このヘルパーは `wsl_key_path` / `key_path` を読み、一時鍵へコピーして権限を絞ってから SSH 実行します。
+
+```bash
+python3 deploy/remote_exec.py deploy.json -- "cd ~/services/miyabe-tools && docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml ps"
+```
+
 `scraper-gijiroku` は各サイクルの先頭で `build_missing_minutes_indexes.py` を走らせ、`要反映`、完了間近、未着手、反映済みの順で `minutes.sqlite` の不足分補完を進めます。通常の全国スクレイプに入る前に反映漏れを優先的に埋める運用です。
 
 対象確認だけしたい場合:

@@ -4,14 +4,14 @@ import sys
 sys.path.insert(0, 'deploy')
 from deploy import (
     load_config,
-    prepare_ssh_key,
+    prepare_ssh_key_from_config,
     resolve_remote_dest_dir,
     resolve_remote_shared_data_dir,
     ssh_exec,
 )
 
 config = load_config('deploy.json')
-config['key_path'] = prepare_ssh_key(config['key_path'])
+prepare_ssh_key_from_config(config)
 compose_dir = resolve_remote_dest_dir(config['dest_dir'])
 shared_data_dir = resolve_remote_shared_data_dir(config)
 host_image_dir = f'{shared_data_dir}/reiki/14130-kawasaki-shi/images'
