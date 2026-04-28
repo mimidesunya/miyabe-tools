@@ -177,6 +177,143 @@ function reiki_search_validate_query(string $query, array $municipalities): ?str
     return null;
 }
 
+function reiki_search_fetch_exact_phrase_rows(
+    PDO $pdo,
+    string $ftsQuery,
+    array $exactPhrases,
+    int $perPage,
+    int $offset = 0
+): array {
+    $batchSize = max($perPage + 1, 50);
+    $rawOffset = 0;
+    $exactSeen = 0;
+    $rows = [];
+    $exhausted = false;
+    $phraseLike = japanese_search_exact_phrase_like_clause(
+        $exactPhrases,
+        ['o.title', 'o.document_type', 'o.responsible_department', 'o.combined_stance', 'o.content_text'],
+        'exact_phrase'
+    );
+    $phraseSql = (string)($phraseLike['sql'] ?? '');
+    $phraseWhereSql = $phraseSql !== '' ? ' AND ' . $phraseSql : '';
+    $phraseParams = is_array($phraseLike['params'] ?? null) ? $phraseLike['params'] : [];
+
+    while (count($rows) <= $perPage) {
+        $stmt = $pdo->prepare("
+            SELECT
+                o.id,
+                o.filename,
+                o.title,
+                o.document_type,
+                o.enactment_date,
+                o.responsible_department,
+                o.combined_stance,
+                o.source_url,
+                o.content_text AS excerpt_source,
+                ordinances_fts.rank AS score
+            FROM ordinances_fts
+            JOIN ordinances o ON o.id = ordinances_fts.rowid
+            WHERE ordinances_fts MATCH :q
+              {$phraseWhereSql}
+            ORDER BY score
+            LIMIT :limit OFFSET :offset
+        ");
+        $stmt->bindValue(':q', $ftsQuery, PDO::PARAM_STR);
+        foreach ($phraseParams as $param => $value) {
+            $stmt->bindValue((string)$param, (string)$value, PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':limit', $batchSize, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $rawOffset, PDO::PARAM_INT);
+        $stmt->execute();
+        $candidates = $stmt->fetchAll();
+        if ($candidates === []) {
+            $exhausted = true;
+            break;
+        }
+
+        foreach ($candidates as $candidate) {
+            if (!is_array($candidate)) {
+                continue;
+            }
+            $exactHaystack = trim(
+                (string)($candidate['title'] ?? '') . ' '
+                . (string)($candidate['document_type'] ?? '') . ' '
+                . (string)($candidate['responsible_department'] ?? '') . ' '
+                . (string)($candidate['combined_stance'] ?? '') . ' '
+                . (string)($candidate['excerpt_source'] ?? '')
+            );
+            if (!japanese_search_text_matches_exact_phrases($exactHaystack, $exactPhrases)) {
+                continue;
+            }
+            if ($exactSeen++ < $offset) {
+                continue;
+            }
+            $rows[] = $candidate;
+            if (count($rows) > $perPage) {
+                break 2;
+            }
+        }
+
+        $rawOffset += count($candidates);
+        if (count($candidates) < $batchSize) {
+            $exhausted = true;
+            break;
+        }
+    }
+
+    $hasMore = count($rows) > $perPage;
+    $rows = array_slice($rows, 0, $perPage);
+
+    return [
+        'rows' => $rows,
+        'has_more' => $hasMore,
+        'total' => $offset + count($rows) + ($hasMore ? 1 : 0),
+        'total_exact' => !$hasMore && $exhausted,
+    ];
+}
+
+function reiki_search_preview_excerpt_source_clause(array $preparedQuery): array
+{
+    $terms = is_array($preparedQuery['highlight_terms'] ?? null)
+        ? japanese_search_ordered_terms($preparedQuery['highlight_terms'])
+        : [];
+    $cases = [];
+    $params = [];
+    $index = 0;
+    foreach ($terms as $term) {
+        $term = trim((string)$term);
+        if ($term === '') {
+            continue;
+        }
+
+        $matchParam = ':excerpt_match_' . $index;
+        $startParam = ':excerpt_start_' . $index;
+        $cases[] = "WHEN instr(o.content_text, {$matchParam}) > 0 THEN substr(o.content_text, max(1, instr(o.content_text, {$startParam}) - 120), 520)";
+        $params[$matchParam] = $term;
+        $params[$startParam] = $term;
+        $index++;
+        if ($index >= 6) {
+            break;
+        }
+    }
+
+    $sql = $cases === []
+        ? 'substr(o.content_text, 1, 520) AS excerpt_source'
+        : '(CASE ' . implode(' ', $cases) . ' ELSE substr(o.content_text, 1, 520) END) AS excerpt_source';
+
+    return [
+        'sql' => $sql,
+        'params' => $params,
+    ];
+}
+
+function reiki_search_bind_string_params(PDOStatement $stmt, array $params): void
+{
+    foreach ($params as $name => $value) {
+        $stmt->bindValue((string)$name, (string)$value, PDO::PARAM_STR);
+    }
+}
+
 function reiki_search_execute(array $municipality, string $query, int $page = 1, int $perPage = 8): array
 {
     $preparedQuery = japanese_search_prepare_query($query);
@@ -242,30 +379,43 @@ function reiki_search_execute(array $municipality, string $query, int $page = 1,
 
     try {
         $lastDate = reiki_search_last_date($pdo);
+        $exactPhrases = japanese_search_exact_phrases_from_prepared($preparedQuery);
 
-        $stmt = $pdo->prepare('
-            SELECT
-                o.id,
-                o.filename,
-                o.title,
-                o.document_type,
-                o.enactment_date,
-                o.responsible_department,
-                o.combined_stance,
-                o.source_url,
-                o.content_text AS excerpt_source,
-                ordinances_fts.rank AS score
-            FROM ordinances_fts
-            JOIN ordinances o ON o.id = ordinances_fts.rowid
-            WHERE ordinances_fts MATCH :q
-            ORDER BY score
-            LIMIT :limit OFFSET :offset
-        ');
-        $stmt->bindValue(':q', (string)$preparedQuery['fts_query'], PDO::PARAM_STR);
-        $stmt->bindValue(':limit', $perPage + 1, PDO::PARAM_INT);
-        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-        $stmt->execute();
-        $rows = $stmt->fetchAll();
+        if ($exactPhrases !== []) {
+            $filtered = reiki_search_fetch_exact_phrase_rows(
+                $pdo,
+                (string)$preparedQuery['fts_query'],
+                $exactPhrases,
+                $perPage,
+                $offset
+            );
+            $rows = $filtered['rows'];
+        } else {
+            $stmt = $pdo->prepare('
+                SELECT
+                    o.id,
+                    o.filename,
+                    o.title,
+                    o.document_type,
+                    o.enactment_date,
+                    o.responsible_department,
+                    o.combined_stance,
+                    o.source_url,
+                    o.content_text AS excerpt_source,
+                    ordinances_fts.rank AS score
+                FROM ordinances_fts
+                JOIN ordinances o ON o.id = ordinances_fts.rowid
+                WHERE ordinances_fts MATCH :q
+                ORDER BY score
+                LIMIT :limit OFFSET :offset
+            ');
+            $stmt->bindValue(':q', (string)$preparedQuery['fts_query'], PDO::PARAM_STR);
+            $stmt->bindValue(':limit', $perPage + 1, PDO::PARAM_INT);
+            $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = $stmt->fetchAll();
+            $filtered = null;
+        }
     } catch (Throwable) {
         return $summary + [
             'status' => 'search_error',
@@ -283,8 +433,8 @@ function reiki_search_execute(array $municipality, string $query, int $page = 1,
         ];
     }
 
-    $hasMore = count($rows) > $perPage;
-    $rows = array_slice($rows, 0, $perPage);
+    $hasMore = isset($filtered) && is_array($filtered) ? (bool)$filtered['has_more'] : count($rows) > $perPage;
+    $rows = isset($filtered) && is_array($filtered) ? $rows : array_slice($rows, 0, $perPage);
     $serializedRows = [];
     foreach ($rows as $row) {
         if (!is_array($row)) {
@@ -293,8 +443,10 @@ function reiki_search_execute(array $municipality, string $query, int $page = 1,
         $serializedRows[] = reiki_search_result_row($summary, $row, $preparedQuery);
     }
 
-    $knownTotal = $offset + count($serializedRows) + ($hasMore ? 1 : 0);
-    $totalExact = !$hasMore;
+    $knownTotal = isset($filtered) && is_array($filtered)
+        ? (int)$filtered['total']
+        : $offset + count($serializedRows) + ($hasMore ? 1 : 0);
+    $totalExact = isset($filtered) && is_array($filtered) ? (bool)$filtered['total_exact'] : !$hasMore;
 
     return $summary + [
         'status' => 'ok',
@@ -383,28 +535,43 @@ function reiki_search_execute_preview(array $municipality, string $query, int $p
 
     try {
         $lastDate = reiki_search_last_date($pdo);
-        $stmt = $pdo->prepare('
-            SELECT
-                o.id,
-                o.filename,
-                o.title,
-                o.document_type,
-                o.enactment_date,
-                o.responsible_department,
-                o.combined_stance,
-                o.source_url,
-                o.content_text AS excerpt_source,
-                ordinances_fts.rank AS score
-            FROM ordinances_fts
-            JOIN ordinances o ON o.id = ordinances_fts.rowid
-            WHERE ordinances_fts MATCH :q
-            ORDER BY score
-            LIMIT :limit
-        ');
-        $stmt->bindValue(':q', (string)$preparedQuery['fts_query'], PDO::PARAM_STR);
-        $stmt->bindValue(':limit', $perPage + 1, PDO::PARAM_INT);
-        $stmt->execute();
-        $rows = $stmt->fetchAll();
+        $exactPhrases = japanese_search_exact_phrases_from_prepared($preparedQuery);
+        if ($exactPhrases !== []) {
+            $filtered = reiki_search_fetch_exact_phrase_rows(
+                $pdo,
+                (string)$preparedQuery['fts_query'],
+                $exactPhrases,
+                $perPage
+            );
+            $rows = $filtered['rows'];
+        } else {
+            $excerptSource = reiki_search_preview_excerpt_source_clause($preparedQuery);
+            $excerptSourceSql = (string)$excerptSource['sql'];
+            $stmt = $pdo->prepare("
+                SELECT
+                    o.id,
+                    o.filename,
+                    o.title,
+                    o.document_type,
+                    o.enactment_date,
+                    o.responsible_department,
+                    o.combined_stance,
+                    o.source_url,
+                    {$excerptSourceSql},
+                    ordinances_fts.rank AS score
+                FROM ordinances_fts
+                JOIN ordinances o ON o.id = ordinances_fts.rowid
+                WHERE ordinances_fts MATCH :q
+                ORDER BY score
+                LIMIT :limit
+            ");
+            $stmt->bindValue(':q', (string)$preparedQuery['fts_query'], PDO::PARAM_STR);
+            reiki_search_bind_string_params($stmt, is_array($excerptSource['params'] ?? null) ? $excerptSource['params'] : []);
+            $stmt->bindValue(':limit', $perPage + 1, PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = $stmt->fetchAll();
+            $filtered = null;
+        }
     } catch (Throwable) {
         return $summary + [
             'status' => 'search_error',
@@ -424,8 +591,8 @@ function reiki_search_execute_preview(array $municipality, string $query, int $p
         ];
     }
 
-    $hasMore = count($rows) > $perPage;
-    $rows = array_slice($rows, 0, $perPage);
+    $hasMore = isset($filtered) && is_array($filtered) ? (bool)$filtered['has_more'] : count($rows) > $perPage;
+    $rows = isset($filtered) && is_array($filtered) ? $rows : array_slice($rows, 0, $perPage);
     $serializedRows = [];
     foreach ($rows as $row) {
         if (!is_array($row)) {
@@ -434,13 +601,13 @@ function reiki_search_execute_preview(array $municipality, string $query, int $p
         $serializedRows[] = reiki_search_result_row($summary, $row, $preparedQuery);
     }
 
-    $knownTotal = count($serializedRows);
+    $knownTotal = isset($filtered) && is_array($filtered) ? (int)$filtered['total'] : count($serializedRows);
     return $summary + [
         'status' => 'ok',
         'error' => '',
         'rows' => $serializedRows,
         'total' => $knownTotal,
-        'total_exact' => !$hasMore,
+        'total_exact' => isset($filtered) && is_array($filtered) ? (bool)$filtered['total_exact'] : !$hasMore,
         'has_more' => $hasMore,
         'page' => 1,
         'per_page' => $perPage,

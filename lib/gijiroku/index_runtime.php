@@ -96,34 +96,103 @@ if ($pdo) {
     if ($q !== '') {
         // キーワード検索時だけ FTS を使い、未入力時は通常一覧として軽く返す。
         try {
-            $countSql = $year !== ''
-                ? 'SELECT COUNT(*) FROM minutes_fts JOIN minutes m ON m.id = minutes_fts.rowid WHERE minutes_fts MATCH :q AND m.year_label = :year'
-                : 'SELECT COUNT(*) FROM minutes_fts WHERE minutes_fts MATCH :q';
+            $exactPhrases = japanese_search_exact_phrases_from_prepared($preparedQuery);
+            if ($exactPhrases !== []) {
+                $batchSize = max($perPage + 1, 50);
+                $rawOffset = 0;
+                $exactSeen = 0;
+                $hasMore = false;
+                $phraseLike = japanese_search_exact_phrase_like_clause(
+                    $exactPhrases,
+                    ['m.title', 'm.meeting_name', 'm.content'],
+                    'exact_phrase'
+                );
+                $phraseSql = (string)($phraseLike['sql'] ?? '');
+                $phraseWhereSql = $phraseSql !== '' ? ' AND ' . $phraseSql : '';
+                $phraseParams = is_array($phraseLike['params'] ?? null) ? $phraseLike['params'] : [];
+                $sql = 'SELECT m.id, m.title, m.meeting_name, m.year_label, m.held_on, m.rel_path, m.source_url, m.content AS excerpt_source, minutes_fts.rank AS score FROM minutes_fts JOIN minutes m ON m.id = minutes_fts.rowid WHERE minutes_fts MATCH :q';
+                $sql .= $phraseWhereSql;
+                if ($year !== '') {
+                    $sql .= ' AND m.year_label = :year';
+                }
+                $sql .= ' ORDER BY COALESCE(m.held_on, \'\') DESC, score, m.id DESC LIMIT :limit OFFSET :offset';
 
-            $countStmt = $pdo->prepare($countSql);
-            $countStmt->bindValue(':q', (string)($preparedQuery['fts_query'] ?? $q), PDO::PARAM_STR);
-            if ($year !== '') {
-                $countStmt->bindValue(':year', $year, PDO::PARAM_STR);
-            }
-            $countStmt->execute();
-            $total = (int)$countStmt->fetchColumn();
+                while (count($rows) <= $perPage) {
+                    $stmt = $pdo->prepare($sql);
+                    $stmt->bindValue(':q', (string)($preparedQuery['fts_query'] ?? $q), PDO::PARAM_STR);
+                    if ($year !== '') {
+                        $stmt->bindValue(':year', $year, PDO::PARAM_STR);
+                    }
+                    $stmt->bindValue(':limit', $batchSize, PDO::PARAM_INT);
+                    $stmt->bindValue(':offset', $rawOffset, PDO::PARAM_INT);
+                    foreach ($phraseParams as $param => $value) {
+                        $stmt->bindValue((string)$param, (string)$value, PDO::PARAM_STR);
+                    }
+                    $stmt->execute();
+                    $candidates = $stmt->fetchAll();
+                    if ($candidates === []) {
+                        break;
+                    }
+                    foreach ($candidates as $candidate) {
+                        if (!is_array($candidate)) {
+                            continue;
+                        }
+                        $exactHaystack = trim(
+                            (string)($candidate['title'] ?? '') . ' '
+                            . (string)($candidate['meeting_name'] ?? '') . ' '
+                            . (string)($candidate['excerpt_source'] ?? '')
+                        );
+                        if (!japanese_search_text_matches_exact_phrases($exactHaystack, $exactPhrases)) {
+                            continue;
+                        }
+                        if ($exactSeen++ < $offset) {
+                            continue;
+                        }
+                        $rows[] = $candidate;
+                        if (count($rows) > $perPage) {
+                            $hasMore = true;
+                            break 2;
+                        }
+                    }
+                    $rawOffset += count($candidates);
+                    if (count($candidates) < $batchSize) {
+                        break;
+                    }
+                }
+                if (count($rows) > $perPage) {
+                    $rows = array_slice($rows, 0, $perPage);
+                }
+                $total = $offset + count($rows) + ($hasMore ? 1 : 0);
+            } else {
+                $countSql = $year !== ''
+                    ? 'SELECT COUNT(*) FROM minutes_fts JOIN minutes m ON m.id = minutes_fts.rowid WHERE minutes_fts MATCH :q AND m.year_label = :year'
+                    : 'SELECT COUNT(*) FROM minutes_fts WHERE minutes_fts MATCH :q';
 
-            $sql = 'SELECT m.id, m.title, m.meeting_name, m.year_label, m.held_on, m.rel_path, m.source_url, m.content AS excerpt_source, minutes_fts.rank AS score FROM minutes_fts JOIN minutes m ON m.id = minutes_fts.rowid WHERE minutes_fts MATCH :q';
-            if ($year !== '') {
-                $sql .= ' AND m.year_label = :year';
-            }
-            // 自治体ページの検索結果は、関連度よりまず新しさで追える並びを優先する。
-            $sql .= ' ORDER BY COALESCE(m.held_on, \'\') DESC, score, m.id DESC LIMIT :limit OFFSET :offset';
+                $countStmt = $pdo->prepare($countSql);
+                $countStmt->bindValue(':q', (string)($preparedQuery['fts_query'] ?? $q), PDO::PARAM_STR);
+                if ($year !== '') {
+                    $countStmt->bindValue(':year', $year, PDO::PARAM_STR);
+                }
+                $countStmt->execute();
+                $total = (int)$countStmt->fetchColumn();
 
-            $stmt = $pdo->prepare($sql);
-            $stmt->bindValue(':q', (string)($preparedQuery['fts_query'] ?? $q), PDO::PARAM_STR);
-            if ($year !== '') {
-                $stmt->bindValue(':year', $year, PDO::PARAM_STR);
+                $sql = 'SELECT m.id, m.title, m.meeting_name, m.year_label, m.held_on, m.rel_path, m.source_url, m.content AS excerpt_source, minutes_fts.rank AS score FROM minutes_fts JOIN minutes m ON m.id = minutes_fts.rowid WHERE minutes_fts MATCH :q';
+                if ($year !== '') {
+                    $sql .= ' AND m.year_label = :year';
+                }
+                // 自治体ページの検索結果は、関連度よりまず新しさで追える並びを優先する。
+                $sql .= ' ORDER BY COALESCE(m.held_on, \'\') DESC, score, m.id DESC LIMIT :limit OFFSET :offset';
+
+                $stmt = $pdo->prepare($sql);
+                $stmt->bindValue(':q', (string)($preparedQuery['fts_query'] ?? $q), PDO::PARAM_STR);
+                if ($year !== '') {
+                    $stmt->bindValue(':year', $year, PDO::PARAM_STR);
+                }
+                $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+                $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+                $stmt->execute();
+                $rows = $stmt->fetchAll();
             }
-            $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
-            $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-            $stmt->execute();
-            $rows = $stmt->fetchAll();
             foreach ($rows as &$row) {
                 if (!is_array($row)) {
                     continue;

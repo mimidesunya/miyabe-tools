@@ -47,6 +47,7 @@ def configure_roots(
         module.WORKSPACE_ROOT = WORKSPACE_ROOT
         module.DATA_ROOT = DATA_ROOT
         module.WORK_ROOT = WORK_ROOT
+    batch_status.configure_status_root(DATA_ROOT / "background_tasks")
 
 
 JSON_TASKS = {"gijiroku", "reiki"}
@@ -167,14 +168,14 @@ def build_snapshot_state(task_name: str, items: dict[str, dict[str, Any]]) -> di
 
 
 # 会議録は index JSON / ダウンロード済み本文 / SQLite の最大値を現在件数として採用する。
-def gijiroku_snapshot_items() -> dict[str, dict[str, Any]]:
+def gijiroku_snapshot_items(*, fast: bool = False) -> dict[str, dict[str, Any]]:
     items: dict[str, dict[str, Any]] = {}
     for target in gijiroku_targets.iter_gijiroku_targets():
         downloads_dir = Path(target["downloads_dir"])
         index_json_path = Path(target["index_json_path"])
         db_path = Path(target["db_path"])
 
-        downloaded_count = count_gijiroku_downloads(downloads_dir)
+        downloaded_count = 0 if fast else count_gijiroku_downloads(downloads_dir)
         indexed_count = sqlite_row_count(db_path, "minutes")
         total_count = max(load_json_array_count(index_json_path), downloaded_count, indexed_count)
         current_count = max(downloaded_count, indexed_count)
@@ -207,7 +208,7 @@ def gijiroku_snapshot_items() -> dict[str, dict[str, Any]]:
 
 
 # 例規集は manifest / source / clean HTML / SQLite を見比べて snapshot を復元する。
-def reiki_snapshot_items() -> dict[str, dict[str, Any]]:
+def reiki_snapshot_items(*, fast: bool = False) -> dict[str, dict[str, Any]]:
     items: dict[str, dict[str, Any]] = {}
     for target in reiki_targets.iter_reiki_targets():
         work_root = Path(target["work_root"])
@@ -217,8 +218,8 @@ def reiki_snapshot_items() -> dict[str, dict[str, Any]]:
         db_path = Path(target["db_path"])
 
         manifest_count = load_json_array_count(manifest_path)
-        source_count = count_reiki_html_files(source_dir)
-        clean_html_count = count_reiki_html_files(html_dir)
+        source_count = 0 if fast else count_reiki_html_files(source_dir)
+        clean_html_count = 0 if fast else count_reiki_html_files(html_dir)
         indexed_count = sqlite_row_count(db_path, "ordinances")
         current_count = max(source_count, clean_html_count, indexed_count)
         total_count = manifest_count if manifest_count > 0 else current_count
@@ -253,11 +254,11 @@ def reiki_snapshot_items() -> dict[str, dict[str, Any]]:
     return items
 
 
-def write_snapshot(task_name: str) -> tuple[Path, Path, int]:
+def write_snapshot(task_name: str, *, fast: bool = False) -> tuple[Path, Path, int]:
     if task_name == "gijiroku":
-        items = gijiroku_snapshot_items()
+        items = gijiroku_snapshot_items(fast=fast)
     elif task_name == "reiki":
-        items = reiki_snapshot_items()
+        items = reiki_snapshot_items(fast=fast)
     else:
         raise ValueError(f"Unsupported task: {task_name}")
 
@@ -277,6 +278,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--workspace-root",
         help="municipality マスタや config を読むワークスペース root。既定はこの script の親ディレクトリです。",
+    )
+    parser.add_argument(
+        "--fast",
+        action="store_true",
+        help="ダウンロード済み本文やHTMLの再帰走査を省き、manifest と SQLite から高速に復元します。",
     )
     parser.add_argument(
         "--data-root",
@@ -323,7 +329,7 @@ def main() -> int:
         return 2
 
     for task_name in tasks:
-        main_path, snapshot_path, count = write_snapshot(task_name)
+        main_path, snapshot_path, count = write_snapshot(task_name, fast=args.fast)
         print(f"[DONE] {task_name}: {count} items -> {main_path}", flush=True)
         print(f"[DONE] {task_name}_snapshot: {count} items -> {snapshot_path}", flush=True)
     return 0

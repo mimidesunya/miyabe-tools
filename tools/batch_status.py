@@ -11,6 +11,7 @@ from typing import Any
 # 一括スクレイパから書き込む background_tasks JSON の共通更新処理。
 _UNSET = object()
 TOKYO = timezone(timedelta(hours=9))
+_STATUS_ROOT_OVERRIDE: Path | None = None
 
 
 def project_root() -> Path:
@@ -18,7 +19,14 @@ def project_root() -> Path:
 
 
 def status_root() -> Path:
+    if _STATUS_ROOT_OVERRIDE is not None:
+        return _STATUS_ROOT_OVERRIDE
     return project_root() / "data" / "background_tasks"
+
+
+def configure_status_root(path: Path | str | None) -> None:
+    global _STATUS_ROOT_OVERRIDE
+    _STATUS_ROOT_OVERRIDE = Path(path).resolve() if path is not None else None
 
 
 def status_path(task_name: str) -> Path:

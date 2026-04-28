@@ -115,7 +115,7 @@ function japanese_search_run_tokenizer(string $mode, string $text): ?array
 
 function japanese_search_query_cache_path(string $query): string
 {
-    return data_path('background_tasks/japanese_search_query_cache/' . sha1('phrase-v5:' . $query) . '.json');
+    return data_path('background_tasks/japanese_search_query_cache/' . sha1('phrase-v6:' . $query) . '.json');
 }
 
 function japanese_search_query_cache_ttl_seconds(): int
@@ -189,6 +189,7 @@ function japanese_search_fallback_terms(string $query): array
 
 function japanese_search_extract_quoted_phrases(string $query): array
 {
+    $query = preg_replace('/[\s　]+/u', ' ', $query) ?? $query;
     if (preg_match_all('/"[^"]*"|\(|\)|\bAND\b|\bOR\b|\bNOT\b|\bNEAR(?:\/\d+)?\b|[^\s()"]+/iu', $query, $matches) < 1) {
         return [];
     }
@@ -211,7 +212,7 @@ function japanese_search_extract_quoted_phrases(string $query): array
         if ($isQuoted) {
             if (!$skipNextQuoted) {
                 $phrase = substr($token, 1, -1);
-                $text = trim(preg_replace('/\s+/u', ' ', $phrase) ?? $phrase);
+                $text = trim(preg_replace('/[\s　]+/u', ' ', $phrase) ?? $phrase);
                 if ($text !== '') {
                     $phrases[$text] = $text;
                 }
@@ -238,7 +239,7 @@ function japanese_search_exact_phrases_from_prepared(array $preparedQuery): arra
         if (!is_scalar($phrase)) {
             continue;
         }
-        $text = trim(preg_replace('/\s+/u', ' ', (string)$phrase) ?? (string)$phrase);
+        $text = trim(preg_replace('/[\s　]+/u', ' ', (string)$phrase) ?? (string)$phrase);
         if ($text !== '') {
             $phrases[$text] = $text;
         }
@@ -252,7 +253,7 @@ function japanese_search_text_matches_exact_phrases(string $text, array $phrases
         return true;
     }
 
-    $normalized = preg_replace('/\s+/u', ' ', $text) ?? $text;
+    $normalized = preg_replace('/[\s　]+/u', ' ', $text) ?? $text;
     foreach ($phrases as $phrase) {
         $needle = trim((string)$phrase);
         if ($needle === '') {
@@ -316,7 +317,7 @@ function japanese_search_prepare_query(string $query): array
 {
     static $cache = [];
 
-    $normalized = trim($query);
+    $normalized = trim(preg_replace('/[\s　]+/u', ' ', $query) ?? $query);
     if (isset($cache[$normalized])) {
         return $cache[$normalized];
     }
@@ -330,7 +331,7 @@ function japanese_search_prepare_query(string $query): array
         if (is_array($cachedPayload)) {
             $cachedTokenizer = trim((string)($cachedPayload['tokenizer'] ?? ''));
             $cachedSchema = trim((string)($cachedPayload['query_cache_schema'] ?? ''));
-            if ($cachedTokenizer !== 'fallback' && $cachedSchema === 'phrase-v5') {
+            if ($cachedTokenizer !== 'fallback' && $cachedSchema === 'phrase-v6') {
                 $payload = $cachedPayload;
             }
         }
@@ -398,7 +399,7 @@ function japanese_search_prepare_query(string $query): array
         'fts_query' => $ftsQuery,
         'highlight_terms' => array_values($surfaceTerms),
         'exact_phrases' => array_values($exactPhrases),
-        'query_cache_schema' => 'phrase-v5',
+        'query_cache_schema' => 'phrase-v6',
         'tokenizer' => $payload === null ? 'fallback' : 'sudachi',
     ];
 

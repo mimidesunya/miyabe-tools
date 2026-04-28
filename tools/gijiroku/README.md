@@ -63,6 +63,24 @@ python tools/gijiroku/scrape_kami_city_pdf.py \
   --max-meetings 3
 ```
 
+自治体公式サイトの `site/gikai` 系 PDF 一覧型:
+
+```bash
+python tools/gijiroku/scrape_site_gikai_pdf.py \
+  --slug 23425-kanie-cho \
+  --ack-robots \
+  --max-meetings 3
+```
+
+静的な `kaigiroku/gijiroku` ディレクトリ型:
+
+```bash
+python tools/gijiroku/scrape_static_kaigiroku_dir.py \
+  --slug 01226-sunagawa-shi \
+  --ack-robots \
+  --max-meetings 3
+```
+
 `gijiroku.com` を全件取得（時間がかかります）:
 
 ```bash
@@ -81,7 +99,7 @@ python tools/gijiroku/scrape_all_minutes.py --ack-robots --systems gijiroku.com 
 python tools/gijiroku/scrape_all_minutes.py --ack-robots --systems gijiroku.com --max-targets 5 --parallel 5 --per-host-start-interval 2
 ```
 
-実装済みの `gijiroku.com` / `voices` / `kaigiroku.net` / `dbsr` / `db-search` / `kaigiroku-indexphp` / `kensakusystem` / `kami-city-pdf` をまとめて回す場合:
+実装済みの `gijiroku.com` / `voices` / `kaigiroku.net` / `dbsr` / `db-search` / `kaigiroku-indexphp` / `kensakusystem` / `kami-city-pdf` / `site-gikai-pdf` / `static-kaigiroku-dir` をまとめて回す場合:
 
 ```bash
 python tools/gijiroku/scrape_all_minutes.py --ack-robots --parallel 8 --per-host-parallel 1 --per-host-start-interval 2
@@ -104,7 +122,7 @@ python tools/gijiroku/build_minutes_index.py --slug 14130-kawasaki-shi
 - 既定値 `data/gijiroku/{slug}/minutes.sqlite`
 - `tools/gijiroku/schema.sql` にDBスキーマ定義
 
-この DB の FTS 部分は、生テキストではなく SudachiPy で分かち書きした terms カラムを検索対象にします。
+この DB の FTS 部分は、生テキストではなく SudachiPy で分かち書きした terms カラムを検索対象にします。検索語では `AND` / `OR` / `NOT` / `NEAR/5` に加えて、`"子育て支援"` のように引用符でくくるフレーズ一致も使えます。
 
 Web画面:
 

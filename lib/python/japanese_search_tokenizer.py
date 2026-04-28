@@ -240,8 +240,29 @@ def append_unique(items: list[str], values: list[str]) -> None:
         items.append(value)
 
 
+def fts_query_part_ends_operand(kind: str) -> bool:
+    return kind in {"term", "close"}
+
+
+def fts_query_part_starts_operand(kind: str) -> bool:
+    return kind in {"term", "open"}
+
+
+def join_fts_query_parts(parts: list[tuple[str, str]]) -> str:
+    query_parts: list[str] = []
+    previous_kind = ""
+    for kind, text in parts:
+        if text == "":
+            continue
+        if fts_query_part_ends_operand(previous_kind) and fts_query_part_starts_operand(kind):
+            query_parts.append("AND")
+        query_parts.append(text)
+        previous_kind = kind
+    return " ".join(query_parts)
+
+
 def build_query_payload(text: str) -> dict[str, object]:
-    parts: list[str] = []
+    parts: list[tuple[str, str]] = []
     highlight_terms: list[str] = []
     exact_phrases: list[str] = []
     exact_phrases_supported = True
@@ -251,8 +272,14 @@ def build_query_payload(text: str) -> dict[str, object]:
             continue
 
         upper = token.upper()
-        if token in {"(", ")"} or upper in {"AND", "OR", "NOT"} or upper.startswith("NEAR"):
-            parts.append(upper if upper != token else token)
+        if token == "(":
+            parts.append(("open", token))
+            continue
+        if token == ")":
+            parts.append(("close", token))
+            continue
+        if upper in {"AND", "OR", "NOT"} or upper.startswith("NEAR"):
+            parts.append(("operator", upper if upper != token else token))
             if upper == "OR" or upper.startswith("NEAR"):
                 exact_phrases_supported = False
             if upper == "NOT":
@@ -274,13 +301,13 @@ def build_query_payload(text: str) -> dict[str, object]:
             clause = build_term_query_from_morphemes(term, morphemes)
             highlight_candidates = surface_terms_from_morphemes(morphemes)
         if clause:
-            parts.append(clause)
+            parts.append(("term", clause))
         if not is_negated:
             append_unique(highlight_terms, highlight_candidates)
         skip_highlight = False
 
     return {
-        "fts_query": " ".join(parts),
+        "fts_query": join_fts_query_parts(parts),
         "surface_terms": highlight_terms,
         "exact_phrases": exact_phrases if exact_phrases_supported else [],
     }

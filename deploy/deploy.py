@@ -7,6 +7,7 @@ import time
 import tempfile
 import atexit
 import shlex
+import re
 from pathlib import Path
 
 from scraping_stack import (
@@ -99,10 +100,59 @@ def prepare_ssh_key(key_path):
     return _write_temp_ssh_key(key_bytes, source_label=key_path)
 
 
+def wsl_mount_path_to_windows_path(path):
+    """Convert /mnt/i/path used in WSL to I:\\path for Windows-side fallback reads."""
+    match = re.match(r'^/mnt/([A-Za-z])/(.+)$', str(path).strip())
+    if not match:
+        return ''
+    drive = match.group(1).upper()
+    rest = match.group(2).replace('/', '\\')
+    return f"{drive}:\\{rest}"
+
+
+def read_windows_file_bytes_from_wsl(windows_path):
+    """Read a Windows file from WSL even when the drive is not mounted under /mnt."""
+    script = (
+        "$path = [Console]::In.ReadToEnd();"
+        "$bytes = [System.IO.File]::ReadAllBytes($path.Trim());"
+        "[Console]::OpenStandardOutput().Write($bytes, 0, $bytes.Length)"
+    )
+    try:
+        result = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-Command", script],
+            input=windows_path.encode('utf-8'),
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=False,
+        )
+    except FileNotFoundError:
+        print("Error: powershell.exe was not found; cannot read Windows SSH key from WSL.")
+        sys.exit(1)
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode('utf-8', errors='replace')
+        print(f"Error reading SSH key from Windows path: {windows_path}")
+        print(f"Stderr: {stderr}")
+        sys.exit(1)
+
+    return result.stdout
+
+
 def prepare_ssh_key_from_wsl_path(wsl_key_path):
     """Read an SSH key via WSL and copy it to a local temp file."""
     if os.name != 'nt':
-        return prepare_ssh_key(wsl_key_path)
+        try:
+            return prepare_ssh_key(wsl_key_path)
+        except OSError as e:
+            windows_path = wsl_mount_path_to_windows_path(wsl_key_path)
+            if not windows_path:
+                raise
+            print(f"WSL path is not directly readable ({e}); trying Windows path: {windows_path}")
+            key_bytes = read_windows_file_bytes_from_wsl(windows_path)
+            if not key_bytes:
+                print(f"Error: SSH key at Windows path is empty: {windows_path}")
+                sys.exit(1)
+            return _write_temp_ssh_key(key_bytes, source_label=windows_path)
 
     try:
         result = subprocess.run(
@@ -204,8 +254,9 @@ def run_command(cmd, capture_output=True, ignore_error=False):
         print(f"Stderr: {e.stderr}")
         sys.exit(1)
 
-def ssh_exec(config, command):
+def ssh_exec(config, command, *, stream=False):
     """Executes a command on the remote server via SSH."""
+    command_bytes = command.replace('\r\n', '\n').replace('\r', '\n').encode('utf-8')
     ssh_args = [
         "ssh",
         "-i",
@@ -220,21 +271,41 @@ def ssh_exec(config, command):
     ]
     debug_cmd = " ".join(shlex.quote(part) for part in ssh_args)
     print(f"Running: {debug_cmd}")
+    if stream:
+        process = subprocess.Popen(
+            ssh_args,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=1,
+        )
+        assert process.stdin is not None
+        process.stdin.write(command_bytes)
+        process.stdin.close()
+        if process.stdout is not None:
+            for line in process.stdout:
+                print(line.decode('utf-8', errors='replace'), end="")
+        returncode = process.wait()
+        if returncode != 0:
+            print(f"Error executing remote command via SSH: {debug_cmd}")
+            print(f"Remote script:\n{command}")
+            sys.exit(returncode)
+        return ""
+
     try:
         result = subprocess.run(
             ssh_args,
-            input=command,
+            input=command_bytes,
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True,
         )
-        return result.stdout.strip()
+        return result.stdout.decode('utf-8', errors='replace').strip()
     except subprocess.CalledProcessError as e:
         print(f"Error executing remote command via SSH: {debug_cmd}")
         print(f"Remote script:\n{command}")
-        print(f"Stdout: {e.stdout}")
-        print(f"Stderr: {e.stderr}")
+        print(f"Stdout: {e.stdout.decode('utf-8', errors='replace') if isinstance(e.stdout, bytes) else e.stdout}")
+        print(f"Stderr: {e.stderr.decode('utf-8', errors='replace') if isinstance(e.stderr, bytes) else e.stderr}")
         sys.exit(1)
 
 def ssh_copy_content(config, content, remote_path):
@@ -402,21 +473,26 @@ def normalize_remote_municipality_storage(config, dest_dir, shared_data_dir):
     # /workspace/data 配下には boards と、shared volume が重なった reiki/gijiroku の両方が見える。
     print("=== Normalizing Remote Municipality Storage ===")
     normalization_cmd = f"""
+set -eu
+echo '[deploy] prepare municipality storage'
 mkdir -p {dest_dir}/tools {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {shared_data_dir}/municipalities {shared_data_dir}/reiki {shared_data_dir}/gijiroku
+echo '[deploy] sync municipality metadata to shared data'
 rsync -a {dest_dir}/data/municipalities/ {shared_data_dir}/municipalities/
 if [ -f {dest_dir}/docker-compose.scraping.yml ]; then
+  echo '[deploy] stop scraper workers for normalization'
   cd {dest_dir}
   docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml stop scraper-gijiroku scraper-reiki scraper-beat >/dev/null 2>&1 || true
-  docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml run --rm -T -v {shared_data_dir}/reiki:/workspace/data/reiki --entrypoint sh scraper-gijiroku -lc '
+  echo '[deploy] run municipality normalization container'
+  docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml run --rm -T --no-deps -v {shared_data_dir}/reiki:/workspace/data/reiki --entrypoint sh scraper-gijiroku -lc '
 set -eu
 python3 /workspace/tools/normalize_municipality_storage.py --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work --background-task-dir /workspace/data/background_tasks
-python3 /workspace/tools/backfill_background_tasks.py --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work
+python3 /workspace/tools/backfill_background_tasks.py --fast --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work
 '
 else
   printf '%s\n' 'SKIP: remote municipality normalization requires docker-compose.scraping.yml'
 fi
 """
-    output = ssh_exec(config, normalization_cmd)
+    output = ssh_exec(config, normalization_cmd, stream=True)
     if output:
         print(output)
 
@@ -477,7 +553,10 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
 
     # Use rsync for better handling of large number of files
     # Note: rsync over ssh is more reliable for large directories
-    ssh_base = f"ssh -i {config['key_path']} -p {config.get('port', 22)} -o StrictHostKeyChecking=no"
+    rsync_key_path = str(config['key_path']).replace('\\', '/')
+    if os.name == 'nt' and len(rsync_key_path) >= 3 and rsync_key_path[1:3] == ':/':
+        rsync_key_path = f"/cygdrive/{rsync_key_path[0].lower()}/{rsync_key_path[3:]}"
+    ssh_base = f"ssh -i {rsync_key_path} -p {config.get('port', 22)} -o StrictHostKeyChecking=no"
     
     # Sync each directory separately for better error handling and progress tracking.
     # Scraped gijiroku/reiki data lives in shared_data_dir and is populated on the remote host,
@@ -517,46 +596,13 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
         required=False,
         ignore_existing_remote=True,
     )
-    sync_single_file(
-        config,
-        ssh_base,
-        "data/background_tasks/gijiroku.json",
-        f"{dest_dir}/data/background_tasks/gijiroku.json",
-        dry_run=dry_run,
-        required=False,
-    )
-    sync_single_file(
-        config,
-        ssh_base,
-        "data/background_tasks/reiki.json",
-        f"{dest_dir}/data/background_tasks/reiki.json",
-        dry_run=dry_run,
-        required=False,
-    )
-    sync_single_file(
-        config,
-        ssh_base,
-        "data/background_tasks/gijiroku_snapshot.json",
-        f"{dest_dir}/data/background_tasks/gijiroku_snapshot.json",
-        dry_run=dry_run,
-        required=False,
-    )
-    sync_single_file(
-        config,
-        ssh_base,
-        "data/background_tasks/reiki_snapshot.json",
-        f"{dest_dir}/data/background_tasks/reiki_snapshot.json",
-        dry_run=dry_run,
-        required=False,
-    )
-
     for local_path, remote_path in dirs_to_sync:
         print(f"Syncing {local_path}...")
         # -a: archive mode (preserves permissions, times, etc.)
         # -v: verbose
         # -z: compress during transfer
         # --delete: remove files on remote that don't exist locally
-        filter_opts = ""
+        filter_opts = " --exclude='__pycache__/' --exclude='*.pyc' --exclude='*.pyo' --exclude='*.tmp'"
         for rule in rsync_filters.get(local_path, []):
             kind, pattern = rule.split(":", 1)
             if kind == "protect":

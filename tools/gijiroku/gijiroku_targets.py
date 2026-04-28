@@ -24,6 +24,8 @@ SYSTEM_FAMILY_ALIASES = {
     "voicetechno": {"voicetechno"},
     "msearch": {"msearch"},
     "kami-city-pdf": {"kami-city-pdf"},
+    "site-gikai-pdf": {"site-gikai-pdf"},
+    "static-kaigiroku-dir": {"static-kaigiroku-dir"},
     "独自": {"独自"},
 }
 SYSTEM_FAMILY_BY_TYPE = {

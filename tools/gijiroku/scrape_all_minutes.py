@@ -36,6 +36,8 @@ SUPPORTED_SYSTEMS = {
     "dbsr": "scrape_dbsr.py",
     "kensakusystem": "scrape_kensakusystem.py",
     "kami-city-pdf": "scrape_kami_city_pdf.py",
+    "site-gikai-pdf": "scrape_site_gikai_pdf.py",
+    "static-kaigiroku-dir": "scrape_static_kaigiroku_dir.py",
 }
 SUPPORTED_INPUT_SYSTEMS = set(SUPPORTED_SYSTEMS.keys()) | {"voices", "db-search", "kaigiroku-indexphp"}
 # 子スクレイパ標準出力の [PROGRESS] 行だけを拾い、自治体単位の current/total へ反映する。
@@ -216,7 +218,14 @@ def build_child_command(args: argparse.Namespace, target: dict) -> list[str]:
         cmd.extend(["--max-meetings", str(args.per_target_max_meetings)])
     if system_family == "kaigiroku.net" and args.per_target_max_years > 0:
         cmd.extend(["--max-years", str(args.per_target_max_years)])
-    if args.save_html and system_family in {"gijiroku.com", "dbsr", "kensakusystem", "kami-city-pdf"}:
+    if args.save_html and system_family in {
+        "gijiroku.com",
+        "dbsr",
+        "kensakusystem",
+        "kami-city-pdf",
+        "site-gikai-pdf",
+        "static-kaigiroku-dir",
+    }:
         cmd.append("--save-html")
     if args.save_debug_json and system_family == "kaigiroku.net":
         cmd.append("--save-debug-json")

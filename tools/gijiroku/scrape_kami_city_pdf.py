@@ -32,6 +32,17 @@ KAMI_MINUTES_PAGE_RE = re.compile(r"^/site/gikai/kaigiroku(?:\d{4}|sokuhou)\.htm
 ATTACHMENT_ID_RE = re.compile(r"/uploaded/attachment/(\d+)\.pdf$", re.I)
 ERA_BASE_YEAR = {"昭和": 1925, "平成": 1988, "令和": 2018}
 FULLWIDTH_DIGITS = str.maketrans("０１２３４５６７８９", "0123456789")
+MINUTES_PAGE_KEYWORDS = (
+    "会議録",
+    "議事録",
+    "kaigiroku",
+    "gijiroku",
+    "minutes",
+    "定例会",
+    "臨時会",
+)
+GIKAI_PATH_KEYWORDS = ("gikai", "gicho", "gichou", "gityou")
+YEAR_OR_LIST_RE = re.compile(r"(20\d{2}|令和[元\d０-９]+|平成[元\d０-９]+|昭和[元\d０-９]+|list\d+|\d{4,6}\.html)", re.I)
 
 
 @dataclass(frozen=True)
@@ -140,11 +151,12 @@ def load_minutes_index_builder():
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="香美市公式サイトの会議録PDF一覧を巡回し、PDF本文をテキスト保存します。"
+        description="自治体公式サイトの site/gikai 型会議録PDF一覧を巡回し、PDF本文をテキスト保存します。"
     )
     parser.add_argument("--slug", default="39212-kami-shi", help="対象自治体 slug")
     parser.add_argument("--ack-robots", action="store_true", help="robots.txt・利用規約・許諾確認済みとして実行する")
     parser.add_argument("--max-meetings", type=int, default=0, help="処理するPDF件数上限（0 は無制限）")
+    parser.add_argument("--max-pages", type=int, default=120, help="一覧・詳細ページの探索上限（0 は無制限）")
     parser.add_argument("--delay-seconds", type=float, default=1.5, help="PDFアクセス間の待機秒数")
     parser.add_argument("--timeout-ms", type=int, default=10_000, help="HTTPタイムアウト（ミリ秒）")
     parser.add_argument("--save-html", action="store_true", help="取得した一覧ページHTMLを work 側へ保存する")
@@ -186,20 +198,80 @@ def is_kami_minutes_page(url: str) -> bool:
     return parts.netloc == "www.city.kami.lg.jp" and KAMI_MINUTES_PAGE_RE.match(parts.path) is not None
 
 
-def discover_minutes_pages(session: requests.Session, start_url: str, timeout_ms: int, pages_dir: Path | None = None) -> list[str]:
+def is_same_site_html_page(start_url: str, url: str) -> bool:
+    start = urlsplit(start_url)
+    target = urlsplit(url)
+    if target.netloc != start.netloc:
+        return False
+    path = target.path.lower()
+    if path.endswith(".pdf") or path.endswith((".jpg", ".jpeg", ".png", ".gif", ".zip", ".doc", ".docx", ".xls", ".xlsx")):
+        return False
+    return "/site/" in path
+
+
+def looks_like_generic_minutes_page(anchor_text: str, url: str) -> bool:
+    parts = urlsplit(url)
+    path = parts.path.lower()
+    haystack = normalize_space(f"{anchor_text} {parts.path}").lower()
+    if any(keyword.lower() in haystack for keyword in MINUTES_PAGE_KEYWORDS):
+        return True
+    if any(keyword in path for keyword in GIKAI_PATH_KEYWORDS) and YEAR_OR_LIST_RE.search(haystack):
+        return True
+    return False
+
+
+def should_follow_minutes_page(start_url: str, href: str, anchor_text: str, strict_kami: bool) -> str | None:
+    absolute = urljoin(start_url, href.strip())
+    absolute = absolute.split("#", 1)[0]
+    if strict_kami:
+        return absolute if is_kami_minutes_page(absolute) else None
+    if not is_same_site_html_page(start_url, absolute):
+        return None
+    return absolute if looks_like_generic_minutes_page(anchor_text, absolute) else None
+
+
+def is_site_attachment_pdf(url: str) -> bool:
+    path = urlsplit(url).path.lower()
+    return path.endswith(".pdf") and "/uploaded/attachment/" in path
+
+
+def load_supported_target(slug: str) -> dict:
+    last_error: Exception | None = None
+    for expected_system in ("site-gikai-pdf", "kami-city-pdf"):
+        try:
+            return gijiroku_targets.load_gijiroku_target(slug, expected_system=expected_system)
+        except ValueError as exc:
+            last_error = exc
+    if last_error is not None:
+        raise last_error
+    raise ValueError(f"Municipality slug not found: {slug}")
+
+
+def discover_minutes_pages(
+    session: requests.Session,
+    start_url: str,
+    timeout_ms: int,
+    pages_dir: Path | None = None,
+    *,
+    strict_kami: bool = False,
+    max_pages: int = 120,
+) -> list[str]:
     start_html = request_text(session, start_url, timeout_ms)
     if pages_dir is not None:
         gijiroku_storage.write_text(pages_dir / "start.html", start_html, compress=True)
 
     soup = BeautifulSoup(start_html, "html.parser")
     pages: dict[str, None] = {start_url: None}
-    for anchor in soup.select("#subsite_menu_wrap a[href], a[href]"):
+    selectors = "#subsite_menu_wrap a[href], #site_navi a[href], #main_body a[href], a[href]"
+    for anchor in soup.select(selectors):
         href = str(anchor.get("href", "")).strip()
         if not href:
             continue
-        absolute = urljoin(start_url, href)
-        if is_kami_minutes_page(absolute):
-            pages[absolute] = None
+        page_url = should_follow_minutes_page(start_url, href, anchor.get_text(" ", strip=True), strict_kami)
+        if page_url:
+            pages[page_url] = None
+            if max_pages > 0 and len(pages) >= max_pages:
+                break
     return list(pages.keys())
 
 
@@ -208,6 +280,8 @@ def discover_pdf_items(
     page_urls: list[str],
     timeout_ms: int,
     pages_dir: Path | None = None,
+    *,
+    require_site_attachment: bool = False,
 ) -> list[PdfMeetingItem]:
     items_by_url: dict[str, PdfMeetingItem] = {}
 
@@ -236,7 +310,14 @@ def discover_pdf_items(
             pdf_url = urljoin(page_url, str(node.get("href", "")).strip())
             if not urlsplit(pdf_url).path.lower().endswith(".pdf"):
                 continue
+            if require_site_attachment and not is_site_attachment_pdf(pdf_url):
+                continue
             label = clean_pdf_label(node.get_text(" ", strip=True))
+            if label == "会議録" and current_group:
+                label = current_group
+            if label == "会議録":
+                fallback_id = attachment_id(pdf_url)
+                label = f"{title} {fallback_id}" if fallback_id is not None else title
             year_label, source_year = extract_year_info(label, current_group or "", title)
             if year_label == "不明":
                 year_label = page_year_label
@@ -302,7 +383,7 @@ def main() -> int:
         print("ERROR: --ack-robots を指定してください。robots.txt・利用規約・許諾確認後に実行してください。", file=sys.stderr)
         return 2
 
-    target = gijiroku_targets.load_gijiroku_target(args.slug, expected_system="kami-city-pdf")
+    target = load_supported_target(args.slug)
     slug = str(target["slug"])
     work_dir = Path(target["work_dir"])
     downloads_dir = Path(target["downloads_dir"])
@@ -330,9 +411,23 @@ def main() -> int:
     print(f"[INFO] Target: {target['name']} ({slug}, {target['system_type']})")
     print(f"[INFO] Source URL: {target['source_url']}")
     print("[INFO] 会議録ページを収集中...")
-    page_urls = discover_minutes_pages(session, str(target["source_url"]), args.timeout_ms, pages_dir)
+    strict_kami = str(target["system_type"]) == "kami-city-pdf"
+    page_urls = discover_minutes_pages(
+        session,
+        str(target["source_url"]),
+        args.timeout_ms,
+        pages_dir,
+        strict_kami=strict_kami,
+        max_pages=args.max_pages,
+    )
     print(f"[INFO] 会議録ページ {len(page_urls)} 件")
-    meeting_items = discover_pdf_items(session, page_urls, args.timeout_ms, pages_dir)
+    meeting_items = discover_pdf_items(
+        session,
+        page_urls,
+        args.timeout_ms,
+        pages_dir,
+        require_site_attachment=not strict_kami,
+    )
     if args.max_meetings > 0:
         meeting_items = meeting_items[: args.max_meetings]
     print(f"[INFO] PDF候補 {len(meeting_items)} 件")
