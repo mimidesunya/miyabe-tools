@@ -23,6 +23,7 @@ SYSTEM_FAMILY_ALIASES = {
     "amivoice": {"amivoice"},
     "voicetechno": {"voicetechno"},
     "msearch": {"msearch"},
+    "kami-city-pdf": {"kami-city-pdf"},
     "独自": {"独自"},
 }
 SYSTEM_FAMILY_BY_TYPE = {

@@ -54,6 +54,15 @@ python tools/gijiroku/scrape_kensakusystem.py \
   --max-meetings 10
 ```
 
+香美市公式サイトの PDF 一覧型:
+
+```bash
+python tools/gijiroku/scrape_kami_city_pdf.py \
+  --slug 39212-kami-shi \
+  --ack-robots \
+  --max-meetings 3
+```
+
 `gijiroku.com` を全件取得（時間がかかります）:
 
 ```bash
@@ -72,7 +81,7 @@ python tools/gijiroku/scrape_all_minutes.py --ack-robots --systems gijiroku.com 
 python tools/gijiroku/scrape_all_minutes.py --ack-robots --systems gijiroku.com --max-targets 5 --parallel 5 --per-host-start-interval 2
 ```
 
-実装済みの `gijiroku.com` / `voices` / `kaigiroku.net` / `dbsr` / `db-search` / `kaigiroku-indexphp` / `kensakusystem` をまとめて回す場合:
+実装済みの `gijiroku.com` / `voices` / `kaigiroku.net` / `dbsr` / `db-search` / `kaigiroku-indexphp` / `kensakusystem` / `kami-city-pdf` をまとめて回す場合:
 
 ```bash
 python tools/gijiroku/scrape_all_minutes.py --ack-robots --parallel 8 --per-host-parallel 1 --per-host-start-interval 2

@@ -640,9 +640,15 @@ def parse_source_meta(index_json: Path) -> dict[tuple[str, str, str], SourceMeta
             continue
 
         query = parse_qs(urlsplit(source_url).query)
-        source_year = parse_optional_int(query.get("YEAR", [None])[0])
-        source_fino = parse_optional_int(query.get("FINO", [None])[0])
-        meeting_name_hint = extract_meta_meeting_name(source_url, title)
+        source_year = parse_optional_int(row.get("source_year"))
+        if source_year is None:
+            source_year = parse_optional_int(query.get("YEAR", [None])[0])
+        source_fino = parse_optional_int(row.get("source_fino"))
+        if source_fino is None:
+            source_fino = parse_optional_int(query.get("FINO", [None])[0])
+        meeting_name_hint = normalize_space(str(row.get("meeting_name", "") or row.get("meeting_group", ""))) or None
+        if meeting_name_hint is None:
+            meeting_name_hint = extract_meta_meeting_name(source_url, title)
         meta = SourceMeta(
             title=title,
             year_label=year_label,
