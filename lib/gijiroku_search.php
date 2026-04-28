@@ -21,9 +21,12 @@ function gijiroku_search_ready_cache_ttl_seconds(): int
 function gijiroku_search_public_summary(array $municipality): array
 {
     $feature = is_array($municipality['gijiroku'] ?? null) ? $municipality['gijiroku'] : [];
+    $prefCode = municipality_prefecture_code_from_code((string)($municipality['code'] ?? ''));
     return [
         'slug' => (string)($municipality['slug'] ?? ''),
         'code' => (string)($municipality['code'] ?? ''),
+        'pref_code' => $prefCode,
+        'pref_name' => municipality_prefecture_name_from_code($prefCode),
         'name' => (string)($municipality['name'] ?? ''),
         'assembly_name' => (string)($feature['assembly_name'] ?? (($municipality['name'] ?? '') . '議会')),
         'url' => (string)($feature['url'] ?? ''),
@@ -228,6 +231,95 @@ function gijiroku_search_latest_match_date(PDO $pdo, string $ftsQuery): ?string
     return $value !== '' ? $value : null;
 }
 
+function gijiroku_search_fetch_exact_phrase_rows(
+    PDO $pdo,
+    string $ftsQuery,
+    array $exactPhrases,
+    int $perPage,
+    int $offset = 0
+): array {
+    $batchSize = max($perPage + 1, 50);
+    $rawOffset = 0;
+    $exactSeen = 0;
+    $rows = [];
+    $latestHitDate = null;
+    $exhausted = false;
+    $phraseLike = japanese_search_exact_phrase_like_clause(
+        $exactPhrases,
+        ['m.title', 'm.meeting_name', 'm.content'],
+        'exact_phrase'
+    );
+    $phraseSql = (string)($phraseLike['sql'] ?? '');
+    $phraseWhereSql = $phraseSql !== '' ? ' AND ' . $phraseSql : '';
+    $phraseParams = is_array($phraseLike['params'] ?? null) ? $phraseLike['params'] : [];
+
+    while (count($rows) <= $perPage) {
+        $stmt = $pdo->prepare("SELECT m.id, m.title, m.meeting_name, m.year_label, m.held_on, m.rel_path, m.source_url, m.content AS excerpt_source
+                                 FROM minutes_fts
+                                 JOIN minutes m ON m.id = minutes_fts.rowid
+                                WHERE minutes_fts MATCH :q
+                                  {$phraseWhereSql}
+                             ORDER BY COALESCE(m.held_on, '') DESC, m.id DESC
+                                LIMIT :limit OFFSET :offset");
+        $stmt->bindValue(':q', $ftsQuery, PDO::PARAM_STR);
+        foreach ($phraseParams as $param => $value) {
+            $stmt->bindValue((string)$param, (string)$value, PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':limit', $batchSize, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $rawOffset, PDO::PARAM_INT);
+        $stmt->execute();
+        $candidates = $stmt->fetchAll();
+        if ($candidates === []) {
+            $exhausted = true;
+            break;
+        }
+
+        foreach ($candidates as $candidate) {
+            if (!is_array($candidate)) {
+                continue;
+            }
+            $exactHaystack = trim(
+                (string)($candidate['title'] ?? '') . ' '
+                . (string)($candidate['meeting_name'] ?? '') . ' '
+                . (string)($candidate['excerpt_source'] ?? '')
+            );
+            if (!japanese_search_text_matches_exact_phrases($exactHaystack, $exactPhrases)) {
+                continue;
+            }
+            if ($latestHitDate === null) {
+                $heldOn = trim((string)($candidate['held_on'] ?? ''));
+                if ($heldOn !== '') {
+                    $latestHitDate = $heldOn;
+                }
+            }
+            if ($exactSeen++ < $offset) {
+                continue;
+            }
+            $rows[] = $candidate;
+            if (count($rows) > $perPage) {
+                break 2;
+            }
+        }
+
+        $rawOffset += count($candidates);
+        if (count($candidates) < $batchSize) {
+            $exhausted = true;
+            break;
+        }
+    }
+
+    $hasMore = count($rows) > $perPage;
+    $rows = array_slice($rows, 0, $perPage);
+
+    return [
+        'rows' => $rows,
+        'has_more' => $hasMore,
+        'total' => $offset + count($rows) + ($hasMore ? 1 : 0),
+        'total_exact' => !$hasMore && $exhausted,
+        'latest_hit_date' => $latestHitDate,
+    ];
+}
+
 function gijiroku_search_list_documents(
     array $municipality,
     string $heldOn = '',
@@ -309,7 +401,7 @@ function gijiroku_search_list_documents(
             $total = (int)$countStmt->fetchColumn();
 
             $stmt = $pdo->prepare(
-                "SELECT id, title, meeting_name, year_label, held_on, rel_path, source_url, content AS excerpt_source
+                "SELECT id, title, meeting_name, year_label, held_on, rel_path, source_url, substr(content, 1, 240) AS excerpt_source
                    FROM minutes
                   WHERE doc_type = 'minutes'
                     AND held_on = :held_on
@@ -320,7 +412,7 @@ function gijiroku_search_list_documents(
         } else {
             $total = (int)$pdo->query("SELECT COUNT(*) FROM minutes WHERE doc_type = 'minutes'")->fetchColumn();
             $stmt = $pdo->prepare(
-                "SELECT id, title, meeting_name, year_label, held_on, rel_path, source_url, content AS excerpt_source
+                "SELECT id, title, meeting_name, year_label, held_on, rel_path, source_url, substr(content, 1, 240) AS excerpt_source
                    FROM minutes
                   WHERE doc_type = 'minutes'
                ORDER BY COALESCE(held_on, '') DESC, id DESC
@@ -533,20 +625,34 @@ function gijiroku_search_execute(array $municipality, string $query, int $page =
 
     try {
         $lastDate = gijiroku_search_last_date($pdo);
-        $latestHitDate = gijiroku_search_latest_match_date($pdo, (string)$preparedQuery['fts_query']);
+        $exactPhrases = japanese_search_exact_phrases_from_prepared($preparedQuery);
+        if ($exactPhrases !== []) {
+            $filtered = gijiroku_search_fetch_exact_phrase_rows(
+                $pdo,
+                (string)$preparedQuery['fts_query'],
+                $exactPhrases,
+                $perPage,
+                $offset
+            );
+            $rows = $filtered['rows'];
+            $latestHitDate = $filtered['latest_hit_date'];
+        } else {
+            $latestHitDate = gijiroku_search_latest_match_date($pdo, (string)$preparedQuery['fts_query']);
 
-        // 横断検索は「まず最近の議論をざっと見る」用途なので、新しい開催日を優先する。
-        $stmt = $pdo->prepare("SELECT m.id, m.title, m.meeting_name, m.year_label, m.held_on, m.rel_path, m.source_url, m.content AS excerpt_source
-                                 FROM minutes_fts
-                                 JOIN minutes m ON m.id = minutes_fts.rowid
-                                WHERE minutes_fts MATCH :q
-                             ORDER BY COALESCE(m.held_on, '') DESC, m.id DESC
-                                LIMIT :limit OFFSET :offset");
-        $stmt->bindValue(':q', (string)$preparedQuery['fts_query'], PDO::PARAM_STR);
-        $stmt->bindValue(':limit', $perPage + 1, PDO::PARAM_INT);
-        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-        $stmt->execute();
-        $rows = $stmt->fetchAll();
+            // 横断検索は「まず最近の議論をざっと見る」用途なので、新しい開催日を優先する。
+            $stmt = $pdo->prepare("SELECT m.id, m.title, m.meeting_name, m.year_label, m.held_on, m.rel_path, m.source_url, m.content AS excerpt_source
+                                     FROM minutes_fts
+                                     JOIN minutes m ON m.id = minutes_fts.rowid
+                                    WHERE minutes_fts MATCH :q
+                                 ORDER BY COALESCE(m.held_on, '') DESC, m.id DESC
+                                    LIMIT :limit OFFSET :offset");
+            $stmt->bindValue(':q', (string)$preparedQuery['fts_query'], PDO::PARAM_STR);
+            $stmt->bindValue(':limit', $perPage + 1, PDO::PARAM_INT);
+            $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = $stmt->fetchAll();
+            $filtered = null;
+        }
     } catch (Throwable) {
         return $summary + [
             'status' => 'search_error',
@@ -565,8 +671,8 @@ function gijiroku_search_execute(array $municipality, string $query, int $page =
         ];
     }
 
-    $hasMore = count($rows) > $perPage;
-    $rows = array_slice($rows, 0, $perPage);
+    $hasMore = isset($filtered) && is_array($filtered) ? (bool)$filtered['has_more'] : count($rows) > $perPage;
+    $rows = isset($filtered) && is_array($filtered) ? $rows : array_slice($rows, 0, $perPage);
     $serializedRows = [];
     foreach ($rows as $row) {
         if (!is_array($row)) {
@@ -575,8 +681,10 @@ function gijiroku_search_execute(array $municipality, string $query, int $page =
         $serializedRows[] = gijiroku_search_result_row($summary, $query, $row, $preparedQuery);
     }
 
-    $knownTotal = $offset + count($serializedRows) + ($hasMore ? 1 : 0);
-    $totalExact = !$hasMore;
+    $knownTotal = isset($filtered) && is_array($filtered)
+        ? (int)$filtered['total']
+        : $offset + count($serializedRows) + ($hasMore ? 1 : 0);
+    $totalExact = isset($filtered) && is_array($filtered) ? (bool)$filtered['total_exact'] : !$hasMore;
 
     return $summary + [
         'status' => 'ok',
@@ -668,18 +776,29 @@ function gijiroku_search_execute_preview(array $municipality, string $query, int
     }
 
     try {
-        // preview は自治体混合の並び替え用なので、本文全文はここでは引かない。
-        // `content` を 100 件ぶん PDO へ載せると、大きな会議録ではここが支配的に重くなる。
-        $stmt = $pdo->prepare("SELECT m.id, m.title, m.meeting_name, m.year_label, m.held_on, m.rel_path, m.source_url
-                                 FROM minutes_fts
-                                 JOIN minutes m ON m.id = minutes_fts.rowid
-                                WHERE minutes_fts MATCH :q
-                             ORDER BY COALESCE(m.held_on, '') DESC, m.id DESC
-                                LIMIT :limit");
-        $stmt->bindValue(':q', (string)$preparedQuery['fts_query'], PDO::PARAM_STR);
-        $stmt->bindValue(':limit', $perPage + 1, PDO::PARAM_INT);
-        $stmt->execute();
-        $rows = $stmt->fetchAll();
+        $exactPhrases = japanese_search_exact_phrases_from_prepared($preparedQuery);
+        if ($exactPhrases !== []) {
+            $filtered = gijiroku_search_fetch_exact_phrase_rows(
+                $pdo,
+                (string)$preparedQuery['fts_query'],
+                $exactPhrases,
+                $perPage
+            );
+            $rows = $filtered['rows'];
+        } else {
+            // preview は自治体混合の並び替え用なので、本文全文はここでは引かない。
+            $stmt = $pdo->prepare("SELECT m.id, m.title, m.meeting_name, m.year_label, m.held_on, m.rel_path, m.source_url
+                                     FROM minutes_fts
+                                     JOIN minutes m ON m.id = minutes_fts.rowid
+                                    WHERE minutes_fts MATCH :q
+                                 ORDER BY COALESCE(m.held_on, '') DESC, m.id DESC
+                                    LIMIT :limit");
+            $stmt->bindValue(':q', (string)$preparedQuery['fts_query'], PDO::PARAM_STR);
+            $stmt->bindValue(':limit', $perPage + 1, PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = $stmt->fetchAll();
+            $filtered = null;
+        }
     } catch (Throwable) {
         return $summary + [
             'status' => 'search_error',
@@ -700,8 +819,8 @@ function gijiroku_search_execute_preview(array $municipality, string $query, int
         ];
     }
 
-    $hasMore = count($rows) > $perPage;
-    $rows = array_slice($rows, 0, $perPage);
+    $hasMore = isset($filtered) && is_array($filtered) ? (bool)$filtered['has_more'] : count($rows) > $perPage;
+    $rows = isset($filtered) && is_array($filtered) ? $rows : array_slice($rows, 0, $perPage);
     $latestHitDate = null;
     if (isset($rows[0]) && is_array($rows[0])) {
         $heldOn = trim((string)($rows[0]['held_on'] ?? ''));

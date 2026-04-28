@@ -207,7 +207,7 @@ $sampleDocumentUrl = gijiroku_api_document_url($sampleSlug, $sampleDocumentId, [
         <article class="card">
             <h2>2. 自治体別検索</h2>
             <p><code>GET <?php echo h(gijiroku_api_search_url()); ?>?slug=...&amp;q=...</code></p>
-            <p>既存 UI と同じ検索式を受け付けます。抜粋は <code>excerpt</code> にハイライト記号つき、<code>excerpt_plain</code> に平文で入ります。</p>
+            <p>既存 UI と同じ検索式を受け付けます。<code>AND</code> / <code>OR</code> / <code>NOT</code> / <code>NEAR/5</code> と、<code>"同和地区"</code> のようなフレーズ一致が使えます。抜粋は <code>excerpt</code> にハイライト記号つき、<code>excerpt_plain</code> に平文で入ります。</p>
             <pre>curl "<?php echo h($sampleSearchUrl); ?>"</pre>
         </article>
 

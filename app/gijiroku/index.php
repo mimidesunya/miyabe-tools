@@ -171,11 +171,6 @@ require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPAR
                 <div class="eyebrow">Minutes Search Console</div>
                 <h1><?php echo h($assemblyName); ?>の会議録を<br>日付・年度・本文から横断検索</h1>
                 <div class="hero-copy">冒頭情報・会議メタデータ・発言本文を分けて表示し、検索結果を開くと一致した発言位置まで直接寄せます。全文をただ流すより、必要な論点へ早く届く見え方に整えています。</div>
-                <div class="hero-tags">
-                    <span class="hero-tag">SQLite FTS5</span>
-                    <span class="hero-tag">発言単位で構造化</span>
-                    <span class="hero-tag">一致箇所へジャンプ</span>
-                </div>
             </div>
 
             <?php if ($activeFilters !== [] || $detail): ?>
@@ -229,14 +224,14 @@ require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPAR
         <aside class="filters">
             <div class="filters-head">
                 <h2 class="section-title">検索条件</h2>
-                <p class="section-copy">本文検索は SQLite FTS5 です。`AND` / `OR` / `NOT` / `NEAR/5` をそのまま使えます。</p>
+                <p class="section-copy">本文検索は SQLite FTS5 です。`AND` / `OR` / `NOT` / `NEAR/5` と `"同和地区"` のようなフレーズ一致を使えます。</p>
             </div>
             <form class="search-form" method="get">
                 <input type="hidden" name="slug" value="<?php echo h($requestSlug); ?>">
                 <div class="field">
                     <label for="q">キーワード</label>
-                    <input id="q" type="text" name="q" value="<?php echo h($q); ?>" placeholder="例: 補正予算 / 子育て支援 AND 学校">
-                    <div class="field-hint">近接条件も使えます。例: `学校 NEAR/5 空調`</div>
+                    <input id="q" type="text" name="q" value="<?php echo h($q); ?>" placeholder='キーワードまたは "フレーズ"'>
+                    <div class="field-hint">AND / OR / NOT / NEAR/5 とフレーズ一致も使えます。</div>
                 </div>
                 <div class="field">
                     <label for="year">年度</label>
@@ -263,16 +258,6 @@ require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPAR
                     </div>
                 </div>
             <?php endif; ?>
-
-            <div class="examples">
-                <p>検索例</p>
-                <div class="chips">
-                    <a class="chip" href="<?php echo h(query_with(['q' => '補正予算', 'doc' => null, 'page' => null, 'tab' => 'results', 'viewer_tab' => null])); ?>">補正予算</a>
-                    <a class="chip" href="<?php echo h(query_with(['q' => '学校 AND 空調', 'doc' => null, 'page' => null, 'tab' => 'results', 'viewer_tab' => null])); ?>">学校 AND 空調</a>
-                    <a class="chip" href="<?php echo h(query_with(['q' => '多摩川 NEAR/5 トイレ', 'doc' => null, 'page' => null, 'tab' => 'results', 'viewer_tab' => null])); ?>">多摩川 NEAR/5 トイレ</a>
-                    <a class="chip" href="<?php echo h(query_with(['q' => '子育て OR 保育', 'doc' => null, 'page' => null, 'tab' => 'results', 'viewer_tab' => null])); ?>">子育て OR 保育</a>
-                </div>
-            </div>
 
             <div class="examples">
                 <p>年度ショートカット</p>

@@ -115,7 +115,7 @@ function japanese_search_run_tokenizer(string $mode, string $text): ?array
 
 function japanese_search_query_cache_path(string $query): string
 {
-    return data_path('background_tasks/japanese_search_query_cache/' . sha1($query) . '.json');
+    return data_path('background_tasks/japanese_search_query_cache/' . sha1('phrase-v5:' . $query) . '.json');
 }
 
 function japanese_search_query_cache_ttl_seconds(): int
@@ -187,6 +187,131 @@ function japanese_search_fallback_terms(string $query): array
     return array_values($terms);
 }
 
+function japanese_search_extract_quoted_phrases(string $query): array
+{
+    if (preg_match_all('/"[^"]*"|\(|\)|\bAND\b|\bOR\b|\bNOT\b|\bNEAR(?:\/\d+)?\b|[^\s()"]+/iu', $query, $matches) < 1) {
+        return [];
+    }
+
+    $phrases = [];
+    $hasDisjunction = false;
+    $skipNextQuoted = false;
+    foreach ($matches[0] ?? [] as $token) {
+        $token = (string)$token;
+        $upper = strtoupper($token);
+        if ($upper === 'OR' || str_starts_with($upper, 'NEAR')) {
+            $hasDisjunction = true;
+        }
+        if ($upper === 'NOT') {
+            $skipNextQuoted = true;
+            continue;
+        }
+
+        $isQuoted = str_starts_with($token, '"') && str_ends_with($token, '"') && strlen($token) >= 2;
+        if ($isQuoted) {
+            if (!$skipNextQuoted) {
+                $phrase = substr($token, 1, -1);
+                $text = trim(preg_replace('/\s+/u', ' ', $phrase) ?? $phrase);
+                if ($text !== '') {
+                    $phrases[$text] = $text;
+                }
+            }
+            $skipNextQuoted = false;
+            continue;
+        }
+
+        if ($token === '(' || $token === ')' || $upper === 'AND' || $upper === 'OR' || str_starts_with($upper, 'NEAR')) {
+            continue;
+        }
+        $skipNextQuoted = false;
+    }
+    if ($hasDisjunction) {
+        return [];
+    }
+    return array_values($phrases);
+}
+
+function japanese_search_exact_phrases_from_prepared(array $preparedQuery): array
+{
+    $phrases = [];
+    foreach (($preparedQuery['exact_phrases'] ?? []) as $phrase) {
+        if (!is_scalar($phrase)) {
+            continue;
+        }
+        $text = trim(preg_replace('/\s+/u', ' ', (string)$phrase) ?? (string)$phrase);
+        if ($text !== '') {
+            $phrases[$text] = $text;
+        }
+    }
+    return array_values($phrases);
+}
+
+function japanese_search_text_matches_exact_phrases(string $text, array $phrases): bool
+{
+    if ($phrases === []) {
+        return true;
+    }
+
+    $normalized = preg_replace('/\s+/u', ' ', $text) ?? $text;
+    foreach ($phrases as $phrase) {
+        $needle = trim((string)$phrase);
+        if ($needle === '') {
+            continue;
+        }
+        if (mb_stripos($normalized, $needle, 0, 'UTF-8') === false) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function japanese_search_sql_like_contains_pattern(string $text): string
+{
+    return '%' . strtr($text, [
+        '\\' => '\\\\',
+        '%' => '\\%',
+        '_' => '\\_',
+    ]) . '%';
+}
+
+function japanese_search_exact_phrase_like_clause(array $phrases, array $columns, string $paramPrefix = 'exact_phrase'): array
+{
+    $safePrefix = preg_replace('/[^A-Za-z0-9_]/', '_', $paramPrefix) ?: 'exact_phrase';
+    $usableColumns = [];
+    foreach ($columns as $column) {
+        $column = trim((string)$column);
+        if ($column !== '') {
+            $usableColumns[] = $column;
+        }
+    }
+    if ($usableColumns === []) {
+        return ['sql' => '', 'params' => []];
+    }
+
+    $conditions = [];
+    $params = [];
+    $index = 0;
+    foreach ($phrases as $phrase) {
+        $text = trim((string)$phrase);
+        if ($text === '') {
+            continue;
+        }
+
+        $param = ':' . $safePrefix . $index++;
+        $columnConditions = [];
+        foreach ($usableColumns as $column) {
+            $columnConditions[] = $column . " LIKE {$param} ESCAPE '\\'";
+        }
+        $conditions[] = '(' . implode(' OR ', $columnConditions) . ')';
+        $params[$param] = japanese_search_sql_like_contains_pattern($text);
+    }
+
+    return [
+        'sql' => $conditions === [] ? '' : implode(' AND ', $conditions),
+        'params' => $params,
+    ];
+}
+
 function japanese_search_prepare_query(string $query): array
 {
     static $cache = [];
@@ -196,6 +321,7 @@ function japanese_search_prepare_query(string $query): array
         return $cache[$normalized];
     }
 
+    $payload = null;
     if ($normalized !== '') {
         $cachedPayload = read_json_cache_file(
             japanese_search_query_cache_path($normalized),
@@ -203,14 +329,35 @@ function japanese_search_prepare_query(string $query): array
         );
         if (is_array($cachedPayload)) {
             $cachedTokenizer = trim((string)($cachedPayload['tokenizer'] ?? ''));
-            if ($cachedTokenizer !== 'fallback') {
-                return $cache[$normalized] = $cachedPayload;
+            $cachedSchema = trim((string)($cachedPayload['query_cache_schema'] ?? ''));
+            if ($cachedTokenizer !== 'fallback' && $cachedSchema === 'phrase-v5') {
+                $payload = $cachedPayload;
             }
         }
     }
 
-    $payload = $normalized !== '' ? japanese_search_run_tokenizer('query', $normalized) : null;
+    if ($payload === null) {
+        $payload = $normalized !== '' ? japanese_search_run_tokenizer('query', $normalized) : null;
+    }
     $ftsQuery = trim((string)($payload['fts_query'] ?? ''));
+
+    $quotedPhrases = japanese_search_extract_quoted_phrases($normalized);
+    $exactPhrases = [];
+    foreach (($payload['exact_phrases'] ?? []) as $phrase) {
+        if (!is_scalar($phrase)) {
+            continue;
+        }
+        $text = trim((string)$phrase);
+        if ($text !== '') {
+            $exactPhrases[$text] = $text;
+        }
+    }
+    if ($exactPhrases === [] && ($payload === null || !array_key_exists('exact_phrases', $payload))) {
+        foreach ($quotedPhrases as $phrase) {
+            $exactPhrases[$phrase] = $phrase;
+        }
+    }
+
     $surfaceTerms = [];
     foreach (($payload['surface_terms'] ?? []) as $term) {
         if (!is_scalar($term)) {
@@ -227,6 +374,19 @@ function japanese_search_prepare_query(string $query): array
             $surfaceTerms[$term] = $term;
         }
     }
+    foreach ($quotedPhrases as $phrase) {
+        $surfaceTerms[$phrase] = $phrase;
+    }
+    if ($exactPhrases !== []) {
+        foreach (array_keys($surfaceTerms) as $term) {
+            foreach ($exactPhrases as $phrase) {
+                if ($term !== $phrase && mb_stripos($phrase, $term, 0, 'UTF-8') !== false) {
+                    unset($surfaceTerms[$term]);
+                    break;
+                }
+            }
+        }
+    }
 
     if ($ftsQuery === '' && $normalized !== '') {
         // Python が無い旧環境でも検索不能にはしない。image 更新後は SudachiPy 側へ寄る。
@@ -237,6 +397,8 @@ function japanese_search_prepare_query(string $query): array
         'raw_query' => $normalized,
         'fts_query' => $ftsQuery,
         'highlight_terms' => array_values($surfaceTerms),
+        'exact_phrases' => array_values($exactPhrases),
+        'query_cache_schema' => 'phrase-v5',
         'tokenizer' => $payload === null ? 'fallback' : 'sudachi',
     ];
 

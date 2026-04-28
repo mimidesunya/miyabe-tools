@@ -69,9 +69,12 @@ function reiki_search_db_has_fts(string $dbPath): bool
 function reiki_search_public_summary(array $municipality): array
 {
     $feature = is_array($municipality['reiki'] ?? null) ? $municipality['reiki'] : [];
+    $prefCode = municipality_prefecture_code_from_code((string)($municipality['code'] ?? ''));
     return [
         'slug' => (string)($municipality['slug'] ?? ''),
         'code' => (string)($municipality['code'] ?? ''),
+        'pref_code' => $prefCode,
+        'pref_name' => municipality_prefecture_name_from_code($prefCode),
         'name' => (string)($municipality['name'] ?? ''),
         'page_title' => (string)($feature['title'] ?? (($municipality['name'] ?? '') . '例規集')),
         'url' => (string)($feature['url'] ?? ''),
@@ -317,7 +320,7 @@ function reiki_search_execute_preview(array $municipality, string $query, int $p
     $summary = reiki_search_public_summary($municipality);
     $feature = is_array($municipality['reiki'] ?? null) ? $municipality['reiki'] : [];
     $dbPath = trim((string)($feature['db_path'] ?? ''));
-    $perPage = max(1, min(6, $perPage));
+    $perPage = max(1, min(100, $perPage));
 
     if (($preparedQuery['raw_query'] ?? '') === '' || ($preparedQuery['fts_query'] ?? '') === '') {
         return $summary + [

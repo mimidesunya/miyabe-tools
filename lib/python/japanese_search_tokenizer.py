@@ -169,30 +169,33 @@ def document_terms_map(values: dict[str, str]) -> dict[str, str]:
     return {key: document_terms_text(value) for key, value in values.items()}
 
 
-def surface_terms(text: str) -> list[str]:
+def searchable_morphemes(text: str):
+    return [morpheme for morpheme in tokenize_text(text) if morpheme_is_searchable(morpheme)]
+
+
+def surface_terms_from_morphemes(morphemes, *, unique: bool = True) -> list[str]:
     items: list[str] = []
-    for morpheme in tokenize_text(text):
-        if not morpheme_is_searchable(morpheme):
-            continue
+    for morpheme in morphemes:
         surface = normalize_fragment(morpheme.surface())
         if surface:
             items.append(surface)
-    return unique_preserve(items)
+    return unique_preserve(items) if unique else items
+
+
+def surface_terms(text: str) -> list[str]:
+    return surface_terms_from_morphemes(searchable_morphemes(text))
 
 
 def fts_quote(value: str) -> str:
     return '"' + value.replace('"', '""') + '"'
 
 
-def build_term_query(token: str) -> str:
-    token = normalize_fragment(token)
+def build_term_query_from_morphemes(token: str, morphemes) -> str:
     if token == "":
         return ""
 
     clauses: list[str] = []
-    for morpheme in tokenize_text(token):
-        if not morpheme_is_searchable(morpheme):
-            continue
+    for morpheme in morphemes:
         variants = morpheme_variants(morpheme)
         if not variants:
             continue
@@ -208,19 +211,41 @@ def build_term_query(token: str) -> str:
     return "(" + " AND ".join(clauses) + ")"
 
 
-def build_phrase_query(token: str) -> str:
+def build_term_query(token: str) -> str:
     token = normalize_fragment(token)
+    return build_term_query_from_morphemes(token, searchable_morphemes(token))
+
+
+def build_phrase_query_from_morphemes(token: str, morphemes) -> str:
     if token == "":
         return ""
 
-    surfaces = surface_terms(token)
+    surfaces = surface_terms_from_morphemes(morphemes, unique=False)
     if not surfaces:
         return fts_quote(token)
-    return "(" + " AND ".join(fts_quote(value) for value in surfaces) + ")"
+    return fts_quote(" ".join(surfaces))
 
 
-def build_query(text: str) -> str:
+def build_phrase_query(token: str) -> str:
+    token = normalize_fragment(token)
+    return build_phrase_query_from_morphemes(token, searchable_morphemes(token))
+
+
+def append_unique(items: list[str], values: list[str]) -> None:
+    seen = set(items)
+    for value in values:
+        if value == "" or value in seen:
+            continue
+        seen.add(value)
+        items.append(value)
+
+
+def build_query_payload(text: str) -> dict[str, object]:
     parts: list[str] = []
+    highlight_terms: list[str] = []
+    exact_phrases: list[str] = []
+    exact_phrases_supported = True
+    skip_highlight = False
     for token in QUERY_TOKEN_PATTERN.findall(text or ""):
         if token == "":
             continue
@@ -228,16 +253,41 @@ def build_query(text: str) -> str:
         upper = token.upper()
         if token in {"(", ")"} or upper in {"AND", "OR", "NOT"} or upper.startswith("NEAR"):
             parts.append(upper if upper != token else token)
+            if upper == "OR" or upper.startswith("NEAR"):
+                exact_phrases_supported = False
+            if upper == "NOT":
+                skip_highlight = True
             continue
 
+        is_negated = skip_highlight
+        term = token[1:-1] if token.startswith('"') and token.endswith('"') and len(token) >= 2 else token
+        term = normalize_fragment(term)
+        morphemes = searchable_morphemes(term)
         if token.startswith('"') and token.endswith('"') and len(token) >= 2:
-            clause = build_phrase_query(token[1:-1])
+            # FTS 側は候補を広めに取る。terms カラムは表記ゆれ用トークンも含むため、
+            # 厳密なフレーズ判定は PHP 側で本文そのものに対して行う。
+            clause = build_term_query_from_morphemes(term, morphemes)
+            highlight_candidates = [term]
+            if not is_negated:
+                append_unique(exact_phrases, [term])
         else:
-            clause = build_term_query(token)
+            clause = build_term_query_from_morphemes(term, morphemes)
+            highlight_candidates = surface_terms_from_morphemes(morphemes)
         if clause:
             parts.append(clause)
+        if not is_negated:
+            append_unique(highlight_terms, highlight_candidates)
+        skip_highlight = False
 
-    return " ".join(parts)
+    return {
+        "fts_query": " ".join(parts),
+        "surface_terms": highlight_terms,
+        "exact_phrases": exact_phrases if exact_phrases_supported else [],
+    }
+
+
+def build_query(text: str) -> str:
+    return str(build_query_payload(text)["fts_query"])
 
 
 def parse_args() -> argparse.Namespace:
@@ -263,10 +313,7 @@ def main() -> int:
             raise ValueError("fields mode expects a JSON object")
         payload = document_terms_map({str(key): str(value) for key, value in decoded.items()})
     else:
-        payload = {
-            "fts_query": build_query(text),
-            "surface_terms": surface_terms(text),
-        }
+        payload = build_query_payload(text)
 
     if args.json:
         print(json.dumps(payload, ensure_ascii=True))

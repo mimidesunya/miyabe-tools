@@ -5,26 +5,57 @@
     }
 
     const boot = JSON.parse(bootNode.textContent || '{}');
-    const municipalities = Array.isArray(boot.municipalities)
-        ? boot.municipalities
-            .map((item, index) => ({
-                slug: String(item.slug || ''),
+    const prefectureOptions = Array.isArray(boot.prefectures)
+        ? boot.prefectures
+            .map((item) => ({
                 code: String(item.code || ''),
                 name: String(item.name || ''),
-                page_title: String(item.page_title || item.name || ''),
-                url: String(item.url || ''),
-                index,
+                count: Number(item.count || 0),
             }))
+            .filter((item) => item.code && item.name)
+        : [];
+    const prefectureNameByCode = new Map(prefectureOptions.map((item) => [item.code, item.name]));
+    const availablePrefectureCodes = new Set(prefectureOptions.map((item) => item.code));
+
+    function municipalityPrefectureCode(item) {
+        const explicit = String(item.pref_code || '').trim();
+        if (/^\d{2}$/.test(explicit)) {
+            return explicit;
+        }
+        const match = String(item.code || '').match(/^(\d{2})/);
+        return match ? match[1] : '';
+    }
+
+    const municipalities = Array.isArray(boot.municipalities)
+        ? boot.municipalities
+            .map((item, index) => {
+                const prefCode = municipalityPrefectureCode(item);
+                return {
+                    slug: String(item.slug || ''),
+                    code: String(item.code || ''),
+                    pref_code: prefCode,
+                    pref_name: String(item.pref_name || prefectureNameByCode.get(prefCode) || ''),
+                    name: String(item.name || ''),
+                    page_title: String(item.page_title || item.name || ''),
+                    url: String(item.url || ''),
+                    index,
+                };
+            })
             .filter((item) => item.slug)
         : [];
 
     const municipalityBySlug = new Map(municipalities.map((item) => [item.slug, item]));
     const selectedFromBoot = String(boot.selectedSlug || '');
+    const lockedFromBoot = municipalityBySlug.has(String(boot.lockedSlug || '')) ? String(boot.lockedSlug || '') : '';
+    const selectedPrefectureFromBoot = String(boot.selectedPrefecture || '');
+    const mixedResultLimit = 100;
 
     const refs = {
         form: document.getElementById('cross-search-form'),
         query: document.getElementById('cross-query'),
+        prefecture: document.getElementById('cross-prefecture'),
         searchButton: document.getElementById('cross-search-button'),
+        targetCount: document.getElementById('target-municipality-count'),
         progressCopy: document.getElementById('search-progress-copy'),
         progressBar: document.getElementById('search-progress-bar'),
         progressSummary: document.getElementById('search-progress-summary'),
@@ -44,12 +75,16 @@
         apiUrl: String(boot.apiUrl || '/reiki/search_api.php'),
         query: String(boot.query || '').trim(),
         selectedSlug: municipalityBySlug.has(selectedFromBoot) ? selectedFromBoot : '',
+        lockedSlug: lockedFromBoot,
+        prefecture: availablePrefectureCodes.has(selectedPrefectureFromBoot) ? selectedPrefectureFromBoot : '',
         searching: false,
+        stopped: false,
         requestToken: 0,
         progressDone: 0,
         progressTotal: municipalities.length,
         results: new Map(),
         activeRequests: new Map(),
+        abortControllers: new Set(),
     };
 
     function escapeHtml(value) {
@@ -61,8 +96,60 @@
             .replace(/'/g, '&#039;');
     }
 
+    function normalizePrefecture(value) {
+        const prefCode = String(value || '').trim();
+        return availablePrefectureCodes.has(prefCode) ? prefCode : '';
+    }
+
+    function filteredMunicipalities() {
+        if (state.lockedSlug) {
+            const locked = municipalityBySlug.get(state.lockedSlug);
+            return locked ? [locked] : [];
+        }
+        if (!state.prefecture) {
+            return municipalities;
+        }
+        return municipalities.filter((municipality) => municipality.pref_code === state.prefecture);
+    }
+
+    function selectedPrefectureName() {
+        return state.prefecture ? (prefectureNameByCode.get(state.prefecture) || '') : '';
+    }
+
+    function ensureSelectedSlugInScope() {
+        if (state.lockedSlug) {
+            state.selectedSlug = state.lockedSlug;
+            state.prefecture = '';
+            return;
+        }
+        if (!state.selectedSlug) {
+            return;
+        }
+        const selected = municipalityBySlug.get(state.selectedSlug);
+        if (!selected || (state.prefecture && selected.pref_code !== state.prefecture)) {
+            state.selectedSlug = '';
+        }
+    }
+
     function renderExcerpt(value) {
         return escapeHtml(value).replace(/\[\[\[/g, '<mark>').replace(/\]\]\]/g, '</mark>').replace(/\n/g, '<br>');
+    }
+
+    function compactResultMeta(row, showMunicipality) {
+        const parts = [];
+        if (showMunicipality && row.municipality_name) {
+            parts.push(String(row.municipality_name));
+        }
+        if (row.responsible_department) {
+            parts.push(String(row.responsible_department));
+        }
+        if (row.combined_stance) {
+            parts.push(String(row.combined_stance));
+        }
+        if (row.filename) {
+            parts.push(`${row.filename}.html`);
+        }
+        return parts.filter(Boolean);
     }
 
     function setActiveRequest(slug, phase, enabled) {
@@ -130,13 +217,83 @@
         }).join('');
     }
 
+    function resultLatestEnactmentDate(result) {
+        const rows = Array.isArray(result?.rows) ? result.rows : [];
+        return rows.reduce((latest, row) => {
+            const date = String(row?.enactment_date || '');
+            return date > latest ? date : latest;
+        }, '');
+    }
+
+    function compareMixedRows(a, b) {
+        const aDate = String(a?.enactment_date || '');
+        const bDate = String(b?.enactment_date || '');
+        if (aDate !== bDate) {
+            return bDate.localeCompare(aDate);
+        }
+
+        const aCode = String(a?.municipality_code || '');
+        const bCode = String(b?.municipality_code || '');
+        if (aCode !== bCode) {
+            return aCode.localeCompare(bCode);
+        }
+
+        const aId = Number(a?.id || 0);
+        const bId = Number(b?.id || 0);
+        if (aId !== bId) {
+            return bId - aId;
+        }
+
+        return String(a?.title || '').localeCompare(String(b?.title || ''));
+    }
+
+    function mixedResultsInfo() {
+        const rows = [];
+        let hasOverflow = false;
+
+        for (const municipality of filteredMunicipalities()) {
+            const result = state.results.get(municipality.slug);
+            if (!result || result.status !== 'ok') {
+                continue;
+            }
+
+            if (result.has_more) {
+                hasOverflow = true;
+            }
+
+            const sourceRows = Array.isArray(result.rows) ? result.rows : [];
+            for (const row of sourceRows) {
+                if (!row || typeof row !== 'object') {
+                    continue;
+                }
+                rows.push({
+                    ...row,
+                    municipality_slug: String(row.municipality_slug || municipality.slug),
+                    municipality_name: String(row.municipality_name || municipality.name),
+                    page_title: String(row.page_title || municipality.page_title),
+                    municipality_code: String(municipality.code || ''),
+                });
+            }
+        }
+
+        rows.sort(compareMixedRows);
+        if (rows.length > mixedResultLimit) {
+            hasOverflow = true;
+        }
+
+        return {
+            rows: rows.slice(0, mixedResultLimit),
+            hasOverflow,
+        };
+    }
+
     function searchSummary() {
         let hitMunicipalities = 0;
         let totalHits = 0;
         let totalHitsApprox = false;
         let errors = 0;
 
-        for (const municipality of municipalities) {
+        for (const municipality of filteredMunicipalities()) {
             const result = state.results.get(municipality.slug);
             if (!result) {
                 continue;
@@ -165,10 +322,11 @@
     }
 
     function sortedMunicipalities() {
-        const items = municipalities.map((municipality) => {
+        const items = filteredMunicipalities().map((municipality) => {
             const result = state.results.get(municipality.slug);
             const total = Number(result?.total || 0);
-            const lastDate = String(result?.stats?.last_date || '');
+            const latestHitDate = resultLatestEnactmentDate(result);
+            const lastDate = latestHitDate || String(result?.stats?.last_date || '');
             let mode = 'idle';
             if (state.query) {
                 if (!result) {
@@ -184,7 +342,7 @@
                 }
             }
 
-            return { ...municipality, result, total, lastDate, mode };
+            return { ...municipality, result, total, latestHitDate, lastDate, mode };
         });
 
         items.sort((a, b) => {
@@ -208,23 +366,13 @@
         return items;
     }
 
-    function preferredSlug() {
-        const current = state.selectedSlug;
-        if (current && municipalityBySlug.has(current)) {
-            const currentResult = state.results.get(current);
-            if (!state.query || currentResult?.status === 'loading' || currentResult?.status === 'ok') {
-                return current;
-            }
-        }
-
-        const hits = sortedMunicipalities().filter((item) => item.total > 0);
-        return hits[0]?.slug || current || '';
-    }
-
     function updateUrl() {
         const params = new URLSearchParams();
         if (state.query) {
             params.set('q', state.query);
+        }
+        if (state.prefecture && !state.lockedSlug) {
+            params.set('pref', state.prefecture);
         }
         if (state.selectedSlug) {
             params.set('slug', state.selectedSlug);
@@ -251,6 +399,8 @@
 
     function renderProgress() {
         const summary = searchSummary();
+        const scopeName = selectedPrefectureName();
+        const targetLabel = scopeName ? `${scopeName}の自治体` : '対象自治体';
         const progressPercent = summary.totalMunicipalities > 0
             ? Math.max(0, Math.min(100, (summary.scanned / summary.totalMunicipalities) * 100))
             : 0;
@@ -260,11 +410,13 @@
         refs.progressPanel?.classList.toggle('is-busy', state.searching || state.activeRequests.size > 0);
 
         if (!state.query) {
-            refs.progressCopy.textContent = 'キーワードを入れると、対象自治体を順に走査します。';
+            refs.progressCopy.textContent = `キーワードを入れると、${targetLabel}を順に走査します。`;
         } else if (state.searching) {
-            refs.progressCopy.textContent = `${summary.scanned}/${summary.totalMunicipalities} 自治体を走査中です。結果が出た自治体から先に切り替えできます。`;
+            refs.progressCopy.textContent = `${summary.scanned}/${summary.totalMunicipalities} 自治体を走査中です。ヒットは結果欄へ順次追加されます。`;
+        } else if (state.stopped) {
+            refs.progressCopy.textContent = `${summary.scanned}/${summary.totalMunicipalities} 自治体で中断しました。見つかったヒットはこのまま確認できます。`;
         } else {
-            refs.progressCopy.textContent = `${summary.totalMunicipalities} 自治体の走査が終わりました。ヒット自治体を切り替えて確認できます。`;
+            refs.progressCopy.textContent = `${summary.totalMunicipalities} 自治体の走査が終わりました。まず横断ヒットを見て、必要な自治体だけ切り替えできます。`;
         }
 
         refs.progressSummary.innerHTML = [
@@ -301,7 +453,7 @@
                     badge = item.result.total_exact === false ? `${item.total}件以上` : `${item.total}件`;
                     helper = item.result.total_exact === false
                         ? '上位ヒットあり'
-                        : (item.lastDate ? `最新制定日 ${item.lastDate}` : 'ヒットあり');
+                        : (item.latestHitDate ? `最新ヒット ${item.latestHitDate}` : 'ヒットあり');
                 } else if (item.result.status === 'ok') {
                     badge = '0件';
                     helper = 'この条件では該当なし';
@@ -337,14 +489,19 @@
 
     function renderResultsSummary(selected, result) {
         const summary = searchSummary();
+        const mixed = mixedResultsInfo();
         const cards = [
             { label: 'ヒット自治体', value: `${summary.hitMunicipalities}` },
             { label: '総ヒット件数', value: `${summary.totalHits}${summary.totalHitsApprox ? '+' : ''}` },
-            { label: '選択中の自治体', value: selected ? selected.name : '未選択' },
+            { label: '表示', value: selected ? selected.name : `横断上位${mixedResultLimit}件` },
         ];
 
         if (result?.status === 'ok') {
             cards[2].value = result.total_exact === false ? `${result.total}件以上` : `${result.total}件`;
+        } else if (!selected) {
+            cards[2].value = mixed.hasOverflow
+                ? `上位${mixedResultLimit}件を表示`
+                : `${mixed.rows.length}件を表示`;
         }
 
         refs.resultsSummary.innerHTML = cards.map((item) => `
@@ -365,31 +522,79 @@
         refs.resultsPagination.innerHTML = '';
     }
 
+    function renderResultCards(rows, { showMunicipality = false, rankOffset = 0 } = {}) {
+        return `
+            <ul class="result-list">
+                ${rows.map((row, index) => {
+                    const meta = compactResultMeta(row, showMunicipality);
+                    return `
+                        <li class="result-card">
+                            <div class="result-top">
+                                <div class="result-rank">結果 ${escapeHtml(String(rankOffset + index + 1))}</div>
+                                <div class="badges">
+                                    ${row.enactment_date ? `<span class="badge">${escapeHtml(row.enactment_date)}</span>` : ''}
+                                    ${row.document_type ? `<span class="badge">${escapeHtml(row.document_type)}</span>` : ''}
+                                </div>
+                            </div>
+                            <h3 class="result-title">${escapeHtml(row.title || '')}</h3>
+                            ${meta.length > 0 ? `
+                                <div class="result-meta">
+                                    ${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join('')}
+                                </div>
+                            ` : ''}
+                            ${row.excerpt ? `<div class="result-excerpt">${renderExcerpt(row.excerpt || '')}</div>` : ''}
+                            <div class="result-links">
+                                <a class="link-pill" href="${escapeHtml(row.detail_url || row.browse_url || '')}">詳細を見る</a>
+                                ${showMunicipality && row.browse_url ? `<a class="link-pill is-subtle" href="${escapeHtml(row.browse_url)}">一覧</a>` : ''}
+                                ${row.source_url ? `<a class="link-pill is-subtle" href="${escapeHtml(row.source_url)}" target="_blank" rel="noreferrer">原サイト</a>` : ''}
+                            </div>
+                        </li>
+                    `;
+                }).join('')}
+            </ul>
+        `;
+    }
+
     function renderResults() {
         const selected = state.selectedSlug ? municipalityBySlug.get(state.selectedSlug) : null;
         const result = selected ? state.results.get(selected.slug) : null;
+        const mixed = mixedResultsInfo();
 
         renderResultsSummary(selected, result);
 
         if (!state.query) {
             refs.selectedTitle.textContent = 'まずキーワードを入れてください';
-            refs.selectedMeta.textContent = '例規集 DB を横断して、該当自治体と上位ヒットを並べます。';
+            refs.selectedMeta.textContent = '例規集 DB を横断して、見つかったヒットを自治体混合で並べます。';
             setOpenLink(selected ? municipalityBrowseUrl(selected) : '');
-            renderEmptyState('横断検索の準備ができています。', 'キーワードを入れて実行すると、ヒットした自治体ごとに結果を切り替えられます。');
+            renderEmptyState('横断検索の準備ができています。', 'キーワードを入れて実行すると、見つかったヒットを検索中から順次表示します。');
             return;
         }
 
         if (!selected) {
-            refs.selectedTitle.textContent = state.searching ? '検索対象を走査しています' : '条件に一致する自治体がありません';
-            refs.selectedMeta.textContent = state.searching
-                ? 'ヒットした自治体が見つかり次第、ここに結果を表示します。'
-                : '別のキーワードにすると、ヒットする自治体が見つかるかもしれません。';
+            refs.selectedTitle.textContent = state.searching
+                ? 'ヒットを集約中です'
+                : (mixed.rows.length > 0 ? `横断ヒット ${mixed.rows.length}件` : '条件に一致する例規がありません');
+            refs.selectedMeta.textContent = [
+                '制定日が新しいものを優先して表示',
+                mixed.hasOverflow ? `上位${mixedResultLimit}件を表示中。続きは左の自治体から確認できます。` : '現在見つかったヒットをそのまま表示しています。',
+                state.searching ? '結果は検索中もリアルタイムで追加されます。' : '',
+            ].filter(Boolean).join(' / ');
             setOpenLink('');
-            renderEmptyState(
-                state.searching ? '検索中です。' : '該当する例規がありません。',
-                state.searching ? '先に見たい自治体があれば左の一覧から選択できます。' : '検索語を少し広げるか、演算子を減らして試してください。',
-                state.searching ? 'is-loading' : ''
-            );
+
+            if (mixed.rows.length === 0) {
+                renderEmptyState(
+                    state.searching ? '検索中です。' : '該当する例規がありません。',
+                    state.searching ? 'ヒットが見つかり次第、ここへ自治体混合で追加していきます。' : '検索語を少し広げるか、演算子を減らして試してください。',
+                    state.searching ? 'is-loading' : ''
+                );
+                return;
+            }
+
+            refs.resultsBody.innerHTML = renderResultCards(mixed.rows, {
+                showMunicipality: true,
+                rankOffset: 0,
+            });
+            refs.resultsPagination.innerHTML = '';
             return;
         }
 
@@ -433,33 +638,10 @@
             return;
         }
 
-        refs.resultsBody.innerHTML = `
-            <ul class="result-list">
-                ${result.rows.map((row, index) => `
-                    <li class="result-card">
-                        <div class="result-top">
-                            <div class="result-rank">結果 ${escapeHtml(String(((Number(result.page || 1) - 1) * Number(result.per_page || 0)) + index + 1))}</div>
-                            <div class="badges">
-                                ${row.enactment_date ? `<span class="badge">${escapeHtml(row.enactment_date)}</span>` : ''}
-                                ${row.document_type ? `<span class="badge">${escapeHtml(row.document_type)}</span>` : ''}
-                            </div>
-                        </div>
-                        <h3 class="result-title">${escapeHtml(row.title || '')}</h3>
-                        <div class="result-meta">
-                            ${row.responsible_department ? `<div><span class="result-label">所管</span> ${escapeHtml(row.responsible_department)}</div>` : ''}
-                            ${row.combined_stance ? `<div><span class="result-label">判定</span> ${escapeHtml(row.combined_stance)}</div>` : ''}
-                            ${row.filename ? `<div><span class="result-label">ファイル</span> ${escapeHtml(`${row.filename}.html`)}</div>` : ''}
-                        </div>
-                        <div class="result-excerpt">${renderExcerpt(row.excerpt || '')}</div>
-                        <div class="result-links">
-                            <a class="link-pill" href="${escapeHtml(row.detail_url || row.browse_url || '')}">自治体ページで詳細を見る</a>
-                            <a class="link-pill is-subtle" href="${escapeHtml(row.browse_url || '')}">自治体別一覧</a>
-                            ${row.source_url ? `<a class="link-pill is-subtle" href="${escapeHtml(row.source_url)}" target="_blank" rel="noreferrer">原サイト</a>` : ''}
-                        </div>
-                    </li>
-                `).join('')}
-            </ul>
-        `;
+        refs.resultsBody.innerHTML = renderResultCards(result.rows, {
+            showMunicipality: false,
+            rankOffset: ((Number(result.page || 1) - 1) * Number(result.per_page || 0)),
+        });
 
         if (!result.fullLoaded) {
             refs.resultsPagination.innerHTML = '';
@@ -481,17 +663,58 @@
     }
 
     function renderAll() {
-        refs.searchButton.disabled = state.searching;
-        refs.searchButton.textContent = state.searching ? '検索中...' : '横断検索する';
+        ensureSelectedSlugInScope();
+        const currentMunicipalities = filteredMunicipalities();
+        state.progressTotal = currentMunicipalities.length;
+        if (refs.prefecture) {
+            refs.prefecture.value = state.prefecture;
+        }
+        if (refs.targetCount) {
+            refs.targetCount.textContent = String(currentMunicipalities.length);
+        }
+        refs.searchButton.disabled = false;
+        refs.searchButton.textContent = state.searching ? '中断する' : '横断検索する';
         renderProgress();
         renderMunicipalityList();
         renderResults();
     }
 
-    async function fetchJson(params) {
+    function createAbortController() {
+        const controller = new AbortController();
+        state.abortControllers.add(controller);
+        return controller;
+    }
+
+    function releaseAbortController(controller) {
+        if (controller) {
+            state.abortControllers.delete(controller);
+        }
+    }
+
+    function abortActiveRequests() {
+        for (const controller of state.abortControllers) {
+            controller.abort();
+        }
+        state.abortControllers.clear();
+        state.activeRequests.clear();
+    }
+
+    function stopSearch() {
+        if (!state.searching) {
+            return;
+        }
+        state.requestToken += 1;
+        state.searching = false;
+        state.stopped = true;
+        abortActiveRequests();
+        renderAll();
+    }
+
+    async function fetchJson(params, controller = null) {
         const response = await fetch(`${state.apiUrl}?${params.toString()}`, {
             headers: { Accept: 'application/json' },
             cache: 'no-store',
+            signal: controller?.signal,
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
@@ -531,6 +754,7 @@
         renderAll();
 
         const token = state.requestToken;
+        const controller = createAbortController();
         try {
             const data = await fetchJson(new URLSearchParams({
                 action: 'search',
@@ -538,7 +762,7 @@
                 q: state.query,
                 page: String(page),
                 per_page: '12',
-            }));
+            }), controller);
             if (token !== state.requestToken) {
                 return;
             }
@@ -562,6 +786,7 @@
             }
             renderAll();
         } finally {
+            releaseAbortController(controller);
             setActiveRequest(slug, 'detail', false);
             if (token === state.requestToken) {
                 renderAll();
@@ -581,14 +806,17 @@
         await Promise.all(workers);
     }
 
-    async function startSearch(query) {
+    async function startSearch(query, prefecture = state.prefecture) {
         state.query = String(query || '').trim();
+        state.prefecture = state.lockedSlug ? '' : normalizePrefecture(prefecture);
         state.requestToken += 1;
         state.searching = false;
+        state.stopped = false;
+        abortActiveRequests();
         state.progressDone = 0;
-        state.progressTotal = municipalities.length;
+        state.progressTotal = filteredMunicipalities().length;
         state.results = new Map();
-        state.activeRequests.clear();
+        ensureSelectedSlugInScope();
         updateUrl();
         renderAll();
 
@@ -597,26 +825,29 @@
         }
 
         const token = state.requestToken;
-        const preferred = state.selectedSlug && municipalityBySlug.has(state.selectedSlug) ? state.selectedSlug : '';
-        state.selectedSlug = preferred;
+        state.selectedSlug = state.lockedSlug || '';
         state.searching = true;
         renderAll();
 
-        const slugs = municipalities.map((item) => item.slug);
+        const slugs = filteredMunicipalities().map((item) => item.slug);
         const applyPreview = async (slug) => {
+            if (token !== state.requestToken || !state.searching) {
+                return;
+            }
             const municipality = municipalityBySlug.get(slug);
             if (!municipality) {
                 return;
             }
             setActiveRequest(slug, 'preview', true);
             renderAll();
+            const controller = createAbortController();
             try {
                 const data = await fetchJson(new URLSearchParams({
                     action: 'search_preview',
                     q: state.query,
-                    per_page: '3',
+                    per_page: String(mixedResultLimit),
                     slug,
-                }));
+                }), controller);
                 if (token !== state.requestToken) {
                     return;
                 }
@@ -634,14 +865,12 @@
                     total_exact: true,
                 });
             } finally {
+                releaseAbortController(controller);
                 setActiveRequest(slug, 'preview', false);
                 if (token !== state.requestToken) {
                     return;
                 }
                 state.progressDone = Math.min(state.progressTotal, state.progressDone + 1);
-                if (!state.selectedSlug) {
-                    state.selectedSlug = preferredSlug();
-                }
                 renderAll();
             }
         };
@@ -652,7 +881,7 @@
         }
 
         state.searching = false;
-        state.selectedSlug = preferredSlug();
+        state.stopped = false;
         renderAll();
 
         if (state.selectedSlug) {
@@ -665,18 +894,32 @@
 
     refs.form?.addEventListener('submit', (event) => {
         event.preventDefault();
-        startSearch(refs.query?.value || '');
+        if (state.searching) {
+            stopSearch();
+            return;
+        }
+        startSearch(refs.query?.value || '', refs.prefecture?.value || '');
     });
 
-    document.querySelectorAll('[data-example-query]').forEach((element) => {
-        element.addEventListener('click', () => {
-            const query = String(element.getAttribute('data-example-query') || '');
-            if (refs.query) {
-                refs.query.value = query;
-                refs.query.focus();
-            }
-            startSearch(query);
-        });
+    refs.prefecture?.addEventListener('change', () => {
+        if (state.lockedSlug) {
+            return;
+        }
+        if (state.searching) {
+            stopSearch();
+        } else {
+            state.requestToken += 1;
+            state.searching = false;
+            abortActiveRequests();
+        }
+        state.stopped = false;
+        state.prefecture = normalizePrefecture(refs.prefecture?.value || '');
+        state.progressDone = 0;
+        state.progressTotal = filteredMunicipalities().length;
+        state.results = new Map();
+        state.selectedSlug = '';
+        updateUrl();
+        renderAll();
     });
 
     refs.municipalityList?.addEventListener('click', (event) => {
@@ -711,6 +954,6 @@
 
     renderAll();
     if (state.query) {
-        startSearch(state.query);
+        startSearch(state.query, state.prefecture);
     }
 })();

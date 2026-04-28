@@ -12,7 +12,8 @@ foreach (gijiroku_search_ready_summaries() as $municipality) {
     $searchMunicipalities[] = $municipality;
 }
 
-$selectedSlug = get_slug((string)($_GET['slug'] ?? ''));
+$requestedSlug = trim((string)($_GET['slug'] ?? ''));
+$selectedSlug = $requestedSlug !== '' ? get_slug($requestedSlug) : '';
 $selectedSlugValid = false;
 foreach ($searchMunicipalities as $item) {
     if ((string)($item['slug'] ?? '') === $selectedSlug) {
@@ -24,10 +25,28 @@ if (!$selectedSlugValid) {
     $selectedSlug = '';
 }
 
+$prefectureOptions = municipality_prefecture_options($searchMunicipalities);
+$selectedPrefecture = municipality_normalize_prefecture_filter((string)($_GET['pref'] ?? ''), $prefectureOptions);
+if ($selectedPrefecture !== '' && $selectedSlug !== '') {
+    $selectedMunicipality = null;
+    foreach ($searchMunicipalities as $item) {
+        if ((string)($item['slug'] ?? '') === $selectedSlug) {
+            $selectedMunicipality = $item;
+            break;
+        }
+    }
+    $selectedPrefCode = municipality_prefecture_code_from_code((string)($selectedMunicipality['code'] ?? ''));
+    if ($selectedPrefCode !== $selectedPrefecture) {
+        $selectedSlug = '';
+    }
+}
+
 $boot = [
     'apiUrl' => '/gijiroku/api.php',
     'query' => trim((string)($_GET['q'] ?? '')),
     'selectedSlug' => $selectedSlug,
+    'selectedPrefecture' => $selectedPrefecture,
+    'prefectures' => $prefectureOptions,
     'municipalities' => $searchMunicipalities,
 ];
 
@@ -50,11 +69,6 @@ $jsVer = @filemtime(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'app' . DIRECTOR
             <div class="eyebrow">Cross-Municipality Minutes Search</div>
             <h1>会議録を、<br>自治体をまたいで全文検索</h1>
             <p class="hero-copy">キーワードを一度投げると、検索可能な自治体の会議録 DB を順に走査して、まずは自治体をまたいだ最新ヒットを上から並べます。さらに掘りたいときだけ自治体を選んで、その自治体の結果を詳しく見ます。</p>
-            <div class="hero-tags">
-                <span class="hero-tag">SQLite FTS5</span>
-                <span class="hero-tag">自治体ごとに動的切替</span>
-                <span class="hero-tag">進捗つき非同期検索</span>
-            </div>
             <div class="hero-links">
                 <a href="/">トップへ戻る</a>
                 <a href="<?php echo h((string)$fallbackUrl); ?>">自治体別検索へ</a>
@@ -63,7 +77,7 @@ $jsVer = @filemtime(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'app' . DIRECTOR
         <div class="hero-side">
             <div class="hero-metric">
                 <span>検索対象自治体</span>
-                <strong><?php echo h((string)count($searchMunicipalities)); ?></strong>
+                <strong id="target-municipality-count"><?php echo h((string)count($searchMunicipalities)); ?></strong>
             </div>
             <div class="hero-metric">
                 <span>検索の流れ</span>
@@ -86,19 +100,23 @@ $jsVer = @filemtime(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'app' . DIRECTOR
                 <form id="cross-search-form" class="search-form">
                     <label class="field" for="cross-query">
                         <span>キーワード</span>
-                        <input id="cross-query" name="q" type="text" value="<?php echo h((string)$boot['query']); ?>" placeholder="例: 補正予算 / 学校 AND 空調 / 子育て NEAR/5 支援" autocomplete="off">
+                        <input id="cross-query" name="q" type="text" value="<?php echo h((string)$boot['query']); ?>" placeholder='キーワードまたは "フレーズ"' autocomplete="off">
+                    </label>
+                    <label class="field" for="cross-prefecture">
+                        <span>都道府県</span>
+                        <select id="cross-prefecture" name="pref">
+                            <option value="">すべての都道府県</option>
+                            <?php foreach ($prefectureOptions as $prefecture): ?>
+                                <option value="<?php echo h((string)$prefecture['code']); ?>" <?php echo (string)$prefecture['code'] === $selectedPrefecture ? 'selected' : ''; ?>>
+                                    <?php echo h((string)$prefecture['name']); ?> (<?php echo h((string)$prefecture['count']); ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </label>
                     <div class="form-actions">
                         <button id="cross-search-button" class="button" type="submit">横断検索する</button>
-                        <a class="button-secondary" href="/gijiroku/cross.php">リセット</a>
                     </div>
                 </form>
-                <div class="examples">
-                    <button type="button" class="chip" data-example-query="補正予算">補正予算</button>
-                    <button type="button" class="chip" data-example-query="学校 AND 空調">学校 AND 空調</button>
-                    <button type="button" class="chip" data-example-query="子育て OR 保育">子育て OR 保育</button>
-                    <button type="button" class="chip" data-example-query="防災 NEAR/5 トイレ">防災 NEAR/5 トイレ</button>
-                </div>
             </section>
 
             <section class="panel progress-panel">

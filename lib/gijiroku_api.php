@@ -355,7 +355,7 @@ function gijiroku_api_openapi_spec(): array
     ];
 
     return [
-        'openapi' => '3.0.3',
+        'openapi' => '3.1.0',
         'info' => [
             'title' => 'Miyabe Tools 会議録検索 API',
             'version' => '1.1.0',
@@ -363,13 +363,13 @@ function gijiroku_api_openapi_spec(): array
         ],
         'servers' => [
             [
-                'url' => '/',
-                'description' => '現在のホスト',
+                'url' => 'https://tools.miya.be',
+                'description' => 'Miyabe Tools 本番環境',
             ],
         ],
         'externalDocs' => [
             'description' => '既存の会議録横断検索 UI',
-            'url' => '/gijiroku/cross.php',
+            'url' => 'https://tools.miya.be/gijiroku/cross.php',
         ],
         'tags' => [
             [
@@ -425,7 +425,7 @@ function gijiroku_api_openapi_spec(): array
                             'name' => 'q',
                             'in' => 'query',
                             'required' => true,
-                            'description' => '検索キーワード。既存 UI と同じ AND / OR / NOT / NEAR が使えます。',
+                            'description' => '検索キーワード。既存 UI と同じ AND / OR / NOT / NEAR と、引用符でくくるフレーズ一致（例: `"同和地区"`）が使えます。',
                             'schema' => ['type' => 'string'],
                             'example' => '補正予算',
                         ],
@@ -733,14 +733,12 @@ function gijiroku_api_openapi_spec(): array
                     'required' => ['last_date', 'latest_hit_date'],
                     'properties' => [
                         'last_date' => [
-                            'type' => 'string',
+                            'type' => ['string', 'null'],
                             'format' => 'date',
-                            'nullable' => true,
                         ],
                         'latest_hit_date' => [
-                            'type' => 'string',
+                            'type' => ['string', 'null'],
                             'format' => 'date',
-                            'nullable' => true,
                         ],
                     ],
                 ],
@@ -879,9 +877,8 @@ function gijiroku_api_openapi_spec(): array
                         ],
                         'error' => ['type' => 'string'],
                         'held_on' => [
-                            'type' => 'string',
+                            'type' => ['string', 'null'],
                             'format' => 'date',
-                            'nullable' => true,
                         ],
                         'rows' => [
                             'type' => 'array',

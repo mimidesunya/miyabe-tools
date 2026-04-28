@@ -198,6 +198,125 @@ function data_public_url(string $relative): string
     return '/data/' . $normalized;
 }
 
+function municipality_prefecture_names(): array
+{
+    return [
+        '01' => '北海道',
+        '02' => '青森県',
+        '03' => '岩手県',
+        '04' => '宮城県',
+        '05' => '秋田県',
+        '06' => '山形県',
+        '07' => '福島県',
+        '08' => '茨城県',
+        '09' => '栃木県',
+        '10' => '群馬県',
+        '11' => '埼玉県',
+        '12' => '千葉県',
+        '13' => '東京都',
+        '14' => '神奈川県',
+        '15' => '新潟県',
+        '16' => '富山県',
+        '17' => '石川県',
+        '18' => '福井県',
+        '19' => '山梨県',
+        '20' => '長野県',
+        '21' => '岐阜県',
+        '22' => '静岡県',
+        '23' => '愛知県',
+        '24' => '三重県',
+        '25' => '滋賀県',
+        '26' => '京都府',
+        '27' => '大阪府',
+        '28' => '兵庫県',
+        '29' => '奈良県',
+        '30' => '和歌山県',
+        '31' => '鳥取県',
+        '32' => '島根県',
+        '33' => '岡山県',
+        '34' => '広島県',
+        '35' => '山口県',
+        '36' => '徳島県',
+        '37' => '香川県',
+        '38' => '愛媛県',
+        '39' => '高知県',
+        '40' => '福岡県',
+        '41' => '佐賀県',
+        '42' => '長崎県',
+        '43' => '熊本県',
+        '44' => '大分県',
+        '45' => '宮崎県',
+        '46' => '鹿児島県',
+        '47' => '沖縄県',
+    ];
+}
+
+function municipality_prefecture_code_from_code(string $code): string
+{
+    $code = trim($code);
+    if (preg_match('/^(\d{2})/', $code, $matches) !== 1) {
+        return '';
+    }
+    return $matches[1];
+}
+
+function municipality_prefecture_name_from_code(string $prefCode): string
+{
+    $prefCode = trim($prefCode);
+    return (string)(municipality_prefecture_names()[$prefCode] ?? '');
+}
+
+function municipality_prefecture_options(array $municipalities): array
+{
+    $counts = [];
+    foreach ($municipalities as $municipality) {
+        if (!is_array($municipality)) {
+            continue;
+        }
+        $prefCode = trim((string)($municipality['pref_code'] ?? ''));
+        if ($prefCode === '') {
+            $prefCode = municipality_prefecture_code_from_code((string)($municipality['code'] ?? ''));
+        }
+        if ($prefCode === '') {
+            continue;
+        }
+        $counts[$prefCode] = ($counts[$prefCode] ?? 0) + 1;
+    }
+
+    ksort($counts, SORT_STRING);
+    $options = [];
+    foreach ($counts as $prefCode => $count) {
+        $name = municipality_prefecture_name_from_code((string)$prefCode);
+        if ($name === '') {
+            continue;
+        }
+        $options[] = [
+            'code' => (string)$prefCode,
+            'name' => $name,
+            'count' => (int)$count,
+        ];
+    }
+    return $options;
+}
+
+function municipality_normalize_prefecture_filter(?string $value, array $options): string
+{
+    $prefCode = trim((string)$value);
+    if (preg_match('/^\d{1,2}$/', $prefCode) === 1) {
+        $prefCode = str_pad($prefCode, 2, '0', STR_PAD_LEFT);
+    }
+    if (preg_match('/^\d{2}$/', $prefCode) !== 1) {
+        return '';
+    }
+
+    foreach ($options as $option) {
+        if ((string)($option['code'] ?? '') === $prefCode) {
+            return $prefCode;
+        }
+    }
+    return '';
+}
+
 function read_json_cache_file(string $path, int $ttlSeconds = 0): ?array
 {
     if (!is_file($path)) {

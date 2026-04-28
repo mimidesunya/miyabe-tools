@@ -16,7 +16,8 @@ foreach (reiki_search_ready_summaries() as $municipality) {
     $searchMunicipalities[] = $municipality;
 }
 
-$selectedSlug = get_slug((string)($_GET['slug'] ?? ''));
+$requestedSlug = trim((string)($_GET['slug'] ?? ''));
+$selectedSlug = $requestedSlug !== '' ? get_slug($requestedSlug) : '';
 $selectedSlugValid = false;
 foreach ($searchMunicipalities as $item) {
     if ((string)($item['slug'] ?? '') === $selectedSlug) {
@@ -28,14 +29,24 @@ if (!$selectedSlugValid) {
     $selectedSlug = '';
 }
 
+$lockedSlug = $selectedSlug;
+$prefectureOptions = municipality_prefecture_options($searchMunicipalities);
+$selectedPrefecture = $lockedSlug !== ''
+    ? ''
+    : municipality_normalize_prefecture_filter((string)($_GET['pref'] ?? ''), $prefectureOptions);
+
 $boot = [
     'apiUrl' => '/reiki/search_api.php',
     'query' => trim((string)($_GET['q'] ?? '')),
     'selectedSlug' => $selectedSlug,
+    'lockedSlug' => $lockedSlug,
+    'selectedPrefecture' => $selectedPrefecture,
+    'prefectures' => $prefectureOptions,
     'municipalities' => $searchMunicipalities,
 ];
 
 $fallbackUrl = $searchMunicipalities[0]['url'] ?? '/reiki/';
+$targetMunicipalityCount = $lockedSlug !== '' ? 1 : count($searchMunicipalities);
 $sharedCssPath = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'gijiroku' . DIRECTORY_SEPARATOR . 'assets' . DIRECTORY_SEPARATOR . 'css' . DIRECTORY_SEPARATOR . 'cross.css';
 $cssVer = @filemtime($sharedCssPath) ?: 1;
 $jsVer = @filemtime(__DIR__ . '/assets/js/cross.js') ?: 1;
@@ -55,11 +66,6 @@ $jsVer = @filemtime(__DIR__ . '/assets/js/cross.js') ?: 1;
             <div class="eyebrow">Cross-Municipality Ordinance Search</div>
             <h1>例規集を、<br>自治体をまたいで全文検索</h1>
             <p class="hero-copy">条例・規則・要綱の本文を自治体横断で走査し、ヒットした自治体から順に切り替えられます。まず全体の当たりを付けてから、各自治体の例規集ビューアへ入るための入口です。</p>
-            <div class="hero-tags">
-                <span class="hero-tag">SQLite FTS5</span>
-                <span class="hero-tag">条例本文を横断検索</span>
-                <span class="hero-tag">自治体ごとに動的切替</span>
-            </div>
             <div class="hero-links">
                 <a href="/">トップへ戻る</a>
                 <a href="<?php echo h((string)$fallbackUrl); ?>">自治体別例規集へ</a>
@@ -68,7 +74,7 @@ $jsVer = @filemtime(__DIR__ . '/assets/js/cross.js') ?: 1;
         <div class="hero-side">
             <div class="hero-metric">
                 <span>検索対象自治体</span>
-                <strong><?php echo h((string)count($searchMunicipalities)); ?></strong>
+                <strong id="target-municipality-count"><?php echo h((string)$targetMunicipalityCount); ?></strong>
             </div>
             <div class="hero-metric">
                 <span>検索の流れ</span>
@@ -91,19 +97,25 @@ $jsVer = @filemtime(__DIR__ . '/assets/js/cross.js') ?: 1;
                 <form id="cross-search-form" class="search-form">
                     <label class="field" for="cross-query">
                         <span>キーワード</span>
-                        <input id="cross-query" name="q" type="text" value="<?php echo h((string)$boot['query']); ?>" placeholder="例: 学校 AND 使用料 / 災害 NEAR/5 備蓄 / 保育 OR 子育て" autocomplete="off">
+                        <input id="cross-query" name="q" type="text" value="<?php echo h((string)$boot['query']); ?>" placeholder='キーワードまたは "フレーズ"' autocomplete="off">
                     </label>
+                    <?php if ($lockedSlug === ''): ?>
+                        <label class="field" for="cross-prefecture">
+                            <span>都道府県</span>
+                            <select id="cross-prefecture" name="pref">
+                                <option value="">すべての都道府県</option>
+                                <?php foreach ($prefectureOptions as $prefecture): ?>
+                                    <option value="<?php echo h((string)$prefecture['code']); ?>" <?php echo (string)$prefecture['code'] === $selectedPrefecture ? 'selected' : ''; ?>>
+                                        <?php echo h((string)$prefecture['name']); ?> (<?php echo h((string)$prefecture['count']); ?>)
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                    <?php endif; ?>
                     <div class="form-actions">
                         <button id="cross-search-button" class="button" type="submit">横断検索する</button>
-                        <a class="button-secondary" href="/reiki/cross.php">リセット</a>
                     </div>
                 </form>
-                <div class="examples">
-                    <button type="button" class="chip" data-example-query="使用料">使用料</button>
-                    <button type="button" class="chip" data-example-query="学校 AND 体育館">学校 AND 体育館</button>
-                    <button type="button" class="chip" data-example-query="災害 NEAR/5 備蓄">災害 NEAR/5 備蓄</button>
-                    <button type="button" class="chip" data-example-query="保育 OR 子育て">保育 OR 子育て</button>
-                </div>
             </section>
 
             <section class="panel progress-panel">
