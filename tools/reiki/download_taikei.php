@@ -12,27 +12,32 @@ const TAIKEI_INDEX_COMMIT_BATCH_SIZE = 25;
 const TAIKEI_FTS_RUNTIME_AUTOMERGE = 8;
 const TAIKEI_FTS_RUNTIME_CRISISMERGE = 64;
 const TAIKEI_FTS_RUNTIME_MERGE_PAGES = 1000;
+const TAIKEI_LIKE_SYSTEM_TYPES = ['taikei' => true, 'g-reiki' => true];
 
 main($argv);
 
 function main(array $argv): void
 {
-    $options = getopt('', ['slug::', 'code::', 'name::', 'source-url::', 'limit::', 'force', 'crawl-only', 'check-updates']);
-    $slug = isset($options['slug']) && is_string($options['slug']) && trim($options['slug']) !== ''
-        ? trim($options['slug'])
-        : default_slug_for_system('taikei');
-    $limit = isset($options['limit']) ? max(0, (int)$options['limit']) : 0;
-    $force = array_key_exists('force', $options);
-    $crawlOnly = array_key_exists('crawl-only', $options);
-    $checkUpdates = array_key_exists('check-updates', $options);
+    $options = getopt('', ['slug::', 'system-type::', 'code::', 'name::', 'source-url::', 'limit::', 'force', 'crawl-only', 'check-updates']);
+    $systemType = cli_option_value($options, $argv, 'system-type', 'taikei');
+    if (!isset(TAIKEI_LIKE_SYSTEM_TYPES[$systemType])) {
+        throw new RuntimeException("Unsupported taikei-like system_type: {$systemType}");
+    }
+    $slugOption = cli_option_value($options, $argv, 'slug');
+    $slug = $slugOption !== '' ? $slugOption : default_slug_for_system($systemType);
+    $limitOption = cli_option_value($options, $argv, 'limit');
+    $limit = $limitOption !== '' ? max(0, (int)$limitOption) : 0;
+    $force = cli_has_flag($options, $argv, 'force');
+    $crawlOnly = cli_has_flag($options, $argv, 'crawl-only');
+    $checkUpdates = cli_has_flag($options, $argv, 'check-updates');
 
     $target = load_reiki_target_from_cli(
         $slug,
-        'taikei',
+        $systemType,
         [
-            'code' => is_string($options['code'] ?? null) ? trim((string)$options['code']) : '',
-            'name' => is_string($options['name'] ?? null) ? trim((string)$options['name']) : '',
-            'source_url' => is_string($options['source-url'] ?? null) ? trim((string)$options['source-url']) : '',
+            'code' => cli_option_value($options, $argv, 'code'),
+            'name' => cli_option_value($options, $argv, 'name'),
+            'source_url' => cli_option_value($options, $argv, 'source-url'),
         ]
     );
     $dataRoot = (string)$target['data_root'];
@@ -219,6 +224,47 @@ function main(array $argv): void
     echo "  Skipped existing: {$skipped}\n";
     echo "  Parsed: {$parsed}\n";
     echo "  Reused manifest: {$reused}\n";
+}
+
+function cli_option_value(array $options, array $argv, string $name, string $default = ''): string
+{
+    $value = $options[$name] ?? null;
+    if (is_string($value) && trim($value) !== '') {
+        return trim($value);
+    }
+
+    $flag = '--' . $name;
+    $prefix = $flag . '=';
+    $count = count($argv);
+    for ($i = 1; $i < $count; $i++) {
+        $arg = (string)$argv[$i];
+        if (str_starts_with($arg, $prefix)) {
+            return trim(substr($arg, strlen($prefix)));
+        }
+        if ($arg === $flag && isset($argv[$i + 1])) {
+            $next = (string)$argv[$i + 1];
+            if (!str_starts_with($next, '--')) {
+                return trim($next);
+            }
+        }
+    }
+
+    return $default;
+}
+
+function cli_has_flag(array $options, array $argv, string $name): bool
+{
+    if (array_key_exists($name, $options)) {
+        return true;
+    }
+
+    $flag = '--' . $name;
+    foreach ($argv as $arg) {
+        if ((string)$arg === $flag) {
+            return true;
+        }
+    }
+    return false;
 }
 
 function crawl_taxonomy(string $entryUrl): array
@@ -973,7 +1019,7 @@ function load_project_config(): array
     return $config;
 }
 
-function sanitize_slug_token(string $value): string
+function taikei_sanitize_slug_token(string $value): string
 {
     $token = strtolower(trim($value));
     $token = preg_replace('/[^a-z0-9-]+/', '-', $token) ?? '';
@@ -981,7 +1027,7 @@ function sanitize_slug_token(string $value): string
     return preg_replace('/-{2,}/', '-', $token) ?? '';
 }
 
-function load_municipality_master_index(): array
+function taikei_load_municipality_master_index(): array
 {
     static $index = null;
     if (is_array($index)) {
@@ -1040,14 +1086,14 @@ function load_municipality_master_index(): array
     return $index;
 }
 
-function implicit_municipality_slug(string $code, array $masterEntry = []): string
+function taikei_implicit_municipality_slug(string|int $code, array $masterEntry = []): string
 {
-    $normalizedCode = preg_replace('/[^0-9]/', '', $code) ?? '';
+    $normalizedCode = preg_replace('/[^0-9]/', '', (string)$code) ?? '';
     if ($normalizedCode === '') {
         $normalizedCode = '00000';
     }
 
-    $token = sanitize_slug_token((string)($masterEntry['name_romaji'] ?? ''));
+    $token = taikei_sanitize_slug_token((string)($masterEntry['name_romaji'] ?? ''));
     if ($token === '') {
         $token = 'municipality';
     }
@@ -1148,7 +1194,7 @@ function iter_reiki_targets(?string $expectedSystem = null, bool $configuredOnly
     // $configuredOnly は旧 CLI 互換の引数として受けるが、現在は全国マスタをそのまま使う。
     $targets = [];
     $urlIndex = load_local_reiki_url_index();
-    $masterIndex = load_municipality_master_index();
+    $masterIndex = taikei_load_municipality_master_index();
 
     foreach ($urlIndex as $code => $urlEntry) {
         $systemType = trim((string)($urlEntry['system_type'] ?? ''));
@@ -1161,7 +1207,7 @@ function iter_reiki_targets(?string $expectedSystem = null, bool $configuredOnly
             continue;
         }
 
-        $slug = implicit_municipality_slug($code, $masterIndex[$code] ?? []);
+        $slug = taikei_implicit_municipality_slug($code, $masterIndex[$code] ?? []);
         $entry = ['code' => $code];
         $targets[] = build_reiki_target_entry($slug, $entry, $urlEntry, $masterIndex[$code] ?? []);
     }
@@ -1178,7 +1224,7 @@ function reiki_target_matches_slug(array $target, string $slug): bool
 
     $targetSlug = trim((string)($target['slug'] ?? ''));
     $code = trim((string)($target['code'] ?? ''));
-    $nameRomaji = sanitize_slug_token((string)($target['name_romaji'] ?? ''));
+    $nameRomaji = taikei_sanitize_slug_token((string)($target['name_romaji'] ?? ''));
     $aliases = [$targetSlug];
     if ($code !== '') {
         $aliases[] = $code;
@@ -1232,7 +1278,7 @@ function load_reiki_target_from_cli(string $slug, string $expectedSystem, array 
         );
     }
 
-    $masterEntry = load_municipality_master_index()[$code] ?? [];
+    $masterEntry = taikei_load_municipality_master_index()[$code] ?? [];
     if ($nameOverride !== '') {
         $entry['name'] = $nameOverride;
     }
@@ -2203,7 +2249,18 @@ function write_progress_state(string $path, int $current, int $total): void
     }
     ensure_dir(dirname($path));
     file_put_contents($tempPath, $json . "\n");
-    rename($tempPath, $path);
+    for ($attempt = 1; $attempt <= 3; $attempt++) {
+        if (@rename($tempPath, $path)) {
+            return;
+        }
+        if (is_file($path) && @unlink($path) && @rename($tempPath, $path)) {
+            return;
+        }
+        usleep(50000 * $attempt);
+    }
+    if (is_file($tempPath)) {
+        @unlink($tempPath);
+    }
 }
 
 function h(string $value): string

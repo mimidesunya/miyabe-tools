@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'municipalities.php';
+
 // スクレイピングの live task JSON と snapshot JSON を読み、UI 向け表示へ整形する。
 
 function background_task_status_path(string $task): string
@@ -31,11 +33,46 @@ function background_task_is_stale(array $taskStatus, int $staleSeconds = 900): b
 
     // updated_at は「件数や表示文が最後に変わった時刻」で、
     // 長い build 中は止めておきたい。死活監視は heartbeat_at を優先する。
-    $updatedAt = strtotime((string)($taskStatus['heartbeat_at'] ?? ($taskStatus['updated_at'] ?? '')));
-    if ($updatedAt === false) {
+    $updatedAt = app_parse_timestamp_tokyo_unix((string)($taskStatus['heartbeat_at'] ?? ($taskStatus['updated_at'] ?? '')));
+    if ($updatedAt === null) {
         return false;
     }
     return (time() - $updatedAt) > $staleSeconds;
+}
+
+function background_task_item_running_heartbeat_detail(array $taskStatus, array $item): string
+{
+    if (!(bool)($taskStatus['running'] ?? false)) {
+        return '';
+    }
+
+    $status = trim((string)($item['status'] ?? ''));
+    if (!in_array($status, ['pending', 'running'], true)) {
+        return '';
+    }
+
+    $heartbeatAt = trim((string)($taskStatus['heartbeat_at'] ?? ''));
+    if ($heartbeatAt === '') {
+        return '';
+    }
+
+    $heartbeatUnix = app_parse_timestamp_tokyo_unix($heartbeatAt);
+    if ($heartbeatUnix === null) {
+        return '';
+    }
+
+    $progressUpdatedAt = trim((string)($item['progress_updated_at'] ?? ''));
+    $updatedAt = trim((string)($item['updated_at'] ?? ''));
+    $itemUpdatedUnix = app_parse_timestamp_tokyo_unix($progressUpdatedAt !== '' ? $progressUpdatedAt : $updatedAt);
+    if ($itemUpdatedUnix !== null && $heartbeatUnix <= $itemUpdatedUnix) {
+        return '';
+    }
+
+    if ($itemUpdatedUnix !== null && ($heartbeatUnix - $itemUpdatedUnix) < 30) {
+        return '';
+    }
+
+    return '応答 ' . $heartbeatAt;
 }
 
 function background_task_item_progress_numbers(array $item): array
@@ -135,6 +172,7 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
     $running = (bool)($taskStatus['running'] ?? false);
     $stale = background_task_is_stale($taskStatus);
     $taskName = trim((string)($taskStatus['task'] ?? ''));
+    $customRunningLabel = trim((string)($taskStatus['running_label'] ?? ''));
     $isReflectTask = str_ends_with($taskName, '_reflect');
     $hasStarted = background_task_item_has_started($item);
     $progress = background_task_item_progress_numbers($item);
@@ -163,6 +201,10 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
     if ($timeLabel !== '') {
         $detailParts[] = '更新 ' . $timeLabel;
     }
+    $heartbeatDetail = background_task_item_running_heartbeat_detail($taskStatus, $item);
+    if ($heartbeatDetail !== '') {
+        $detailParts[] = $heartbeatDetail;
+    }
     $detail = implode("\n", $detailParts);
 
     if ($stale && in_array($status, ['pending', 'running'], true) && !$hasStarted) {
@@ -179,7 +221,7 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
         ];
     }
     if ($running && $status === 'running') {
-        $label = $isReflectTask ? '反映中' : 'スクレイピング中';
+        $label = $customRunningLabel !== '' ? $customRunningLabel : ($isReflectTask ? '反映中' : 'スクレイピング中');
         if ($message === 'インデックス更新中') {
             $label = $message;
         } elseif ($isReflectTask && $message !== '' && $message !== '反映中') {

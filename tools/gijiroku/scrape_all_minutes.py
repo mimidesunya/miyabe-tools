@@ -455,6 +455,11 @@ def refresh_active_worker_heartbeats(
     task_name: str,
     active_workers: list[dict],
     active_index_workers: list[dict],
+    pending_index_workers: list[dict],
+    *,
+    worker_capacity: int,
+    index_capacity: int,
+    per_host_capacity: int,
 ) -> None:
     if not active_workers and not active_index_workers:
         return
@@ -479,6 +484,16 @@ def refresh_active_worker_heartbeats(
             str(target["slug"]),
             message=f"インデックス更新中: {summary}",
         )
+    batch_status.update_runtime_metrics(
+        status_state,
+        running_label="スクレイピング中",
+        worker_capacity=worker_capacity,
+        worker_active_count=len(active_workers),
+        index_capacity=index_capacity,
+        index_active_count=len(active_index_workers),
+        index_queue_count=len(pending_index_workers),
+        per_host_capacity=per_host_capacity,
+    )
     batch_status.write_state(task_name, status_state)
 
 
@@ -621,7 +636,6 @@ def main() -> int:
     status_state = batch_status.build_state("gijiroku", run_id, len(targets), summary_path, run_logs_dir)
     for target in targets:
         batch_status.register_target(status_state, target, target_host(target))
-    batch_status.write_state("gijiroku", status_state)
 
     with summary_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
@@ -656,6 +670,21 @@ def main() -> int:
         launched_count = 0
         last_status_at = 0.0
         host_last_start_at: dict[str, float] = {}
+
+        def write_status_state() -> None:
+            batch_status.update_runtime_metrics(
+                status_state,
+                running_label="スクレイピング中",
+                worker_capacity=args.parallel,
+                worker_active_count=len(active_workers),
+                index_capacity=args.index_parallel,
+                index_active_count=len(active_index_workers),
+                index_queue_count=len(pending_index_workers),
+                per_host_capacity=args.per_host_parallel,
+            )
+            batch_status.write_state("gijiroku", status_state)
+
+        write_status_state()
 
         while pending_targets or active_workers or pending_index_workers or active_index_workers:
             now = time.time()
@@ -713,7 +742,7 @@ def main() -> int:
                         progress_total=None,
                         progress_unit="",
                     )
-                    batch_status.write_state("gijiroku", status_state)
+                    write_status_state()
                     print(f"[INDEX-QUEUE] {target['slug']} minutes.sqlite の更新を待機キューへ追加", flush=True)
                     made_progress = True
                     continue
@@ -864,7 +893,7 @@ def main() -> int:
                     started_at=str(worker["started_at"]),
                     pid=int(worker["process"].pid),
                 )
-                batch_status.write_state("gijiroku", status_state)
+                write_status_state()
                 print(
                     f"[START {launched_count}/{len(targets)}] {target['name']} "
                     f"({target['slug']}, {target['system_type']}, {host}) pid={worker['process'].pid}",
@@ -956,7 +985,7 @@ def main() -> int:
                     progress_total=None,
                     progress_unit="",
                 )
-                batch_status.write_state("gijiroku", status_state)
+                write_status_state()
                 print(
                     f"[INDEX-START] {launched_worker['target']['slug']} "
                     f"minutes.sqlite を更新中 pid={launched_worker['process'].pid}",
@@ -967,7 +996,16 @@ def main() -> int:
             if (active_workers or active_index_workers) and (
                 last_status_at == 0.0 or now - last_status_at >= args.refresh_seconds
             ):
-                refresh_active_worker_heartbeats(status_state, "gijiroku", active_workers, active_index_workers)
+                refresh_active_worker_heartbeats(
+                    status_state,
+                    "gijiroku",
+                    active_workers,
+                    active_index_workers,
+                    pending_index_workers,
+                    worker_capacity=args.parallel,
+                    index_capacity=args.index_parallel,
+                    per_host_capacity=args.per_host_parallel,
+                )
                 print_status(
                     active_workers,
                     active_index_workers,
@@ -987,6 +1025,16 @@ def main() -> int:
             close_index_worker(worker)
 
     batch_status.finish_batch(status_state)
+    batch_status.update_runtime_metrics(
+        status_state,
+        running_label="スクレイピング中",
+        worker_capacity=args.parallel,
+        worker_active_count=0,
+        index_capacity=args.index_parallel,
+        index_active_count=0,
+        index_queue_count=0,
+        per_host_capacity=args.per_host_parallel,
+    )
     batch_status.write_state("gijiroku", status_state)
     print(f"[DONE] {summary_path}", flush=True)
     return 0

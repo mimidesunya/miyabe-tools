@@ -7,6 +7,13 @@ import time
 import tempfile
 import atexit
 import shlex
+from pathlib import Path
+
+from scraping_stack import (
+    SCRAPING_COMPOSE_PROJECT,
+    build_scraping_compose,
+    scraper_image_source_hash,
+)
 
 # Web アプリ本体の deploy 手順をまとめたスクリプト。
 # 共有データは remote 側に残しつつ、コードと設定だけを安全に更新する。
@@ -20,11 +27,11 @@ _RUNTIME_MUNICIPALITY_FILES = (
     'reiki_system_urls.tsv',
     'municipality_homepages.csv',
 )
-SCRAPING_COMPOSE_PROJECT = "miyabe-tools-scraping"
 DEFAULT_SCRAPER_IMAGE_NAME = "miyabe-tools-scraper"
 DEFAULT_GIJIROKU_LOOP_SECONDS = 21600
 DEFAULT_REIKI_LOOP_SECONDS = 21600
 DEFAULT_SCRAPER_FAIL_SLEEP_SECONDS = 900
+WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
 
 def _current_windows_user_sid():
     result = subprocess.run(
@@ -261,7 +268,7 @@ def remote_scraper_cleanup_cmd(scraper_image_name: str = DEFAULT_SCRAPER_IMAGE_N
     """Builds a shell snippet that removes stray standalone scraper containers."""
     # 旧 deploy や手動調査で `docker run miyabe-tools-scraper ...` を残すと、
     # その単発コンテナが scrape_state.json を上書きして live progress を壊す。
-    # さらに host 側の旧 run_*_remote.sh も random 名 container を増やすので、先に止める。
+    # さらに host 側に残った legacy wrapper / 直実行プロセスも random 名 container を増やすので、先に止める。
     return f"""
 pkill -f 'tools/remote/run_gijiroku_remote.sh' >/dev/null 2>&1 || true
 pkill -f 'tools/remote/run_reiki_remote.sh' >/dev/null 2>&1 || true
@@ -286,117 +293,6 @@ def remote_user_ids(config: dict) -> tuple[str, str]:
     return uid, gid
 
 
-def yaml_scalar(value: object) -> str:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    text = str(value)
-    # compose の command/env は数値風の文字列も string として解釈させたい。
-    if isinstance(value, str):
-        escaped = text.replace("\\", "\\\\").replace("\"", "\\\"")
-        return f"\"{escaped}\""
-    if text == "" or any(ch in text for ch in ":#[]{}&,>*!|%@`'\" \t"):
-        escaped = text.replace("\\", "\\\\").replace("\"", "\\\"")
-        return f"\"{escaped}\""
-    return text
-
-
-def yaml_dump(value: object, indent: int = 0) -> str:
-    pad = " " * indent
-    if isinstance(value, dict):
-        lines: list[str] = []
-        for key, item in value.items():
-            if isinstance(item, (dict, list)):
-                lines.append(f"{pad}{key}:")
-                lines.append(yaml_dump(item, indent + 2))
-            else:
-                lines.append(f"{pad}{key}: {yaml_scalar(item)}")
-        return "\n".join(lines)
-    if isinstance(value, list):
-        lines = []
-        for item in value:
-            if isinstance(item, (dict, list)):
-                lines.append(f"{pad}-")
-                lines.append(yaml_dump(item, indent + 2))
-            else:
-                lines.append(f"{pad}- {yaml_scalar(item)}")
-        return "\n".join(lines)
-    return f"{pad}{yaml_scalar(value)}"
-
-
-def build_scraping_compose(
-    *,
-    image_name: str,
-    shared_data_dir: str,
-    uid: str,
-    gid: str,
-    gijiroku_loop_seconds: int,
-    reiki_loop_seconds: int,
-    fail_sleep_seconds: int,
-) -> str:
-    compose = {
-        "name": SCRAPING_COMPOSE_PROJECT,
-        "services": {
-            "scraper-gijiroku": {
-                "image": image_name,
-                "restart": "unless-stopped",
-                "init": True,
-                "user": f"{uid}:{gid}",
-                "working_dir": "/workspace",
-                "environment": {
-                    "HOME": "/tmp",
-                    "PYTHONUNBUFFERED": "1",
-                    "SCRAPER_LOOP_SECONDS": str(gijiroku_loop_seconds),
-                    "SCRAPER_FAIL_SLEEP_SECONDS": str(fail_sleep_seconds),
-                },
-                "volumes": [
-                    ".:/workspace",
-                    f"{shared_data_dir}/gijiroku:/workspace/data/gijiroku",
-                ],
-                "command": [
-                    "sh",
-                    "./tools/remote/run_gijiroku_service.sh",
-                    "--ack-robots",
-                    "--parallel",
-                    "8",
-                    "--per-host-parallel",
-                    "1",
-                    "--per-host-start-interval",
-                    "2",
-                ],
-            },
-            "scraper-reiki": {
-                "image": image_name,
-                "restart": "unless-stopped",
-                "init": True,
-                "user": f"{uid}:{gid}",
-                "working_dir": "/workspace",
-                "environment": {
-                    "HOME": "/tmp",
-                    "PYTHONUNBUFFERED": "1",
-                    "SCRAPER_LOOP_SECONDS": str(reiki_loop_seconds),
-                    "SCRAPER_FAIL_SLEEP_SECONDS": str(fail_sleep_seconds),
-                },
-                "volumes": [
-                    ".:/workspace",
-                    f"{shared_data_dir}/reiki:/workspace/data/reiki",
-                ],
-                "command": [
-                    "sh",
-                    "./tools/remote/run_reiki_service.sh",
-                    "--parallel",
-                    "8",
-                    "--per-host-parallel",
-                    "1",
-                    "--per-host-start-interval",
-                    "2",
-                    "--check-updates",
-                ],
-            },
-        }
-    }
-    return yaml_dump(compose)
-
-
 def ensure_remote_scraping_compose(
     config,
     dest_dir: str,
@@ -407,13 +303,6 @@ def ensure_remote_scraping_compose(
     reiki_loop_seconds: int = DEFAULT_REIKI_LOOP_SECONDS,
     fail_sleep_seconds: int = DEFAULT_SCRAPER_FAIL_SLEEP_SECONDS,
 ):
-    compose_present = ssh_exec(
-        config,
-        f"[ -f {dest_dir}/docker-compose.scraping.yml ] && echo present || echo missing",
-    ).strip()
-    if compose_present == "present":
-        return
-
     uid, gid = remote_user_ids(config)
     compose_text = build_scraping_compose(
         image_name=scraper_image_name,
@@ -427,15 +316,29 @@ def ensure_remote_scraping_compose(
     ssh_copy_content(config, compose_text + "\n", f"{dest_dir}/docker-compose.scraping.yml")
 
 
+def remote_scraper_image_stamp_path(dest_dir: str) -> str:
+    return f"{dest_dir}/work/celery/scraper-image.sha256"
+
+
+def remote_file_text(config, remote_path: str) -> str:
+    quoted = shlex.quote(remote_path)
+    return ssh_exec(config, f"if [ -f {quoted} ]; then cat {quoted}; fi")
+
+
 def ensure_scraper_image(config, dest_dir: str, image_name: str = DEFAULT_SCRAPER_IMAGE_NAME) -> None:
+    expected_hash = scraper_image_source_hash(WORKSPACE_ROOT)
+    stamp_path = remote_scraper_image_stamp_path(dest_dir)
     image_present = ssh_exec(
         config,
         f"docker image inspect {image_name} >/dev/null 2>&1 && echo present || echo missing",
     ).strip()
-    if image_present == "present":
+    current_hash = remote_file_text(config, stamp_path).strip()
+    if image_present == "present" and current_hash == expected_hash:
         return
     print(f"=== Building scraper image ({image_name}) ===")
     ssh_exec(config, f"cd {dest_dir} && SCRAPER_IMAGE_NAME={image_name} sh ./tools/remote/build_scraper_image.sh")
+    ssh_exec(config, f"mkdir -p {dest_dir}/work/celery")
+    ssh_copy_content(config, expected_hash + "\n", stamp_path)
 
 
 def verify_scraping_services_running(config, dest_dir: str) -> str:
@@ -444,8 +347,10 @@ set -eu
 cd {dest_dir}
 running="$(docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml ps --status running --services)"
 printf '%s\n' "$running"
+echo "$running" | grep -qx 'scraper-redis'
 echo "$running" | grep -qx 'scraper-gijiroku'
 echo "$running" | grep -qx 'scraper-reiki'
+echo "$running" | grep -qx 'scraper-beat'
 """
     return ssh_exec(config, verify_cmd)
 
@@ -501,7 +406,7 @@ mkdir -p {dest_dir}/tools {dest_dir}/data/background_tasks {dest_dir}/data/munic
 rsync -a {dest_dir}/data/municipalities/ {shared_data_dir}/municipalities/
 if [ -f {dest_dir}/docker-compose.scraping.yml ]; then
   cd {dest_dir}
-  docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml stop scraper-gijiroku scraper-reiki >/dev/null 2>&1 || true
+  docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml stop scraper-gijiroku scraper-reiki scraper-beat >/dev/null 2>&1 || true
   docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml run --rm -T -v {shared_data_dir}/reiki:/workspace/data/reiki --entrypoint sh scraper-gijiroku -lc '
 set -eu
 python3 /workspace/tools/normalize_municipality_storage.py --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work --background-task-dir /workspace/data/background_tasks
@@ -567,7 +472,7 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
     # Ensure remote directories exist
     ssh_exec(
         config,
-        f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/src {dest_dir}/nginx {dest_dir}/docker/php {dest_dir}/tools {dest_dir}/data {dest_dir}/data/boards {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku"
+        f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/src {dest_dir}/nginx {dest_dir}/docker/php {dest_dir}/tools {dest_dir}/data {dest_dir}/data/boards {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {dest_dir}/work/celery {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku"
     )
 
     # Use rsync for better handling of large number of files
@@ -602,6 +507,7 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
 
     # Sync root data files separately (rsync only handles directories above)
     sync_single_file(config, ssh_base, "data/config.json", f"{dest_dir}/data/config.json", dry_run=dry_run, required=True)
+    sync_single_file(config, ssh_base, ".dockerignore", f"{dest_dir}/.dockerignore", dry_run=dry_run, required=False)
     sync_single_file(
         config,
         ssh_base,

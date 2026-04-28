@@ -14,6 +14,7 @@ from municipality_slugs import code_name_slug, sanitize_slug_token
 WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
 DATA_ROOT = WORKSPACE_ROOT / "data"
 WORK_ROOT = WORKSPACE_ROOT / "work"
+TAIKEI_LIKE_SYSTEMS = {"taikei", "g-reiki"}
 
 
 def project_root() -> Path:
@@ -196,7 +197,7 @@ def build_target_entry(
         "entity_type": str((master_entry or {}).get("entity_type", "")).strip(),
         "system_type": system_type,
         "source_url": source_url,
-        "entry_url": derive_taikei_entry_url(source_url) if system_type == "taikei" else source_url,
+        "entry_url": derive_taikei_entry_url(source_url) if system_type in TAIKEI_LIKE_SYSTEMS else source_url,
         "data_root": build_data_path(f"reiki/{slug}"),
         "work_root": work_root,
         "source_dir": build_work_path(base_source_dir),

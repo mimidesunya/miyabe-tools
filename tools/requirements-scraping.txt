@@ -4,3 +4,4 @@ beautifulsoup4>=4.12.0
 pypdf>=4.0.0
 sudachipy>=0.6
 sudachidict_core
+celery[redis]>=5.4,<6

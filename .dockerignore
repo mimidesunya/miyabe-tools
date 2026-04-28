@@ -1,0 +1,14 @@
+.git
+.gitignore
+.claude
+.venv
+.venv-*
+.venv311
+__pycache__
+data
+work
+worktrees
+kmzs
+doc
+tmp_*
+*.sqlite

@@ -13,8 +13,13 @@ function h(?string $value): string
 
 function normalize_space(string $value): string
 {
-    $normalized = preg_replace('/[ \t　]+/u', ' ', trim($value));
-    return $normalized === null ? trim($value) : $normalized;
+    $trimmed = preg_replace('/^[ \t　]+|[ \t　]+$/u', '', $value);
+    if ($trimmed === null) {
+        return trim($value);
+    }
+
+    $normalized = preg_replace('/[ \t　]+/u', ' ', $trimmed);
+    return $normalized === null ? $trimmed : $normalized;
 }
 
 function render_excerpt(string $value): string
@@ -256,12 +261,47 @@ function is_speaker_line(string $line): bool
     return preg_match('/^[○◎◆◇△▲▽▼□■●〇◯]/u', $line) === 1;
 }
 
+function starts_indented_line(string $line): bool
+{
+    return preg_match('/^[\s　]+/u', $line) === 1;
+}
+
+function looks_like_enumerated_line(string $line): bool
+{
+    return preg_match('/^(?:[0-9０-９]+[\.．、)\-]|[①-⑳]|[一二三四五六七八九十]+[、.)．]|[・※＊])\s*/u', $line) === 1;
+}
+
+function ends_with_sentence_boundary(string $text): bool
+{
+    return preg_match('/[。！？](?:[」』】）〕]*)$/u', $text) === 1;
+}
+
+function should_start_new_paragraph(string $rawLine, string $normalizedLine, string $currentParagraph): bool
+{
+    if ($currentParagraph === '') {
+        return false;
+    }
+
+    // PDF / HTML 由来の会議録は、字下げ済み行や箇条書き行に段落情報が残っていることが多い。
+    // それを優先しつつ、文末で切れている行だけを次段落へ送る。
+    if (starts_indented_line($rawLine) || looks_like_enumerated_line($normalizedLine)) {
+        return true;
+    }
+
+    if (preg_match('/^[〔【（(]/u', $normalizedLine) === 1) {
+        return true;
+    }
+
+    return ends_with_sentence_boundary($currentParagraph);
+}
+
 // PDF 由来の折り返しを段落単位へ戻し、検索結果の本文を読みやすく整える。
 function merge_wrapped_lines(array $lines): string
 {
     $paragraphs = [];
     $current = '';
     foreach ($lines as $line) {
+        $raw = (string)$line;
         $clean = normalize_space((string)$line);
         if ($clean === '') {
             if ($current !== '') {
@@ -272,6 +312,12 @@ function merge_wrapped_lines(array $lines): string
         }
 
         if ($current === '') {
+            $current = $clean;
+            continue;
+        }
+
+        if (should_start_new_paragraph($raw, $clean, $current)) {
+            $paragraphs[] = $current;
             $current = $clean;
             continue;
         }

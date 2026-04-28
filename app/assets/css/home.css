@@ -46,6 +46,70 @@
             display: grid;
             gap: 4px;
         }
+        .running-summary-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 8px;
+        }
+        .running-summary-card {
+            border-radius: 14px;
+            border: 1px solid rgba(17, 78, 114, 0.12);
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(242, 248, 252, 0.92));
+            padding: 10px 12px;
+            display: grid;
+            gap: 8px;
+        }
+        .running-summary-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .running-summary-state {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .task-summary-running {
+            color: #1d4ed8;
+            background: rgba(29, 78, 216, 0.12);
+        }
+        .task-summary-idle {
+            color: #475569;
+            background: rgba(100, 116, 139, 0.12);
+        }
+        .task-summary-stale {
+            color: #b45309;
+            background: rgba(245, 158, 11, 0.14);
+        }
+        .running-summary-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .running-summary-stat {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 5px;
+            padding: 5px 8px;
+            border-radius: 999px;
+            background: rgba(17, 78, 114, 0.06);
+            color: var(--accent);
+        }
+        .running-summary-stat-label {
+            font-size: 11px;
+            color: var(--muted);
+        }
+        .running-summary-stat-value {
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
         .running-board-title {
             font-size: 18px;
             font-weight: 700;
@@ -408,6 +472,57 @@
             color: var(--muted);
             background: var(--accent-soft);
         }
+        .prefecture-filter {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+            gap: 16px;
+            align-items: end;
+            padding: 18px 20px;
+            border-radius: 18px;
+            border: 1px solid rgba(17, 78, 114, 0.14);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(241, 247, 251, 0.92));
+            box-shadow: 0 10px 24px rgba(17, 78, 114, 0.08);
+        }
+        .prefecture-filter-copy {
+            display: grid;
+            gap: 5px;
+        }
+        .prefecture-filter-title {
+            font-size: 18px;
+            font-weight: 700;
+            line-height: 1.35;
+        }
+        .prefecture-filter-copy p {
+            margin: 0;
+            font-size: 13px;
+            line-height: 1.7;
+            color: var(--muted);
+        }
+        .prefecture-filter-control {
+            display: grid;
+            gap: 7px;
+        }
+        .prefecture-filter-control span {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--accent);
+            letter-spacing: 0.04em;
+        }
+        .prefecture-filter-control select {
+            width: 100%;
+            border: 1px solid rgba(17, 78, 114, 0.18);
+            border-radius: 14px;
+            background: #fff;
+            color: var(--text);
+            padding: 12px 14px;
+            font: inherit;
+            box-shadow: inset 0 1px 1px rgba(23, 32, 43, 0.04);
+        }
+        .prefecture-filter-control select:focus {
+            outline: 2px solid rgba(17, 78, 114, 0.18);
+            outline-offset: 2px;
+            border-color: rgba(17, 78, 114, 0.34);
+        }
         .task-row {
             display: grid;
             gap: 4px;
@@ -499,6 +614,7 @@
             body { padding: 20px 12px 32px; }
             .running-board { padding: 14px 15px; border-radius: 16px; }
             .hero { padding: 18px; border-radius: 18px; }
+            .prefecture-filter { grid-template-columns: 1fr; padding: 16px; }
             .municipality-card { padding: 14px 15px; border-radius: 16px; }
             .prefecture-grid { grid-template-columns: 1fr; }
             .running-list { grid-template-columns: 1fr; }

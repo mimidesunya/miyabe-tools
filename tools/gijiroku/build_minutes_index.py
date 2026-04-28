@@ -248,7 +248,8 @@ def html_to_text(html: str) -> str:
 
 
 def normalize_title(file_path: Path) -> str:
-    return file_path.stem.strip() or file_path.name
+    logical = gijiroku_storage.logical_path(file_path)
+    return logical.stem.strip() or logical.name
 
 
 def normalize_space(value: str) -> str:
@@ -326,8 +327,12 @@ def first_nonempty_lines(text: str, limit: int = 8) -> list[str]:
     return lines
 
 
+def joined_head_text(text: str, limit: int = 8) -> str:
+    return "\n".join(first_nonempty_lines(text, limit=limit))
+
+
 def extract_year_label(text: str, fallback: str | None = None) -> str | None:
-    head = "\n".join(first_nonempty_lines(text, limit=6))
+    head = joined_head_text(text, limit=6)
     match = YEAR_LABEL_PATTERN.search(head)
     if match:
         label = f"{match.group(1)}{to_ascii_digits(match.group(2))}年"
@@ -350,7 +355,7 @@ def normalize_year_label_candidate(value: str) -> str | None:
 
 
 def extract_held_on(text: str, title: str, source_year: int | None) -> tuple[str | None, int | None, int | None, int | None]:
-    head = "\n".join(first_nonempty_lines(text, limit=20))
+    head = joined_head_text(text, limit=20)
     match = DATE_PATTERN.search(head)
     if match:
         gregorian_year = era_to_gregorian(match.group(1), match.group(2))
@@ -384,6 +389,24 @@ def extract_meeting_name(text: str) -> str | None:
     return None
 
 
+def looks_like_minutes_listing_page(text: str) -> bool:
+    head = joined_head_text(text, limit=12)
+    if head == "":
+        return False
+
+    markers = (
+        "会議日程一覧",
+        "会議検索結果一覧",
+        "件の日程がヒットしました",
+        "をクリックすると発言者を表示します",
+    )
+    matched = sum(1 for marker in markers if marker in head)
+    if matched >= 2:
+        return True
+
+    return "会議日程一覧" in head and re.search(r"\d+件の日程がヒットしました", head) is not None
+
+
 def trim_meta_meeting_name(label: str, title: str) -> str:
     trimmed = normalize_space(label)
     trimmed = re.sub(r"^(昭和|平成|令和)\s*[元\d０-９]+年\s*", "", trimmed)
@@ -411,12 +434,15 @@ def extract_meta_meeting_name(source_url: str, title: str) -> str | None:
     return None
 
 
-def classify_doc_type(title: str, text: str) -> str:
-    if title.endswith("目次"):
+def classify_doc_type(title: str, text: str, *, ext: str = "") -> str:
+    normalized_title = normalize_space(title)
+    if normalized_title.endswith("目次"):
         return "toc"
-    head = "\n".join(first_nonempty_lines(text, limit=6))
+    head = joined_head_text(text, limit=6)
     if "会議録目次" in head:
         return "toc"
+    if ext.lower() in {".html", ".htm"} and looks_like_minutes_listing_page(text):
+        return "aux"
     return "minutes"
 
 
@@ -724,7 +750,7 @@ def build_record(file_path: Path, downloads_dir: Path, meta_map: dict[tuple[str,
         meta = meta_map.get((extracted_year_label, title, ""))
     year_label = meta.year_label if meta else extracted_year_label
     held_on, gregorian_year, month, day = extract_held_on(content, title, meta.source_year if meta else None)
-    doc_type = classify_doc_type(title, content)
+    doc_type = classify_doc_type(title, content, ext=ext)
     rel_path = file_path.relative_to(downloads_dir).as_posix()
     title_terms = japanese_search_tokenizer.document_terms_text(title)
     meeting_name_terms = japanese_search_tokenizer.document_terms_text(meeting_name or "")

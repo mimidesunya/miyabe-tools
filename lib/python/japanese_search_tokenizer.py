@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import locale
 import re
 import sys
 from functools import lru_cache
@@ -69,6 +70,27 @@ def morpheme_variants(morpheme) -> list[str]:
 
 def utf8_size(text: str) -> int:
     return len((text or "").encode("utf-8"))
+
+
+def read_stdin_text() -> str:
+    data = sys.stdin.buffer.read()
+    if not data:
+        return ""
+
+    encodings = unique_preserve([
+        "utf-8",
+        "utf-8-sig",
+        str(sys.stdin.encoding or ""),
+        locale.getpreferredencoding(False),
+    ])
+    for encoding in encodings:
+        if encoding == "":
+            continue
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")
 
 
 def split_large_piece(text: str, *, max_bytes: int) -> list[str]:
@@ -228,7 +250,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    text = args.text if args.text is not None else sys.stdin.read()
+    text = args.text if args.text is not None else read_stdin_text()
 
     if args.mode == "document":
         payload = {
@@ -247,7 +269,7 @@ def main() -> int:
         }
 
     if args.json:
-        print(json.dumps(payload, ensure_ascii=False))
+        print(json.dumps(payload, ensure_ascii=True))
     elif args.mode == "document":
         print(payload["terms_text"])
     else:

@@ -8,8 +8,41 @@
 
 - 会議録検索: `/gijiroku/?slug={slug}`
 - 会議録横断検索: `/gijiroku/cross.php`
+- 会議録検索 API 入口: `/api/gijiroku/`
+- 会議録検索 OpenAPI JSON: `/api/gijiroku/openapi.json`
 
 未対応の自治体では「準備中」を表示します。
+
+## API
+
+既存の会議録検索 UI と同じ自治体カタログ・検索ロジックを使う読み取り専用 API を用意しています。
+
+- 自治体一覧: `GET /api/gijiroku/municipalities.php`
+- 自治体別検索: `GET /api/gijiroku/search.php?slug={slug}&q={query}`
+- 開催日ごとの会議一覧: `GET /api/gijiroku/documents.php?slug={slug}&held_on={YYYY-MM-DD}`
+- 会議録全文: `GET /api/gijiroku/document.php?slug={slug}&id={id}`
+- OpenAPI 仕様: `GET /api/gijiroku/openapi.json`
+
+最初に自治体一覧を取り、その `slug` を検索 API に渡してください。
+
+```bash
+curl "http://localhost/api/gijiroku/municipalities.php"
+```
+
+```bash
+curl "http://localhost/api/gijiroku/search.php?slug=14130-kawasaki-shi&q=補正予算&per_page=5"
+```
+
+```bash
+curl "http://localhost/api/gijiroku/documents.php?slug=14130-kawasaki-shi&held_on=2025-06-18"
+```
+
+```bash
+curl "http://localhost/api/gijiroku/document.php?slug=14130-kawasaki-shi&id=123&q=補正予算"
+```
+
+検索結果の `excerpt` は `[[[` と `]]]` でハイライト範囲を示した抜粋です。平文が欲しい場合は `excerpt_plain` を使えます。
+特定日の会議を API で取りたい場合は、まず `documents.php` でその日の一覧を取り、返ってきた `id` を `document.php` に渡してください。
 
 ## 設定
 

@@ -7,7 +7,7 @@ require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPAR
 // 空の自治体や空の機能は PHP 側で除外し、JS は返ってきた配列だけを描画する。
 
 header('Content-Type: application/json; charset=UTF-8');
-header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Cache-Control: public, max-age=5, stale-while-revalidate=30');
 
 ob_start();
 

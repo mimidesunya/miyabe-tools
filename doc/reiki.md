@@ -51,12 +51,18 @@
 - `tools/reiki/download_taikei.php`
 - `tools/reiki/classify_reiki.py`
 
-スクレイパ名は `data/municipalities/reiki_system_urls.tsv` の `system_type` に合わせています。`d1-law` と `taikei` は `--slug` で対象自治体を切り替えます。
+スクレイパ名は `data/municipalities/reiki_system_urls.tsv` の `system_type` に合わせています。`d1-law`、`taikei`、`g-reiki` は `--slug` で対象自治体を切り替えます。
 
 京都府のような `taikei` 系スクレイパは `https://www.pref.kyoto.jp/reiki/` の体系ページを巡回し、元HTML・Markdown・マニフェストを `work/reiki/kyoto-fu` に、整形HTML・SQLite を `data/reiki/kyoto-fu` に出力します。`config.json` で個別パスを書かなくても、この既定配置を使います。
 
 ```bash
 php tools/reiki/download_taikei.php --slug kyoto-fu
+```
+
+`g-reiki` 系は同じ taikei-like スクレイパを `--system-type=g-reiki` 付きで使います。香美市の取得例:
+
+```bash
+php tools/reiki/download_taikei.php --system-type=g-reiki --slug 39212-kami-shi
 ```
 
 少件数の試運転:
@@ -83,7 +89,7 @@ python tools/reiki/download_d1_law.py --slug 14130-kawasaki-shi
 python tools/reiki/download_d1_law.py --slug 14130-kawasaki-shi --check-updates
 ```
 
-実装済みの `d1-law` / `taikei` をまとめて回す場合:
+実装済みの `d1-law` / `taikei` / `g-reiki` をまとめて回す場合:
 
 ```bash
 python tools/reiki/scrape_all_reiki.py --parallel 8 --per-host-parallel 1 --per-host-start-interval 2 --check-updates

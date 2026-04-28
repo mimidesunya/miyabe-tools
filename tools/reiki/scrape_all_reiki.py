@@ -33,7 +33,9 @@ import reiki_targets
 SUPPORTED_SYSTEMS = {
     "d1-law": ("python", "download_d1_law.py"),
     "taikei": ("php", "download_taikei.php"),
+    "g-reiki": ("php", "download_taikei.php"),
 }
+TAIKEI_LIKE_SYSTEMS = {"taikei", "g-reiki"}
 # 子スクレイパ標準出力の [PROGRESS] 行だけを拾い、自治体単位の current/total へ反映する。
 PROGRESS_RE = re.compile(
     r"^\[PROGRESS\]\s+unit=(?P<unit>[a-z_]+)\s+current=(?P<current>\d+)\s+total=(?P<total>\d+)\s*$"
@@ -74,7 +76,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--crawl-only",
         action="store_true",
-        help="taikei 系では体系クロールだけ行い本文取得を省く",
+        help="taikei / g-reiki 系では体系クロールだけ行い本文取得を省く",
     )
     parser.add_argument(
         "--parallel",
@@ -164,6 +166,7 @@ def build_child_command(args: argparse.Namespace, target: dict) -> list[str]:
         cmd.extend(
             [
                 script_path,
+                f"--system-type={system_type}",
                 "--slug",
                 slug,
                 "--code",
@@ -179,9 +182,9 @@ def build_child_command(args: argparse.Namespace, target: dict) -> list[str]:
         cmd.append("--force")
     if args.check_updates:
         cmd.append("--check-updates")
-    if system_type == "taikei" and args.crawl_only:
+    if system_type in TAIKEI_LIKE_SYSTEMS and args.crawl_only:
         cmd.append("--crawl-only")
-    if system_type == "taikei" and args.per_target_limit > 0:
+    if system_type in TAIKEI_LIKE_SYSTEMS and args.per_target_limit > 0:
         cmd.append(f"--limit={args.per_target_limit}")
     return cmd
 
@@ -296,7 +299,14 @@ def print_status(active_workers: list[dict], completed_count: int, total_count: 
             flush=True,
         )
 
-def refresh_active_worker_heartbeats(status_state: dict, task_name: str, active_workers: list[dict]) -> None:
+def refresh_active_worker_heartbeats(
+    status_state: dict,
+    task_name: str,
+    active_workers: list[dict],
+    *,
+    worker_capacity: int,
+    per_host_capacity: int,
+) -> None:
     if not active_workers:
         return
     for worker in active_workers:
@@ -312,6 +322,13 @@ def refresh_active_worker_heartbeats(status_state: dict, task_name: str, active_
             str(target["slug"]),
             **update_kwargs,
         )
+    batch_status.update_runtime_metrics(
+        status_state,
+        running_label="スクレイピング中",
+        worker_capacity=worker_capacity,
+        worker_active_count=len(active_workers),
+        per_host_capacity=per_host_capacity,
+    )
     batch_status.write_state(task_name, status_state)
 
 
@@ -440,7 +457,6 @@ def main() -> int:
     status_state = batch_status.build_state("reiki", run_id, len(targets), summary_path, run_logs_dir)
     for target in targets:
         batch_status.register_target(status_state, target, target_host(target))
-    batch_status.write_state("reiki", status_state)
 
     with summary_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
@@ -473,6 +489,18 @@ def main() -> int:
         launched_count = 0
         last_status_at = 0.0
         host_last_start_at: dict[str, float] = {}
+
+        def write_status_state() -> None:
+            batch_status.update_runtime_metrics(
+                status_state,
+                running_label="スクレイピング中",
+                worker_capacity=args.parallel,
+                worker_active_count=len(active_workers),
+                per_host_capacity=args.per_host_parallel,
+            )
+            batch_status.write_state("reiki", status_state)
+
+        write_status_state()
 
         while pending_targets or active_workers:
             now = time.time()
@@ -563,7 +591,7 @@ def main() -> int:
                     started_at=str(worker["started_at"]),
                     pid=int(worker["process"].pid),
                 )
-                batch_status.write_state("reiki", status_state)
+                write_status_state()
                 print(
                     f"[START {launched_count}/{len(targets)}] {target['name']} "
                     f"({target['slug']}, {target['system_type']}, {host}) pid={worker['process'].pid}",
@@ -605,6 +633,8 @@ def main() -> int:
                                 status_state,
                                 "reiki",
                                 active_workers,
+                                worker_capacity=args.parallel,
+                                per_host_capacity=args.per_host_parallel,
                             ),
                         )
                     except Exception as exc:
@@ -676,7 +706,13 @@ def main() -> int:
                         str(target["slug"]),
                         **update_kwargs,
                     )
-                batch_status.write_state("reiki", status_state)
+                refresh_active_worker_heartbeats(
+                    status_state,
+                    "reiki",
+                    active_workers,
+                    worker_capacity=args.parallel,
+                    per_host_capacity=args.per_host_parallel,
+                )
                 print_status(active_workers, completed_count, len(targets))
                 last_status_at = now
 
@@ -688,6 +724,13 @@ def main() -> int:
             close_worker_streams(worker)
 
     batch_status.finish_batch(status_state)
+    batch_status.update_runtime_metrics(
+        status_state,
+        running_label="スクレイピング中",
+        worker_capacity=args.parallel,
+        worker_active_count=0,
+        per_host_capacity=args.per_host_parallel,
+    )
     batch_status.write_state("reiki", status_state)
     print(f"[DONE] {summary_path}", flush=True)
     return 0

@@ -7,11 +7,6 @@ require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPAR
 // 横断検索ページの初期表示データを組み立てる。
 redirect_to_canonical_query_slug_if_needed();
 
-function h(?string $value): string
-{
-    return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-}
-
 $searchMunicipalities = [];
 foreach (gijiroku_search_ready_summaries() as $municipality) {
     $searchMunicipalities[] = $municipality;

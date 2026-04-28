@@ -10,6 +10,41 @@ function japanese_search_python_script_path(): string
     return __DIR__ . DIRECTORY_SEPARATOR . 'python' . DIRECTORY_SEPARATOR . 'japanese_search_tokenizer.py';
 }
 
+function japanese_search_windows_python_candidates(): array
+{
+    if (DIRECTORY_SEPARATOR !== '\\') {
+        return [];
+    }
+
+    $localAppData = trim((string)getenv('LOCALAPPDATA'));
+    if ($localAppData === '') {
+        return [];
+    }
+
+    $patterns = [
+        $localAppData . DIRECTORY_SEPARATOR . 'Microsoft' . DIRECTORY_SEPARATOR . 'WindowsApps'
+            . DIRECTORY_SEPARATOR . 'PythonSoftwareFoundation.Python.*',
+        $localAppData . DIRECTORY_SEPARATOR . 'Programs' . DIRECTORY_SEPARATOR . 'Python'
+            . DIRECTORY_SEPARATOR . 'Python*',
+    ];
+
+    $candidates = [];
+    foreach ($patterns as $pattern) {
+        $matched = glob(str_replace('\\', '/', $pattern));
+        if ($matched === false) {
+            continue;
+        }
+        rsort($matched, SORT_NATURAL);
+        foreach ($matched as $path) {
+            $path = rtrim(str_replace('/', DIRECTORY_SEPARATOR, $path), DIRECTORY_SEPARATOR)
+                . DIRECTORY_SEPARATOR . 'python.exe';
+            $candidates[] = $path;
+        }
+    }
+
+    return $candidates;
+}
+
 function japanese_search_python_candidates(): array
 {
     $env = trim((string)getenv('MIYABE_PYTHON_BIN'));
@@ -18,10 +53,11 @@ function japanese_search_python_candidates(): array
         $candidates[] = $env;
     }
 
-    return array_merge(
+    return array_values(array_unique(array_merge(
         $candidates,
+        japanese_search_windows_python_candidates(),
         ['/usr/local/bin/python3', '/usr/bin/python3', 'python3', 'python']
-    );
+    )));
 }
 
 function japanese_search_run_tokenizer(string $mode, string $text): ?array
@@ -166,7 +202,10 @@ function japanese_search_prepare_query(string $query): array
             japanese_search_query_cache_ttl_seconds()
         );
         if (is_array($cachedPayload)) {
-            return $cache[$normalized] = $cachedPayload;
+            $cachedTokenizer = trim((string)($cachedPayload['tokenizer'] ?? ''));
+            if ($cachedTokenizer !== 'fallback') {
+                return $cache[$normalized] = $cachedPayload;
+            }
         }
     }
 

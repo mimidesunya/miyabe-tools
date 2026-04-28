@@ -69,8 +69,69 @@ def build_state(task_name: str, run_id: str, total_count: int, summary_path: Pat
         "pending_count": total_count,
         "summary_csv": rel_path(summary_path),
         "logs_dir": rel_path(log_dir),
+        "running_label": "",
+        "worker_capacity": None,
+        "worker_active_count": 0,
+        "worker_idle_count": None,
+        "index_capacity": None,
+        "index_active_count": 0,
+        "index_idle_count": None,
+        "index_queue_count": 0,
+        "per_host_capacity": None,
         "items": {},
     }
+
+
+def _normalize_optional_nonnegative_int(value: int | None | object) -> int | None | object:
+    if value is _UNSET:
+        return _UNSET
+    if value is None:
+        return None
+    return max(0, int(value))
+
+
+def update_runtime_metrics(
+    state: dict[str, Any],
+    *,
+    running_label: str | None | object = _UNSET,
+    worker_capacity: int | None | object = _UNSET,
+    worker_active_count: int | None | object = _UNSET,
+    index_capacity: int | None | object = _UNSET,
+    index_active_count: int | None | object = _UNSET,
+    index_queue_count: int | None | object = _UNSET,
+    per_host_capacity: int | None | object = _UNSET,
+) -> None:
+    if running_label is not _UNSET:
+        state["running_label"] = "" if running_label is None else str(running_label).strip()
+
+    assignments = {
+        "worker_capacity": _normalize_optional_nonnegative_int(worker_capacity),
+        "worker_active_count": _normalize_optional_nonnegative_int(worker_active_count),
+        "index_capacity": _normalize_optional_nonnegative_int(index_capacity),
+        "index_active_count": _normalize_optional_nonnegative_int(index_active_count),
+        "index_queue_count": _normalize_optional_nonnegative_int(index_queue_count),
+        "per_host_capacity": _normalize_optional_nonnegative_int(per_host_capacity),
+    }
+    for key, value in assignments.items():
+        if value is _UNSET:
+            continue
+        state[key] = value
+
+    if worker_capacity is not _UNSET or worker_active_count is not _UNSET:
+        capacity = state.get("worker_capacity")
+        active = state.get("worker_active_count")
+        if isinstance(capacity, int) and isinstance(active, int):
+            state["worker_idle_count"] = max(0, capacity - active)
+        else:
+            state["worker_idle_count"] = None
+
+    if index_capacity is not _UNSET or index_active_count is not _UNSET:
+        capacity = state.get("index_capacity")
+        active = state.get("index_active_count")
+        if isinstance(capacity, int) and isinstance(active, int):
+            state["index_idle_count"] = max(0, capacity - active)
+        else:
+            state["index_idle_count"] = None
 
 
 # 各自治体ごとの最小限メタデータを state に登録しておき、途中経過で追記していく。

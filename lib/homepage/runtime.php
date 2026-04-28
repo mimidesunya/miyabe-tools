@@ -83,6 +83,75 @@ function homepage_progress_count_detail(int $currentCount, int $totalCount): str
     return sprintf('%d件', $currentCount);
 }
 
+function homepage_progress_count_labeled_detail(string $label, int $currentCount, int $totalCount): string
+{
+    $detail = homepage_progress_count_detail($currentCount, $totalCount);
+    if ($detail === '') {
+        return '';
+    }
+    $label = trim($label);
+    return $label !== '' ? ($label . ' ' . $detail) : $detail;
+}
+
+function homepage_unique_logical_file_count(string $path, array $allowedSuffixes): int
+{
+    static $cache = [];
+    $normalizedAllowed = array_values(array_unique(array_map(static function ($suffix): string {
+        $suffix = strtolower(trim((string)$suffix));
+        return str_starts_with($suffix, '.') ? $suffix : ('.' . $suffix);
+    }, $allowedSuffixes)));
+    sort($normalizedAllowed);
+    $cacheKey = $path . "\n" . implode("\n", $normalizedAllowed);
+    if (array_key_exists($cacheKey, $cache)) {
+        return $cache[$cacheKey];
+    }
+    if (!is_dir($path) || $normalizedAllowed === []) {
+        $cache[$cacheKey] = 0;
+        return 0;
+    }
+
+    $allowedLookup = array_fill_keys($normalizedAllowed, true);
+    $logicalKeys = [];
+    $rootPrefix = rtrim(str_replace('\\', '/', $path), '/') . '/';
+
+    try {
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS)
+        );
+        foreach ($iterator as $fileInfo) {
+            if (!$fileInfo instanceof SplFileInfo || !$fileInfo->isFile()) {
+                continue;
+            }
+            $pathname = str_replace('\\', '/', $fileInfo->getPathname());
+            if (!str_starts_with($pathname, $rootPrefix)) {
+                continue;
+            }
+            $relative = substr($pathname, strlen($rootPrefix));
+            if (!is_string($relative) || $relative === '') {
+                continue;
+            }
+            $logical = preg_replace('/\.gz$/i', '', $relative) ?? $relative;
+            $extension = strtolower(pathinfo($logical, PATHINFO_EXTENSION));
+            if ($extension === '') {
+                continue;
+            }
+            $logicalSuffix = '.' . $extension;
+            if (!isset($allowedLookup[$logicalSuffix])) {
+                continue;
+            }
+            $logicalKey = preg_replace('/\.[^.\/]+$/', '', $logical) ?? $logical;
+            if ($logicalKey !== '') {
+                $logicalKeys[$logicalKey] = true;
+            }
+        }
+    } catch (Throwable) {
+        $logicalKeys = [];
+    }
+
+    $cache[$cacheKey] = count($logicalKeys);
+    return $cache[$cacheKey];
+}
+
 function homepage_directory_matching_file_count(string $path, array $patterns = []): int
 {
     static $cache = [];
@@ -125,46 +194,62 @@ function homepage_directory_matching_file_count(string $path, array $patterns = 
     return $count;
 }
 
-function homepage_feature_fallback_display(string $featureKey, array $feature): ?array
+function homepage_feature_fallback_display(string $featureKey, array $feature, ?array $snapshotDisplay = null): ?array
 {
+    $snapshotCurrent = max(0, (int)($snapshotDisplay['progress_current'] ?? 0));
+    $snapshotTotal = max(0, (int)($snapshotDisplay['progress_total'] ?? 0));
+
     if ($featureKey === 'reiki') {
-        // manifest / 整形 HTML / SQLite の三つを見比べ、古い task JSON でも件数が落ちないようにする。
+        // 例規集は「ダウンロード済み」と「反映済み」を分けて見せたい。
+        // manifest 件数を基準にしつつ、clean HTML / SQLite が先行している古いデータにも追随する。
         $manifestPath = dirname((string)($feature['source_dir'] ?? '')) . DIRECTORY_SEPARATOR . 'source_manifest.json';
-        $totalCount = homepage_json_array_count_auto($manifestPath);
+        $manifestCount = homepage_json_array_count_auto($manifestPath);
         $indexedCount = homepage_sqlite_row_count((string)($feature['db_path'] ?? ''), 'ordinances');
-        $cleanHtmlCount = homepage_directory_matching_file_count(
-            (string)($feature['clean_html_dir'] ?? ''),
-            ['/\.(?:html|htm)(?:\.gz)?$/i']
-        );
-        $totalCount = max($totalCount, $indexedCount, $cleanHtmlCount);
-        $currentCount = max($indexedCount, $cleanHtmlCount);
-        $detail = homepage_progress_count_detail($currentCount, $totalCount);
-        if ($detail === '') {
+        $cleanHtmlCount = homepage_unique_logical_file_count((string)($feature['clean_html_dir'] ?? ''), ['.html', '.htm']);
+        $downloadedCount = max($manifestCount, $cleanHtmlCount, min($snapshotCurrent, max($snapshotTotal, $snapshotCurrent)));
+        $totalCount = max($manifestCount, $downloadedCount, $indexedCount, $cleanHtmlCount, $snapshotTotal);
+        if ($totalCount > 0) {
+            $downloadedCount = max($downloadedCount, min($indexedCount, $totalCount));
+        }
+        $detailLines = array_values(array_filter([
+            homepage_progress_count_labeled_detail('DL済', $downloadedCount, $totalCount),
+            homepage_progress_count_labeled_detail('反映', $indexedCount, $totalCount),
+        ]));
+        if ($detailLines === []) {
             return null;
         }
-        $isComplete = homepage_progress_count_is_complete($currentCount, $totalCount);
+        $isComplete = homepage_progress_count_is_complete($indexedCount, $totalCount);
         return [
-            'label' => $isComplete ? '完了' : '取得状況',
+            'label' => $isComplete ? '完了' : '反映状況',
             'class' => $isComplete ? 'task-done' : 'task-info',
-            'detail' => $detail,
-            'progress_current' => $currentCount,
+            'detail' => implode("\n", $detailLines),
+            'progress_current' => $indexedCount,
             'progress_total' => $totalCount > 0 ? $totalCount : null,
         ];
     }
 
     if ($featureKey === 'gijiroku') {
-        // 会議録は index_json と minutes.sqlite の両方から現在件数を拾う。
+        // 会議録は総件数・ダウンロード済み・反映済みの三つを見分けて表示する。
         $totalCount = homepage_json_array_count_auto((string)($feature['index_json_path'] ?? ''));
+        $downloadedCount = homepage_unique_logical_file_count((string)($feature['downloads_dir'] ?? ''), ['.txt', '.html', '.htm']);
         $indexedCount = homepage_sqlite_row_count((string)($feature['db_path'] ?? ''), 'minutes');
-        $detail = homepage_progress_count_detail($indexedCount, $totalCount);
-        if ($detail === '') {
+        $downloadedCount = max($downloadedCount, min($snapshotCurrent, max($snapshotTotal, $snapshotCurrent)));
+        $totalCount = max($totalCount, $downloadedCount, $indexedCount, $snapshotTotal);
+        if ($totalCount > 0) {
+            $downloadedCount = max($downloadedCount, min($indexedCount, $totalCount));
+        }
+        $detailLines = array_values(array_filter([
+            homepage_progress_count_labeled_detail('DL済', $downloadedCount, $totalCount),
+            homepage_progress_count_labeled_detail('反映', $indexedCount, $totalCount),
+        ]));
+        if ($detailLines === []) {
             return null;
         }
         $isComplete = homepage_progress_count_is_complete($indexedCount, $totalCount);
         return [
-            'label' => $isComplete ? '完了' : '取得状況',
+            'label' => $isComplete ? '完了' : '反映状況',
             'class' => $isComplete ? 'task-done' : 'task-info',
-            'detail' => $detail,
+            'detail' => implode("\n", $detailLines),
             'progress_current' => $indexedCount,
             'progress_total' => $totalCount > 0 ? $totalCount : null,
         ];
@@ -272,7 +357,7 @@ function homepage_merge_task_display(?array $taskDisplay, ?array $fallbackDispla
     $fallbackLines = preg_split('/\R/u', $fallbackDetail, -1, PREG_SPLIT_NO_EMPTY) ?: [];
     if ($fallbackDetail !== '') {
         $taskLines = preg_split('/\R/u', $taskDetail, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        if ($taskLines !== [] && preg_match('/^\d+(?:\/\d+)?\s*件$/u', trim((string)$taskLines[0])) === 1) {
+        if ($taskLines !== [] && preg_match('/\d+(?:\/\d+)?\s*件/u', trim((string)$taskLines[0])) === 1) {
             array_shift($taskLines);
             $taskDetail = implode("\n", $taskLines);
         }
@@ -282,12 +367,120 @@ function homepage_merge_task_display(?array $taskDisplay, ?array $fallbackDispla
         $merged['class'] = 'task-done';
     }
     if ($fallbackDetail !== '') {
-        $mergedFallbackDetail = $fallbackDetail;
-        if ($taskDetail !== '' && $fallbackLines !== []) {
-            $mergedFallbackDetail = trim((string)$fallbackLines[0]);
+        $mergedLines = $fallbackLines;
+        if ($taskDetail !== '') {
+            $taskLines = preg_split('/\R/u', $taskDetail, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            foreach ($taskLines as $line) {
+                $line = trim((string)$line);
+                if ($line === '' || in_array($line, $mergedLines, true)) {
+                    continue;
+                }
+                $mergedLines[] = $line;
+            }
         }
-        $merged['detail'] = $mergedFallbackDetail . ($taskDetail !== '' ? "\n" . $taskDetail : '');
+        $merged['detail'] = implode("\n", $mergedLines);
     }
+    $merged['progress_current'] = $fallbackDisplay['progress_current'] ?? null;
+    $merged['progress_total'] = $fallbackDisplay['progress_total'] ?? null;
+    return $merged;
+}
+
+function homepage_task_display_detail_lines(?array $display): array
+{
+    if (!is_array($display)) {
+        return [];
+    }
+
+    $detail = trim((string)($display['detail'] ?? ''));
+    if ($detail === '') {
+        return [];
+    }
+
+    $lines = preg_split('/\R/u', $detail, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    $normalized = [];
+    foreach ($lines as $line) {
+        $line = trim((string)$line);
+        if ($line === '' || in_array($line, $normalized, true)) {
+            continue;
+        }
+        $normalized[] = $line;
+    }
+    return $normalized;
+}
+
+function homepage_task_display_metadata_lines(?array $display): array
+{
+    $lines = homepage_task_display_detail_lines($display);
+    $metadata = [];
+    foreach ($lines as $line) {
+        if (preg_match('/^\d+(?:\/\d+)?\s*件$/u', $line) === 1) {
+            continue;
+        }
+        if (preg_match('/^(DL済|反映)\s+\d+(?:\/\d+)?\s*件$/u', $line) === 1) {
+            continue;
+        }
+        $metadata[] = $line;
+    }
+    return $metadata;
+}
+
+function homepage_feature_card_display(
+    string $featureKey,
+    array $feature,
+    ?array $primaryDisplay,
+    ?array $publishDisplay,
+    ?array $snapshotDisplay,
+    bool $hasData
+): ?array {
+    $fallbackDisplay = homepage_feature_fallback_display($featureKey, $feature, $snapshotDisplay);
+    $statusDisplay = null;
+    if (!$hasData && is_array($publishDisplay)) {
+        $statusDisplay = $publishDisplay;
+    } elseif (is_array($primaryDisplay)) {
+        $statusDisplay = $primaryDisplay;
+    } elseif (is_array($publishDisplay)) {
+        $statusDisplay = $publishDisplay;
+    } else {
+        $statusDisplay = $fallbackDisplay;
+    }
+
+    if (!is_array($fallbackDisplay)) {
+        return is_array($statusDisplay) ? $statusDisplay : null;
+    }
+    if (!is_array($statusDisplay)) {
+        return $fallbackDisplay;
+    }
+
+    $statusClass = trim((string)($statusDisplay['class'] ?? ''));
+    $statusIsTransient = in_array($statusClass, ['task-running', 'task-failed', 'task-stale'], true);
+
+    $merged = $statusDisplay;
+    if (!$statusIsTransient) {
+        $merged['label'] = $fallbackDisplay['label'] ?? ($merged['label'] ?? '');
+        $merged['class'] = $fallbackDisplay['class'] ?? ($merged['class'] ?? '');
+    }
+
+    $detailLines = homepage_task_display_detail_lines($fallbackDisplay);
+    foreach (homepage_task_display_metadata_lines($statusDisplay) as $line) {
+        if (in_array($line, $detailLines, true)) {
+            continue;
+        }
+        $detailLines[] = $line;
+    }
+    if ($detailLines !== []) {
+        $merged['detail'] = implode("\n", $detailLines);
+    }
+
+    if ($statusIsTransient) {
+        $progressCurrent = $statusDisplay['progress_current'] ?? null;
+        $progressTotal = $statusDisplay['progress_total'] ?? null;
+        if ($progressCurrent !== null && $progressTotal !== null) {
+            $merged['progress_current'] = $progressCurrent;
+            $merged['progress_total'] = $progressTotal;
+            return $merged;
+        }
+    }
+
     $merged['progress_current'] = $fallbackDisplay['progress_current'] ?? null;
     $merged['progress_total'] = $fallbackDisplay['progress_total'] ?? null;
     return $merged;
@@ -518,6 +711,266 @@ function homepage_feature_summaries(
     return $summaries;
 }
 
+function homepage_task_summary_append_stat(array &$stats, string $label, string $value): void
+{
+    $label = trim($label);
+    $value = trim($value);
+    if ($label === '' || $value === '') {
+        return;
+    }
+    $stats[] = ['label' => $label, 'value' => $value];
+}
+
+function homepage_task_summary_int(array $taskStatus, string $key): ?int
+{
+    $value = $taskStatus[$key] ?? null;
+    if ($value === null || $value === '') {
+        return null;
+    }
+    return max(0, (int)$value);
+}
+
+function homepage_task_summary_feature_counts(
+    array $municipalities,
+    string $featureKey,
+    array $featureRuntimeStates,
+    string $mode
+): ?array {
+    $featureKey = trim($featureKey);
+    $mode = trim($mode);
+    if ($featureKey === '' || $mode === '') {
+        return null;
+    }
+
+    $targetCodes = array_values(array_filter(
+        homepage_feature_target_codes($featureKey),
+        static fn(mixed $code): bool => trim((string)$code) !== ''
+    ));
+    if ($targetCodes === []) {
+        return null;
+    }
+    $targetLookup = array_fill_keys($targetCodes, true);
+
+    $targetCount = 0;
+    $completeCount = 0;
+    foreach ($municipalities as $slug => $municipality) {
+        if (!is_array($municipality)) {
+            continue;
+        }
+        $code = trim((string)($municipality['code'] ?? ''));
+        if ($code === '' || !isset($targetLookup[$code])) {
+            continue;
+        }
+        $slug = trim((string)$slug);
+        if ($slug === '') {
+            continue;
+        }
+
+        $targetCount += 1;
+        $runtimeState = $featureRuntimeStates[$slug][$featureKey] ?? null;
+        if (!is_array($runtimeState)) {
+            continue;
+        }
+
+        $displays = is_array($runtimeState['displays'] ?? null) ? $runtimeState['displays'] : [];
+        $primaryDisplay = is_array($displays['primary'] ?? null) ? $displays['primary'] : null;
+        $publishDisplay = is_array($displays['publish'] ?? null) ? $displays['publish'] : null;
+        $isComplete = match ($mode) {
+            'primary_complete' => homepage_task_display_is_complete($primaryDisplay),
+            'feature_available' => (bool)($runtimeState['has_data'] ?? false),
+            'publish_complete' => homepage_task_display_is_complete($publishDisplay),
+            'runtime_complete' => (
+                (bool)($runtimeState['has_data'] ?? false)
+                || homepage_task_display_is_complete($primaryDisplay)
+                || homepage_task_display_is_complete($publishDisplay)
+            ),
+            default => false,
+        };
+        if ($isComplete) {
+            $completeCount += 1;
+        }
+    }
+
+    if ($targetCount <= 0) {
+        return null;
+    }
+
+    return [
+        'total' => $targetCount,
+        'complete' => $completeCount,
+        'incomplete' => max(0, $targetCount - $completeCount),
+    ];
+}
+
+function homepage_background_task_summary(
+    array $taskStatus,
+    array $taskDefinition,
+    array $featureIcons,
+    array $featureRuntimeStates,
+    array $municipalities
+): ?array
+{
+    if ($taskStatus === []) {
+        return null;
+    }
+
+    $running = (bool)($taskStatus['running'] ?? false);
+    $stale = background_task_is_stale($taskStatus);
+    $showWhenIdle = (bool)($taskDefinition['show_when_idle'] ?? true);
+    if (!$running && !$stale && !$showWhenIdle) {
+        return null;
+    }
+
+    $featureKey = (string)($taskDefinition['feature_key'] ?? '');
+    $label = trim((string)($taskDefinition['summary_label'] ?? ($taskDefinition['running_label'] ?? $featureKey)));
+    if ($label === '') {
+        return null;
+    }
+
+    $workerCapacity = homepage_task_summary_int($taskStatus, 'worker_capacity');
+    if ($workerCapacity === null) {
+        $fallbackCapacity = $taskDefinition['default_worker_capacity'] ?? null;
+        if ($fallbackCapacity !== null && $fallbackCapacity !== '') {
+            $workerCapacity = max(0, (int)$fallbackCapacity);
+        }
+    }
+    $workerActive = homepage_task_summary_int($taskStatus, 'worker_active_count');
+    if ($workerActive === null) {
+        $workerActive = $running ? homepage_task_summary_int($taskStatus, 'active_count') : 0;
+    }
+    $workerIdle = homepage_task_summary_int($taskStatus, 'worker_idle_count');
+    if ($workerIdle === null && $workerCapacity !== null && $workerActive !== null) {
+        $workerIdle = max(0, $workerCapacity - $workerActive);
+    }
+
+    $indexCapacity = homepage_task_summary_int($taskStatus, 'index_capacity');
+    $indexActive = homepage_task_summary_int($taskStatus, 'index_active_count');
+    $indexIdle = homepage_task_summary_int($taskStatus, 'index_idle_count');
+    if ($indexIdle === null && $indexCapacity !== null && $indexActive !== null) {
+        $indexIdle = max(0, $indexCapacity - $indexActive);
+    }
+    $indexQueue = homepage_task_summary_int($taskStatus, 'index_queue_count');
+    $pendingCount = homepage_task_summary_int($taskStatus, 'pending_count') ?? 0;
+    $completedCount = homepage_task_summary_int($taskStatus, 'completed_count') ?? 0;
+    $totalCount = homepage_task_summary_int($taskStatus, 'total_count') ?? 0;
+    $completedLabel = trim((string)($taskDefinition['completed_stat_label'] ?? '完了'));
+    if ($completedLabel === '') {
+        $completedLabel = '完了';
+    }
+    $completionMode = trim((string)($taskDefinition['completion_stat_mode'] ?? ''));
+    if ($completionMode !== '') {
+        $featureCounts = homepage_task_summary_feature_counts(
+            $municipalities,
+            $featureKey,
+            $featureRuntimeStates,
+            $completionMode
+        );
+        if (is_array($featureCounts)) {
+            $completedCount = (int)($featureCounts['complete'] ?? 0);
+            $totalCount = (int)($featureCounts['total'] ?? 0);
+        }
+    }
+    $pendingLabel = '未着手';
+    $pendingDisplayCount = $pendingCount;
+    $pendingMode = trim((string)($taskDefinition['pending_stat_mode'] ?? ''));
+    if ($pendingMode !== '') {
+        $pendingLabel = trim((string)($taskDefinition['pending_stat_label'] ?? '未反映'));
+        if ($pendingLabel === '') {
+            $pendingLabel = '未反映';
+        }
+        $featureCounts = homepage_task_summary_feature_counts(
+            $municipalities,
+            $featureKey,
+            $featureRuntimeStates,
+            $pendingMode
+        );
+        if (is_array($featureCounts)) {
+            $pendingDisplayCount = (int)($featureCounts['incomplete'] ?? 0);
+        }
+    }
+
+    $stats = [];
+    if ($workerActive !== null) {
+        homepage_task_summary_append_stat($stats, '稼働', (string)$workerActive);
+    }
+    if ($workerIdle !== null) {
+        homepage_task_summary_append_stat($stats, '空き', (string)$workerIdle);
+    }
+    if ($workerCapacity !== null) {
+        homepage_task_summary_append_stat($stats, '最大', (string)$workerCapacity);
+    }
+    if ($indexCapacity !== null && $indexActive !== null) {
+        homepage_task_summary_append_stat($stats, '反映', $indexActive . '/' . $indexCapacity);
+    }
+    if (($indexQueue ?? 0) > 0 || ($indexCapacity !== null && $running)) {
+        homepage_task_summary_append_stat($stats, '反映待ち', (string)($indexQueue ?? 0));
+    }
+    if ($pendingDisplayCount > 0 || $running) {
+        homepage_task_summary_append_stat($stats, $pendingLabel, (string)$pendingDisplayCount);
+    }
+    if ($totalCount > 0) {
+        homepage_task_summary_append_stat($stats, $completedLabel, $completedCount . '/' . $totalCount);
+    }
+    if ($stats === []) {
+        return null;
+    }
+
+    if ($stale) {
+        $stateLabel = '停止の可能性';
+        $stateClass = 'task-summary-stale';
+    } elseif ($running) {
+        $stateLabel = '実行中';
+        $stateClass = 'task-summary-running';
+    } else {
+        $stateLabel = '待機中';
+        $stateClass = 'task-summary-idle';
+    }
+
+    return [
+        'task_key' => (string)($taskDefinition['task_key'] ?? ''),
+        'feature_key' => $featureKey,
+        'label' => $label,
+        'icon' => (string)($featureIcons[$featureKey] ?? ''),
+        'state_label' => $stateLabel,
+        'state_class' => $stateClass,
+        'stats' => $stats,
+    ];
+}
+
+function homepage_background_task_summaries(
+    array $runningTaskDefinitions,
+    array $backgroundTaskStatuses,
+    array $featureIcons,
+    array $featureRuntimeStates,
+    array $municipalities
+): array {
+    $summaries = [];
+    foreach ($runningTaskDefinitions as $taskDefinition) {
+        if (!is_array($taskDefinition)) {
+            continue;
+        }
+        $taskKey = trim((string)($taskDefinition['task_key'] ?? ''));
+        if ($taskKey === '') {
+            continue;
+        }
+        $taskStatus = $backgroundTaskStatuses[$taskKey] ?? null;
+        if (!is_array($taskStatus)) {
+            continue;
+        }
+        $summary = homepage_background_task_summary(
+            $taskStatus,
+            $taskDefinition,
+            $featureIcons,
+            $featureRuntimeStates,
+            $municipalities
+        );
+        if ($summary !== null) {
+            $summaries[] = $summary;
+        }
+    }
+    return $summaries;
+}
+
 function homepage_collect_visible_features(
     array $municipality,
     string $slug,
@@ -552,14 +1005,14 @@ function homepage_collect_visible_features(
             ? (bool)$runtimeState['has_data']
             : homepage_feature_has_available_data($slug, $featureKey, $feature, $primaryDisplay, $publishDisplay);
         $isEnabled = $hasData;
-        $display = $primaryDisplay;
-        if (!$hasData && $publishDisplay !== null) {
-            // 未公開のあいだは、scrape 完了件数ではなく「いま何件反映したか」を優先表示する。
-            $display = $publishDisplay;
-        }
-        if (!$hasData && $display === null) {
-            $display = $primaryDisplay;
-        }
+        $display = homepage_feature_card_display(
+            $featureKey,
+            $feature,
+            $primaryDisplay,
+            $publishDisplay,
+            is_array($displays['snapshot'] ?? null) ? $displays['snapshot'] : null,
+            $hasData
+        );
 
         $needsPublish = !$hasData && (
             homepage_task_display_is_complete($primaryDisplay)
@@ -635,6 +1088,7 @@ function homepage_build_context(): array
         'reiki' => homepage_normalize_task_status_items(load_background_task_status('reiki')),
         'gijiroku_reflect' => homepage_normalize_task_status_items(load_background_task_status('gijiroku_reflect')),
         'reiki_reflect' => homepage_normalize_task_status_items(load_background_task_status('reiki_reflect')),
+        'gijiroku_rebuild' => homepage_normalize_task_status_items(load_background_task_status('gijiroku_rebuild')),
     ];
     $backgroundTaskSnapshots = [
         'gijiroku' => homepage_normalize_task_status_items(load_background_task_status('gijiroku_snapshot')),
@@ -647,11 +1101,66 @@ function homepage_build_context(): array
         $backgroundTaskSnapshots
     );
     $runningTaskDefinitions = [
-        ['task_key' => 'gijiroku_reflect', 'feature_key' => 'gijiroku', 'running_label' => '会議録 反映'],
-        ['task_key' => 'gijiroku', 'feature_key' => 'gijiroku', 'running_label' => '会議録'],
-        ['task_key' => 'reiki_reflect', 'feature_key' => 'reiki', 'running_label' => '例規集 反映'],
-        ['task_key' => 'reiki', 'feature_key' => 'reiki', 'running_label' => '例規集'],
+        [
+            'task_key' => 'gijiroku',
+            'feature_key' => 'gijiroku',
+            'running_label' => '会議録 スクレイピング',
+            'summary_label' => '会議録 スクレイピング',
+            'default_worker_capacity' => 8,
+            'pending_stat_mode' => 'primary_complete',
+            'pending_stat_label' => '未取得',
+            'completion_stat_mode' => 'primary_complete',
+            'completed_stat_label' => 'DL済',
+        ],
+        [
+            'task_key' => 'reiki',
+            'feature_key' => 'reiki',
+            'running_label' => '例規集 スクレイピング',
+            'summary_label' => '例規集 スクレイピング',
+            'default_worker_capacity' => 8,
+            'pending_stat_mode' => 'primary_complete',
+            'pending_stat_label' => '未取得',
+            'completion_stat_mode' => 'primary_complete',
+            'completed_stat_label' => 'DL済',
+        ],
+        [
+            'task_key' => 'gijiroku_reflect',
+            'feature_key' => 'gijiroku',
+            'running_label' => '会議録 反映',
+            'default_worker_capacity' => 4,
+            'pending_stat_mode' => 'feature_available',
+            'pending_stat_label' => '未反映',
+            'completion_stat_mode' => 'feature_available',
+            'completed_stat_label' => '反映済',
+        ],
+        [
+            'task_key' => 'reiki_reflect',
+            'feature_key' => 'reiki',
+            'running_label' => '例規集 反映',
+            'default_worker_capacity' => 4,
+            'pending_stat_mode' => 'feature_available',
+            'pending_stat_label' => '未反映',
+            'completion_stat_mode' => 'feature_available',
+            'completed_stat_label' => '反映済',
+        ],
+        [
+            'task_key' => 'gijiroku_rebuild',
+            'feature_key' => 'gijiroku',
+            'running_label' => '会議録 再構築',
+            'summary_label' => '会議録 再構築',
+            'show_when_idle' => false,
+            'default_worker_capacity' => 4,
+            'pending_stat_mode' => 'runtime_complete',
+            'pending_stat_label' => '未反映',
+        ],
     ];
+    $taskStateSummaries = homepage_background_task_summaries(
+        $runningTaskDefinitions,
+        $backgroundTaskStatuses,
+        $featureIcons,
+        $featureRuntimeStates,
+        $municipalities
+    );
 
     uasort($municipalities, static function (array $a, array $b): int {
         $ca = (string)($a['code'] ?? '');
@@ -694,6 +1203,17 @@ function homepage_build_context(): array
     }
 
     $runningTaskEntries = [];
+    $runningTaskOrder = [];
+    foreach ($runningTaskDefinitions as $definitionIndex => $taskDefinition) {
+        if (!is_array($taskDefinition)) {
+            continue;
+        }
+        $taskKey = trim((string)($taskDefinition['task_key'] ?? ''));
+        if ($taskKey === '') {
+            continue;
+        }
+        $runningTaskOrder[$taskKey] = $definitionIndex;
+    }
     foreach ($runningTaskDefinitions as $taskDefinition) {
         $taskKey = (string)($taskDefinition['task_key'] ?? '');
         $featureKey = (string)($taskDefinition['feature_key'] ?? '');
@@ -714,13 +1234,21 @@ function homepage_build_context(): array
             $runtimeState = is_array($featureRuntimeStates[$normalizedSlug][$featureKey] ?? null)
                 ? $featureRuntimeStates[$normalizedSlug][$featureKey]
                 : null;
-            if ($taskKey === $featureKey) {
-                $display = is_array($runtimeState['displays'] ?? null)
-                    ? ($runtimeState['displays']['primary'] ?? null)
-                    : null;
-            } else {
-                $display = background_task_item_display($taskStatus, $normalizedSlug);
-            }
+            $feature = is_array($runtimeState['feature'] ?? null)
+                ? $runtimeState['feature']
+                : (is_array($municipality[$featureKey] ?? null) ? $municipality[$featureKey] : []);
+            $taskDisplay = background_task_item_display($taskStatus, $normalizedSlug);
+            $snapshotDisplay = is_array($runtimeState['displays']['snapshot'] ?? null)
+                ? $runtimeState['displays']['snapshot']
+                : null;
+            $display = homepage_feature_card_display(
+                $featureKey,
+                $feature,
+                $taskDisplay,
+                null,
+                $snapshotDisplay,
+                (bool)($runtimeState['has_data'] ?? false)
+            );
             if (!is_array($display) || ($display['class'] ?? '') !== 'task-running') {
                 continue;
             }
@@ -731,6 +1259,7 @@ function homepage_build_context(): array
                 'feature_key' => $featureKey,
                 'feature_label' => $featureLabel,
                 'task_key' => $taskKey,
+                'task_order' => (int)($runningTaskOrder[$taskKey] ?? PHP_INT_MAX),
                 'feature_icon' => (string)($featureIcons[$featureKey] ?? ''),
                 'display' => $display,
             ];
@@ -738,9 +1267,9 @@ function homepage_build_context(): array
     }
 
     usort($runningTaskEntries, static function (array $a, array $b): int {
-        $featureCompare = strcmp((string)($a['feature_key'] ?? ''), (string)($b['feature_key'] ?? ''));
-        if ($featureCompare !== 0) {
-            return $featureCompare;
+        $taskOrderCompare = ((int)($a['task_order'] ?? PHP_INT_MAX)) <=> ((int)($b['task_order'] ?? PHP_INT_MAX));
+        if ($taskOrderCompare !== 0) {
+            return $taskOrderCompare;
         }
         return strcmp((string)($a['municipality_name'] ?? ''), (string)($b['municipality_name'] ?? ''));
     });
@@ -755,6 +1284,7 @@ function homepage_build_context(): array
         'backgroundTaskSnapshots' => $backgroundTaskSnapshots,
         'featureRuntimeStates' => $featureRuntimeStates,
         'runningTaskDefinitions' => $runningTaskDefinitions,
+        'taskStateSummaries' => $taskStateSummaries,
     ];
 }
 
@@ -768,6 +1298,7 @@ function homepage_build_api_payload(): array
     $featureLabels = is_array($context['featureLabels'] ?? null) ? $context['featureLabels'] : [];
     $featureIcons = is_array($context['featureIcons'] ?? null) ? $context['featureIcons'] : [];
     $featureRuntimeStates = is_array($context['featureRuntimeStates'] ?? null) ? $context['featureRuntimeStates'] : [];
+    $taskStateSummaries = is_array($context['taskStateSummaries'] ?? null) ? $context['taskStateSummaries'] : [];
     $featureSummaries = homepage_feature_summaries(
         $municipalities,
         $featureLabels,
@@ -839,6 +1370,7 @@ function homepage_build_api_payload(): array
         'municipality_count' => count($municipalities),
         'display_municipality_count' => count($municipalityCards),
         'feature_summaries' => $featureSummaries,
+        'task_state_summaries' => $taskStateSummaries,
         'running_tasks' => $runningTasks,
         'municipalities' => $municipalityCards,
     ];
@@ -852,6 +1384,11 @@ function homepage_api_cache_path(): string
 function homepage_store_cached_api_payload(string $path, array $payload): void
 {
     write_json_cache_file($path, $payload);
+}
+
+function homepage_api_cache_dependencies_missing(): bool
+{
+    return !is_file(municipality_catalog_cache_path());
 }
 
 function homepage_rebuild_api_payload_cache(): array
@@ -921,7 +1458,7 @@ function homepage_build_api_payload_cached(int $ttlSeconds = 15): array
     if ($ttlSeconds > 0) {
         $cached = read_json_cache_file($cachePath, $ttlSeconds);
         if (is_array($cached)) {
-            if (homepage_cached_payload_needs_self_heal($cached)) {
+            if (homepage_api_cache_dependencies_missing()) {
                 return homepage_rebuild_api_payload_cache();
             }
             return $cached;

@@ -141,6 +141,7 @@ require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPAR
         .speaker-role { font-size:12px; color:var(--muted); }
         .match-badge { width:fit-content; padding:5px 9px; background:rgba(181,109,47,.12); color:var(--accent2); }
         .speech-content p, .note-card p { margin:0; }
+        .speech-content p, .note-card.note p { text-indent:1em; }
         .speech-content p + p, .note-card p + p { margin-top:12px; }
         .note-card { padding:13px 14px; border:1px dashed rgba(216,204,181,.92); background:rgba(255,255,255,.58); color:#495146; }
         .note-card.stage { text-align:center; font-weight:700; color:var(--muted); background:rgba(248,243,231,.82); }

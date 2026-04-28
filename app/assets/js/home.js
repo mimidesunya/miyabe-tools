@@ -1,13 +1,20 @@
 (() => {
     const apiUrl = String(window.HOMEPAGE_API_URL || '/api/home.php');
     const runningSection = document.querySelector('[data-running-section]');
+    const runningSummaryList = document.querySelector('[data-running-summary-list]');
     const runningList = document.querySelector('[data-running-list]');
     const grid = document.querySelector('[data-home-grid]');
     const loadingPanel = document.querySelector('[data-home-loading]');
+    const filterSection = document.querySelector('[data-home-filter-section]');
+    const filterSelect = document.querySelector('[data-home-prefecture-filter]');
+    const filterHint = document.querySelector('[data-home-filter-hint]');
     const displayCountElement = document.querySelector('[data-home-display-count]');
     const municipalityCountElement = document.querySelector('[data-home-municipality-count]');
     const generatedAtElement = document.querySelector('[data-home-generated-at]');
     const taskSummariesElement = document.querySelector('[data-home-task-summaries]');
+    const defaultPrefecture = '神奈川県';
+    let latestPayload = null;
+    let selectedPrefecture = '';
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -78,6 +85,34 @@
                 <span class="running-service">${renderFeatureIdentity(entry?.feature_icon, entry?.feature_label)}</span>
                 <span class="running-name">${escapeHtml(entry.municipality_name || '')}</span>
                 ${renderTaskMarkup(display)}
+            </div>
+        `.trim();
+    }
+
+    function renderRunningSummaryCard(entry) {
+        if (!entry || typeof entry !== 'object') {
+            return '';
+        }
+
+        const stats = Array.isArray(entry.stats) ? entry.stats.filter((item) => item && item.label && item.value) : [];
+        if (stats.length === 0) {
+            return '';
+        }
+
+        return `
+            <div class="running-summary-card">
+                <div class="running-summary-top">
+                    <span class="running-service">${renderFeatureIdentity(entry.icon, entry.label)}</span>
+                    <span class="running-summary-state ${escapeHtml(entry.state_class || '')}">${escapeHtml(entry.state_label || '')}</span>
+                </div>
+                <div class="running-summary-stats">
+                    ${stats.map((item) => `
+                        <span class="running-summary-stat">
+                            <span class="running-summary-stat-label">${escapeHtml(item.label || '')}</span>
+                            <span class="running-summary-stat-value">${escapeHtml(item.value || '')}</span>
+                        </span>
+                    `.trim()).join('')}
+                </div>
             </div>
         `.trim();
     }
@@ -160,13 +195,102 @@
         return summaries.map((item) => `<span>${escapeHtml(item.text || '')}</span>`).join('');
     }
 
+    function readSelectedPrefecture() {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            return String(params.get('prefecture') || '').trim();
+        } catch (error) {
+            return '';
+        }
+    }
+
+    function writeSelectedPrefecture(prefectureLabel) {
+        try {
+            const url = new URL(window.location.href);
+            if (prefectureLabel === 'all') {
+                url.searchParams.delete('prefecture');
+            } else {
+                url.searchParams.set('prefecture', prefectureLabel);
+            }
+            window.history.replaceState(null, '', url.toString());
+        } catch (error) {
+            console.warn('failed to update prefecture filter state', error);
+        }
+    }
+
+    function collectPrefectureOptions(groups) {
+        return groups
+            .map((group) => String(group?.label || '').trim())
+            .filter((label) => label !== '');
+    }
+
+    function syncPrefectureFilter(groups) {
+        const options = collectPrefectureOptions(groups);
+        const requested = selectedPrefecture === '' ? readSelectedPrefecture() : selectedPrefecture;
+        const preferred = requested !== '' ? requested : defaultPrefecture;
+        const nextSelection = options.includes(preferred) ? preferred : 'all';
+        selectedPrefecture = nextSelection;
+
+        if (!filterSection || !filterSelect) {
+            return;
+        }
+
+        filterSection.hidden = options.length <= 1;
+        filterSelect.innerHTML = [
+            '<option value="all">すべての都道府県</option>',
+            ...options.map((label) => `<option value="${escapeHtml(label)}">${escapeHtml(label)}</option>`),
+        ].join('');
+        filterSelect.value = nextSelection;
+    }
+
+    function filterGroups(groups) {
+        if (selectedPrefecture === 'all') {
+            return groups;
+        }
+        return groups.filter((group) => String(group?.label || '') === selectedPrefecture);
+    }
+
+    function countCards(groups) {
+        return groups.reduce((sum, group) => sum + (Array.isArray(group?.cards) ? group.cards.length : 0), 0);
+    }
+
+    function renderGrid(municipalities) {
+        const groups = groupMunicipalitiesByPrefecture(municipalities);
+        syncPrefectureFilter(groups);
+        const visibleGroups = filterGroups(groups);
+        const visibleCount = countCards(visibleGroups);
+        const totalCount = municipalities.length;
+
+        if (displayCountElement) {
+            displayCountElement.textContent = selectedPrefecture === 'all'
+                ? `表示自治体: ${visibleCount}`
+                : `表示自治体: ${visibleCount} / ${totalCount}`;
+        }
+        if (filterHint) {
+            filterHint.textContent = selectedPrefecture === 'all'
+                ? `全 ${totalCount} 自治体を都道府県ごとに表示しています。`
+                : `${selectedPrefecture} の ${visibleCount} 自治体を表示しています。`;
+        }
+        writeSelectedPrefecture(selectedPrefecture);
+
+        if (!grid) {
+            return;
+        }
+
+        if (visibleCount === 0) {
+            grid.innerHTML = '<div class="loading-panel">選択中の都道府県で表示できる自治体はありません。</div>';
+            return;
+        }
+
+        grid.innerHTML = visibleGroups.map(renderPrefectureSection).join('');
+    }
+
     function renderPayload(payload) {
         const municipalities = Array.isArray(payload?.municipalities) ? payload.municipalities : [];
         const runningTasks = Array.isArray(payload?.running_tasks) ? payload.running_tasks : [];
+        const taskStateSummaries = Array.isArray(payload?.task_state_summaries) ? payload.task_state_summaries : [];
+        latestPayload = payload;
 
-        if (displayCountElement) {
-            displayCountElement.textContent = `表示自治体: ${Number(payload?.display_municipality_count || 0)}`;
-        }
         if (municipalityCountElement) {
             municipalityCountElement.textContent = `自治体マスタ: ${Number(payload?.municipality_count || 0)}`;
         }
@@ -178,7 +302,10 @@
         }
 
         if (runningSection && runningList) {
-            runningSection.hidden = runningTasks.length === 0;
+            runningSection.hidden = runningTasks.length === 0 && taskStateSummaries.length === 0;
+            if (runningSummaryList) {
+                runningSummaryList.innerHTML = taskStateSummaries.map(renderRunningSummaryCard).join('');
+            }
             runningList.innerHTML = runningTasks.map(renderRunningTask).join('');
         }
 
@@ -190,15 +317,21 @@
         }
 
         if (municipalities.length === 0) {
+            if (displayCountElement) {
+                displayCountElement.textContent = '表示自治体: 0';
+            }
+            if (filterSection) {
+                filterSection.hidden = true;
+            }
             grid.innerHTML = '<div class="loading-panel">表示できる自治体はまだありません。</div>';
             return;
         }
 
-        grid.innerHTML = groupMunicipalitiesByPrefecture(municipalities).map(renderPrefectureSection).join('');
+        renderGrid(municipalities);
     }
 
     async function loadPayload() {
-        const response = await fetch(`${apiUrl}?t=${Date.now()}`, { cache: 'no-store' });
+        const response = await fetch(apiUrl);
         const responseText = await response.text();
         let payload;
         try {
@@ -231,6 +364,15 @@
         } finally {
             refreshing = false;
         }
+    }
+
+    if (filterSelect) {
+        filterSelect.addEventListener('change', () => {
+            selectedPrefecture = String(filterSelect.value || 'all');
+            if (latestPayload && typeof latestPayload === 'object') {
+                renderGrid(Array.isArray(latestPayload.municipalities) ? latestPayload.municipalities : []);
+            }
+        });
     }
 
     refresh();

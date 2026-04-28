@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'municipalities.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'japanese_search.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'gijiroku' . DIRECTORY_SEPARATOR . 'index_helpers.php';
 
 // 会議録横断検索ページと API で共有する検索ロジック。
 
@@ -137,6 +138,61 @@ function gijiroku_search_open_pdo(string $dbPath): PDO
     return $pdo;
 }
 
+function gijiroku_search_browse_url(string $slug, string $query = ''): string
+{
+    $params = ['slug' => $slug];
+    $normalizedQuery = trim($query);
+    if ($normalizedQuery !== '') {
+        $params['q'] = $normalizedQuery;
+    }
+
+    return '/gijiroku/?' . http_build_query($params);
+}
+
+function gijiroku_search_detail_url(string $slug, int $id, string $query = ''): string
+{
+    $params = [
+        'slug' => $slug,
+        'doc' => $id,
+        'tab' => 'viewer',
+        'viewer_tab' => 'matches',
+    ];
+    $normalizedQuery = trim($query);
+    if ($normalizedQuery !== '') {
+        $params['q'] = $normalizedQuery;
+    }
+
+    return '/gijiroku/?' . http_build_query($params);
+}
+
+function gijiroku_search_plain_excerpt(string $excerpt): string
+{
+    return str_replace(['[[[', ']]]'], '', $excerpt);
+}
+
+function gijiroku_search_text_length(string $text): int
+{
+    return function_exists('mb_strlen') ? mb_strlen($text, 'UTF-8') : strlen($text);
+}
+
+function gijiroku_search_validate_held_on(string $heldOn): ?string
+{
+    $normalized = trim($heldOn);
+    if ($normalized === '') {
+        return null;
+    }
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $normalized) !== 1) {
+        return 'held_on は YYYY-MM-DD 形式で指定してください。';
+    }
+
+    $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $normalized);
+    if (!$parsed instanceof DateTimeImmutable || $parsed->format('Y-m-d') !== $normalized) {
+        return 'held_on は YYYY-MM-DD 形式で指定してください。';
+    }
+
+    return null;
+}
+
 function gijiroku_search_last_date(PDO $pdo): ?string
 {
     // MAX() 集計より、doc_type と held_on の複合 index をそのまま使える形に寄せる。
@@ -170,6 +226,243 @@ function gijiroku_search_latest_match_date(PDO $pdo, string $ftsQuery): ?string
     $row = $stmt->fetch();
     $value = is_array($row) ? (string)($row['latest_hit_date'] ?? '') : '';
     return $value !== '' ? $value : null;
+}
+
+function gijiroku_search_list_documents(
+    array $municipality,
+    string $heldOn = '',
+    int $page = 1,
+    int $perPage = 20
+): array {
+    $summary = gijiroku_search_public_summary($municipality);
+    $feature = is_array($municipality['gijiroku'] ?? null) ? $municipality['gijiroku'] : [];
+    $dbPath = trim((string)($feature['db_path'] ?? ''));
+    $normalizedHeldOn = trim($heldOn);
+    $page = max(1, $page);
+    $perPage = max(1, min(100, $perPage));
+    $offset = ($page - 1) * $perPage;
+
+    $heldOnError = gijiroku_search_validate_held_on($normalizedHeldOn);
+    if ($heldOnError !== null) {
+        return $summary + [
+            'status' => 'invalid_date',
+            'error' => $heldOnError,
+            'held_on' => $normalizedHeldOn,
+            'rows' => [],
+            'total' => 0,
+            'total_exact' => true,
+            'has_more' => false,
+            'page' => $page,
+            'per_page' => $perPage,
+            'total_pages' => 0,
+            'start' => 0,
+            'end' => 0,
+        ];
+    }
+
+    if ($dbPath === '' || !is_file($dbPath)) {
+        return $summary + [
+            'status' => 'missing_db',
+            'error' => '検索DBが見つかりません。',
+            'held_on' => $normalizedHeldOn,
+            'rows' => [],
+            'total' => 0,
+            'total_exact' => true,
+            'has_more' => false,
+            'page' => $page,
+            'per_page' => $perPage,
+            'total_pages' => 0,
+            'start' => 0,
+            'end' => 0,
+        ];
+    }
+
+    try {
+        $pdo = gijiroku_search_open_pdo($dbPath);
+    } catch (Throwable) {
+        return $summary + [
+            'status' => 'db_error',
+            'error' => 'SQLiteの読み込みに失敗しました。',
+            'held_on' => $normalizedHeldOn,
+            'rows' => [],
+            'total' => 0,
+            'total_exact' => true,
+            'has_more' => false,
+            'page' => $page,
+            'per_page' => $perPage,
+            'total_pages' => 0,
+            'start' => 0,
+            'end' => 0,
+        ];
+    }
+
+    try {
+        if ($normalizedHeldOn !== '') {
+            $countStmt = $pdo->prepare(
+                "SELECT COUNT(*)
+                   FROM minutes
+                  WHERE doc_type = 'minutes'
+                    AND held_on = :held_on"
+            );
+            $countStmt->bindValue(':held_on', $normalizedHeldOn, PDO::PARAM_STR);
+            $countStmt->execute();
+            $total = (int)$countStmt->fetchColumn();
+
+            $stmt = $pdo->prepare(
+                "SELECT id, title, meeting_name, year_label, held_on, rel_path, source_url, content AS excerpt_source
+                   FROM minutes
+                  WHERE doc_type = 'minutes'
+                    AND held_on = :held_on
+               ORDER BY id DESC
+                  LIMIT :limit OFFSET :offset"
+            );
+            $stmt->bindValue(':held_on', $normalizedHeldOn, PDO::PARAM_STR);
+        } else {
+            $total = (int)$pdo->query("SELECT COUNT(*) FROM minutes WHERE doc_type = 'minutes'")->fetchColumn();
+            $stmt = $pdo->prepare(
+                "SELECT id, title, meeting_name, year_label, held_on, rel_path, source_url, content AS excerpt_source
+                   FROM minutes
+                  WHERE doc_type = 'minutes'
+               ORDER BY COALESCE(held_on, '') DESC, id DESC
+                  LIMIT :limit OFFSET :offset"
+            );
+        }
+        $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        $rows = $stmt->fetchAll();
+    } catch (Throwable) {
+        return $summary + [
+            'status' => 'search_error',
+            'error' => '会議一覧の読み込みに失敗しました。',
+            'held_on' => $normalizedHeldOn,
+            'rows' => [],
+            'total' => 0,
+            'total_exact' => true,
+            'has_more' => false,
+            'page' => $page,
+            'per_page' => $perPage,
+            'total_pages' => 0,
+            'start' => 0,
+            'end' => 0,
+        ];
+    }
+
+    $serializedRows = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $serializedRows[] = gijiroku_search_result_row($summary, '', $row);
+    }
+
+    $totalPages = $total > 0 ? (int)ceil($total / $perPage) : 0;
+    return $summary + [
+        'status' => 'ok',
+        'error' => '',
+        'held_on' => $normalizedHeldOn,
+        'rows' => $serializedRows,
+        'total' => $total,
+        'total_exact' => true,
+        'has_more' => $page < $totalPages,
+        'page' => $page,
+        'per_page' => $perPage,
+        'total_pages' => $totalPages,
+        'start' => count($serializedRows) > 0 ? ($offset + 1) : 0,
+        'end' => $offset + count($serializedRows),
+    ];
+}
+
+function gijiroku_search_get_document(array $municipality, int $id, string $query = ''): array
+{
+    $summary = gijiroku_search_public_summary($municipality);
+    $feature = is_array($municipality['gijiroku'] ?? null) ? $municipality['gijiroku'] : [];
+    $dbPath = trim((string)($feature['db_path'] ?? ''));
+    $normalizedQuery = trim($query);
+    $documentId = max(0, $id);
+
+    if ($documentId <= 0) {
+        return $summary + [
+            'status' => 'invalid_id',
+            'error' => 'id は 1 以上で指定してください。',
+            'query' => $normalizedQuery,
+        ];
+    }
+
+    if ($dbPath === '' || !is_file($dbPath)) {
+        return $summary + [
+            'status' => 'missing_db',
+            'error' => '検索DBが見つかりません。',
+            'query' => $normalizedQuery,
+            'id' => $documentId,
+        ];
+    }
+
+    try {
+        $pdo = gijiroku_search_open_pdo($dbPath);
+    } catch (Throwable) {
+        return $summary + [
+            'status' => 'db_error',
+            'error' => 'SQLiteの読み込みに失敗しました。',
+            'query' => $normalizedQuery,
+            'id' => $documentId,
+        ];
+    }
+
+    try {
+        $stmt = $pdo->prepare(
+            "SELECT id, title, meeting_name, year_label, held_on, rel_path, source_url, source_fino, content
+               FROM minutes
+              WHERE id = :id
+                AND doc_type = 'minutes'"
+        );
+        $stmt->bindValue(':id', $documentId, PDO::PARAM_INT);
+        $stmt->execute();
+        $detail = $stmt->fetch();
+    } catch (Throwable) {
+        return $summary + [
+            'status' => 'search_error',
+            'error' => '会議録全文の読み込みに失敗しました。',
+            'query' => $normalizedQuery,
+            'id' => $documentId,
+        ];
+    }
+
+    if (!is_array($detail)) {
+        return $summary + [
+            'status' => 'not_found',
+            'error' => '指定した会議録が見つかりません。',
+            'query' => $normalizedQuery,
+            'id' => $documentId,
+        ];
+    }
+
+    $queryTerms = extract_query_terms($normalizedQuery);
+    $document = annotate_document_matches(
+        parse_minutes_document((string)($detail['content'] ?? '')),
+        $queryTerms
+    );
+    $slug = (string)($summary['slug'] ?? '');
+    $content = (string)($detail['content'] ?? '');
+
+    return $summary + [
+        'status' => 'ok',
+        'error' => '',
+        'query' => $normalizedQuery,
+        'id' => (int)($detail['id'] ?? 0),
+        'title' => (string)($detail['title'] ?? ''),
+        'meeting_name' => (string)($detail['meeting_name'] ?? ''),
+        'year_label' => (string)($detail['year_label'] ?? ''),
+        'held_on' => (string)($detail['held_on'] ?? ''),
+        'rel_path' => (string)($detail['rel_path'] ?? ''),
+        'source_url' => (string)($detail['source_url'] ?? ''),
+        'source_fino' => (string)($detail['source_fino'] ?? ''),
+        'content' => $content,
+        'content_length' => gijiroku_search_text_length($content),
+        'document' => $document,
+        'detail_url' => gijiroku_search_detail_url($slug, (int)($detail['id'] ?? 0), $normalizedQuery),
+        'browse_url' => gijiroku_search_browse_url($slug, $normalizedQuery),
+    ];
 }
 
 function gijiroku_search_execute(array $municipality, string $query, int $page = 1, int $perPage = 8): array
@@ -448,23 +741,15 @@ function gijiroku_search_execute_preview(array $municipality, string $query, int
 function gijiroku_search_result_row(array $municipalitySummary, string $query, array $row, ?array $preparedQuery = null): array
 {
     $preparedQuery = $preparedQuery ?? japanese_search_prepare_query($query);
-    $detailUrl = '/gijiroku/?' . http_build_query([
-        'slug' => (string)($municipalitySummary['slug'] ?? ''),
-        'q' => $query,
-        'doc' => (int)($row['id'] ?? 0),
-        'tab' => 'viewer',
-        'viewer_tab' => 'matches',
-    ]);
-
-    $browseUrl = '/gijiroku/?' . http_build_query([
-        'slug' => (string)($municipalitySummary['slug'] ?? ''),
-        'q' => $query,
-    ]);
+    $slug = (string)($municipalitySummary['slug'] ?? '');
+    $detailUrl = gijiroku_search_detail_url($slug, (int)($row['id'] ?? 0), $query);
+    $browseUrl = gijiroku_search_browse_url($slug, $query);
 
     $excerpt = japanese_search_build_excerpt(
         (string)($row['excerpt_source'] ?? ''),
         is_array($preparedQuery['highlight_terms'] ?? null) ? $preparedQuery['highlight_terms'] : []
     );
+    $plainExcerpt = gijiroku_search_plain_excerpt($excerpt);
 
     return [
         'id' => (int)($row['id'] ?? 0),
@@ -478,6 +763,7 @@ function gijiroku_search_result_row(array $municipalitySummary, string $query, a
         'rel_path' => (string)($row['rel_path'] ?? ''),
         'source_url' => (string)($row['source_url'] ?? ''),
         'excerpt' => $excerpt,
+        'excerpt_plain' => $plainExcerpt,
         'detail_url' => $detailUrl,
         'browse_url' => $browseUrl,
     ];

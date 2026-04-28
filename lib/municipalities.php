@@ -57,6 +57,42 @@ function app_parse_timestamp_utc_unix(?string $value): ?int
     return $parsed instanceof DateTimeImmutable ? $parsed->getTimestamp() : null;
 }
 
+function app_parse_timestamp_tokyo(?string $value): ?DateTimeImmutable
+{
+    $value = trim((string)$value);
+    if ($value === '') {
+        return null;
+    }
+
+    if (preg_match('/(?:Z|[+-]\d{2}:\d{2}|[+-]\d{4})$/', $value) === 1) {
+        try {
+            return new DateTimeImmutable($value);
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    $normalized = str_replace('T', ' ', $value);
+    foreach (['Y-m-d H:i:s', 'Y-m-d H:i', 'Y-m-d'] as $format) {
+        $parsed = DateTimeImmutable::createFromFormat('!' . $format, $normalized, app_tokyo_timezone());
+        if ($parsed instanceof DateTimeImmutable) {
+            return $parsed;
+        }
+    }
+
+    try {
+        return new DateTimeImmutable($value, app_tokyo_timezone());
+    } catch (Throwable) {
+        return null;
+    }
+}
+
+function app_parse_timestamp_tokyo_unix(?string $value): ?int
+{
+    $parsed = app_parse_timestamp_tokyo($value);
+    return $parsed instanceof DateTimeImmutable ? $parsed->getTimestamp() : null;
+}
+
 function app_format_tokyo_datetime(?string $value, string $format = 'Y-m-d H:i:s'): string
 {
     $parsed = app_parse_timestamp_utc($value);

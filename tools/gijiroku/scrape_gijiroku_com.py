@@ -546,19 +546,33 @@ def main() -> int:
                 stem = sanitize_filename(item.title, "meeting")
                 resume_key = gijiroku_storage.item_signature(asdict(item))
                 existing_outputs = gijiroku_storage.existing_named_outputs(meeting_download_dir, stem)
-                if not args.no_resume and existing_outputs:
-                    output_path = str(existing_outputs[0])
+                existing_text_output = next(
+                    (path for path in existing_outputs if gijiroku_storage.logical_suffix(path) == ".txt"),
+                    None,
+                )
+                existing_html_output = next(
+                    (path for path in existing_outputs if gijiroku_storage.logical_suffix(path) in {".html", ".htm"}),
+                    None,
+                )
+                saved_item = state["items"].get(resume_key)
+                saved_status = str(saved_item.get("status", "")).strip() if isinstance(saved_item, dict) else ""
+                should_retry_fallback_html = (
+                    existing_text_output is None
+                    and existing_html_output is not None
+                    and saved_status in {"", "saved_html", "not_found", "timeout", "error"}
+                )
+
+                if not args.no_resume and existing_outputs and not should_retry_fallback_html:
+                    preferred_output = existing_text_output or existing_html_output or existing_outputs[0]
+                    output_path = str(preferred_output)
                     status = "skipped_existing"
-                    existing_indexable_output = next(
-                        (path for path in existing_outputs if gijiroku_storage.logical_suffix(path) in {".txt", ".html", ".htm"}),
-                        None,
-                    )
+                    existing_indexable_output = existing_text_output or existing_html_output
                     state["items"][resume_key] = {
                         "title": item.title,
                         "year_label": item.year_label,
                         "url": item.url,
                         "status": "saved",
-                        "output_rel_path": str(existing_outputs[0].relative_to(downloads_dir)),
+                        "output_rel_path": str(preferred_output.relative_to(downloads_dir)),
                         "updated_at": now_ts(),
                     }
                     gijiroku_storage.save_state(state_path, state)

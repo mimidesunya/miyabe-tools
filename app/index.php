@@ -50,7 +50,7 @@ function homepage_asset_url(string $relativePath): string
                     </span>
                 </a>
                 <div class="hero-cta-copy">
-                    まずは横断検索で該当自治体を見つけて、そこから各自治体の詳細画面へ入る導線です。
+                    会議録データをプログラムから利用したい場合は <a href="/api/gijiroku/" target="_blank" rel="noopener">API リファレンス</a>・<a href="/api/gijiroku/openapi.json" target="_blank" rel="noopener">OpenAPI 定義</a> をご覧ください。
                 </div>
             </div>
             <div class="hero-meta">
@@ -65,8 +65,9 @@ function homepage_asset_url(string $relativePath): string
 
         <section class="running-board" hidden data-running-section>
             <div class="running-board-head">
-                <div class="eyebrow">Scraping Now</div>
-                <div class="running-board-title">実行中のスクレイピング</div>
+                <div class="eyebrow">Task Status</div>
+                <div class="running-board-title">データ処理の実行状況</div>
+                <div class="running-summary-list" data-running-summary-list></div>
             </div>
             <div class="running-list" data-running-list></div>
         </section>
@@ -77,6 +78,20 @@ function homepage_asset_url(string $relativePath): string
             <span>要反映: 取得は完了したが公開用データの反映待ちです</span>
             <span>未公開: データ未生成ですが取得タスクの進捗は確認できます</span>
         </div>
+
+        <section class="prefecture-filter" hidden data-home-filter-section>
+            <div class="prefecture-filter-copy">
+                <div class="eyebrow">Prefecture Filter</div>
+                <div class="prefecture-filter-title">都道府県ごとに自治体を切り替え</div>
+                <p data-home-filter-hint>都道府県一覧を読み込んでいます。</p>
+            </div>
+            <label class="prefecture-filter-control">
+                <span>表示する都道府県</span>
+                <select data-home-prefecture-filter>
+                    <option value="all">すべての都道府県</option>
+                </select>
+            </label>
+        </section>
 
         <section class="municipality-grid" data-home-grid>
             <div class="loading-panel" data-home-loading>自治体一覧を読み込んでいます。</div>
