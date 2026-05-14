@@ -197,8 +197,7 @@ require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPAR
                     <strong>自治体</strong>
                     <select aria-label="自治体切り替え" onchange="if (this.value) { window.location.href = this.value; }">
                         <?php foreach ($switcherItems as $item): ?>
-                            <?php $switchMunicipality = municipality_entry((string)$item['slug']); ?>
-                            <?php $switchUrl = (string)($switchMunicipality['gijiroku']['url'] ?? ''); ?>
+                            <?php $switchUrl = (string)($item['url'] ?? ('/gijiroku/?slug=' . rawurlencode((string)$item['slug']))); ?>
                             <option value="<?php echo h($switchUrl); ?>" <?php echo $item['slug'] === $slug ? 'selected' : ''; ?>>
                                 <?php echo h($item['name'] . (!empty($item['enabled']) ? '' : ' (準備中)')); ?>
                             </option>

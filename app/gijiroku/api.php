@@ -19,7 +19,7 @@ function request_slug_list(): array
 
     $slugs = [];
     foreach ($values as $value) {
-        $slug = get_slug(trim((string)$value));
+        $slug = gijiroku_search_resolve_ready_slug(trim((string)$value));
         if ($slug === '' || preg_match('/^[a-z0-9_-]+$/', $slug) !== 1) {
             continue;
         }
@@ -31,6 +31,13 @@ function request_slug_list(): array
 
 $readyMunicipalities = gijiroku_search_ready_municipalities();
 $action = gijiroku_api_request_string('action');
+
+function request_year_range(): array
+{
+    $startYear = gijiroku_api_request_int('start_year', 0, 0, 9999);
+    $endYear = gijiroku_api_request_int('end_year', 0, 0, 9999);
+    return gijiroku_search_normalize_year_range($startYear, $endYear);
+}
 
 if ($action === 'catalog') {
     $items = [];
@@ -50,11 +57,14 @@ if ($action === 'search') {
     }
 
     $query = gijiroku_api_request_string('q');
+    $yearRange = request_year_range();
     $result = gijiroku_search_execute(
         $readyMunicipalities[$slug],
         $query,
         gijiroku_api_request_int('page', 1, 1, 9999),
-        gijiroku_api_request_int('per_page', 12, 1, 20)
+        gijiroku_api_request_int('per_page', 12, 1, 20),
+        (int)$yearRange['start_year'],
+        (int)$yearRange['end_year']
     );
     // 自治体ごとの検索結果は、ネットワークエラーではなく payload 内の status で扱う。
     gijiroku_api_respond_json($result);
@@ -85,8 +95,15 @@ if ($action === 'search_batch') {
 
     $items = [];
     $perPage = gijiroku_api_request_int('per_page', 3, 1, 6);
+    $yearRange = request_year_range();
     foreach ($selectedMunicipalities as $municipality) {
-        $items[] = gijiroku_search_execute_preview($municipality, $query, $perPage);
+        $items[] = gijiroku_search_execute_preview(
+            $municipality,
+            $query,
+            $perPage,
+            (int)$yearRange['start_year'],
+            (int)$yearRange['end_year']
+        );
     }
 
     gijiroku_api_respond_json([
@@ -102,10 +119,13 @@ if ($action === 'search_preview') {
     }
 
     $query = gijiroku_api_request_string('q');
+    $yearRange = request_year_range();
     $result = gijiroku_search_execute_preview(
         $readyMunicipalities[$slug],
         $query,
-        gijiroku_api_request_int('per_page', 3, 1, 100)
+        gijiroku_api_request_int('per_page', 3, 1, 100),
+        (int)$yearRange['start_year'],
+        (int)$yearRange['end_year']
     );
     gijiroku_api_respond_json($result);
 }

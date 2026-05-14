@@ -53,6 +53,8 @@
         form: document.getElementById('cross-search-form'),
         query: document.getElementById('cross-query'),
         prefecture: document.getElementById('cross-prefecture'),
+        startYear: document.getElementById('cross-start-year'),
+        endYear: document.getElementById('cross-end-year'),
         searchButton: document.getElementById('cross-search-button'),
         targetCount: document.getElementById('target-municipality-count'),
         progressCopy: document.getElementById('search-progress-copy'),
@@ -76,6 +78,8 @@
         query: String(boot.query || '').trim(),
         selectedSlug: municipalityBySlug.has(selectedFromBoot) ? selectedFromBoot : '',
         prefecture: availablePrefectureCodes.has(selectedPrefectureFromBoot) ? selectedPrefectureFromBoot : '',
+        startYear: normalizeYear(boot.startYear),
+        endYear: normalizeYear(boot.endYear),
         searching: false,
         stopped: false,
         requestToken: 0,
@@ -98,6 +102,50 @@
     function normalizePrefecture(value) {
         const prefCode = String(value || '').trim();
         return availablePrefectureCodes.has(prefCode) ? prefCode : '';
+    }
+
+    function normalizeYear(value) {
+        const raw = String(value || '').trim();
+        if (!/^\d{1,4}$/.test(raw)) {
+            return '';
+        }
+        const year = Number(raw);
+        if (!Number.isInteger(year) || year <= 0 || year > 9999) {
+            return '';
+        }
+        return String(year);
+    }
+
+    function normalizeYearRange(startValue, endValue) {
+        let startYear = normalizeYear(startValue);
+        let endYear = normalizeYear(endValue);
+        if (startYear && endYear && Number(startYear) > Number(endYear)) {
+            [startYear, endYear] = [endYear, startYear];
+        }
+        return { startYear, endYear };
+    }
+
+    function yearRangeLabel() {
+        if (state.startYear && state.endYear) {
+            return `${state.startYear}年から${state.endYear}年`;
+        }
+        if (state.startYear) {
+            return `${state.startYear}年以降`;
+        }
+        if (state.endYear) {
+            return `${state.endYear}年以前`;
+        }
+        return '';
+    }
+
+    function appendYearRangeParams(params) {
+        if (state.startYear) {
+            params.set('start_year', state.startYear);
+        }
+        if (state.endYear) {
+            params.set('end_year', state.endYear);
+        }
+        return params;
     }
 
     function filteredMunicipalities() {
@@ -382,6 +430,7 @@
         if (state.prefecture) {
             params.set('pref', state.prefecture);
         }
+        appendYearRangeParams(params);
         if (state.selectedSlug) {
             params.set('slug', state.selectedSlug);
         }
@@ -396,8 +445,10 @@
         if (!state.query) {
             return municipality.url;
         }
+        const params = new URLSearchParams({ q: state.query });
+        appendYearRangeParams(params);
         const joiner = municipality.url.includes('?') ? '&' : '?';
-        return `${municipality.url}${joiner}q=${encodeURIComponent(state.query)}`;
+        return `${municipality.url}${joiner}${params.toString()}`;
     }
 
     function setMixedButtonEnabled(enabled) {
@@ -597,6 +648,7 @@
             refs.selectedTitle.textContent = state.searching ? `最新ヒット ${mixedResultLimit}件を集約中です` : `最新ヒット ${mixed.rows.length}件`;
             refs.selectedMeta.textContent = [
                 '新しい開催日順',
+                yearRangeLabel(),
                 mixed.hasOverflow ? `最新${mixedResultLimit}件を表示中。続きは左の自治体から確認できます。` : '現在見つかったヒットをそのまま表示しています。',
                 state.searching ? '結果は検索中もリアルタイムで追加されます。' : '',
             ].filter(Boolean).join(' / ');
@@ -650,6 +702,7 @@
             : '';
         refs.selectedMeta.textContent = [
             `${selected.assembly_name}`,
+            yearRangeLabel(),
             result.total_exact === false ? `${result.total}件以上ヒット` : `${result.total}件ヒット`,
             rangeCopy,
             previewCopy,
@@ -691,6 +744,12 @@
         state.progressTotal = currentMunicipalities.length;
         if (refs.prefecture) {
             refs.prefecture.value = state.prefecture;
+        }
+        if (refs.startYear) {
+            refs.startYear.value = state.startYear;
+        }
+        if (refs.endYear) {
+            refs.endYear.value = state.endYear;
         }
         if (refs.targetCount) {
             refs.targetCount.textContent = String(currentMunicipalities.length);
@@ -775,13 +834,14 @@
         const token = state.requestToken;
         const controller = createAbortController();
         try {
-            const data = await fetchJson(new URLSearchParams({
+            const params = appendYearRangeParams(new URLSearchParams({
                 action: 'search',
                 slug,
                 q: state.query,
                 page: String(page),
                 per_page: '12',
-            }), controller);
+            }));
+            const data = await fetchJson(params, controller);
             if (token !== state.requestToken) {
                 return;
             }
@@ -835,9 +895,17 @@
         await Promise.all(workers);
     }
 
-    async function startSearch(query, prefecture = state.prefecture) {
+    async function startSearch(
+        query,
+        prefecture = state.prefecture,
+        startYear = state.startYear,
+        endYear = state.endYear
+    ) {
+        const yearRange = normalizeYearRange(startYear, endYear);
         state.query = String(query || '').trim();
         state.prefecture = normalizePrefecture(prefecture);
+        state.startYear = yearRange.startYear;
+        state.endYear = yearRange.endYear;
         state.requestToken += 1;
         state.searching = false;
         state.stopped = false;
@@ -874,12 +942,13 @@
             renderAll();
             const controller = createAbortController();
             try {
-                const data = await fetchJson(new URLSearchParams({
+                const params = appendYearRangeParams(new URLSearchParams({
                     action: 'search_preview',
                     q: state.query,
                     per_page: String(mixedResultLimit),
                     slug,
-                }), controller);
+                }));
+                const data = await fetchJson(params, controller);
                 if (token !== state.requestToken) {
                     return;
                 }
@@ -930,14 +999,22 @@
             stopSearch();
             return;
         }
-        startSearch(refs.query?.value || '', refs.prefecture?.value || '');
+        startSearch(
+            refs.query?.value || '',
+            refs.prefecture?.value || '',
+            refs.startYear?.value || '',
+            refs.endYear?.value || ''
+        );
     });
 
-    refs.prefecture?.addEventListener('change', () => {
+    function resetResultsForFilterChange() {
         if (state.searching) {
             stopSearch();
         }
+        const yearRange = normalizeYearRange(refs.startYear?.value || '', refs.endYear?.value || '');
         state.prefecture = normalizePrefecture(refs.prefecture?.value || '');
+        state.startYear = yearRange.startYear;
+        state.endYear = yearRange.endYear;
         state.progressDone = 0;
         state.progressTotal = filteredMunicipalities().length;
         state.results = new Map();
@@ -945,7 +1022,14 @@
         state.selectedSlug = '';
         updateUrl();
         renderAll();
+    }
+
+    refs.prefecture?.addEventListener('change', () => {
+        resetResultsForFilterChange();
     });
+
+    refs.startYear?.addEventListener('change', resetResultsForFilterChange);
+    refs.endYear?.addEventListener('change', resetResultsForFilterChange);
 
     refs.municipalityList?.addEventListener('click', (event) => {
         const button = event.target.closest('[data-slug]');
@@ -985,6 +1069,6 @@
 
     renderAll();
     if (state.query) {
-        startSearch(state.query, state.prefecture);
+        startSearch(state.query, state.prefecture, state.startYear, state.endYear);
     }
 })();

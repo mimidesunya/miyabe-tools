@@ -107,6 +107,13 @@ function app_now_tokyo(string $format = 'Y-m-d H:i:s'): string
     return (new DateTimeImmutable('now', app_tokyo_timezone()))->format($format);
 }
 
+function app_runtime_should_rebuild_cache(): bool
+{
+    // Public web requests should serve stale runtime caches instead of rebuilding
+    // expensive municipality indexes inline. Deploy/prewarm and scraper jobs run via CLI.
+    return PHP_SAPI === 'cli';
+}
+
 function project_root_path(): string
 {
     return dirname(__DIR__);
@@ -385,7 +392,13 @@ function write_json_cache_file(string $path, array $payload): void
         @unlink($tmpPath);
         return;
     }
-    @rename($tmpPath, $path);
+    if (!@rename($tmpPath, $path)) {
+        // Windows の rename() は既存ファイルを上書きできないため、cache に限って置き換えを再試行する。
+        @unlink($path);
+        if (!@rename($tmpPath, $path)) {
+            @unlink($tmpPath);
+        }
+    }
 }
 
 function feature_enabled_value(mixed $explicit, bool $detected): bool
@@ -919,6 +932,13 @@ function municipality_catalog(): array
     if (is_array($cached) && municipality_catalog_cache_is_compatible($cached)) {
         $catalog = $cached;
         return $catalog;
+    }
+    if (!app_runtime_should_rebuild_cache()) {
+        $staleCached = read_json_cache_file($cachePath);
+        if (is_array($staleCached) && municipality_catalog_cache_is_compatible($staleCached)) {
+            $catalog = $staleCached;
+            return $catalog;
+        }
     }
 
     // 公開カタログは全国マスタと system URL 一覧だけから復元する。

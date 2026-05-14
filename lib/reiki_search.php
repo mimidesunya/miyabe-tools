@@ -96,6 +96,10 @@ function reiki_search_ready_summaries(): array
     } else {
         $cached = null;
     }
+    if (!is_array($cached)) {
+        // Avoid rebuilding DB-backed readiness on a public request just because TTL expired.
+        $cached = read_json_cache_file($cachePath);
+    }
     if (is_array($cached)) {
         $cache = array_values(array_filter($cached, 'is_array'));
         return $cache;

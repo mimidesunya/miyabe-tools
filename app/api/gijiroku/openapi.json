@@ -29,7 +29,29 @@
                 ],
                 "operationId": "listMinutesMunicipalities",
                 "summary": "検索可能な自治体一覧を取得",
-                "description": "会議録検索 DB が利用可能な自治体だけを返します。",
+                "description": "会議録検索 DB が利用可能な自治体だけを返します。`q` または `name` を指定すると、自治体名・議会名・都道府県名・自治体コード・slug で部分一致検索できます。",
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "required": false,
+                        "description": "自治体名などで絞り込む検索語。空白区切りは AND 条件です。",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "川崎"
+                    },
+                    {
+                        "name": "name",
+                        "in": "query",
+                        "required": false,
+                        "description": "`q` と同じ自治体名検索用の別名です。`q` が指定されている場合は `q` が優先されます。",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "札幌"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "検索可能な自治体一覧",
@@ -52,6 +74,8 @@
                                         }
                                     ],
                                     "total": 1,
+                                    "available_total": 1,
+                                    "query": "川崎",
                                     "openapi_url": "/api/gijiroku/openapi.json",
                                     "search_url_template": "/api/gijiroku/search.php?slug={slug}&q={query}",
                                     "documents_url_template": "/api/gijiroku/documents.php?slug={slug}&held_on={held_on}",
@@ -113,6 +137,20 @@
                             "minimum": 1,
                             "maximum": 20,
                             "default": 12
+                        }
+                    },
+                    {
+                        "name": "sort",
+                        "in": "query",
+                        "required": false,
+                        "description": "`relevance` はFTSの関連度順で高速に返します。`date` は開催日の新しい順です。",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "relevance",
+                                "date"
+                            ],
+                            "default": "relevance"
                         }
                     }
                 ],
@@ -473,6 +511,8 @@
                 "required": [
                     "items",
                     "total",
+                    "available_total",
+                    "query",
                     "openapi_url",
                     "search_url_template",
                     "documents_url_template",
@@ -488,6 +528,15 @@
                     "total": {
                         "type": "integer",
                         "minimum": 0
+                    },
+                    "available_total": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "絞り込み前の検索可能自治体数"
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "自治体一覧の絞り込みに使った検索語"
                     },
                     "openapi_url": {
                         "type": "string"
@@ -643,6 +692,13 @@
                     "query": {
                         "type": "string"
                     },
+                    "sort": {
+                        "type": "string",
+                        "enum": [
+                            "relevance",
+                            "date"
+                        ]
+                    },
                     "status": {
                         "type": "string",
                         "enum": [
@@ -671,6 +727,20 @@
                     },
                     "has_more": {
                         "type": "boolean"
+                    },
+                    "candidate_limit_reached": {
+                        "type": "boolean",
+                        "description": "フレーズ一致検索でFTS候補の上限に達した場合は true。true の場合、total は下限です。"
+                    },
+                    "candidate_limit": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "フレーズ一致検索でSQL側に渡すFTS候補の上限。0 は候補制限が適用されていないことを示します。"
+                    },
+                    "candidates_scanned": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "フレーズ一致検索で評価対象にしたFTS候補数。"
                     },
                     "page": {
                         "type": "integer",

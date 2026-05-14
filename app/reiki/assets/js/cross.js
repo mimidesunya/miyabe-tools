@@ -137,6 +137,9 @@
 
     function compactResultMeta(row, showMunicipality) {
         const parts = [];
+        if (showMunicipality && row.municipality_name) {
+            parts.push(String(row.municipality_name));
+        }
         if (row.responsible_department) {
             parts.push(String(row.responsible_department));
         }

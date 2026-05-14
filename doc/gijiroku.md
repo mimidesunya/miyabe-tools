@@ -24,10 +24,15 @@
 - OpenAPI 仕様: `GET /api/gijiroku/openapi.json`
 
 最初に自治体一覧を取り、その `slug` を検索 API に渡してください。
+自治体一覧は `q` または `name` で自治体名・議会名・都道府県名・自治体コード・slug の部分一致検索ができます。
 検索語では `AND` / `OR` / `NOT` / `NEAR/5` と、`"同和地区"` のような引用符つきフレーズ一致が使えます。
 
 ```bash
 curl "http://localhost/api/gijiroku/municipalities.php"
+```
+
+```bash
+curl "http://localhost/api/gijiroku/municipalities.php?q=川崎"
 ```
 
 ```bash

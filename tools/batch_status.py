@@ -37,8 +37,6 @@ def runtime_cache_paths(include_homepage_payload: bool = False) -> list[Path]:
     root = status_root()
     paths = [
         root / "municipality_catalog_cache.json",
-        root / "gijiroku_ready_municipalities.json",
-        root / "reiki_ready_municipalities.json",
     ]
     if include_homepage_payload:
         paths.insert(1, root / "home_api_payload.json")

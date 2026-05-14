@@ -1381,6 +1381,11 @@ function homepage_api_cache_path(): string
     return data_path('background_tasks/home_api_payload.json');
 }
 
+function homepage_api_cache_refresh_lock_path(): string
+{
+    return data_path('background_tasks/home_api_payload.lock');
+}
+
 function homepage_store_cached_api_payload(string $path, array $payload): void
 {
     write_json_cache_file($path, $payload);
@@ -1397,6 +1402,47 @@ function homepage_rebuild_api_payload_cache(): array
     $payload = homepage_build_api_payload();
     homepage_store_cached_api_payload($cachePath, $payload);
     return $payload;
+}
+
+function homepage_schedule_api_payload_cache_refresh(): void
+{
+    static $scheduled = false;
+    if ($scheduled || PHP_SAPI === 'cli') {
+        return;
+    }
+
+    $lockPath = homepage_api_cache_refresh_lock_path();
+    $lockDir = dirname($lockPath);
+    if (!is_dir($lockDir)) {
+        @mkdir($lockDir, 0755, true);
+    }
+
+    $lockHandle = @fopen($lockPath, 'c');
+    if ($lockHandle === false) {
+        return;
+    }
+
+    if (!@flock($lockHandle, LOCK_EX | LOCK_NB)) {
+        @fclose($lockHandle);
+        return;
+    }
+
+    $scheduled = true;
+    register_shutdown_function(static function () use ($lockHandle, $lockPath): void {
+        if (function_exists('fastcgi_finish_request')) {
+            @fastcgi_finish_request();
+        }
+
+        try {
+            homepage_rebuild_api_payload_cache();
+        } catch (Throwable $error) {
+            error_log('[home_api] background cache refresh failed: ' . $error->getMessage());
+        } finally {
+            @flock($lockHandle, LOCK_UN);
+            @fclose($lockHandle);
+            @unlink($lockPath);
+        }
+    });
 }
 
 function homepage_cached_payload_needs_self_heal(array $payload): bool
@@ -1455,18 +1501,39 @@ function homepage_cached_payload_needs_self_heal(array $payload): bool
 function homepage_build_api_payload_cached(int $ttlSeconds = 15): array
 {
     $cachePath = homepage_api_cache_path();
+    if ($ttlSeconds <= 0) {
+        return homepage_rebuild_api_payload_cache();
+    }
+
+    $staleCached = read_json_cache_file($cachePath, 0);
     if ($ttlSeconds > 0) {
         $cached = read_json_cache_file($cachePath, $ttlSeconds);
         if (is_array($cached)) {
             if (homepage_api_cache_dependencies_missing()) {
-                return homepage_rebuild_api_payload_cache();
+                homepage_schedule_api_payload_cache_refresh();
+                if (!headers_sent()) {
+                    header('X-Homepage-Cache: stale-dependency');
+                }
+            } elseif (!headers_sent()) {
+                header('X-Homepage-Cache: hit');
             }
             return $cached;
         }
     }
 
+    if (is_array($staleCached)) {
+        if (PHP_SAPI === 'cli') {
+            return homepage_rebuild_api_payload_cache();
+        }
+        homepage_schedule_api_payload_cache_refresh();
+        if (!headers_sent()) {
+            header('X-Homepage-Cache: stale');
+        }
+        return $staleCached;
+    }
+
     // トップ API は 5 秒ごとに複数クライアントから叩かれるため、
-    // 数十秒単位の遅延は許容して、同じ payload を再利用して SQLite/JSON 走査を減らす。
-    // ttlSeconds=0 は「強制再生成」として扱い、debug / prewarm からも迷わず使えるようにする。
+    // 期限切れでも既存 payload を即返し、再生成はレスポンス完了後に 1 本だけ走らせる。
+    // キャッシュがまだ無い初回だけは同期生成する。deploy 時は prewarm でここを先に固める。
     return homepage_rebuild_api_payload_cache();
 }

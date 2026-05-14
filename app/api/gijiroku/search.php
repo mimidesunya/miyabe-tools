@@ -23,7 +23,8 @@ $payload = gijiroku_api_search_payload(
     $municipality,
     $query,
     gijiroku_api_request_int('page', 1, 1, 9999),
-    gijiroku_api_request_int('per_page', 12, 1, 20)
+    gijiroku_api_request_int('per_page', 12, 1, 20),
+    gijiroku_search_normalize_sort(gijiroku_api_request_string('sort', 'relevance'))
 );
 
 gijiroku_api_respond_json($payload);

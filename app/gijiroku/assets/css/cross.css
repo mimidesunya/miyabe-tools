@@ -307,6 +307,12 @@ h2 {
     cursor: pointer;
 }
 
+.year-range-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
 .field input:focus,
 .field select:focus {
     outline: none;

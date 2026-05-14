@@ -8,7 +8,16 @@ $catalog = gijiroku_api_catalog_payload();
 $items = is_array($catalog['items'] ?? null) ? $catalog['items'] : [];
 $total = (int)($catalog['total'] ?? 0);
 $sampleSlug = '';
-if (isset($items[0]) && is_array($items[0])) {
+foreach ($items as $item) {
+    if (!is_array($item)) {
+        continue;
+    }
+    if (trim((string)($item['slug'] ?? '')) === '14130-kawasaki-shi') {
+        $sampleSlug = '14130-kawasaki-shi';
+        break;
+    }
+}
+if ($sampleSlug === '' && isset($items[0]) && is_array($items[0])) {
     $sampleSlug = trim((string)($items[0]['slug'] ?? ''));
 }
 if ($sampleSlug === '') {
@@ -16,15 +25,6 @@ if ($sampleSlug === '') {
 }
 $sampleHeldOn = '2025-06-18';
 $sampleDocumentId = 123;
-$sampleMunicipality = gijiroku_api_ready_municipality($sampleSlug);
-if (is_array($sampleMunicipality)) {
-    $sampleDocuments = gijiroku_search_list_documents($sampleMunicipality, '', 1, 1);
-    $sampleRow = $sampleDocuments['rows'][0] ?? null;
-    if (is_array($sampleRow)) {
-        $sampleHeldOn = trim((string)($sampleRow['held_on'] ?? $sampleHeldOn));
-        $sampleDocumentId = max(1, (int)($sampleRow['id'] ?? $sampleDocumentId));
-    }
-}
 $sampleSearchUrl = gijiroku_api_search_url($sampleSlug, ['q' => '補正予算', 'page' => 1, 'per_page' => 5]);
 $sampleDocumentsUrl = gijiroku_api_documents_url($sampleSlug, ['held_on' => $sampleHeldOn, 'page' => 1, 'per_page' => 5]);
 $sampleDocumentUrl = gijiroku_api_document_url($sampleSlug, $sampleDocumentId, ['q' => '補正予算']);

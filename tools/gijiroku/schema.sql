@@ -43,6 +43,7 @@ CREATE VIRTUAL TABLE minutes_fts USING fts5(
 CREATE INDEX idx_minutes_held_on ON minutes(held_on);
 CREATE INDEX idx_minutes_doc_type ON minutes(doc_type);
 CREATE INDEX idx_minutes_doc_type_held_on_id ON minutes(doc_type, held_on DESC, id DESC);
+CREATE INDEX idx_minutes_doc_type_year_label_held_on_id ON minutes(doc_type, year_label, held_on DESC, id DESC);
 CREATE INDEX idx_minutes_source_fino ON minutes(source_fino);
 CREATE INDEX idx_minutes_year_label ON minutes(year_label);
 

@@ -169,7 +169,7 @@ function gijiroku_api_requested_slug(): string
         return '';
     }
 
-    return get_slug($requested);
+    return gijiroku_search_resolve_ready_slug($requested);
 }
 
 function gijiroku_api_requested_document_id(): int
@@ -180,23 +180,34 @@ function gijiroku_api_requested_document_id(): int
 function gijiroku_api_public_summary(array $municipality): array
 {
     $summary = gijiroku_search_public_summary($municipality);
-    $slug = trim((string)($summary['slug'] ?? ''));
-    $summary['search_api_url'] = gijiroku_api_search_url($slug);
-    $summary['documents_api_url'] = gijiroku_api_documents_url($slug);
-    $summary['document_api_url_template'] = gijiroku_api_document_url_template_for_slug($slug);
-    return $summary;
+    return gijiroku_api_summary_with_urls($summary);
 }
 
-function gijiroku_api_catalog_payload(): array
+function gijiroku_api_summary_with_urls(array $summary): array
+{
+    $public = gijiroku_search_public_summary($summary);
+    $slug = trim((string)($public['slug'] ?? ''));
+    $public['search_api_url'] = gijiroku_api_search_url($slug);
+    $public['documents_api_url'] = gijiroku_api_documents_url($slug);
+    $public['document_api_url_template'] = gijiroku_api_document_url_template_for_slug($slug);
+    return $public;
+}
+
+function gijiroku_api_catalog_payload(string $query = ''): array
 {
     $items = [];
-    foreach (gijiroku_search_ready_municipalities() as $municipality) {
-        $items[] = gijiroku_api_public_summary($municipality);
+    $normalizedQuery = trim(str_replace('　', ' ', $query));
+    $availableTotal = count(gijiroku_search_ready_summaries());
+    foreach (gijiroku_search_ready_summaries_for_query($normalizedQuery) as $readySummary) {
+        $summary = gijiroku_api_summary_with_urls($readySummary);
+        $items[] = $summary;
     }
 
     return [
         'items' => $items,
         'total' => count($items),
+        'available_total' => $availableTotal,
+        'query' => $normalizedQuery,
         'openapi_url' => gijiroku_api_openapi_url(),
         'search_url_template' => gijiroku_api_search_url_template(),
         'documents_url_template' => gijiroku_api_documents_url_template(),
@@ -206,18 +217,18 @@ function gijiroku_api_catalog_payload(): array
 
 function gijiroku_api_ready_municipality(string $slug): ?array
 {
-    $normalizedSlug = trim($slug);
-    if ($normalizedSlug === '') {
-        return null;
-    }
-
-    $readyMunicipalities = gijiroku_search_ready_municipalities();
-    return $readyMunicipalities[$normalizedSlug] ?? null;
+    return gijiroku_search_ready_municipality($slug);
 }
 
-function gijiroku_api_search_payload(array $municipality, string $query, int $page, int $perPage): array
+function gijiroku_api_search_payload(
+    array $municipality,
+    string $query,
+    int $page,
+    int $perPage,
+    string $sort = 'date'
+): array
 {
-    $result = gijiroku_search_execute($municipality, $query, $page, $perPage);
+    $result = gijiroku_search_execute($municipality, $query, $page, $perPage, 0, 0, $sort);
     $summary = gijiroku_api_public_summary($municipality);
     foreach ($summary as $key => $value) {
         $result[$key] = $value;
@@ -383,7 +394,25 @@ function gijiroku_api_openapi_spec(): array
                     'tags' => ['Gijiroku'],
                     'operationId' => 'listMinutesMunicipalities',
                     'summary' => '検索可能な自治体一覧を取得',
-                    'description' => '会議録検索 DB が利用可能な自治体だけを返します。',
+                    'description' => '会議録検索 DB が利用可能な自治体だけを返します。`q` または `name` を指定すると、自治体名・議会名・都道府県名・自治体コード・slug で部分一致検索できます。',
+                    'parameters' => [
+                        [
+                            'name' => 'q',
+                            'in' => 'query',
+                            'required' => false,
+                            'description' => '自治体名などで絞り込む検索語。空白区切りは AND 条件です。',
+                            'schema' => ['type' => 'string'],
+                            'example' => '川崎',
+                        ],
+                        [
+                            'name' => 'name',
+                            'in' => 'query',
+                            'required' => false,
+                            'description' => '`q` と同じ自治体名検索用の別名です。`q` が指定されている場合は `q` が優先されます。',
+                            'schema' => ['type' => 'string'],
+                            'example' => '札幌',
+                        ],
+                    ],
                     'responses' => [
                         '200' => [
                             'description' => '検索可能な自治体一覧',
@@ -395,6 +424,8 @@ function gijiroku_api_openapi_spec(): array
                                     'example' => [
                                         'items' => [$municipalityExample],
                                         'total' => 1,
+                                        'available_total' => 1,
+                                        'query' => '川崎',
                                         'openapi_url' => gijiroku_api_openapi_url(),
                                         'search_url_template' => gijiroku_api_search_url_template(),
                                         'documents_url_template' => gijiroku_api_documents_url_template(),
@@ -450,6 +481,17 @@ function gijiroku_api_openapi_spec(): array
                                 'minimum' => 1,
                                 'maximum' => 20,
                                 'default' => 12,
+                            ],
+                        ],
+                        [
+                            'name' => 'sort',
+                            'in' => 'query',
+                            'required' => false,
+                            'description' => '`relevance` はFTSの関連度順で高速に返します。`date` は開催日の新しい順です。',
+                            'schema' => [
+                                'type' => 'string',
+                                'enum' => ['relevance', 'date'],
+                                'default' => 'relevance',
                             ],
                         ],
                     ],
@@ -706,6 +748,8 @@ function gijiroku_api_openapi_spec(): array
                     'required' => [
                         'items',
                         'total',
+                        'available_total',
+                        'query',
                         'openapi_url',
                         'search_url_template',
                         'documents_url_template',
@@ -721,6 +765,15 @@ function gijiroku_api_openapi_spec(): array
                         'total' => [
                             'type' => 'integer',
                             'minimum' => 0,
+                        ],
+                        'available_total' => [
+                            'type' => 'integer',
+                            'minimum' => 0,
+                            'description' => '絞り込み前の検索可能自治体数',
+                        ],
+                        'query' => [
+                            'type' => 'string',
+                            'description' => '自治体一覧の絞り込みに使った検索語',
                         ],
                         'openapi_url' => ['type' => 'string'],
                         'search_url_template' => ['type' => 'string'],
@@ -816,6 +869,10 @@ function gijiroku_api_openapi_spec(): array
                         'documents_api_url' => ['type' => 'string'],
                         'document_api_url_template' => ['type' => 'string'],
                         'query' => ['type' => 'string'],
+                        'sort' => [
+                            'type' => 'string',
+                            'enum' => ['relevance', 'date'],
+                        ],
                         'status' => [
                             'type' => 'string',
                             'enum' => ['ok', 'query_error', 'missing_db', 'db_error', 'search_error'],
@@ -830,6 +887,20 @@ function gijiroku_api_openapi_spec(): array
                         'total' => ['type' => 'integer', 'minimum' => 0],
                         'total_exact' => ['type' => 'boolean'],
                         'has_more' => ['type' => 'boolean'],
+                        'candidate_limit_reached' => [
+                            'type' => 'boolean',
+                            'description' => 'フレーズ一致検索でFTS候補の上限に達した場合は true。true の場合、total は下限です。',
+                        ],
+                        'candidate_limit' => [
+                            'type' => 'integer',
+                            'minimum' => 0,
+                            'description' => 'フレーズ一致検索でSQL側に渡すFTS候補の上限。0 は候補制限が適用されていないことを示します。',
+                        ],
+                        'candidates_scanned' => [
+                            'type' => 'integer',
+                            'minimum' => 0,
+                            'description' => 'フレーズ一致検索で評価対象にしたFTS候補数。',
+                        ],
                         'page' => ['type' => 'integer', 'minimum' => 1],
                         'per_page' => ['type' => 'integer', 'minimum' => 1],
                         'total_pages' => ['type' => 'integer', 'minimum' => 0],

@@ -13,7 +13,7 @@ foreach (gijiroku_search_ready_summaries() as $municipality) {
 }
 
 $requestedSlug = trim((string)($_GET['slug'] ?? ''));
-$selectedSlug = $requestedSlug !== '' ? get_slug($requestedSlug) : '';
+$selectedSlug = $requestedSlug !== '' ? gijiroku_search_resolve_ready_slug($requestedSlug) : '';
 $selectedSlugValid = false;
 foreach ($searchMunicipalities as $item) {
     if ((string)($item['slug'] ?? '') === $selectedSlug) {
@@ -41,11 +41,27 @@ if ($selectedPrefecture !== '' && $selectedSlug !== '') {
     }
 }
 
+function request_cross_year(string $key): int
+{
+    $value = $_GET[$key] ?? '';
+    if (!is_scalar($value) || filter_var($value, FILTER_VALIDATE_INT) === false) {
+        return 0;
+    }
+    return max(0, min(9999, (int)$value));
+}
+
+$selectedYearRange = gijiroku_search_normalize_year_range(
+    request_cross_year('start_year'),
+    request_cross_year('end_year')
+);
+
 $boot = [
     'apiUrl' => '/gijiroku/api.php',
     'query' => trim((string)($_GET['q'] ?? '')),
     'selectedSlug' => $selectedSlug,
     'selectedPrefecture' => $selectedPrefecture,
+    'startYear' => (int)$selectedYearRange['start_year'],
+    'endYear' => (int)$selectedYearRange['end_year'],
     'prefectures' => $prefectureOptions,
     'municipalities' => $searchMunicipalities,
 ];
@@ -113,6 +129,16 @@ $jsVer = @filemtime(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'app' . DIRECTOR
                             <?php endforeach; ?>
                         </select>
                     </label>
+                    <div class="year-range-fields">
+                        <label class="field" for="cross-start-year">
+                            <span>開始年</span>
+                            <input id="cross-start-year" name="start_year" type="number" min="1" max="9999" step="1" inputmode="numeric" value="<?php echo h((string)($boot['startYear'] ?: '')); ?>" placeholder="例: 2020">
+                        </label>
+                        <label class="field" for="cross-end-year">
+                            <span>終了年</span>
+                            <input id="cross-end-year" name="end_year" type="number" min="1" max="9999" step="1" inputmode="numeric" value="<?php echo h((string)($boot['endYear'] ?: '')); ?>" placeholder="例: 2026">
+                        </label>
+                    </div>
                     <div class="form-actions">
                         <button id="cross-search-button" class="button" type="submit">横断検索する</button>
                     </div>

@@ -2,30 +2,56 @@
 declare(strict_types=1);
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'index_helpers.php';
+require_once dirname(__DIR__) . DIRECTORY_SEPARATOR . 'gijiroku_search.php';
 
 // リクエスト解釈、SQLite 検索、詳細表示用データの組み立てを担う。
-redirect_to_canonical_query_slug_if_needed();
-$slug = get_slug();
-if ($slug === '') {
-    $slug = get_default_slug();
+$requestedSlugInput = trim((string)($_GET['slug'] ?? ''));
+$resolvedRequestedSlug = $requestedSlugInput !== '' ? gijiroku_search_resolve_ready_slug($requestedSlugInput) : '';
+if (
+    $requestedSlugInput !== ''
+    && $resolvedRequestedSlug !== ''
+    && normalize_slug_alias_value($requestedSlugInput) !== normalize_slug_alias_value($resolvedRequestedSlug)
+) {
+    $path = parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+    $path = is_string($path) && $path !== '' ? $path : '/gijiroku/';
+    $query = $_GET;
+    $query['slug'] = $resolvedRequestedSlug;
+    header('Location: ' . $path . '?' . http_build_query($query), true, 302);
+    exit;
 }
-$requestSlug = municipality_public_slug($slug);
-$municipality = municipality_entry($slug);
+
+$slug = $resolvedRequestedSlug;
+if ($slug === '') {
+    $readySummaries = gijiroku_search_ready_summaries();
+    $firstReady = $readySummaries[0] ?? null;
+    $slug = is_array($firstReady) ? (string)($firstReady['slug'] ?? '') : '';
+}
+$requestSlug = $slug;
+$municipality = $slug !== '' ? gijiroku_search_ready_municipality($slug) : null;
 if ($municipality === null) {
     http_response_code(404);
     echo '自治体が見つかりません。';
     exit;
 }
-$gijirokuFeature = municipality_feature($slug, 'gijiroku') ?? [];
-$featureAvailable = municipality_feature_enabled($slug, 'gijiroku');
-$switcherItems = municipality_switcher_items('gijiroku');
+$gijirokuFeature = is_array($municipality['gijiroku'] ?? null) ? $municipality['gijiroku'] : [];
+$switcherItems = [];
+foreach (gijiroku_search_ready_summaries() as $switcherItem) {
+    $switcherItems[] = [
+        'slug' => (string)($switcherItem['slug'] ?? ''),
+        'name' => (string)($switcherItem['name'] ?? ''),
+        'enabled' => true,
+        'url' => (string)($switcherItem['url'] ?? ''),
+        'title' => (string)($switcherItem['assembly_name'] ?? ''),
+    ];
+}
 $assemblyName = (string)($gijirokuFeature['assembly_name'] ?? ($municipality['name'] . '議会'));
 $pageTitle = (string)($gijirokuFeature['title'] ?? ($assemblyName . ' 会議録 全文検索'));
 $clearUrl = '/gijiroku/?slug=' . rawurlencode($requestSlug);
-$featureNotice = $featureAvailable ? '' : ($assemblyName . 'の会議録は準備中です。');
 $dbPath = (string)($gijirokuFeature['db_path'] ?? '');
 $downloadsDir = (string)($gijirokuFeature['downloads_dir'] ?? '');
 $indexJsonPath = (string)($gijirokuFeature['index_json_path'] ?? '');
+$featureAvailable = !empty($gijirokuFeature['enabled']) && $dbPath !== '' && is_file($dbPath);
+$featureNotice = $featureAvailable ? '' : ($assemblyName . 'の会議録は準備中です。');
 $q = trim((string)($_GET['q'] ?? ''));
 $year = trim((string)($_GET['year'] ?? ''));
 $hasRequestedDoc = isset($_GET['doc']) && (int)$_GET['doc'] > 0;
@@ -93,7 +119,28 @@ if ($pdo) {
         $stats['last_date'] = gijiroku_index_boundary_date($pdo, 'DESC');
     }
 
-    if ($q !== '') {
+    if ($q !== '' && $year === '') {
+        $searchResult = gijiroku_search_execute($municipality, $q, $page, $perPage, 0, 0, 'relevance');
+        if (($searchResult['status'] ?? '') !== 'ok') {
+            $error = (string)($searchResult['error'] ?? '検索結果を読み込めませんでした。');
+        }
+        $total = (int)($searchResult['total'] ?? 0);
+        foreach (($searchResult['rows'] ?? []) as $searchRow) {
+            if (!is_array($searchRow)) {
+                continue;
+            }
+            $rows[] = [
+                'id' => (int)($searchRow['id'] ?? 0),
+                'title' => (string)($searchRow['title'] ?? ''),
+                'meeting_name' => (string)($searchRow['meeting_name'] ?? ''),
+                'year_label' => (string)($searchRow['year_label'] ?? ''),
+                'held_on' => (string)($searchRow['held_on'] ?? ''),
+                'rel_path' => (string)($searchRow['rel_path'] ?? ''),
+                'source_url' => (string)($searchRow['source_url'] ?? ''),
+                'excerpt' => (string)($searchRow['excerpt'] ?? ''),
+            ];
+        }
+    } elseif ($q !== '') {
         // キーワード検索時だけ FTS を使い、未入力時は通常一覧として軽く返す。
         try {
             $exactPhrases = japanese_search_exact_phrases_from_prepared($preparedQuery);
@@ -115,7 +162,7 @@ if ($pdo) {
                 if ($year !== '') {
                     $sql .= ' AND m.year_label = :year';
                 }
-                $sql .= ' ORDER BY COALESCE(m.held_on, \'\') DESC, score, m.id DESC LIMIT :limit OFFSET :offset';
+                $sql .= ' ORDER BY m.held_on DESC, score, m.id DESC LIMIT :limit OFFSET :offset';
 
                 while (count($rows) <= $perPage) {
                     $stmt = $pdo->prepare($sql);
@@ -181,7 +228,7 @@ if ($pdo) {
                     $sql .= ' AND m.year_label = :year';
                 }
                 // 自治体ページの検索結果は、関連度よりまず新しさで追える並びを優先する。
-                $sql .= ' ORDER BY COALESCE(m.held_on, \'\') DESC, score, m.id DESC LIMIT :limit OFFSET :offset';
+                $sql .= ' ORDER BY m.held_on DESC, score, m.id DESC LIMIT :limit OFFSET :offset';
 
                 $stmt = $pdo->prepare($sql);
                 $stmt->bindValue(':q', (string)($preparedQuery['fts_query'] ?? $q), PDO::PARAM_STR);
