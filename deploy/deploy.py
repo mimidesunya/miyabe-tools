@@ -671,6 +671,11 @@ def main():
         action='store_true',
         help='Skip remote shared-data permission and migration passes for fast code-only deploys.',
     )
+    parser.add_argument(
+        '--restart-scraping',
+        action='store_true',
+        help='Restart remote scraping workers after deployment. Disabled by default to avoid unintended load.',
+    )
     
     args = parser.parse_args()
 
@@ -773,6 +778,7 @@ services:
   opensearch:
     image: opensearchproject/opensearch:2.15.0
     restart: "no"
+    cpus: "1.0"
     environment:
       discovery.type: single-node
       DISABLE_SECURITY_PLUGIN: "true"
@@ -809,10 +815,13 @@ volumes:
     if prewarm_output:
         print(prewarm_output)
 
-    print("=== Restarting scraping services if configured ===")
-    restart_output = restart_scraping_services_if_present(config, dest_dir, shared_data_dir)
-    if restart_output:
-        print(restart_output)
+    if args.restart_scraping:
+        print("=== Restarting scraping services if configured ===")
+        restart_output = restart_scraping_services_if_present(config, dest_dir, shared_data_dir)
+        if restart_output:
+            print(restart_output)
+    else:
+        print("=== Skipping scraping service restart (use --restart-scraping to enable) ===")
 
     print("=== Deployment Complete ===")
 

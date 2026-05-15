@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import subprocess
 import time
 from pathlib import Path
@@ -65,6 +66,83 @@ def summarize_worker(stdout_path: Path, stderr_path: Path) -> str:
     return "starting..."
 
 
+class StopController:
+    def __init__(self) -> None:
+        self.requested = False
+        self.signum: int | None = None
+
+    def request(self, signum: int) -> None:
+        self.requested = True
+        self.signum = signum
+
+    def should_stop(self) -> bool:
+        return self.requested
+
+    def returncode(self) -> int:
+        return -(self.signum or signal.SIGTERM)
+
+
+def install_stop_signal_handlers() -> StopController:
+    controller = StopController()
+
+    def handle_stop(signum, _frame) -> None:
+        controller.request(int(signum))
+
+    for signame in ("SIGTERM", "SIGINT"):
+        signum = getattr(signal, signame, None)
+        if signum is not None:
+            signal.signal(signum, handle_stop)
+    return controller
+
+
+def process_group_popen_kwargs() -> dict:
+    if os.name == "nt":
+        return {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
+    return {"start_new_session": True}
+
+
+def terminate_process_group(process: subprocess.Popen, *, grace_seconds: float = 20.0) -> int | None:
+    returncode = process.poll()
+    if returncode is not None:
+        return int(returncode)
+
+    try:
+        if os.name == "nt":
+            process.terminate()
+        else:
+            os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return process.poll()
+    except Exception:
+        try:
+            process.terminate()
+        except Exception:
+            pass
+
+    try:
+        return int(process.wait(timeout=max(0.1, grace_seconds)))
+    except subprocess.TimeoutExpired:
+        pass
+
+    try:
+        if os.name == "nt":
+            process.kill()
+        else:
+            os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        return process.poll()
+    except Exception:
+        try:
+            process.kill()
+        except Exception:
+            pass
+
+    try:
+        return int(process.wait(timeout=5.0))
+    except subprocess.TimeoutExpired:
+        return process.poll()
+
+
 def extract_worker_progress_from_state(state_path: Path, *, default_unit: str) -> dict[str, object] | None:
     if not state_path.exists():
         return None
@@ -115,6 +193,7 @@ def run_logged_subprocess(
     stdout_path: Path,
     stderr_path: Path,
     heartbeat_callback=None,
+    should_stop=None,
     poll_seconds: float = 5.0,
 ) -> subprocess.CompletedProcess:
     with stdout_path.open("w", encoding="utf-8", newline="") as stdout_handle, stderr_path.open(
@@ -125,15 +204,23 @@ def run_logged_subprocess(
             cwd=cwd,
             stdout=stdout_handle,
             stderr=stderr_handle,
+            **process_group_popen_kwargs(),
         )
 
-        while True:
-            returncode = process.poll()
-            if returncode is not None:
-                return subprocess.CompletedProcess(command, int(returncode))
-            if heartbeat_callback is not None:
-                heartbeat_callback()
-            time.sleep(max(0.5, poll_seconds))
+        try:
+            while True:
+                returncode = process.poll()
+                if returncode is not None:
+                    return subprocess.CompletedProcess(command, int(returncode))
+                if should_stop is not None and should_stop():
+                    returncode = terminate_process_group(process)
+                    return subprocess.CompletedProcess(command, int(returncode if returncode is not None else -15))
+                if heartbeat_callback is not None:
+                    heartbeat_callback()
+                time.sleep(max(0.5, poll_seconds))
+        except BaseException:
+            terminate_process_group(process)
+            raise
 
 
 def close_worker_streams(worker: dict) -> None:

@@ -20,11 +20,14 @@ from batch_runner_common import (
     count_active_by_host,
     extract_worker_progress_from_log as common_extract_worker_progress_from_log,
     extract_worker_progress_from_state as common_extract_worker_progress_from_state,
+    install_stop_signal_handlers,
     now_ts,
+    process_group_popen_kwargs,
     run_logged_subprocess,
     summarize_worker,
     target_host,
     target_matches,
+    terminate_process_group,
 )
 import reiki_priority
 import reiki_targets
@@ -223,6 +226,7 @@ def launch_worker(
         cwd=str(reiki_targets.project_root()),
         stdout=stdout_handle,
         stderr=stderr_handle,
+        **process_group_popen_kwargs(),
     )
 
     return {
@@ -260,6 +264,7 @@ def run_index_builder(
     args: argparse.Namespace,
     run_logs_dir: Path,
     heartbeat_callback=None,
+    should_stop=None,
 ) -> dict:
     slug = str(target["slug"])
     stdout_path = run_logs_dir / f"{slug}.index.log"
@@ -270,6 +275,7 @@ def run_index_builder(
         stdout_path=stdout_path,
         stderr_path=stderr_path,
         heartbeat_callback=heartbeat_callback,
+        should_stop=should_stop,
     )
 
     return {
@@ -399,6 +405,7 @@ def list_targets(targets: list[dict]) -> None:
 
 def main() -> int:
     args = build_parser().parse_args()
+    stop_controller = install_stop_signal_handlers()
     if args.parallel < 1:
         print("[ERROR] --parallel は 1 以上を指定してください。", flush=True)
         return 2
@@ -483,6 +490,7 @@ def main() -> int:
         launched_count = 0
         last_status_at = 0.0
         host_last_start_at: dict[str, float] = {}
+        shutdown_started = False
 
         def write_status_state() -> None:
             batch_status.update_runtime_metrics(
@@ -502,6 +510,25 @@ def main() -> int:
             completed_workers: list[tuple[dict, int]] = []
             still_running: list[dict] = []
 
+            if stop_controller.should_stop() and not shutdown_started:
+                shutdown_started = True
+                print("[STOP] 停止シグナルを受信しました。新規起動を止め、実行中の子プロセスを終了します。", flush=True)
+                finished_at = batch_status.now_text()
+                for target in pending_targets:
+                    batch_status.update_item(
+                        status_state,
+                        str(target["slug"]),
+                        status="failed",
+                        message="停止により未実行",
+                        finished_at=finished_at,
+                        returncode=stop_controller.returncode(),
+                    )
+                pending_targets.clear()
+                write_status_state()
+                for worker in active_workers:
+                    terminate_process_group(worker["process"])
+                made_progress = True
+
             for worker in active_workers:
                 returncode = worker["process"].poll()
                 if returncode is None:
@@ -515,7 +542,7 @@ def main() -> int:
                 made_progress = True
 
             host_active_counts = count_active_by_host(active_workers)
-            while pending_targets and len(active_workers) < args.parallel:
+            while pending_targets and len(active_workers) < args.parallel and not shutdown_started:
                 launch_index = None
                 for index, target in enumerate(pending_targets):
                     host = target_host(target)
@@ -630,6 +657,7 @@ def main() -> int:
                                 worker_capacity=args.parallel,
                                 per_host_capacity=args.per_host_parallel,
                             ),
+                            should_stop=stop_controller.should_stop,
                         )
                     except Exception as exc:
                         index_status = "failed"
@@ -727,7 +755,7 @@ def main() -> int:
     )
     batch_status.write_state("reiki", status_state)
     print(f"[DONE] {summary_path}", flush=True)
-    return 0
+    return 143 if stop_controller.should_stop() else 0
 
 
 if __name__ == "__main__":

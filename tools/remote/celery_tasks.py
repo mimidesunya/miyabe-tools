@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import shlex
+import signal
 import subprocess
+import time
 from pathlib import Path
 
 from tools.remote.celery_app import app
 from tools.remote import celery_runtime
+from tools.batch_runner_common import process_group_popen_kwargs, terminate_process_group
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -25,9 +28,38 @@ def _php_command_text() -> str:
 
 def _run_command(label: str, command: list[str]) -> None:
     print(f"[CELERY] {label}: {celery_runtime.command_text(command)}", flush=True)
-    completed = subprocess.run(command, cwd=str(ROOT), check=False)
-    if completed.returncode != 0:
-        raise RuntimeError(f"{label} failed with exit code {completed.returncode}")
+    stop_requested = False
+    previous_handlers: dict[int, object] = {}
+
+    def request_stop(signum, _frame) -> None:
+        nonlocal stop_requested
+        stop_requested = True
+        print(f"[CELERY] {label}: received signal {int(signum)}; stopping child process", flush=True)
+
+    for signame in ("SIGTERM", "SIGINT"):
+        signum = getattr(signal, signame, None)
+        if signum is not None:
+            previous_handlers[signum] = signal.getsignal(signum)
+            signal.signal(signum, request_stop)
+
+    process = subprocess.Popen(command, cwd=str(ROOT), **process_group_popen_kwargs())
+    try:
+        while True:
+            returncode = process.poll()
+            if returncode is not None:
+                break
+            if stop_requested:
+                returncode = terminate_process_group(process)
+                if returncode is None:
+                    returncode = -signal.SIGTERM
+                break
+            time.sleep(1.0)
+    finally:
+        for signum, handler in previous_handlers.items():
+            signal.signal(signum, handler)
+
+    if returncode != 0:
+        raise RuntimeError(f"{label} failed with exit code {returncode}")
 
 
 def _scraper_build_search_index() -> bool:

@@ -20,10 +20,13 @@ from batch_runner_common import (
     count_active_by_host,
     extract_worker_progress_from_log as common_extract_worker_progress_from_log,
     extract_worker_progress_from_state as common_extract_worker_progress_from_state,
+    install_stop_signal_handlers,
     now_ts,
+    process_group_popen_kwargs,
     summarize_worker,
     target_host,
     target_matches,
+    terminate_process_group,
 )
 import build_locks
 import gijiroku_priority
@@ -275,6 +278,7 @@ def launch_worker(
         cwd=str(gijiroku_targets.project_root()),
         stdout=stdout_handle,
         stderr=stderr_handle,
+        **process_group_popen_kwargs(),
     )
 
     return {
@@ -343,6 +347,7 @@ def launch_index_worker(
             cwd=str(gijiroku_targets.project_root()),
             stdout=stdout_handle,
             stderr=stderr_handle,
+            **process_group_popen_kwargs(),
         )
         return {
             "target": target,
@@ -578,6 +583,7 @@ def list_targets(targets: list[dict]) -> None:
 
 def main() -> int:
     args = build_parser().parse_args()
+    stop_controller = install_stop_signal_handlers()
     if not args.ack_robots and not args.list_targets:
         print("[ERROR] robots.txt / 利用規約確認のため --ack-robots を指定してください。", flush=True)
         return 2
@@ -681,6 +687,7 @@ def main() -> int:
         launched_count = 0
         last_status_at = 0.0
         host_last_start_at: dict[str, float] = {}
+        shutdown_started = False
 
         def write_status_state() -> None:
             batch_status.update_runtime_metrics(
@@ -704,6 +711,38 @@ def main() -> int:
             completed_index_workers: list[tuple[dict, int]] = []
             still_running: list[dict] = []
             still_index_running: list[dict] = []
+
+            if stop_controller.should_stop() and not shutdown_started:
+                shutdown_started = True
+                print("[STOP] 停止シグナルを受信しました。新規起動を止め、実行中の子プロセスを終了します。", flush=True)
+                finished_at = batch_status.now_text()
+                for target in pending_targets:
+                    batch_status.update_item(
+                        status_state,
+                        str(target["slug"]),
+                        status="failed",
+                        message="停止により未実行",
+                        finished_at=finished_at,
+                        returncode=stop_controller.returncode(),
+                    )
+                pending_targets.clear()
+                for queued_worker in pending_index_workers:
+                    target = queued_worker["target"]
+                    batch_status.update_item(
+                        status_state,
+                        str(target["slug"]),
+                        status="failed",
+                        message="停止によりインデックス更新を中断",
+                        finished_at=finished_at,
+                        returncode=stop_controller.returncode(),
+                    )
+                pending_index_workers.clear()
+                write_status_state()
+                for worker in active_index_workers:
+                    terminate_process_group(worker["process"])
+                for worker in active_workers:
+                    terminate_process_group(worker["process"])
+                made_progress = True
 
             for worker in active_workers:
                 returncode = worker["process"].poll()
@@ -834,7 +873,7 @@ def main() -> int:
                     print(f"[WARN] {target['slug']} のインデックス更新は returncode={returncode} で終了しました。", flush=True)
 
             host_active_counts = count_active_by_host(active_workers)
-            while pending_targets and len(active_workers) < args.parallel:
+            while pending_targets and len(active_workers) < args.parallel and not shutdown_started:
                 launch_index = None
                 for index, target in enumerate(pending_targets):
                     host = target_host(target)
@@ -912,7 +951,7 @@ def main() -> int:
                 )
                 now = time.time()
 
-            while pending_index_workers and len(active_index_workers) < args.index_parallel:
+            while pending_index_workers and len(active_index_workers) < args.index_parallel and not shutdown_started:
                 launch_index = None
                 launched_worker: dict | None = None
                 for index, queued_worker in enumerate(pending_index_workers):
@@ -1048,7 +1087,7 @@ def main() -> int:
     )
     batch_status.write_state("gijiroku", status_state)
     print(f"[DONE] {summary_path}", flush=True)
-    return 0
+    return 143 if stop_controller.should_stop() else 0
 
 
 if __name__ == "__main__":
