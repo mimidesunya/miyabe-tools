@@ -72,7 +72,7 @@
     }
 
     function normalizeSort(value) {
-        return String(value || '') === 'date' ? 'date' : 'relevance';
+        return String(value || '') === 'relevance' ? 'relevance' : 'date';
     }
 
     function docTypeLabel(value) {
@@ -112,7 +112,7 @@
         if (state.prefCode) params.set('pref_code', state.prefCode);
         if (state.startYear) params.set('start_year', state.startYear);
         if (state.endYear) params.set('end_year', state.endYear);
-        if (state.sort !== 'relevance') params.set('sort', state.sort);
+        if (state.sort !== 'date') params.set('sort', state.sort);
         const url = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
         window.history.replaceState({}, '', url);
     }

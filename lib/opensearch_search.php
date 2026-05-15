@@ -242,7 +242,7 @@ function miyabe_search_build_request(array $params): array
     $docType = miyabe_search_normalize_doc_type((string)($params['doc_type'] ?? ($params['type'] ?? 'all')));
     $page = max(1, (int)($params['page'] ?? 1));
     $perPage = max(1, min(100, (int)($params['per_page'] ?? 20)));
-    $sort = trim((string)($params['sort'] ?? 'relevance'));
+    $sort = trim((string)($params['sort'] ?? 'date'));
     $slug = trim((string)($params['slug'] ?? ''));
     $municipalityCode = trim((string)($params['municipality_code'] ?? ($params['code'] ?? '')));
     $prefCode = miyabe_search_normalize_pref_code((string)($params['pref_code'] ?? ($params['pref'] ?? '')));

@@ -32,7 +32,7 @@ $boot = [
     'prefCode' => trim((string)($_GET['pref_code'] ?? ($_GET['pref'] ?? ''))),
     'startYear' => trim((string)($_GET['start_year'] ?? '')),
     'endYear' => trim((string)($_GET['end_year'] ?? '')),
-    'sort' => trim((string)($_GET['sort'] ?? 'relevance')),
+    'sort' => trim((string)($_GET['sort'] ?? 'date')),
     'prefectures' => $prefectures,
 ];
 ?><!doctype html>
@@ -90,8 +90,8 @@ $boot = [
                 <label class="field" for="search-sort">
                     <span>並び順</span>
                     <select id="search-sort" name="sort">
+                        <option value="date">新しい順</option>
                         <option value="relevance">関連度</option>
-                        <option value="date">日付順</option>
                     </select>
                 </label>
                 <button class="primary-button" type="submit">検索</button>

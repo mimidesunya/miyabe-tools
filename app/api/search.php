@@ -14,7 +14,7 @@ try {
         'end_year' => miyabe_search_request_string('end_year'),
         'page' => miyabe_search_request_int('page', 1, 1, 100000),
         'per_page' => miyabe_search_request_int('per_page', 20, 1, 100),
-        'sort' => miyabe_search_request_string('sort', 'relevance'),
+        'sort' => miyabe_search_request_string('sort', 'date'),
     ]);
     $status = ($payload['status'] ?? '') === 'query_error' ? 422 : 200;
     miyabe_search_respond_json($payload, $status);
