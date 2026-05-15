@@ -18,7 +18,6 @@ from urllib.parse import parse_qs, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 
 sys.path.append(str(Path(__file__).parent))
-import build_minutes_index as minutes_index_builder
 import gijiroku_storage
 import gijiroku_targets
 
@@ -484,11 +483,6 @@ def main() -> int:
         if args.output_dir is not None
         else Path(target["index_json_path"]).resolve()
     )
-    output_db = (
-        (output_dir / "minutes.sqlite").resolve()
-        if args.output_dir is not None
-        else Path(target["db_path"]).resolve()
-    )
     pages_dir = work_dir / "pages"
     result_csv = work_dir / f"run_result_{now_ts()}.csv"
     state_path = work_dir / "scrape_state.json"
@@ -513,12 +507,6 @@ def main() -> int:
     index_json.write_text(
         json.dumps([asdict(item) for item in meeting_items], ensure_ascii=False, indent=2),
         encoding="utf-8",
-    )
-    minutes_meta_map = minutes_index_builder.parse_source_meta(index_json)
-    indexing_enabled = minutes_index_builder.prepare_incremental_index(
-        output_db,
-        logger=lambda message: print(message, flush=True),
-        context=str(target["slug"]),
     )
     emit_progress(0, len(meeting_items), state_path, state)
 
@@ -557,16 +545,6 @@ def main() -> int:
                     "updated_at": now_ts(),
                 }
                 gijiroku_storage.save_state(state_path, state)
-                index_result = minutes_index_builder.best_effort_upsert_source_file(
-                    output_db,
-                    downloads_dir,
-                    existing_output,
-                    meta_map=minutes_meta_map,
-                    logger=lambda message: print(message, flush=True),
-                    context=f"{target['slug']} {item.title}",
-                )
-                if index_result == "error":
-                    indexing_enabled = False
                 writer.writerow(
                     {
                         "title": item.title,
@@ -614,19 +592,6 @@ def main() -> int:
                 "updated_at": now_ts(),
             }
             gijiroku_storage.save_state(state_path, state)
-            if indexing_enabled and output_path:
-                indexed_output = Path(output_path)
-                if gijiroku_storage.logical_suffix(indexed_output) in {".txt", ".html", ".htm"}:
-                    index_result = minutes_index_builder.best_effort_upsert_source_file(
-                        output_db,
-                        downloads_dir,
-                        indexed_output,
-                        meta_map=minutes_meta_map,
-                        logger=lambda message: print(message, flush=True),
-                        context=f"{target['slug']} {item.title}",
-                    )
-                    if index_result == "error":
-                        indexing_enabled = False
 
             writer.writerow(
                 {
@@ -645,12 +610,6 @@ def main() -> int:
             if args.delay_seconds > 0 and idx < len(meeting_items):
                 time.sleep(args.delay_seconds)
 
-    if indexing_enabled:
-        minutes_index_builder.finalize_incremental_index(
-            output_db,
-            logger=lambda message: print(message, flush=True),
-            context=str(target["slug"]),
-        )
     print(f"[DONE] Saved index: {index_json}")
     print(f"[DONE] Result log : {result_csv}")
     return 0

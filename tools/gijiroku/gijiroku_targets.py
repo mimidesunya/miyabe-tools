@@ -188,7 +188,6 @@ def build_target_entry(
     data_dir = f"gijiroku/{slug}"
     downloads_dir = f"gijiroku/{slug}/downloads"
     index_json_path = f"gijiroku/{slug}/meetings_index.json"
-    db_path = f"{data_dir}/minutes.sqlite"
 
     return {
         "slug": slug,
@@ -208,7 +207,6 @@ def build_target_entry(
         "work_dir": build_work_path(data_dir),
         "downloads_dir": build_work_path(downloads_dir),
         "index_json_path": build_work_path(index_json_path),
-        "db_path": build_data_path(db_path),
     }
 
 

@@ -184,7 +184,6 @@ def build_target_entry(
     classification_dir = f"reiki/{slug}/json"
     image_dir = f"reiki/{slug}/images"
     markdown_dir = f"reiki/{slug}/markdown"
-    db_path = f"reiki/{slug}/ordinances.sqlite"
     work_root = build_work_path(str(Path(base_source_dir).parent))
 
     return {
@@ -206,7 +205,6 @@ def build_target_entry(
         "image_dir": build_data_path(image_dir),
         "image_public_url": build_public_data_url(image_dir),
         "markdown_dir": build_work_path(markdown_dir),
-        "db_path": build_data_path(db_path),
     }
 
 

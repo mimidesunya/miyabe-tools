@@ -1,0 +1,137 @@
+{
+  "dynamic": false,
+  "properties": {
+    "doc_type": {
+      "type": "keyword"
+    },
+    "slug": {
+      "type": "keyword"
+    },
+    "municipality_code": {
+      "type": "keyword"
+    },
+    "pref_code": {
+      "type": "keyword"
+    },
+    "pref_name": {
+      "type": "keyword"
+    },
+    "municipality_name": {
+      "type": "keyword"
+    },
+    "title": {
+      "type": "text",
+      "analyzer": "ja_cjk",
+      "fields": {
+        "keyword": {
+          "type": "keyword",
+          "ignore_above": 512
+        },
+        "ngram": {
+          "type": "text",
+          "analyzer": "ja_ngram",
+          "search_analyzer": "ja_cjk"
+        }
+      }
+    },
+    "title_terms": {
+      "type": "text",
+      "analyzer": "sudachi_terms"
+    },
+    "body": {
+      "type": "text",
+      "analyzer": "ja_cjk"
+    },
+    "body_terms": {
+      "type": "text",
+      "analyzer": "sudachi_terms"
+    },
+    "body_length": {
+      "type": "integer"
+    },
+    "source_url": {
+      "type": "keyword",
+      "ignore_above": 2048
+    },
+    "detail_url": {
+      "type": "keyword",
+      "ignore_above": 2048
+    },
+    "source_file": {
+      "type": "keyword",
+      "ignore_above": 2048
+    },
+    "source_system": {
+      "type": "keyword"
+    },
+    "indexed_at": {
+      "type": "date",
+      "format": "strict_date_optional_time||yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis",
+      "ignore_malformed": true
+    },
+    "updated_at": {
+      "type": "date",
+      "format": "strict_date_optional_time||yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis",
+      "ignore_malformed": true
+    },
+    "sort_date": {
+      "type": "date",
+      "format": "strict_date_optional_time||yyyy-MM-dd||epoch_millis",
+      "ignore_malformed": true
+    },
+    "assembly_name": {
+      "type": "keyword"
+    },
+    "meeting_name": {
+      "type": "text",
+      "analyzer": "ja_cjk",
+      "fields": {
+        "keyword": {
+          "type": "keyword",
+          "ignore_above": 512
+        }
+      }
+    },
+    "year_label": {
+      "type": "keyword"
+    },
+    "held_on": {
+      "type": "date",
+      "format": "strict_date_optional_time||yyyy-MM-dd||epoch_millis",
+      "ignore_malformed": true
+    },
+    "speaker": {
+      "type": "keyword"
+    },
+    "speaker_role": {
+      "type": "keyword"
+    },
+    "local_id": {
+      "type": "keyword"
+    },
+    "filename": {
+      "type": "keyword"
+    },
+    "ordinance_no": {
+      "type": "keyword"
+    },
+    "category": {
+      "type": "keyword"
+    },
+    "promulgated_on": {
+      "type": "date",
+      "format": "strict_date_optional_time||yyyy-MM-dd||epoch_millis",
+      "ignore_malformed": true
+    },
+    "enforced_on": {
+      "type": "date",
+      "format": "strict_date_optional_time||yyyy-MM-dd||epoch_millis",
+      "ignore_malformed": true
+    },
+    "amended_on": {
+      "type": "date",
+      "format": "strict_date_optional_time||yyyy-MM-dd||epoch_millis",
+      "ignore_malformed": true
+    }
+  }
+}

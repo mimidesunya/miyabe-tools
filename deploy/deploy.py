@@ -154,6 +154,10 @@ def prepare_ssh_key_from_wsl_path(wsl_key_path):
                 sys.exit(1)
             return _write_temp_ssh_key(key_bytes, source_label=windows_path)
 
+    windows_path = wsl_mount_path_to_windows_path(wsl_key_path)
+    if windows_path and os.path.exists(windows_path):
+        return prepare_ssh_key(windows_path)
+
     try:
         result = subprocess.run(
             ["wsl.exe", "sh", "-lc", f"cat {shlex.quote(wsl_key_path)}"],
@@ -165,6 +169,11 @@ def prepare_ssh_key_from_wsl_path(wsl_key_path):
         print("Error: wsl.exe was not found, but deploy.json specifies wsl_key_path.")
         sys.exit(1)
     except subprocess.CalledProcessError as e:
+        if windows_path:
+            print(f"WSL key read failed; trying Windows path: {windows_path}")
+            key_bytes = read_windows_file_bytes_from_wsl(windows_path)
+            if key_bytes:
+                return _write_temp_ssh_key(key_bytes, source_label=windows_path)
         stderr = e.stderr.decode('utf-8', errors='replace')
         print(f"Error reading SSH key from WSL path: {wsl_key_path}")
         print(f"Stderr: {stderr}")
@@ -537,7 +546,10 @@ def sync_single_file(config, ssh_base, local_path, remote_path, dry_run=False, r
     print(f"Syncing {local_path}...")
     dry_flag = " --dry-run" if dry_run else ""
     ignore_flag = " --ignore-existing" if ignore_existing_remote else ""
-    rsync_cmd = f"rsync -avz{ignore_flag}{dry_flag} -e '{ssh_base}' {local_path} {config['user']}@{config['host']}:{remote_path}"
+    rsync_cmd = (
+        f"rsync -avz --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r{ignore_flag}{dry_flag} "
+        f"-e \"{ssh_base}\" {local_path} {config['user']}@{config['host']}:{remote_path}"
+    )
     run_command(rsync_cmd, capture_output=False)
 
 def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
@@ -556,7 +568,8 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
     rsync_key_path = str(config['key_path']).replace('\\', '/')
     if os.name == 'nt' and len(rsync_key_path) >= 3 and rsync_key_path[1:3] == ':/':
         rsync_key_path = f"/cygdrive/{rsync_key_path[0].lower()}/{rsync_key_path[3:]}"
-    ssh_base = f"ssh -i {rsync_key_path} -p {config.get('port', 22)} -o StrictHostKeyChecking=no"
+    ssh_binary = "/usr/bin/ssh" if os.name == "nt" else "ssh"
+    ssh_base = f"{ssh_binary} -i {rsync_key_path} -p {config.get('port', 22)} -o StrictHostKeyChecking=no"
     
     # Sync each directory separately for better error handling and progress tracking.
     # Scraped gijiroku/reiki data lives in shared_data_dir and is populated on the remote host,
@@ -566,7 +579,6 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
     dirs_to_sync = [
         ("app/", f"{dest_dir}/app/"),
         ("lib/", f"{dest_dir}/lib/"),
-        ("src/", f"{dest_dir}/src/"),
         ("nginx/", f"{dest_dir}/nginx/"),
         ("docker/", f"{dest_dir}/docker/"),
         ("tools/", f"{dest_dir}/tools/"),
@@ -612,16 +624,53 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
                 # Never transfer, never delete (dev-only files)
                 filter_opts += f" --exclude='{pattern}'"
         dry_flag = " --dry-run" if dry_run else ""
-        rsync_cmd = f"rsync -avz --delete{dry_flag}{filter_opts} -e '{ssh_base}' {local_path} {config['user']}@{config['host']}:{remote_path}"
+        rsync_cmd = (
+            f"rsync -avz --delete --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r{dry_flag}{filter_opts} "
+            f"-e \"{ssh_base}\" {local_path} {config['user']}@{config['host']}:{remote_path}"
+        )
         run_command(rsync_cmd, capture_output=False)
     
     print("Sync complete.")
+
+
+def cleanup_legacy_search_artifacts(config, dest_dir, shared_data_dir):
+    quoted_dest = shlex.quote(dest_dir)
+    quoted_shared_gijiroku = shlex.quote(f"{shared_data_dir}/gijiroku")
+    quoted_shared_reiki = shlex.quote(f"{shared_data_dir}/reiki")
+    script = f"""
+set -eu
+dest_dir={quoted_dest}
+shared_gijiroku={quoted_shared_gijiroku}
+shared_reiki={quoted_shared_reiki}
+case "$dest_dir" in
+  "~") dest_dir="$HOME" ;;
+  "~/"*) dest_dir="$HOME/${{dest_dir#~/}}" ;;
+esac
+rm -rf "$dest_dir/src"
+rm -f "$dest_dir"/data/gijiroku/*/minutes.sqlite*
+rm -f "$dest_dir"/data/reiki/*/ordinances.sqlite*
+rm -f "$dest_dir"/work/gijiroku/*/minutes.sqlite*
+rm -f "$dest_dir"/work/reiki/*/ordinances.sqlite*
+rm -f "$shared_gijiroku"/*/minutes.sqlite*
+rm -f "$shared_reiki"/*/ordinances.sqlite*
+"""
+    ssh_exec(config, script)
 
 def main():
     parser = argparse.ArgumentParser(description='Deploy script.')
     parser.add_argument('config_file', help='Path to configuration JSON file')
     parser.add_argument('--full', action='store_true', help='Perform full deployment including Docker build and push. Default is code-only sync.')
     parser.add_argument('--dry-run', action='store_true', help='Show what would be synced without actually transferring files.')
+    parser.add_argument(
+        '--skip-normalize',
+        action='store_true',
+        help='Skip remote municipality storage normalization; useful for code-only scraper restarts.',
+    )
+    parser.add_argument(
+        '--skip-data-maintenance',
+        action='store_true',
+        help='Skip remote shared-data permission and migration passes for fast code-only deploys.',
+    )
     
     args = parser.parse_args()
 
@@ -654,6 +703,8 @@ def main():
     ssh_exec(config, f"mkdir -p {dest_dir}/data {dest_dir}/data/boards {shared_data_dir}")
     if args.dry_run:
         print("Skipping remote data migration in dry-run mode.")
+    elif args.skip_data_maintenance:
+        print("=== Skipping Remote Shared-Data Maintenance ===")
     else:
         ensure_remote_shared_data_permissions(config, shared_data_dir)
         ensure_remote_service_data_permissions(config, dest_dir)
@@ -665,9 +716,17 @@ def main():
         print("=== Dry-run complete; skipping docker-compose update and service restart ===")
         return
 
-    normalize_remote_municipality_storage(config, dest_dir, shared_data_dir)
-    ensure_remote_shared_data_permissions(config, shared_data_dir)
-    ensure_remote_service_data_permissions(config, dest_dir)
+    cleanup_legacy_search_artifacts(config, dest_dir, shared_data_dir)
+
+    if args.skip_normalize:
+        print("=== Skipping Remote Municipality Storage Normalization ===")
+    else:
+        normalize_remote_municipality_storage(config, dest_dir, shared_data_dir)
+    if args.skip_data_maintenance:
+        print("=== Skipping Remote Permission Refresh ===")
+    else:
+        ensure_remote_shared_data_permissions(config, shared_data_dir)
+        ensure_remote_service_data_permissions(config, dest_dir)
 
     # Generate docker-compose.prod.yml
     # Keep the service's data directory mounted as before,
@@ -676,7 +735,7 @@ def main():
 services:
   web:
     image: {img_web}
-    restart: always
+    restart: "no"
     ports:
       - "{config.get('app_port', 8301)}:80"
     volumes:
@@ -691,15 +750,45 @@ services:
 
   php:
     image: {img_php}
-    restart: always
+    restart: "no"
+    environment:
+      OPENSEARCH_URL: ${{OPENSEARCH_URL:-http://opensearch:9200}}
+      OPENSEARCH_USER: ${{OPENSEARCH_USER:-}}
+      OPENSEARCH_PASSWORD: ${{OPENSEARCH_PASSWORD:-}}
+      OPENSEARCH_INSECURE_DEV: ${{OPENSEARCH_INSECURE_DEV:-true}}
+      MIYABE_SEARCH_ALIAS: ${{MIYABE_SEARCH_ALIAS:-miyabe-documents-current}}
+      MIYABE_MINUTES_ALIAS: ${{MIYABE_MINUTES_ALIAS:-miyabe-minutes-current}}
+      MIYABE_REIKI_ALIAS: ${{MIYABE_REIKI_ALIAS:-miyabe-reiki-current}}
     volumes:
       - ./data:/var/www/data
       - {shared_data_dir}/reiki:/var/www/data/reiki
       - {shared_data_dir}/gijiroku:/var/www/data/gijiroku
       - ./app:/var/www/html
       - ./lib:/var/www/lib
-      - ./src:/var/www/src
       - ./docker/php/zz-www-overrides.conf:/usr/local/etc/php-fpm.d/zz-www-overrides.conf:ro
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
+  opensearch:
+    image: opensearchproject/opensearch:2.15.0
+    restart: "no"
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "{config.get('opensearch_port', 9200)}:9200"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  opensearch-data:
 """
     
     print("=== 4. Deploy to Remote ===")

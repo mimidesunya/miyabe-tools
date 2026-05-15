@@ -47,7 +47,7 @@ docker compose -f docker-compose.scraping.yml restart scraper-gijiroku scraper-b
 python3 deploy/remote_exec.py deploy.json -- "cd ~/services/miyabe-tools && docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml ps"
 ```
 
-`scraper-beat` は 1 分ごとに dispatcher task を投げ、会議録 worker は「前回の完了から既定 6 時間以上経過しているか」を見て `run_gijiroku_cycle` を queue へ積みます。`run_gijiroku_cycle` は各サイクルの先頭で `build_missing_minutes_indexes.py` を走らせ、`要反映`、完了間近、未着手、反映済みの順で `minutes.sqlite` の不足分補完を進めてから通常の全国スクレイプに入ります。
+`scraper-beat` は 1 分ごとに dispatcher task を投げ、会議録 worker は「前回の完了から既定 6 時間以上経過しているか」を見て `run_gijiroku_cycle` を queue へ積みます。`run_gijiroku_cycle` は各自治体のスクレイプ完了後に `tools/search/build_opensearch_index.py --mode update --doc-type minutes --slug ...` を実行し、その自治体分だけ OpenSearch alias 上で差し替えます。
 
 即時に 1 サイクル走らせたい場合:
 
@@ -56,11 +56,11 @@ docker compose -f docker-compose.scraping.yml exec scraper-gijiroku \
   python3 tools/remote/celery_enqueue.py gijiroku-cycle
 ```
 
-会議録の全文検索 DB を明示的に再構築したい場合:
+会議録の OpenSearch index を明示的に再構築したい場合:
 
 ```bash
 docker compose -f docker-compose.scraping.yml exec scraper-gijiroku \
-  python3 tools/remote/celery_enqueue.py gijiroku-rebuild --filter 01000
+  python3 tools/remote/celery_enqueue.py gijiroku-rebuild
 ```
 
 対象確認だけしたい場合:
@@ -73,7 +73,7 @@ python3 tools/gijiroku/scrape_all_minutes.py --list-targets --max-targets 20
 
 `reiki_system_urls.tsv` のうち、実装済みの `d1-law` / `taikei` を対象にします。  
 `--check-updates` を付けると既存条例も再取得して更新確認します。  
-各サイクルの先頭では `build_missing_ordinance_indexes.py` を優先実行し、`要反映`、完了間近、未着手、反映済みの順で `ordinances.sqlite` の不足分補完を進めます。各自治体のスクレイプ完了後にも `ordinances.sqlite` を自動で再構築するので、取得済み HTML のうち未反映だったページもその時点で検索対象に入ります。
+各サイクルでは自治体のスクレイプ完了後に `tools/search/build_opensearch_index.py --mode update --doc-type reiki --slug ...` を実行し、保存済み HTML / Markdown / JSON からその自治体分だけ OpenSearch alias 上で差し替えます。
 
 状態確認:
 
@@ -96,11 +96,11 @@ docker compose -f docker-compose.scraping.yml exec scraper-reiki \
   python3 tools/remote/celery_enqueue.py reiki-cycle
 ```
 
-例規集の全文検索 DB を明示的に再構築したい場合:
+例規集の OpenSearch index を明示的に再構築したい場合:
 
 ```bash
 docker compose -f docker-compose.scraping.yml exec scraper-reiki \
-  python3 tools/remote/celery_enqueue.py reiki-rebuild --filter 26214
+  python3 tools/remote/celery_enqueue.py reiki-rebuild
 ```
 
 対象確認だけしたい場合:

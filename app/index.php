@@ -35,14 +35,14 @@ function homepage_asset_url(string $relativePath): string
                 ポスター掲示場、会議録、例規集を自治体単位で整理しています。使える機能はすぐ開けて、準備中のものは進捗つきで追えます。
             </div>
             <div class="hero-actions">
-                <a class="hero-cta" href="/gijiroku/cross.php" target="_blank" rel="noopener">
+                <a class="hero-cta" href="/search/?doc_type=minutes" target="_blank" rel="noopener">
                     <span class="hero-cta-kicker"><span class="hero-cta-icon" aria-hidden="true">🏛️</span><span>会議録</span></span>
                     <span class="hero-cta-body">
                         <span class="hero-cta-title">会議録横断検索を開く</span>
                         <span class="hero-cta-sub">自治体をまたいで全文検索し、気になる自治体へそのまま切り替え</span>
                     </span>
                 </a>
-                <a class="hero-cta" href="/reiki/cross.php" target="_blank" rel="noopener">
+                <a class="hero-cta" href="/search/?doc_type=reiki" target="_blank" rel="noopener">
                     <span class="hero-cta-kicker"><span class="hero-cta-icon" aria-hidden="true">⚖️</span><span>例規集</span></span>
                     <span class="hero-cta-body">
                         <span class="hero-cta-title">例規集横断検索を開く</span>
@@ -50,7 +50,7 @@ function homepage_asset_url(string $relativePath): string
                     </span>
                 </a>
                 <div class="hero-cta-copy">
-                    会議録データをプログラムから利用したい場合は <a href="/api/gijiroku/" target="_blank" rel="noopener">API リファレンス</a>・<a href="/api/gijiroku/openapi.json" target="_blank" rel="noopener">OpenAPI 定義</a> をご覧ください。
+                    検索 API は <a href="/api/search?q=%E8%A3%9C%E6%AD%A3%E4%BA%88%E7%AE%97" target="_blank" rel="noopener">/api/search</a> に統一しました。
                 </div>
             </div>
             <div class="hero-meta">
@@ -75,7 +75,7 @@ function homepage_asset_url(string $relativePath): string
         <div class="legend">
             <span>利用可能: 画面とデータを公開中です</span>
             <span>休止中: データはあるものの公開を止めています</span>
-            <span>要反映: 取得は完了したが公開用データの反映待ちです</span>
+            <span>要反映: 取得は完了したが公開用 HTML / 検索反映待ちです</span>
             <span>未公開: データ未生成ですが取得タスクの進捗は確認できます</span>
         </div>
 

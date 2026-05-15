@@ -17,8 +17,7 @@ ENV MIYABE_PYTHON_BIN=/opt/miyabe-python/bin/python
 
 COPY ./app /var/www/html
 COPY ./lib /var/www/lib
-COPY ./src /var/www/src
 COPY ./docker/php/zz-www-overrides.conf /usr/local/etc/php-fpm.d/zz-www-overrides.conf
 
 # Ensure permissions
-RUN chown -R www-data:www-data /var/www/html /var/www/lib /var/www/src
+RUN chown -R www-data:www-data /var/www/html /var/www/lib

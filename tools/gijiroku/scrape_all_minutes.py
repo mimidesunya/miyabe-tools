@@ -120,7 +120,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--index-parallel",
         type=int,
         default=1,
-        help="同時に走らせる自治体インデックス更新数",
+        help="同時に走らせる OpenSearch 自治体別増分更新数",
     )
     parser.add_argument(
         "--per-host-parallel",
@@ -153,7 +153,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no-build-index",
         action="store_true",
-        help="自治体ごとのスクレイプ完了後に minutes.sqlite を更新しない",
+        help="スクレイプ完了後の OpenSearch 自治体別増分更新を行わない",
     )
     parser.add_argument(
         "--list-targets",
@@ -295,15 +295,13 @@ def build_index_command(args: argparse.Namespace, target: dict) -> list[str]:
     cmd = shlex.split(str(args.python_command))
     cmd.extend(
         [
-            str(Path("tools") / "gijiroku" / "build_minutes_index.py"),
+            str(Path("tools") / "search" / "build_opensearch_index.py"),
+            "--mode",
+            "update",
+            "--doc-type",
+            "minutes",
             "--slug",
             str(target["slug"]),
-            "--downloads-dir",
-            str(target["downloads_dir"]),
-            "--index-json",
-            str(target["index_json_path"]),
-            "--output-db",
-            str(target["db_path"]),
         ]
     )
     return cmd
@@ -395,13 +393,13 @@ def record_busy_index_result(
     stdout_path = run_logs_dir / f"{target['slug']}.index.log"
     stderr_path = run_logs_dir / f"{target['slug']}.index.err.log"
     stdout_path.write_text(
-        "別プロセスが minutes.sqlite を更新中のため、このバッチからのインデックス更新はスキップしました。\n",
+        "別プロセスが検索 index を更新中のため、このバッチからのインデックス更新はスキップしました。\n",
         encoding="utf-8",
     )
     stderr_path.write_text("", encoding="utf-8")
     summary = (
         f"{summarize_worker(scrape_worker['stdout_path'], scrape_worker['stderr_path'])} / "
-        "別プロセスが minutes.sqlite を更新中のため、このバッチからのインデックス更新はスキップしました"
+        "別プロセスが検索 index を更新中のため、このバッチからのインデックス更新はスキップしました"
     )
     finished_at = batch_status.now_text()
     record_target_result(
@@ -637,7 +635,11 @@ def main() -> int:
 
     print(f"[INFO] 対象自治体数: {len(targets)}", flush=True)
     print(f"[INFO] 並列数: {args.parallel}", flush=True)
-    print(f"[INFO] インデックス並列数: {args.index_parallel}", flush=True)
+    print(
+        f"[INFO] OpenSearch 自治体別増分更新: {'無効' if args.no_build_index else '有効'} "
+        f"(並列数 {args.index_parallel})",
+        flush=True,
+    )
     print(f"[INFO] ホストごとの並列数: {args.per_host_parallel}", flush=True)
     print(f"[INFO] サマリーCSV: {summary_path}", flush=True)
     print(f"[INFO] ログディレクトリ: {run_logs_dir}", flush=True)
@@ -752,7 +754,7 @@ def main() -> int:
                         progress_unit="",
                     )
                     write_status_state()
-                    print(f"[INDEX-QUEUE] {target['slug']} minutes.sqlite の更新を待機キューへ追加", flush=True)
+                    print(f"[INDEX-QUEUE] {target['slug']} 検索 index 更新を待機キューへ追加", flush=True)
                     made_progress = True
                     continue
 
@@ -997,7 +999,7 @@ def main() -> int:
                 write_status_state()
                 print(
                     f"[INDEX-START] {launched_worker['target']['slug']} "
-                    f"minutes.sqlite を更新中 pid={launched_worker['process'].pid}",
+                    f"検索 index を更新中 pid={launched_worker['process'].pid}",
                     flush=True,
                 )
 

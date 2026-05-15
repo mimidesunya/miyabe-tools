@@ -4,6 +4,7 @@ from __future__ import annotations
 # スクレイパ専用の tools/data/work と compose 設定を remote へ配る。
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -27,6 +28,7 @@ from deploy import (
     ssh_copy_content,
     ssh_exec,
     verify_scraping_services_running,
+    cleanup_legacy_search_artifacts,
 )
 
 
@@ -45,8 +47,9 @@ def rsync_dir(
     delete_flag = " --delete" if delete else ""
     dry_flag = " --dry-run" if dry_run else ""
     cmd = (
-        f"rsync -avz{delete_flag}{dry_flag} "
-        f"-e '{ssh_base}' {local_path} {config['user']}@{config['host']}:{remote_path}"
+        f"rsync -avz --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r{delete_flag}{dry_flag} "
+        f"--exclude='__pycache__/' --exclude='*.pyc' --exclude='*.pyo' "
+        f"-e \"{ssh_base}\" {local_path} {config['user']}@{config['host']}:{remote_path}"
     )
     run_command(cmd, capture_output=False)
 
@@ -61,8 +64,8 @@ def rsync_file(
 ) -> None:
     dry_flag = " --dry-run" if dry_run else ""
     cmd = (
-        f"rsync -avz{dry_flag} "
-        f"-e '{ssh_base}' {local_path} {config['user']}@{config['host']}:{remote_path}"
+        f"rsync -avz --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r{dry_flag} "
+        f"-e \"{ssh_base}\" {local_path} {config['user']}@{config['host']}:{remote_path}"
     )
     run_command(cmd, capture_output=False)
 
@@ -140,7 +143,11 @@ def main() -> int:
 
     dest_dir = resolve_remote_dest_dir(config["dest_dir"])
     shared_data_dir = resolve_remote_shared_data_dir(config)
-    ssh_base = f"ssh -i {config['key_path']} -p {config.get('port', 22)} -o StrictHostKeyChecking=no"
+    rsync_key_path = str(config["key_path"]).replace("\\", "/")
+    if os.name == "nt" and len(rsync_key_path) >= 3 and rsync_key_path[1:3] == ":/":
+        rsync_key_path = f"/cygdrive/{rsync_key_path[0].lower()}/{rsync_key_path[3:]}"
+    ssh_binary = "/usr/bin/ssh" if os.name == "nt" else "ssh"
+    ssh_base = f"{ssh_binary} -i {rsync_key_path} -p {config.get('port', 22)} -o StrictHostKeyChecking=no"
 
     ssh_exec(
         config,
@@ -165,6 +172,7 @@ def main() -> int:
         rsync_dir(config, ssh_base, "work/reiki/", f"{dest_dir}/work/reiki/", dry_run=args.dry_run, delete=False)
 
     if not args.dry_run:
+        cleanup_legacy_search_artifacts(config, dest_dir, shared_data_dir)
         uid, gid = remote_user_ids(config)
         compose_text = build_scraping_compose(
             image_name=args.image_name,

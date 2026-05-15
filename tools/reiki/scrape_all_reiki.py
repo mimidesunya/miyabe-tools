@@ -120,7 +120,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no-build-index",
         action="store_true",
-        help="自治体ごとのスクレイプ完了後に ordinances.sqlite を更新しない",
+        help="スクレイプ完了後の OpenSearch 自治体別増分更新を行わない",
     )
     parser.add_argument(
         "--list-targets",
@@ -240,23 +240,16 @@ def launch_worker(
 
 
 def build_index_command(args: argparse.Namespace, target: dict) -> list[str]:
-    manifest_json = Path(target["work_root"]) / "source_manifest.json.gz"
     cmd = shlex.split(str(args.python_command))
     cmd.extend(
         [
-            str(Path("tools") / "reiki" / "build_ordinance_index.py"),
+            str(Path("tools") / "search" / "build_opensearch_index.py"),
+            "--mode",
+            "update",
+            "--doc-type",
+            "reiki",
             "--slug",
             str(target["slug"]),
-            "--clean-html-dir",
-            str(target["html_dir"]),
-            "--classification-dir",
-            str(target["classification_dir"]),
-            "--markdown-dir",
-            str(target["markdown_dir"]),
-            "--manifest-json",
-            str(manifest_json),
-            "--output-db",
-            str(target["db_path"]),
         ]
     )
     return cmd
@@ -450,6 +443,7 @@ def main() -> int:
 
     print(f"[INFO] 対象自治体数: {len(targets)}", flush=True)
     print(f"[INFO] 並列数: {args.parallel}", flush=True)
+    print(f"[INFO] OpenSearch 自治体別増分更新: {'無効' if args.no_build_index else '有効'}", flush=True)
     print(f"[INFO] ホストごとの並列数: {args.per_host_parallel}", flush=True)
     print(f"[INFO] サマリーCSV: {summary_path}", flush=True)
     print(f"[INFO] ログディレクトリ: {run_logs_dir}", flush=True)
@@ -623,7 +617,7 @@ def main() -> int:
                         progress_unit="",
                     )
                     batch_status.write_state("reiki", status_state)
-                    print(f"[INDEX] {target['slug']} ordinances.sqlite を更新中", flush=True)
+                    print(f"[INDEX] {target['slug']} 検索 index 更新中", flush=True)
                     try:
                         index_result = run_index_builder(
                             target,

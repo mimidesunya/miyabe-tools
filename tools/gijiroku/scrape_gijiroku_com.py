@@ -19,7 +19,6 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 sys.path.append(str(Path(__file__).parent))
-import build_minutes_index as minutes_index_builder
 import gijiroku_storage
 import gijiroku_targets
 
@@ -480,11 +479,6 @@ def main() -> int:
         if args.output_dir is not None
         else Path(target["index_json_path"]).resolve()
     )
-    output_db = (
-        (output_dir / "minutes.sqlite").resolve()
-        if args.output_dir is not None
-        else Path(target["db_path"]).resolve()
-    )
     pages_dir = work_dir / "pages"
     result_csv = work_dir / f"run_result_{now_ts()}.csv"
     state_path = work_dir / "scrape_state.json"
@@ -514,13 +508,6 @@ def main() -> int:
             json.dumps([asdict(item) for item in meeting_items], ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
-        minutes_meta_map = minutes_index_builder.parse_source_meta(index_json)
-        indexing_enabled = minutes_index_builder.prepare_incremental_index(
-            output_db,
-            logger=lambda message: print(message, flush=True),
-            context=str(target["slug"]),
-        )
-
         if args.max_meetings > 0:
             meeting_items = meeting_items[: args.max_meetings]
         emit_progress(0, len(meeting_items), state_path, state)
@@ -566,7 +553,6 @@ def main() -> int:
                     preferred_output = existing_text_output or existing_html_output or existing_outputs[0]
                     output_path = str(preferred_output)
                     status = "skipped_existing"
-                    existing_indexable_output = existing_text_output or existing_html_output
                     state["items"][resume_key] = {
                         "title": item.title,
                         "year_label": item.year_label,
@@ -576,17 +562,6 @@ def main() -> int:
                         "updated_at": now_ts(),
                     }
                     gijiroku_storage.save_state(state_path, state)
-                    if indexing_enabled and existing_indexable_output is not None:
-                        index_result = minutes_index_builder.best_effort_upsert_source_file(
-                            output_db,
-                            downloads_dir,
-                            existing_indexable_output,
-                            meta_map=minutes_meta_map,
-                            logger=lambda message: print(message, flush=True),
-                            context=f"{target['slug']} {item.title}",
-                        )
-                        if index_result == "error":
-                            indexing_enabled = False
                     writer.writerow(
                         {
                             "title": item.title,
@@ -633,19 +608,6 @@ def main() -> int:
                     "updated_at": now_ts(),
                 }
                 gijiroku_storage.save_state(state_path, state)
-                if indexing_enabled and output_path:
-                    indexed_output = Path(output_path)
-                    if gijiroku_storage.logical_suffix(indexed_output) in {".txt", ".html", ".htm"}:
-                        index_result = minutes_index_builder.best_effort_upsert_source_file(
-                            output_db,
-                            downloads_dir,
-                            indexed_output,
-                            meta_map=minutes_meta_map,
-                            logger=lambda message: print(message, flush=True),
-                            context=f"{target['slug']} {item.title}",
-                        )
-                        if index_result == "error":
-                            indexing_enabled = False
 
                 writer.writerow(
                     {
@@ -661,12 +623,6 @@ def main() -> int:
                 emit_progress(idx, len(meeting_items), state_path, state)
                 time.sleep(max(args.delay_seconds, 0))
 
-        if indexing_enabled:
-            minutes_index_builder.finalize_incremental_index(
-                output_db,
-                logger=lambda message: print(message, flush=True),
-                context=str(target["slug"]),
-            )
         context.close()
         browser.close()
 

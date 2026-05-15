@@ -28,14 +28,15 @@
 自治体ごとの例規集データを Web 上で閲覧し、AI 評価結果を確認するツールです。
 
 - 画面: `/reiki/?slug={slug}`
-- 横断全文検索: `/reiki/cross.php`
+- 統合検索: `/search/?doc_type=reiki`
 
 ### 3. 会議録ツール
 
-自治体ごとの会議録データを SQLite FTS5 で全文検索するツールです。  
-日本語検索語の分かち書きと正規化には `SudachiPy` を使います。
+自治体ごとの会議録スクレイピング結果を閲覧し、検索は OpenSearch の統合検索 API に集約します。  
+OpenSearch の index はスクレイピング済みファイルから再構築できます。
 
 - 画面: `/gijiroku/?slug={slug}`
+- 統合検索: `/search/?doc_type=minutes`
 - 川崎市向け詳細: [tools/gijiroku/README.md](tools/gijiroku/README.md)
 
 ## 公開中のWeb画面
@@ -43,7 +44,7 @@
 - トップ: https://tools.miya.be/
 - 川崎市ポスター掲示場: https://tools.miya.be/boards/14130-kawasaki-shi/
 - 川崎市例規集 AI評価ビューア: https://tools.miya.be/reiki/?slug=14130-kawasaki-shi
-- 例規集横断全文検索: https://tools.miya.be/reiki/cross.php
+- 会議録・例規集 統合検索: https://tools.miya.be/search/
 - 川崎市議会 会議録 全文検索: https://tools.miya.be/gijiroku/?slug=14130-kawasaki-shi
 
 ## トップページ更新方式
@@ -55,20 +56,45 @@
 - トップページでは `🪧 掲示板` `📝 会議録` `📚 例規集` のアイコンで機能を見分けやすくしています
 - `/api/home.php` はサーバー側キャッシュを持ち、自治体カタログや公開件数の重い再計算を毎回やり直さないようにしています
 - そのため、トップの自治体一覧は API の返却結果がそのまま表示内容になります
-- トップページの `要反映` は、スクレイプ件数上は完了しているのに公開用 DB / HTML の検出が追いついていない状態です
-- 会議録の `要反映` はトップページ側で自動的に補完キューへ積み、常駐の会議録サービスが `minutes.sqlite` の不足分補完を順次処理します
+- トップページの進捗は、スクレイピング済みファイル・manifest・タスク状態から復元します
+- 会議録・例規集の公開検索への反映は、通常はスクレイプ完了自治体だけを OpenSearch alias 上で差し替えます
+- 全量再構築が必要なときは versioned index を作って alias を切り替える方式です
 
-## パフォーマンス方針
+## 検索基盤
 
-- トップや横断検索の初期表示では、全自治体ぶんの `COUNT(*)` をリクエスト中に回しません
-- 検索用 SQLite は rebuild 前提なので、公開件数や有無の判定は `MAX(id)` と ready 一覧キャッシュを優先します
-- 横断検索の自治体一覧は server-side の ready キャッシュを返し、ブラウザ側の同時検索数も控えめにしています
+- 公開検索 API は `/api/search` です
+- `/api/search` は OpenSearch alias だけを検索します
+- OpenSearch が利用できない場合、検索 API は 503 を返します
+- SQLite FTS5 への検索フォールバックはありません
+- `minutes.sqlite` / `ordinances.sqlite` は公開検索には不要です。削除されていても、スクレイピング済みファイルから OpenSearch index を作れます
+- `search_batch` とブラウザ側の自治体ごとの逐次検索は廃止しました
 
-## 全文検索メモ
+### OpenSearch 開発環境
 
-- 会議録・例規集の検索インデックスは、SQLite FTS5 に SudachiPy で分かち書きした terms カラムを入れて作ります
-- 検索時も PHP から同じ SudachiPy ヘルパを呼び、raw query をそのまま `MATCH` へ投げません
-- Web コンテナにも Python と SudachiPy が必要なので、この変更を反映するには PHP イメージの再 build を伴う deploy が必要です
+`docker-compose.yml` に OpenSearch と OpenSearch Dashboards を含めています。接続設定は `.env.example` をコピーして調整します。
+
+```bash
+cp .env.example .env
+docker compose up -d opensearch php web
+```
+
+全量再構築では、スクレイピング済みファイルから versioned index を作り、alias を atomic switch します。
+
+```bash
+python tools/search/build_opensearch_index.py --mode rebuild --doc-type all
+```
+
+通常の巡回では、スクレイプが終わった自治体だけを current alias へ差し替えます。alias がまだない初回は、その slug だけを入れた index を作ってから、その後の自治体が徐々に追加されます。
+
+```bash
+python tools/search/build_opensearch_index.py --mode update --doc-type minutes --slug 14130-kawasaki-shi
+```
+
+主な alias:
+
+- `miyabe-minutes-current`
+- `miyabe-reiki-current`
+- `miyabe-documents-current`
 
 ## slug の正規化
 
@@ -81,3 +107,4 @@
 本番デプロイではサービスディレクトリ配下の `data` をそのまま `/var/www/data` にマウントし、`data/boards`・`data/users.sqlite`・`data/config.json` は従来どおりその場所に置きます。  
 容量の大きい `data/reiki` と `data/gijiroku` だけを `/mnt/big/miyabe-tools/reiki` と `/mnt/big/miyabe-tools/gijiroku` から重ねて見せます。  
 これらはリモート側でスクレイパが生成する前提で、`deploy.sh` ではローカル開発環境から同期しません。
+次回デプロイ時には旧 `src` と旧検索用 SQLite ファイルをリモート側でも削除します。

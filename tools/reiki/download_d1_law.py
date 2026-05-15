@@ -11,7 +11,6 @@ from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 import requests
 
 sys.path.append(str(Path(__file__).parent))
-import build_ordinance_index as ordinance_index_builder
 import parse_d1_law
 import reiki_io
 import reiki_targets
@@ -245,7 +244,6 @@ def main():
     manifest_path = work_root / "source_manifest.json.gz"
     state_path = work_root / "scrape_state.json"
     classification_dir = target["classification_dir"]
-    output_db = Path(target["db_path"])
 
     print(f"Target: {target['name']} ({target['slug']}, {target['system_type']})")
     print(f"Source URL: {target['source_url']}")
@@ -268,11 +266,6 @@ def main():
     if total_regulations <= 0:
         print("[WARN] No regulations found.", flush=True)
     emit_progress(0, total_regulations, state_path)
-    indexing_enabled = ordinance_index_builder.prepare_incremental_index(
-        output_db,
-        logger=lambda message: print(message, flush=True),
-        context=str(target["slug"]),
-    )
 
     downloaded_count = 0
     checked_count = 0
@@ -338,34 +331,11 @@ def main():
         if isinstance(source_item, dict):
             manifest_entries[-1]["mokujicd"] = str(source_item.get("mokujicd", ""))
 
-        logical_key = Path(logical_source.name).with_suffix("").as_posix()
-        # 既存 HTML の再利用時も含め、検索 DB 側は 1 件ずつ取りこぼしなく更新する。
-        if indexing_enabled:
-            index_result = ordinance_index_builder.best_effort_upsert_source_key(
-                slug=str(target["slug"]),
-                clean_html_dir=html_dir,
-                classification_dir=classification_dir,
-                markdown_dir=markdown_dir,
-                output_db=output_db,
-                key=logical_key,
-                manifest=manifest_entries[-1],
-                logger=lambda message: print(message, flush=True),
-                context=f"{target['slug']} {logical_key}",
-            )
-            if index_result == "error":
-                indexing_enabled = False
-
         if ((index + 1) % 25) == 0 or (index + 1) == total_regulations:
             # 途中停止しても後追い補完が source_url 等を復元できるよう、manifest を定期保存する。
             reiki_io.write_json(manifest_path, manifest_entries, compress=True)
         emit_progress(index + 1, total_regulations, state_path)
 
-    if indexing_enabled:
-        ordinance_index_builder.finalize_incremental_index(
-            output_db,
-            logger=lambda message: print(message, flush=True),
-            context=str(target["slug"]),
-        )
     reiki_io.write_json(manifest_path, manifest_entries, compress=True)
     print(f"Finished. Downloaded {downloaded_count} files.")
     print(f"Checked existing: {checked_count}")

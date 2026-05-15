@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-# 既存の data/work を走査し、旧バッチ向けの background_tasks JSON を後追い生成する。
+# 既存の data/work を走査し、スクレイピング進捗用の background_tasks JSON を後追い生成する。
 
 import argparse
 import gzip
 import json
-import sqlite3
 import sys
 import time
 from pathlib import Path
@@ -93,21 +92,6 @@ def load_json_array_count(path: Path) -> int:
     return len(loaded) if isinstance(loaded, list) else 0
 
 
-def sqlite_row_count(path: Path, table: str) -> int:
-    if not path.exists():
-        return 0
-    try:
-        connection = sqlite3.connect(path)
-        try:
-            # 検索用 DB は rebuild 前提なので、rowid の最大値を現在件数として扱う。
-            row = connection.execute(f"SELECT COALESCE(MAX(id), 0) FROM {table}").fetchone()
-        finally:
-            connection.close()
-    except Exception:
-        return 0
-    return max(0, int(row[0] if row else 0))
-
-
 def latest_mtime(paths: list[Path]) -> float | None:
     mtimes: list[float] = []
     for path in paths:
@@ -167,22 +151,20 @@ def build_snapshot_state(task_name: str, items: dict[str, dict[str, Any]]) -> di
     }
 
 
-# 会議録は index JSON / ダウンロード済み本文 / SQLite の最大値を現在件数として採用する。
+# 会議録は index JSON / ダウンロード済み本文から snapshot を復元する。
 def gijiroku_snapshot_items(*, fast: bool = False) -> dict[str, dict[str, Any]]:
     items: dict[str, dict[str, Any]] = {}
     for target in gijiroku_targets.iter_gijiroku_targets():
         downloads_dir = Path(target["downloads_dir"])
         index_json_path = Path(target["index_json_path"])
-        db_path = Path(target["db_path"])
 
         downloaded_count = 0 if fast else count_gijiroku_downloads(downloads_dir)
-        indexed_count = sqlite_row_count(db_path, "minutes")
-        total_count = max(load_json_array_count(index_json_path), downloaded_count, indexed_count)
-        current_count = max(downloaded_count, indexed_count)
+        total_count = max(load_json_array_count(index_json_path), downloaded_count)
+        current_count = downloaded_count
         if total_count <= 0:
             continue
 
-        updated_at = format_timestamp(latest_mtime([downloads_dir, file_or_gzip_path(index_json_path) or index_json_path, db_path]))
+        updated_at = format_timestamp(latest_mtime([downloads_dir, file_or_gzip_path(index_json_path) or index_json_path]))
         source_url = str(target.get("source_url", "")).strip()
         host = (urlsplit(source_url).hostname or "").strip().lower()
         items[str(target["slug"])] = {
@@ -207,7 +189,7 @@ def gijiroku_snapshot_items(*, fast: bool = False) -> dict[str, dict[str, Any]]:
     return items
 
 
-# 例規集は manifest / source / clean HTML / SQLite を見比べて snapshot を復元する。
+# 例規集は manifest / source / clean HTML から snapshot を復元する。
 def reiki_snapshot_items(*, fast: bool = False) -> dict[str, dict[str, Any]]:
     items: dict[str, dict[str, Any]] = {}
     for target in reiki_targets.iter_reiki_targets():
@@ -215,20 +197,18 @@ def reiki_snapshot_items(*, fast: bool = False) -> dict[str, dict[str, Any]]:
         manifest_path = work_root / "source_manifest.json"
         source_dir = Path(target["source_dir"])
         html_dir = Path(target["html_dir"])
-        db_path = Path(target["db_path"])
 
         manifest_count = load_json_array_count(manifest_path)
         source_count = 0 if fast else count_reiki_html_files(source_dir)
         clean_html_count = 0 if fast else count_reiki_html_files(html_dir)
-        indexed_count = sqlite_row_count(db_path, "ordinances")
-        current_count = max(source_count, clean_html_count, indexed_count)
+        current_count = max(source_count, clean_html_count)
         total_count = manifest_count if manifest_count > 0 else current_count
         total_count = max(total_count, current_count)
         if total_count <= 0:
             continue
 
         updated_at = format_timestamp(
-            latest_mtime([work_root, file_or_gzip_path(manifest_path) or manifest_path, source_dir, html_dir, db_path])
+            latest_mtime([work_root, file_or_gzip_path(manifest_path) or manifest_path, source_dir, html_dir])
         )
         source_url = str(target.get("source_url", "")).strip()
         host = (urlsplit(source_url).hostname or "").strip().lower()
@@ -282,7 +262,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--fast",
         action="store_true",
-        help="ダウンロード済み本文やHTMLの再帰走査を省き、manifest と SQLite から高速に復元します。",
+        help="ダウンロード済み本文やHTMLの再帰走査を省き、manifest から高速に復元します。",
     )
     parser.add_argument(
         "--data-root",

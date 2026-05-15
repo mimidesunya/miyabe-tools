@@ -1,7 +1,7 @@
 services:
   web:
     image: nginx:latest
-    restart: always
+    restart: "no"
     ports:
       - "8301:80"
     volumes:
@@ -17,10 +17,52 @@ services:
       context: .
       dockerfile: docker/php/Dockerfile
     image: miyabe-tools-php-local
-    restart: always
+    restart: "no"
+    environment:
+      OPENSEARCH_URL: ${OPENSEARCH_URL:-http://opensearch:9200}
+      OPENSEARCH_USER: ${OPENSEARCH_USER:-}
+      OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD:-}
+      OPENSEARCH_INSECURE_DEV: ${OPENSEARCH_INSECURE_DEV:-true}
+      MIYABE_SEARCH_ALIAS: ${MIYABE_SEARCH_ALIAS:-miyabe-documents-current}
+      MIYABE_MINUTES_ALIAS: ${MIYABE_MINUTES_ALIAS:-miyabe-minutes-current}
+      MIYABE_REIKI_ALIAS: ${MIYABE_REIKI_ALIAS:-miyabe-reiki-current}
     volumes:
       - ./app:/var/www/html
       - ./data:/var/www/data
       - ./lib:/var/www/lib
-      - ./src:/var/www/src
       - ./docker/php/zz-www-overrides.conf:/usr/local/etc/php-fpm.d/zz-www-overrides.conf:ro
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
+  opensearch:
+    image: opensearchproject/opensearch:2.15.0
+    restart: "no"
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.15.0
+    restart: "no"
+    environment:
+      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
+    ports:
+      - "5601:5601"
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
+volumes:
+  opensearch-data:

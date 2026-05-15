@@ -28,7 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--filter",
         default="",
-        help="rebuild task 用の自治体フィルタ",
+        help="旧互換オプション。OpenSearch rebuild では無視されます",
     )
     return parser
 

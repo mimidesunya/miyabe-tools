@@ -16,6 +16,9 @@ def yaml_scalar(value: object) -> str:
         return "true" if value else "false"
     text = str(value)
     if isinstance(value, str):
+        if text.lower() in {"no", "yes", "true", "false", "on", "off", "null", "~"}:
+            escaped = text.replace("\\", "\\\\").replace("\"", "\\\"")
+            return f"\"{escaped}\""
         escaped = text.replace("\\", "\\\\").replace("\"", "\\\"")
         return f"\"{escaped}\""
     if text == "" or any(ch in text for ch in ":#[]{}&,>*!|%@`'\" \t"):
@@ -69,13 +72,20 @@ def build_scraping_compose(
         "SCRAPER_FAIL_SLEEP_SECONDS": str(fail_sleep_seconds),
         "SCRAPER_PYTHON_COMMAND": "python3",
         "SCRAPER_PHP_COMMAND": "php",
+        "OPENSEARCH_URL": "${OPENSEARCH_URL:-http://host.docker.internal:9200}",
+        "OPENSEARCH_USER": "${OPENSEARCH_USER:-}",
+        "OPENSEARCH_PASSWORD": "${OPENSEARCH_PASSWORD:-}",
+        "OPENSEARCH_INSECURE_DEV": "${OPENSEARCH_INSECURE_DEV:-true}",
+        "MIYABE_SEARCH_ALIAS": "${MIYABE_SEARCH_ALIAS:-miyabe-documents-current}",
+        "MIYABE_MINUTES_ALIAS": "${MIYABE_MINUTES_ALIAS:-miyabe-minutes-current}",
+        "MIYABE_REIKI_ALIAS": "${MIYABE_REIKI_ALIAS:-miyabe-reiki-current}",
     }
     compose = {
         "name": SCRAPING_COMPOSE_PROJECT,
         "services": {
             "scraper-redis": {
                 "image": "redis:7-alpine",
-                "restart": "unless-stopped",
+                "restart": "no",
                 "command": [
                     "redis-server",
                     "--save",
@@ -87,7 +97,7 @@ def build_scraping_compose(
             },
             "scraper-gijiroku": {
                 "image": image_name,
-                "restart": "unless-stopped",
+                "restart": "no",
                 "init": True,
                 "user": f"{uid}:{gid}",
                 "working_dir": "/workspace",
@@ -95,13 +105,12 @@ def build_scraping_compose(
                 "environment": {
                     **common_environment,
                     "SCRAPER_GIJIROKU_ACK_ROBOTS": "1",
-                    "SCRAPER_GIJIROKU_REFLECT_PARALLEL": "4",
-                    "SCRAPER_GIJIROKU_REBUILD_PARALLEL": "4",
                     "SCRAPER_GIJIROKU_PARALLEL": "8",
                     "SCRAPER_GIJIROKU_INDEX_PARALLEL": "1",
                     "SCRAPER_GIJIROKU_PER_HOST_PARALLEL": "1",
                     "SCRAPER_GIJIROKU_PER_HOST_START_INTERVAL": "2",
                 },
+                "extra_hosts": ["host.docker.internal:host-gateway"],
                 "volumes": [
                     ".:/workspace",
                     f"{shared_data_dir}/gijiroku:/workspace/data/gijiroku",
@@ -122,7 +131,7 @@ def build_scraping_compose(
             },
             "scraper-reiki": {
                 "image": image_name,
-                "restart": "unless-stopped",
+                "restart": "no",
                 "init": True,
                 "user": f"{uid}:{gid}",
                 "working_dir": "/workspace",
@@ -130,11 +139,11 @@ def build_scraping_compose(
                 "environment": {
                     **common_environment,
                     "SCRAPER_REIKI_CHECK_UPDATES": "1",
-                    "SCRAPER_REIKI_REFLECT_PARALLEL": "4",
                     "SCRAPER_REIKI_PARALLEL": "8",
                     "SCRAPER_REIKI_PER_HOST_PARALLEL": "1",
                     "SCRAPER_REIKI_PER_HOST_START_INTERVAL": "2",
                 },
+                "extra_hosts": ["host.docker.internal:host-gateway"],
                 "volumes": [
                     ".:/workspace",
                     f"{shared_data_dir}/reiki:/workspace/data/reiki",
@@ -155,7 +164,7 @@ def build_scraping_compose(
             },
             "scraper-beat": {
                 "image": image_name,
-                "restart": "unless-stopped",
+                "restart": "no",
                 "init": True,
                 "user": f"{uid}:{gid}",
                 "working_dir": "/workspace",

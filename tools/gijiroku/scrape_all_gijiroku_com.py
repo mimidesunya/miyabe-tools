@@ -36,7 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--refresh-seconds", type=float, default=5.0, help="進捗表示の更新間隔（秒）")
     parser.add_argument("--filter", default="", help="slug / code / name に部分一致する自治体だけを対象にする")
     parser.add_argument("--no-resume", action="store_true", help="既存の保存結果を無視して最初から取り直す")
-    parser.add_argument("--no-build-index", action="store_true", help="自治体ごとのスクレイプ完了後に minutes.sqlite を更新しない")
+    parser.add_argument("--no-build-index", action="store_true", help="自治体ごとのスクレイプ完了後に検索 index 更新を走らせない")
     parser.add_argument("--list-targets", action="store_true", help="対象自治体一覧だけ表示して終了する")
     return parser
 

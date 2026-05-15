@@ -551,10 +551,6 @@ function municipality_feature_live_has_data(string $feature, array $featureConfi
             return $dbPath !== '' && is_file($dbPath);
 
         case 'reiki':
-            $dbPath = trim((string)($featureConfig['db_path'] ?? ''));
-            if ($dbPath !== '' && sqlite_table_has_rows($dbPath, 'ordinances')) {
-                return true;
-            }
             $htmlDir = trim((string)($featureConfig['clean_html_dir'] ?? ''));
             return $htmlDir !== '' && directory_contains_matching_file(
                 $htmlDir,
@@ -562,12 +558,15 @@ function municipality_feature_live_has_data(string $feature, array $featureConfi
             );
 
         case 'gijiroku':
-            $dbPath = trim((string)($featureConfig['db_path'] ?? ''));
-            if ($dbPath !== '' && sqlite_table_has_rows($dbPath, 'minutes')) {
+            $indexJsonPath = trim((string)($featureConfig['index_json_path'] ?? ''));
+            if ($indexJsonPath !== '' && json_array_has_items_auto($indexJsonPath)) {
                 return true;
             }
-            $indexJsonPath = trim((string)($featureConfig['index_json_path'] ?? ''));
-            return $indexJsonPath !== '' && json_array_has_items_auto($indexJsonPath);
+            $downloadsDir = trim((string)($featureConfig['downloads_dir'] ?? ''));
+            return $downloadsDir !== '' && directory_contains_matching_file(
+                $downloadsDir,
+                ['/\.(?:txt|html|htm)(?:\.gz)?$/i']
+            );
     }
 
     return !empty($featureConfig['has_data']);
@@ -704,8 +703,6 @@ function normalize_municipality_entry(string $slug, array $entry): array
     $reikiClassificationRelative = normalize_data_relative_path(trim((string)($reikiConfig['classification_dir'] ?? "reiki/{$slug}/json")));
     $reikiImageRelative = normalize_data_relative_path(trim((string)($reikiConfig['image_dir'] ?? "reiki/{$slug}/images")));
     $reikiMarkdownRelative = normalize_data_relative_path(trim((string)($reikiConfig['markdown_dir'] ?? "reiki/{$slug}/markdown")));
-    $reikiDbRelative = normalize_data_relative_path(trim((string)($reikiConfig['db_path'] ?? "reiki/{$slug}/ordinances.sqlite")));
-    $reikiDbPath = data_path($reikiDbRelative);
     $reikiSourcePath = work_path($reikiSourceRelative);
     $reikiCleanHtmlPath = data_path($reikiCleanHtmlRelative);
     $reikiClassificationPath = data_path($reikiClassificationRelative);
@@ -715,11 +712,10 @@ function normalize_municipality_entry(string $slug, array $entry): array
         $reikiDetected = false;
         $reikiEnabled = false;
     } else {
-        $reikiDetected = sqlite_table_has_rows($reikiDbPath, 'ordinances')
-            || directory_contains_matching_file(
-                $reikiCleanHtmlPath,
-                ['/\.(?:html|htm)(?:\.gz)?$/i']
-            );
+        $reikiDetected = directory_contains_matching_file(
+            $reikiCleanHtmlPath,
+            ['/\.(?:html|htm)(?:\.gz)?$/i']
+        );
         $reikiEnabled = $reikiDetected || feature_enabled_value($reikiConfig['enabled'] ?? null, false);
     }
 
@@ -728,19 +724,20 @@ function normalize_municipality_entry(string $slug, array $entry): array
     $gijirokuDataRelative = normalize_data_relative_path(trim((string)($gijirokuConfig['data_dir'] ?? "gijiroku/{$slug}")));
     $gijirokuDownloadsRelative = normalize_data_relative_path(trim((string)($gijirokuConfig['downloads_dir'] ?? "gijiroku/{$slug}/downloads")));
     $gijirokuIndexJsonRelative = normalize_data_relative_path(trim((string)($gijirokuConfig['index_json_path'] ?? "gijiroku/{$slug}/meetings_index.json")));
-    $gijirokuDbRelative = normalize_data_relative_path(trim((string)($gijirokuConfig['db_path'] ?? "gijiroku/{$slug}/minutes.sqlite")));
     $assemblyName = trim((string)($gijirokuConfig['assembly_name'] ?? "{$name}議会"));
     $gijirokuDataPath = data_path($gijirokuDataRelative);
     $gijirokuWorkPath = work_path($gijirokuDataRelative);
     $gijirokuDownloadsPath = work_path($gijirokuDownloadsRelative);
     $gijirokuIndexJsonPath = work_path($gijirokuIndexJsonRelative);
-    $gijirokuDbPath = data_path($gijirokuDbRelative);
     if ($gijirokuSkipDetection) {
         $gijirokuDetected = false;
         $gijirokuEnabled = false;
     } else {
-        $gijirokuDetected = sqlite_table_has_rows($gijirokuDbPath, 'minutes')
-            || json_array_has_items_auto($gijirokuIndexJsonPath);
+        $gijirokuDetected = json_array_has_items_auto($gijirokuIndexJsonPath)
+            || directory_contains_matching_file(
+                $gijirokuDownloadsPath,
+                ['/\.(?:txt|html|htm)(?:\.gz)?$/i']
+            );
         $gijirokuEnabled = $gijirokuDetected || feature_enabled_value($gijirokuConfig['enabled'] ?? null, false);
     }
 
@@ -776,14 +773,12 @@ function normalize_municipality_entry(string $slug, array $entry): array
             'classification_dir_rel' => normalize_data_relative_path($reikiClassificationRelative),
             'image_dir_rel' => normalize_data_relative_path($reikiImageRelative),
             'markdown_dir_rel' => normalize_data_relative_path($reikiMarkdownRelative),
-            'db_path_rel' => normalize_data_relative_path($reikiDbRelative),
             'source_dir' => $reikiSourcePath,
             'clean_html_dir' => $reikiCleanHtmlPath,
             'classification_dir' => $reikiClassificationPath,
             'image_dir' => $reikiImagePath,
             'image_url' => data_public_url($reikiImageRelative),
             'markdown_dir' => $reikiMarkdownPath,
-            'db_path' => $reikiDbPath,
         ],
         'gijiroku' => [
             'enabled' => $gijirokuEnabled,
@@ -795,12 +790,10 @@ function normalize_municipality_entry(string $slug, array $entry): array
             'data_dir_rel' => normalize_data_relative_path($gijirokuDataRelative),
             'downloads_dir_rel' => normalize_data_relative_path($gijirokuDownloadsRelative),
             'index_json_path_rel' => normalize_data_relative_path($gijirokuIndexJsonRelative),
-            'db_path_rel' => normalize_data_relative_path($gijirokuDbRelative),
             'data_dir' => $gijirokuDataPath,
             'work_dir' => $gijirokuWorkPath,
             'downloads_dir' => $gijirokuDownloadsPath,
             'index_json_path' => $gijirokuIndexJsonPath,
-            'db_path' => $gijirokuDbPath,
         ],
     ];
 }

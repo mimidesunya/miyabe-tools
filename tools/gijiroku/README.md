@@ -17,8 +17,7 @@ pip install -r tools/gijiroku/requirements.txt
 playwright install chromium
 ```
 
-`build_minutes_index.py` と Web 検索は `SudachiPy` を前提にします。  
-スクレイパ用 Docker image だけでなく、Web 用 PHP image にも Python / SudachiPy を入れて同じ分かち書きを使います。
+公開検索は OpenSearch に集約しています。スクレイパは本文とメタ情報を保存し、検索 index は `tools/search/build_opensearch_index.py` がスクレイピング済みファイルから作ります。
 
 ## 実行例
 
@@ -105,29 +104,25 @@ python tools/gijiroku/scrape_all_minutes.py --ack-robots --systems gijiroku.com 
 python tools/gijiroku/scrape_all_minutes.py --ack-robots --parallel 8 --per-host-parallel 1 --per-host-start-interval 2
 ```
 
-`--parallel` はスクレイプ並列、`--index-parallel` は `minutes.sqlite` 更新並列です。  
-この一括実行では、各自治体のスクレイプ完了後に `minutes.sqlite` も更新されるため、バッチ進行中でも完了済み自治体から順に検索可能になります。  
-自動更新を止めたい場合だけ `--no-build-index` を付けてください。
+`--parallel` はスクレイプ並列です。検索 index の更新は、スクレイプ完了自治体ごとに OpenSearch builder の `--mode update --slug ...` を実行します。更新を止めたい場合だけ `--no-build-index` を付けます。
 
-## SQLite全文検索インデックス作成
+## OpenSearch index 作成
 
-単発で DB を再生成したい場合は、以下を実行します。
+通常は自治体単位で current alias を更新します。
 
 ```bash
-python tools/gijiroku/build_minutes_index.py --slug 14130-kawasaki-shi
+python tools/search/build_opensearch_index.py --mode update --doc-type minutes --slug 14130-kawasaki-shi
 ```
 
-生成先:
+全量再構築が必要な場合だけ、スクレイピング済みファイルから OpenSearch の versioned index を作成して alias を切り替えます。
 
-- 既定値 `data/gijiroku/{slug}/minutes.sqlite`
-- `tools/gijiroku/schema.sql` にDBスキーマ定義
-
-この DB の FTS 部分は、生テキストではなく SudachiPy で分かち書きした terms カラムを検索対象にします。検索語では `AND` / `OR` / `NOT` / `NEAR/5` に加えて、`"子育て支援"` のように引用符でくくるフレーズ一致も使えます。
+```bash
+python tools/search/build_opensearch_index.py --mode rebuild --doc-type minutes
+```
 
 Web画面:
 
-- `/gijiroku/?slug={slug}`（例: `http://localhost/gijiroku/?slug=14130-kawasaki-shi`）
-- `/gijiroku/cross.php`（自治体横断での会議録全文検索）
+- `/search/?doc_type=minutes`
 
 ## 出力
 
@@ -136,8 +131,6 @@ Web画面:
 
 - `work/gijiroku/14130-kawasaki-shi/meetings_index.json`  
   発見した会議候補一覧（タイトル・URL・年ラベル）
-- `data/gijiroku/14130-kawasaki-shi/minutes.sqlite`  
-  Web全文検索用SQLite（FTS5）
 - `work/gijiroku/14130-kawasaki-shi/run_result_YYYYMMDD_HHMMSS.csv`  
   実行結果ログ（各会議のステータス）
 - `work/gijiroku/14130-kawasaki-shi/downloads/`  
@@ -165,7 +158,6 @@ php tools/gijiroku/organize_minutes_data.php --slug 14130-kawasaki-shi
 - `--max-meetings` 処理件数上限（`0` は無制限）
 - `--timeout-ms` 操作タイムアウト（ミリ秒）
 - `--parallel` 自治体スクレイパの同時実行数
-- `--index-parallel` `minutes.sqlite` 更新の同時実行数
 - `--ack-robots` 規約/robots 確認済みフラグ（必須）
 - `--save-html` ダウンロード失敗時に会議詳細HTMLを保存
 - `--max-years` `kaigiroku.net` 系で取得対象年数を制限

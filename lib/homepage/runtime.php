@@ -48,19 +48,6 @@ function homepage_json_array_count_auto(string $path): int
     return 0;
 }
 
-function homepage_sqlite_row_count(string $dbPath, string $table): int
-{
-    static $cache = [];
-    $key = $dbPath . '|' . $table;
-    if (array_key_exists($key, $cache)) {
-        return $cache[$key];
-    }
-    // トップ一覧では「厳密件数」より「いま何件入っているか」を軽く知ることが大事。
-    // 検索用 DB は rebuild 前提なので、MAX(id) を現在件数として使う。
-    $cache[$key] = sqlite_table_max_id($dbPath, $table);
-    return $cache[$key];
-}
-
 function homepage_progress_count_is_complete(int $currentCount, int $totalCount): bool
 {
     return $totalCount > 0 && $currentCount >= $totalCount;
@@ -200,57 +187,45 @@ function homepage_feature_fallback_display(string $featureKey, array $feature, ?
     $snapshotTotal = max(0, (int)($snapshotDisplay['progress_total'] ?? 0));
 
     if ($featureKey === 'reiki') {
-        // 例規集は「ダウンロード済み」と「反映済み」を分けて見せたい。
-        // manifest 件数を基準にしつつ、clean HTML / SQLite が先行している古いデータにも追随する。
         $manifestPath = dirname((string)($feature['source_dir'] ?? '')) . DIRECTORY_SEPARATOR . 'source_manifest.json';
         $manifestCount = homepage_json_array_count_auto($manifestPath);
-        $indexedCount = homepage_sqlite_row_count((string)($feature['db_path'] ?? ''), 'ordinances');
         $cleanHtmlCount = homepage_unique_logical_file_count((string)($feature['clean_html_dir'] ?? ''), ['.html', '.htm']);
         $downloadedCount = max($manifestCount, $cleanHtmlCount, min($snapshotCurrent, max($snapshotTotal, $snapshotCurrent)));
-        $totalCount = max($manifestCount, $downloadedCount, $indexedCount, $cleanHtmlCount, $snapshotTotal);
-        if ($totalCount > 0) {
-            $downloadedCount = max($downloadedCount, min($indexedCount, $totalCount));
-        }
+        $totalCount = max($manifestCount, $downloadedCount, $cleanHtmlCount, $snapshotTotal);
         $detailLines = array_values(array_filter([
             homepage_progress_count_labeled_detail('DL済', $downloadedCount, $totalCount),
-            homepage_progress_count_labeled_detail('反映', $indexedCount, $totalCount),
+            homepage_progress_count_labeled_detail('HTML', $cleanHtmlCount, $totalCount),
         ]));
         if ($detailLines === []) {
             return null;
         }
-        $isComplete = homepage_progress_count_is_complete($indexedCount, $totalCount);
+        $isComplete = homepage_progress_count_is_complete($cleanHtmlCount, $totalCount);
         return [
             'label' => $isComplete ? '完了' : '反映状況',
             'class' => $isComplete ? 'task-done' : 'task-info',
             'detail' => implode("\n", $detailLines),
-            'progress_current' => $indexedCount,
+            'progress_current' => $cleanHtmlCount,
             'progress_total' => $totalCount > 0 ? $totalCount : null,
         ];
     }
 
     if ($featureKey === 'gijiroku') {
-        // 会議録は総件数・ダウンロード済み・反映済みの三つを見分けて表示する。
         $totalCount = homepage_json_array_count_auto((string)($feature['index_json_path'] ?? ''));
         $downloadedCount = homepage_unique_logical_file_count((string)($feature['downloads_dir'] ?? ''), ['.txt', '.html', '.htm']);
-        $indexedCount = homepage_sqlite_row_count((string)($feature['db_path'] ?? ''), 'minutes');
         $downloadedCount = max($downloadedCount, min($snapshotCurrent, max($snapshotTotal, $snapshotCurrent)));
-        $totalCount = max($totalCount, $downloadedCount, $indexedCount, $snapshotTotal);
-        if ($totalCount > 0) {
-            $downloadedCount = max($downloadedCount, min($indexedCount, $totalCount));
-        }
+        $totalCount = max($totalCount, $downloadedCount, $snapshotTotal);
         $detailLines = array_values(array_filter([
             homepage_progress_count_labeled_detail('DL済', $downloadedCount, $totalCount),
-            homepage_progress_count_labeled_detail('反映', $indexedCount, $totalCount),
         ]));
         if ($detailLines === []) {
             return null;
         }
-        $isComplete = homepage_progress_count_is_complete($indexedCount, $totalCount);
+        $isComplete = homepage_progress_count_is_complete($downloadedCount, $totalCount);
         return [
-            'label' => $isComplete ? '完了' : '反映状況',
+            'label' => $isComplete ? '完了' : '取得状況',
             'class' => $isComplete ? 'task-done' : 'task-info',
             'detail' => implode("\n", $detailLines),
-            'progress_current' => $indexedCount,
+            'progress_current' => $downloadedCount,
             'progress_total' => $totalCount > 0 ? $totalCount : null,
         ];
     }

@@ -24,7 +24,6 @@ from scrape_kami_city_pdf import (
     emit_progress,
     extract_pdf_text,
     extract_year_info,
-    load_minutes_index_builder,
     normalize_pdf_text,
     normalize_space,
     normalize_year_dir,
@@ -356,7 +355,6 @@ def main() -> int:
     work_dir = Path(target["work_dir"])
     downloads_dir = Path(target["downloads_dir"])
     index_json = Path(target["index_json_path"])
-    output_db = Path(target["db_path"])
     pages_dir = work_dir / "pages" if args.save_html else None
     pdf_dir = work_dir / "pdfs"
     state_path = work_dir / "scrape_state.json"
@@ -393,15 +391,6 @@ def main() -> int:
 
     index_json.parent.mkdir(parents=True, exist_ok=True)
     index_json.write_text(json.dumps([asdict(item) for item in meeting_items], ensure_ascii=False, indent=2), encoding="utf-8")
-    minutes_index_builder = load_minutes_index_builder()
-    minutes_meta_map = minutes_index_builder.parse_source_meta(index_json) if minutes_index_builder is not None else {}
-    indexing_enabled = False
-    if minutes_index_builder is not None:
-        indexing_enabled = minutes_index_builder.prepare_incremental_index(
-            output_db,
-            logger=lambda message: print(message, flush=True),
-            context=slug,
-        )
 
     state = gijiroku_storage.load_state(state_path)
     emit_progress(0, len(meeting_items), state_path, state)
@@ -459,18 +448,6 @@ def main() -> int:
             }
             gijiroku_storage.save_state(state_path, state)
 
-            if indexing_enabled and output_path:
-                index_result = minutes_index_builder.best_effort_upsert_source_file(
-                    output_db,
-                    downloads_dir,
-                    Path(output_path),
-                    meta_map=minutes_meta_map,
-                    logger=lambda message: print(message, flush=True),
-                    context=f"{slug} {item.title}",
-                )
-                if index_result == "error":
-                    indexing_enabled = False
-
             writer.writerow(
                 {
                     "title": item.title,
@@ -490,12 +467,6 @@ def main() -> int:
             if args.delay_seconds > 0 and idx < len(meeting_items):
                 time.sleep(args.delay_seconds)
 
-    if indexing_enabled:
-        minutes_index_builder.finalize_incremental_index(
-            output_db,
-            logger=lambda message: print(message, flush=True),
-            context=slug,
-        )
     print(f"[DONE] Saved index: {index_json}")
     print(f"[DONE] Result log : {result_csv}")
     return 0

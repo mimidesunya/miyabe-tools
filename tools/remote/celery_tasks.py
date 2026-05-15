@@ -30,11 +30,17 @@ def _run_command(label: str, command: list[str]) -> None:
         raise RuntimeError(f"{label} failed with exit code {completed.returncode}")
 
 
+def _scraper_build_search_index() -> bool:
+    return celery_runtime.env_bool("SCRAPER_BUILD_SEARCH_INDEX", False)
+
+
 def _gijiroku_backfill_command() -> list[str]:
     return _python_command() + [
-        "tools/gijiroku/build_missing_minutes_indexes.py",
-        "--parallel",
-        str(celery_runtime.env_int("SCRAPER_GIJIROKU_REFLECT_PARALLEL", 4, minimum=1)),
+        "tools/search/build_opensearch_index.py",
+        "--mode",
+        "rebuild",
+        "--doc-type",
+        "minutes",
     ]
 
 
@@ -62,14 +68,18 @@ def _gijiroku_scrape_command() -> list[str]:
             _python_command_text(),
         ]
     )
+    if not _scraper_build_search_index():
+        command.append("--no-build-index")
     return command
 
 
 def _reiki_backfill_command() -> list[str]:
     return _python_command() + [
-        "tools/reiki/build_missing_ordinance_indexes.py",
-        "--parallel",
-        str(celery_runtime.env_int("SCRAPER_REIKI_REFLECT_PARALLEL", 4, minimum=1)),
+        "tools/search/build_opensearch_index.py",
+        "--mode",
+        "rebuild",
+        "--doc-type",
+        "reiki",
     ]
 
 
@@ -97,26 +107,22 @@ def _reiki_scrape_command() -> list[str]:
             _php_command_text(),
         ]
     )
+    if not _scraper_build_search_index():
+        command.append("--no-build-index")
     return command
 
 
 def _rebuild_command(kind: str, name_filter: str) -> list[str]:
+    doc_type = "minutes" if kind == "minutes" else "reiki"
     command = _python_command() + [
-        "tools/rebuild_all_search_indexes.py",
-        "--kinds",
-        kind,
+        "tools/search/build_opensearch_index.py",
+        "--mode",
+        "rebuild",
+        "--doc-type",
+        doc_type,
     ]
-    if kind == "minutes":
-        command.extend(
-            [
-                "--minutes-parallel",
-                str(celery_runtime.env_int("SCRAPER_GIJIROKU_REBUILD_PARALLEL", 4, minimum=1)),
-                "--python-command",
-                _python_command_text(),
-            ]
-        )
     if name_filter.strip() != "":
-        command.extend(["--filter", name_filter.strip()])
+        print("[CELERY] name_filter is ignored by OpenSearch rebuild", flush=True)
     return command
 
 
@@ -164,10 +170,6 @@ def run_gijiroku_backfill() -> dict[str, object]:
 def run_gijiroku_cycle(self) -> dict[str, object]:
     try:
         celery_runtime.clear_retry_marker("gijiroku")
-        try:
-            _run_gijiroku_backfill_impl()
-        except Exception as exc:
-            print(f"[CELERY] gijiroku backfill failed but scrape will continue: {exc}", flush=True)
         _run_gijiroku_scrape_impl()
         celery_runtime.clear_retry_marker("gijiroku")
         return {"ok": True, "task": "gijiroku_cycle"}
@@ -194,10 +196,6 @@ def run_reiki_backfill() -> dict[str, object]:
 def run_reiki_cycle(self) -> dict[str, object]:
     try:
         celery_runtime.clear_retry_marker("reiki")
-        try:
-            _run_reiki_backfill_impl()
-        except Exception as exc:
-            print(f"[CELERY] reiki backfill failed but scrape will continue: {exc}", flush=True)
         _run_reiki_scrape_impl()
         celery_runtime.clear_retry_marker("reiki")
         return {"ok": True, "task": "reiki_cycle"}

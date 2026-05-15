@@ -16,7 +16,6 @@ function main(array $argv): void
     $dataDir = (string)($feature['data_dir'] ?? '');
     $workDir = (string)($feature['work_dir'] ?? '');
     $downloadsDir = (string)($feature['downloads_dir'] ?? '');
-    $dbPath = (string)($feature['db_path'] ?? '');
 
     if ($dataDir === '' || $downloadsDir === '') {
         throw new RuntimeException("gijiroku paths not found for slug: {$slug}");
@@ -25,15 +24,8 @@ function main(array $argv): void
         throw new RuntimeException("gijiroku data dir not found: {$dataDir}");
     }
 
-    $pdo = null;
-    if ($dbPath !== '' && is_file($dbPath)) {
-        $pdo = new PDO('sqlite:' . $dbPath);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    }
-
     $moved = 0;
     $deleted = 0;
-    $dbUpdated = 0;
     $removedLogs = 0;
     $removedDirs = 0;
 
@@ -56,11 +48,6 @@ function main(array $argv): void
             if (!$dryRun && !@unlink($path)) {
                 throw new RuntimeException("failed to delete file: {$path}");
             }
-            if ($pdo && !$dryRun) {
-                $stmt = $pdo->prepare('DELETE FROM minutes WHERE rel_path = :rel_path');
-                $stmt->execute([':rel_path' => $plan['old_rel']]);
-                $dbUpdated += $stmt->rowCount();
-            }
             $deleted++;
             continue;
         }
@@ -75,15 +62,6 @@ function main(array $argv): void
             if (!@rename($path, $destination)) {
                 throw new RuntimeException("failed to move file: {$path} -> {$destination}");
             }
-        }
-
-        if ($pdo && !$dryRun) {
-            $stmt = $pdo->prepare('UPDATE minutes SET rel_path = :new_rel WHERE rel_path = :old_rel');
-            $stmt->execute([
-                ':new_rel' => relative_path($destination, $downloadsDir),
-                ':old_rel' => $plan['old_rel'],
-            ]);
-            $dbUpdated += $stmt->rowCount();
         }
 
         $moved++;
@@ -113,7 +91,6 @@ function main(array $argv): void
     echo "  deleted junk files: {$deleted}\n";
     echo "  deleted run_result logs: {$removedLogs}\n";
     echo "  removed empty directories: {$removedDirs}\n";
-    echo "  DB rows updated/deleted: {$dbUpdated}\n";
     if ($dryRun) {
         echo "  mode: dry-run\n";
     }
@@ -175,16 +152,6 @@ function unique_destination(string $destination): string
         }
         $counter++;
     }
-}
-
-function relative_path(string $path, string $base): string
-{
-    $normalizedPath = str_replace('\\', '/', $path);
-    $normalizedBase = rtrim(str_replace('\\', '/', $base), '/');
-    if (str_starts_with($normalizedPath, $normalizedBase . '/')) {
-        return substr($normalizedPath, strlen($normalizedBase) + 1);
-    }
-    return basename($path);
 }
 
 function ensure_dir(string $dir): void

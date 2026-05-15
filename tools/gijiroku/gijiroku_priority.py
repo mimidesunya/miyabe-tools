@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import gzip
 import json
-import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -39,20 +38,6 @@ def load_json_array_count(path: Path) -> int:
     return len(loaded) if isinstance(loaded, list) else 0
 
 
-def sqlite_row_count(path: Path, table: str) -> int:
-    if not path.exists():
-        return 0
-    try:
-        connection = sqlite3.connect(path)
-        try:
-            row = connection.execute(f"SELECT COALESCE(MAX(id), 0) FROM {table}").fetchone()
-        finally:
-            connection.close()
-    except Exception:
-        return 0
-    return max(0, int(row[0] if row else 0))
-
-
 def count_downloaded_minutes(downloads_dir: Path) -> int:
     if not downloads_dir.exists():
         return 0
@@ -85,30 +70,25 @@ def load_scrape_progress(state_path: Path) -> tuple[int, int]:
 def target_priority_info(target: dict[str, Any]) -> dict[str, Any]:
     downloads_dir = Path(target["downloads_dir"])
     index_json_path = Path(target["index_json_path"])
-    db_path = Path(target["db_path"])
     state_path = Path(target["work_dir"]) / "scrape_state.json"
 
     downloaded_count = count_downloaded_minutes(downloads_dir)
-    indexed_count = sqlite_row_count(db_path, "minutes")
     index_total = load_json_array_count(index_json_path)
     state_current, state_total = load_scrape_progress(state_path)
 
-    current_count = max(downloaded_count, indexed_count, state_current)
+    current_count = max(downloaded_count, state_current)
     total_count = max(index_total, state_total, current_count)
     ratio = (current_count / total_count) if total_count > 0 else 0.0
 
-    if total_count > 0 and current_count >= total_count and indexed_count < total_count:
-        priority_group = 0
-        priority_label = "needs_publish"
-    elif total_count > 0 and current_count > 0 and current_count < total_count:
+    if total_count > 0 and current_count > 0 and current_count < total_count:
         priority_group = 1
         priority_label = "near_complete"
     elif total_count <= 0:
         priority_group = 2
         priority_label = "not_started"
-    elif indexed_count >= total_count:
+    elif current_count >= total_count:
         priority_group = 3
-        priority_label = "published"
+        priority_label = "scraped"
     else:
         priority_group = 2
         priority_label = "not_started"
@@ -120,7 +100,6 @@ def target_priority_info(target: dict[str, Any]) -> dict[str, Any]:
         "current_count": current_count,
         "total_count": total_count,
         "downloaded_count": downloaded_count,
-        "indexed_count": indexed_count,
     }
 
 
