@@ -151,7 +151,7 @@ function background_task_compact_detail_text(string $value, int $maxLength = 96)
         return '';
     }
     if (preg_match('/^stderr\s+(\d+)\s+bytes$/i', $value, $matches) === 1) {
-        return 'エラー出力あり ' . (string)$matches[1] . ' bytes';
+        return 'エラー出力あり ' . (string)$matches[1] . 'バイト';
     }
     if ($value === 'starting...') {
         return '起動中';
@@ -257,10 +257,10 @@ function background_task_item_failure_log_lines(array $item): array
     }
 
     $candidates = [
-        'index_stderr_log' => 'インデックス stderr',
-        'stderr_log' => 'スクレイピング stderr',
-        'index_stdout_log' => 'インデックス stdout',
-        'stdout_log' => 'スクレイピング stdout',
+        'index_stderr_log' => 'インデックスのエラー出力',
+        'stderr_log' => 'スクレイピングのエラー出力',
+        'index_stdout_log' => 'インデックスの標準出力',
+        'stdout_log' => 'スクレイピングの標準出力',
     ];
 
     foreach ($candidates as $field => $label) {
@@ -442,13 +442,13 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
         $returncode = $item['returncode'] ?? null;
         if ($returncode !== null && $returncode !== '') {
             if ($detail === '') {
-                $detail = 'rc=' . (string)$returncode;
+                $detail = '終了コード ' . (string)$returncode;
             } else {
                 $detailLines = preg_split('/\R/u', $detail, -1, PREG_SPLIT_NO_EMPTY) ?: [];
                 if ($detailLines === []) {
-                    $detailLines[] = 'rc=' . (string)$returncode;
+                    $detailLines[] = '終了コード ' . (string)$returncode;
                 } else {
-                    $detailLines[count($detailLines) - 1] .= ' / rc=' . (string)$returncode;
+                    $detailLines[count($detailLines) - 1] .= ' / 終了コード ' . (string)$returncode;
                 }
                 $detail = implode("\n", $detailLines);
             }
