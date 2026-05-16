@@ -98,7 +98,6 @@
 
         return `
             <div class="running-item">
-                <span class="running-service">${renderFeatureIdentity(entry?.feature_icon, entry?.feature_label)}</span>
                 <span class="running-name">${escapeHtml(entry.municipality_name || '')}</span>
                 ${renderTaskMarkup(display, { countLabel: entry?.task_key === 'search_rebuild' ? '投入済' : 'DL済' })}
             </div>

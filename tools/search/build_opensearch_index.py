@@ -525,6 +525,32 @@ def count_minutes_documents(limit: int = 0, slugs: set[str] | None = None) -> in
     return limited_total_count(total, limit)
 
 
+def count_minutes_documents_by_slug(limit: int = 0, slugs: set[str] | None = None) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    total = 0
+    slug_filter = slugs or set()
+    for target in gijiroku_targets.iter_gijiroku_targets():
+        slug = str(target.get("slug") or "").strip()
+        if slug == "" or (slug_filter and slug not in slug_filter):
+            continue
+        downloads_dir = Path(target["downloads_dir"])
+        if not downloads_dir.is_dir():
+            continue
+        try:
+            count = len(choose_minutes_source_files(downloads_dir))
+        except Exception:
+            count = 0
+        if count <= 0:
+            continue
+        if limit > 0 and total + count > limit:
+            count = max(0, limit - total)
+        counts[slug] = count
+        total += count
+        if limit > 0 and total >= limit:
+            break
+    return counts
+
+
 def count_reiki_documents(limit: int = 0, slugs: set[str] | None = None) -> int:
     total = 0
     slug_filter = slugs or set()
@@ -544,6 +570,34 @@ def count_reiki_documents(limit: int = 0, slugs: set[str] | None = None) -> int:
         if limit > 0 and total >= limit:
             return limit
     return limited_total_count(total, limit)
+
+
+def count_reiki_documents_by_slug(limit: int = 0, slugs: set[str] | None = None) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    total = 0
+    slug_filter = slugs or set()
+    for target in reiki_targets.iter_reiki_targets():
+        slug = str(target.get("slug") or "").strip()
+        if slug == "" or (slug_filter and slug not in slug_filter):
+            continue
+        clean_html_dir = Path(target["html_dir"])
+        source_html_dir = Path(target["source_dir"])
+        html_root = clean_html_dir if clean_html_dir.is_dir() else source_html_dir
+        if not html_root.is_dir():
+            continue
+        try:
+            count = len(collect_reiki_preferred_files(html_root, {".html", ".htm"}))
+        except Exception:
+            count = 0
+        if count <= 0:
+            continue
+        if limit > 0 and total + count > limit:
+            count = max(0, limit - total)
+        counts[slug] = count
+        total += count
+        if limit > 0 and total >= limit:
+            break
+    return counts
 
 
 def count_rebuild_documents(doc_type: str, limit: int = 0, slugs: set[str] | None = None) -> int:
@@ -594,12 +648,13 @@ def index_documents(
     documents: Iterable[tuple[str, dict[str, Any]]],
     *,
     bulk_size: int,
-    progress_callback: Callable[[int, dict[str, Any]], None] | None = None,
+    progress_callback: Callable[[int, dict[str, Any], int], None] | None = None,
     slug_complete_callback: Callable[[str, dict[str, Any], int], None] | None = None,
 ) -> int:
     actions: list[dict[str, Any]] = []
     total = 0
     current_slug = ""
+    current_slug_start_total = 0
     current_slug_last_source: dict[str, Any] = {}
 
     def flush_actions() -> None:
@@ -610,7 +665,11 @@ def index_documents(
         total += client.bulk(actions)
         print(f"[BULK] index={index_name} total={total}", flush=True)
         if progress_callback is not None:
-            progress_callback(total, last_source if isinstance(last_source, dict) else {})
+            progress_callback(
+                total,
+                last_source if isinstance(last_source, dict) else {},
+                max(0, total - current_slug_start_total),
+            )
         actions = []
 
     for doc_id, source in documents:
@@ -619,7 +678,10 @@ def index_documents(
             flush_actions()
             if slug_complete_callback is not None:
                 slug_complete_callback(current_slug, current_slug_last_source, total)
+            current_slug_start_total = total
         if slug != "":
+            if current_slug == "":
+                current_slug_start_total = total
             current_slug = slug
             current_slug_last_source = source
         actions.append(
@@ -864,7 +926,7 @@ def build_one(
     shards: int,
     replicas: int,
     bulk_size: int,
-    progress_callback: Callable[[int, dict[str, Any]], None] | None = None,
+    progress_callback: Callable[[int, dict[str, Any], int], None] | None = None,
     slug_complete_callback: Callable[[str, dict[str, Any], int], None] | None = None,
 ) -> int:
     print(f"[CREATE] {index_name}", flush=True)
@@ -936,6 +998,8 @@ def search_rebuild_status_progress(
     index_name: str,
     processed_count: int,
     source: dict[str, Any],
+    current_slug_processed_count: int,
+    current_slug_total_count: int,
 ) -> None:
     if batch_status is None or state is None:
         return
@@ -947,6 +1011,8 @@ def search_rebuild_status_progress(
     state["current_municipality_code"] = str(source.get("municipality_code") or "").strip()
     state["current_municipality_name"] = str(source.get("municipality_name") or "").strip()
     state["current_document_title"] = str(source.get("title") or "").strip()
+    state["current_slug_processed_count"] = max(0, int(current_slug_processed_count))
+    state["current_slug_total_count"] = max(0, int(current_slug_total_count))
     state["processed_count"] = next_processed
     state["completed_count"] = next_processed
     state["updated_at"] = batch_status.now_text()
@@ -1115,6 +1181,8 @@ def main() -> int:
     initial_reiki_indices = indices_for_alias(client, args.reiki_alias)
     completed_minutes_slugs: set[str] = set()
     completed_reiki_slugs: set[str] = set()
+    minutes_counts_by_slug = count_minutes_documents_by_slug(limit=args.limit, slugs=slugs) if args.doc_type in {"all", "minutes"} else {}
+    reiki_counts_by_slug = count_reiki_documents_by_slug(limit=args.limit, slugs=slugs) if args.doc_type in {"all", "reiki"} else {}
     total_document_count = count_rebuild_documents(args.doc_type, limit=args.limit, slugs=slugs)
     print(f"[COUNT] doc_type={args.doc_type} total={total_document_count}", flush=True)
     status_state = search_rebuild_status_start(
@@ -1133,12 +1201,14 @@ def main() -> int:
                 shards=args.shards,
                 replicas=args.replicas,
                 bulk_size=bulk_size,
-                progress_callback=lambda total, source: search_rebuild_status_progress(
+                progress_callback=lambda total, source, slug_current: search_rebuild_status_progress(
                     status_state,
                     stage="minutes",
                     index_name=built_minutes_index or "",
                     processed_count=processed_offset + total,
                     source=source,
+                    current_slug_processed_count=slug_current,
+                    current_slug_total_count=minutes_counts_by_slug.get(str(source.get("slug") or "").strip(), 0),
                 ),
                 slug_complete_callback=(
                     None
@@ -1177,12 +1247,14 @@ def main() -> int:
                 shards=args.shards,
                 replicas=args.replicas,
                 bulk_size=bulk_size,
-                progress_callback=lambda total, source: search_rebuild_status_progress(
+                progress_callback=lambda total, source, slug_current: search_rebuild_status_progress(
                     status_state,
                     stage="reiki",
                     index_name=built_reiki_index or "",
                     processed_count=processed_offset + total,
                     source=source,
+                    current_slug_processed_count=slug_current,
+                    current_slug_total_count=reiki_counts_by_slug.get(str(source.get("slug") or "").strip(), 0),
                 ),
                 slug_complete_callback=(
                     None

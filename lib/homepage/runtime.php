@@ -839,6 +839,82 @@ function homepage_search_rebuild_total_count_fallback(): int
     return is_array($cached) ? max(0, (int)($cached['total_count'] ?? 0)) : 0;
 }
 
+function homepage_search_rebuild_current_slug_count_cache_path(): string
+{
+    return data_path('background_tasks/search_rebuild_current_slug_count.json');
+}
+
+function homepage_search_rebuild_current_slug_count_fallback(array $taskStatus): array
+{
+    $cached = read_json_cache_file(homepage_search_rebuild_current_slug_count_cache_path(), 0);
+    if (!is_array($cached)) {
+        return ['processed_count' => 0, 'total_count' => 0];
+    }
+    $slug = trim((string)($taskStatus['current_slug'] ?? ''));
+    $stage = trim((string)($taskStatus['current_stage'] ?? ''));
+    if ($slug !== '' && trim((string)($cached['slug'] ?? '')) !== $slug) {
+        return ['processed_count' => 0, 'total_count' => 0];
+    }
+    if ($stage !== '' && trim((string)($cached['stage'] ?? '')) !== $stage) {
+        return ['processed_count' => 0, 'total_count' => 0];
+    }
+    $runId = trim((string)($taskStatus['run_id'] ?? ''));
+    if ($runId !== '' && trim((string)($cached['run_id'] ?? '')) !== $runId) {
+        return ['processed_count' => 0, 'total_count' => 0];
+    }
+    return [
+        'processed_count' => max(0, (int)($cached['processed_count'] ?? 0)),
+        'total_count' => max(0, (int)($cached['total_count'] ?? 0)),
+    ];
+}
+
+function homepage_opensearch_count(string $indexOrAlias, array $query): int
+{
+    $indexOrAlias = trim($indexOrAlias);
+    if ($indexOrAlias === '') {
+        return 0;
+    }
+    try {
+        $response = miyabe_search_http_request(
+            'POST',
+            '/' . rawurlencode($indexOrAlias) . '/_count',
+            ['query' => $query]
+        );
+    } catch (Throwable) {
+        return 0;
+    }
+    return max(0, (int)($response['count'] ?? 0));
+}
+
+function homepage_search_rebuild_visible_index_count(array $taskStatus): int
+{
+    $indexName = trim((string)($taskStatus['current_index'] ?? ''));
+    if ($indexName === '') {
+        return 0;
+    }
+    return homepage_opensearch_count($indexName, ['match_all' => new stdClass()]);
+}
+
+function homepage_search_rebuild_current_slug_total(array $taskStatus): int
+{
+    $slug = trim((string)($taskStatus['current_slug'] ?? ''));
+    $stage = trim((string)($taskStatus['current_stage'] ?? ''));
+    if ($slug === '') {
+        return 0;
+    }
+    $feature = municipality_feature($slug, $stage === 'reiki' ? 'reiki' : 'gijiroku') ?? [];
+    if ($stage === 'reiki') {
+        $count = homepage_unique_logical_file_count((string)($feature['clean_html_dir'] ?? ''), ['.html', '.htm']);
+        return $count > 0
+            ? $count
+            : homepage_unique_logical_file_count(data_path('reiki/' . $slug . '/html'), ['.html', '.htm']);
+    }
+    $count = homepage_unique_logical_file_count((string)($feature['downloads_dir'] ?? ''), ['.txt', '.html', '.htm']);
+    return $count > 0
+        ? $count
+        : homepage_unique_logical_file_count(work_path('gijiroku/' . $slug . '/downloads'), ['.txt', '.html', '.htm']);
+}
+
 function homepage_task_summary_feature_counts(
     array $municipalities,
     string $featureKey,
@@ -1269,26 +1345,6 @@ function homepage_build_context(): array
             'default_worker_capacity' => 1,
         ],
         [
-            'task_key' => 'gijiroku_reflect',
-            'feature_key' => 'gijiroku',
-            'running_label' => '会議録 反映',
-            'default_worker_capacity' => 4,
-            'pending_stat_mode' => 'feature_available',
-            'pending_stat_label' => '未反映',
-            'completion_stat_mode' => 'feature_available',
-            'completed_stat_label' => '反映済',
-        ],
-        [
-            'task_key' => 'reiki_reflect',
-            'feature_key' => 'reiki',
-            'running_label' => '例規集 反映',
-            'default_worker_capacity' => 4,
-            'pending_stat_mode' => 'feature_available',
-            'pending_stat_label' => '未反映',
-            'completion_stat_mode' => 'feature_available',
-            'completed_stat_label' => '反映済',
-        ],
-        [
             'task_key' => 'gijiroku_rebuild',
             'feature_key' => 'gijiroku',
             'running_label' => '会議録 再構築',
@@ -1518,6 +1574,24 @@ function homepage_build_api_payload(): array
         if ($totalCount <= 0) {
             $totalCount = homepage_search_rebuild_total_count_fallback();
         }
+        $currentSlugProcessed = max(0, (int)($searchRebuildStatus['current_slug_processed_count'] ?? 0));
+        $currentSlugTotal = max(0, (int)($searchRebuildStatus['current_slug_total_count'] ?? 0));
+        $currentSlugCountCache = homepage_search_rebuild_current_slug_count_fallback($searchRebuildStatus);
+        if ((int)$currentSlugCountCache['total_count'] > 0) {
+            $currentSlugTotal = (int)$currentSlugCountCache['total_count'];
+        }
+        if ((int)$currentSlugCountCache['processed_count'] > 0) {
+            $currentSlugProcessed = (int)$currentSlugCountCache['processed_count'];
+        }
+        if ($currentSlugTotal <= 0) {
+            $currentSlugTotal = homepage_search_rebuild_current_slug_total($searchRebuildStatus);
+        }
+        if ($currentSlugProcessed <= 0 && $processedCount > 0) {
+            $currentSlugProcessed = max(0, $processedCount - homepage_search_rebuild_visible_index_count($searchRebuildStatus));
+        }
+        if ($currentSlugTotal > 0) {
+            $currentSlugProcessed = min($currentSlugProcessed, $currentSlugTotal);
+        }
         $detailLines = [];
         $updatedAt = trim((string)($searchRebuildStatus['updated_at'] ?? ''));
         if ($updatedAt !== '') {
@@ -1534,8 +1608,8 @@ function homepage_build_api_payload(): array
                 'label' => 'インデックス作成中',
                 'class' => 'task-running',
                 'detail' => implode("\n", $detailLines),
-                'progress_current' => $processedCount,
-                'progress_total' => $totalCount > 0 ? $totalCount : null,
+                'progress_current' => $currentSlugProcessed,
+                'progress_total' => $currentSlugTotal > 0 ? $currentSlugTotal : null,
                 'batch_running' => true,
             ],
         ];
