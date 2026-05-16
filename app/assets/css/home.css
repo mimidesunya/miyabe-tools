@@ -48,7 +48,7 @@
         }
         .running-summary-list {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 8px;
         }
         .running-summary-card {
@@ -91,6 +91,10 @@
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
+        }
+        .running-summary-tasks {
+            display: grid;
+            gap: 7px;
         }
         .running-summary-stat {
             display: inline-flex;
@@ -150,6 +154,19 @@
         }
         .running-item .task-badge {
             width: fit-content;
+        }
+        .task-state-line {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            min-width: 0;
+        }
+        .task-count {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--accent);
+            line-height: 1.25;
         }
         .hero {
             padding: 28px;

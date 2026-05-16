@@ -502,6 +502,59 @@ def iter_reiki_documents(limit: int = 0, slugs: set[str] | None = None) -> Itera
                 return
 
 
+def limited_total_count(total: int, limit: int) -> int:
+    return min(total, max(0, int(limit))) if limit > 0 else total
+
+
+def count_minutes_documents(limit: int = 0, slugs: set[str] | None = None) -> int:
+    total = 0
+    slug_filter = slugs or set()
+    for target in gijiroku_targets.iter_gijiroku_targets():
+        if slug_filter and str(target.get("slug") or "").strip() not in slug_filter:
+            continue
+        downloads_dir = Path(target["downloads_dir"])
+        if not downloads_dir.is_dir():
+            continue
+        try:
+            total += len(choose_minutes_source_files(downloads_dir))
+        except Exception as exc:
+            print(f"[WARN] failed to count minutes files dir={downloads_dir}: {exc}", file=sys.stderr)
+            continue
+        if limit > 0 and total >= limit:
+            return limit
+    return limited_total_count(total, limit)
+
+
+def count_reiki_documents(limit: int = 0, slugs: set[str] | None = None) -> int:
+    total = 0
+    slug_filter = slugs or set()
+    for target in reiki_targets.iter_reiki_targets():
+        if slug_filter and str(target.get("slug") or "").strip() not in slug_filter:
+            continue
+        clean_html_dir = Path(target["html_dir"])
+        source_html_dir = Path(target["source_dir"])
+        html_root = clean_html_dir if clean_html_dir.is_dir() else source_html_dir
+        if not html_root.is_dir():
+            continue
+        try:
+            total += len(collect_reiki_preferred_files(html_root, {".html", ".htm"}))
+        except Exception as exc:
+            print(f"[WARN] failed to count reiki files dir={html_root}: {exc}", file=sys.stderr)
+            continue
+        if limit > 0 and total >= limit:
+            return limit
+    return limited_total_count(total, limit)
+
+
+def count_rebuild_documents(doc_type: str, limit: int = 0, slugs: set[str] | None = None) -> int:
+    total = 0
+    if doc_type in {"all", "minutes"}:
+        total += count_minutes_documents(limit=limit, slugs=slugs)
+    if doc_type in {"all", "reiki"}:
+        total += count_reiki_documents(limit=limit, slugs=slugs)
+    return total
+
+
 def compact_document(document: dict[str, Any]) -> dict[str, Any]:
     return {
         key: value
@@ -829,9 +882,15 @@ def build_one(
     return count
 
 
-def search_rebuild_status_start(*, build_id: str, doc_type: str) -> dict[str, Any] | None:
+def search_rebuild_status_start(*, build_id: str, doc_type: str, total_count: int) -> dict[str, Any] | None:
     if batch_status is None:
         return None
+    total_count = max(0, int(total_count))
+    try:
+        total_cache = batch_status.status_root() / "search_rebuild_total_count.json"
+        total_cache.write_text(json.dumps({"total_count": total_count}, ensure_ascii=False) + "\n", encoding="utf-8")
+    except Exception as exc:
+        print(f"[WARN] search rebuild total count cache write failed: {exc}", file=sys.stderr, flush=True)
     state = {
         "task": "search_rebuild",
         "run_id": build_id,
@@ -852,7 +911,7 @@ def search_rebuild_status_start(*, build_id: str, doc_type: str) -> dict[str, An
         "published_current_slug": "",
         "published_current_municipality_name": "",
         "processed_count": 0,
-        "total_count": 0,
+        "total_count": total_count,
         "completed_count": 0,
         "active_count": 1,
         "pending_count": 0,
@@ -1056,7 +1115,13 @@ def main() -> int:
     initial_reiki_indices = indices_for_alias(client, args.reiki_alias)
     completed_minutes_slugs: set[str] = set()
     completed_reiki_slugs: set[str] = set()
-    status_state = search_rebuild_status_start(build_id=build_id, doc_type=args.doc_type)
+    total_document_count = count_rebuild_documents(args.doc_type, limit=args.limit, slugs=slugs)
+    print(f"[COUNT] doc_type={args.doc_type} total={total_document_count}", flush=True)
+    status_state = search_rebuild_status_start(
+        build_id=build_id,
+        doc_type=args.doc_type,
+        total_count=total_document_count,
+    )
     processed_offset = 0
     try:
         if args.doc_type in {"all", "minutes"}:

@@ -50,14 +50,27 @@
         return parts.join('');
     }
 
-    function renderTaskMarkup(display) {
+    function progressCountText(display, label) {
+        const rawCurrent = Number(display?.progress_current ?? NaN);
+        const rawTotal = Number(display?.progress_total ?? NaN);
+        if (!Number.isFinite(rawCurrent) || !Number.isFinite(rawTotal) || rawTotal <= 0) {
+            return '';
+        }
+        const current = Math.max(0, Math.min(rawCurrent, rawTotal));
+        return `${label} ${Math.round(current)}/${Math.round(rawTotal)}件`;
+    }
+
+    function renderTaskMarkup(display, options = {}) {
         if (!display || typeof display !== 'object') {
             return '';
         }
 
+        const countLabel = String(options.countLabel || 'DL済');
+        const countText = progressCountText(display, countLabel);
         const detailLines = String(display.detail || '')
             .split(/\r?\n/)
             .map((line) => line.trim())
+            .filter((line) => countText === '' || !/^(DL済|投入済|反映)?\s*\d+(?:\/\d+)?件$/.test(line))
             .filter((line) => line !== '');
         const rawCurrent = Number(display.progress_current ?? NaN);
         const rawTotal = Number(display.progress_total ?? NaN);
@@ -67,7 +80,10 @@
 
         return `
             <div class="task-row">
-                <span class="task-badge ${escapeHtml(display.class || '')}">${escapeHtml(display.label || '')}</span>
+                <span class="task-state-line">
+                    <span class="task-badge ${escapeHtml(display.class || '')}">${escapeHtml(display.label || '')}</span>
+                    ${countText ? `<span class="task-count">${escapeHtml(countText)}</span>` : ''}
+                </span>
                 ${hasProgress ? `<span class="task-progress ${escapeHtml(progressClass(display))}" aria-hidden="true"><span class="task-progress-bar" style="width: ${width.toFixed(2)}%"></span></span>` : ''}
                 ${detailLines.length ? `<span class="task-detail">${detailLines.map((line) => `<span class="task-detail-line">${escapeHtml(line)}</span>`).join('')}</span>` : ''}
             </div>
@@ -84,7 +100,7 @@
             <div class="running-item">
                 <span class="running-service">${renderFeatureIdentity(entry?.feature_icon, entry?.feature_label)}</span>
                 <span class="running-name">${escapeHtml(entry.municipality_name || '')}</span>
-                ${renderTaskMarkup(display)}
+                ${renderTaskMarkup(display, { countLabel: entry?.task_key === 'search_rebuild' ? '投入済' : 'DL済' })}
             </div>
         `.trim();
     }
@@ -95,7 +111,8 @@
         }
 
         const stats = Array.isArray(entry.stats) ? entry.stats.filter((item) => item && item.label && item.value) : [];
-        if (stats.length === 0) {
+        const tasks = Array.isArray(entry.tasks) ? entry.tasks.filter((item) => item && item.display) : [];
+        if (stats.length === 0 && tasks.length === 0) {
             return '';
         }
 
@@ -113,6 +130,7 @@
                         </span>
                     `.trim()).join('')}
                 </div>
+                ${tasks.length ? `<div class="running-summary-tasks">${tasks.map(renderRunningTask).join('')}</div>` : ''}
             </div>
         `.trim();
     }
@@ -144,7 +162,6 @@
                 <div class="municipality-head">
                     <h2 class="municipality-name">${escapeHtml(card.name || '')}</h2>
                     <div class="municipality-meta">
-                        <div class="municipality-note">${escapeHtml(card.slug || '')}</div>
                         <div class="municipality-note municipality-availability" title="${escapeHtml(`表示中: ${card.available_summary || ''}`)}">
                             ${escapeHtml(`${Number(card.ready_visible_count || 0)}/${Number(card.feature_count || 0)} 検索可`)}
                         </div>
@@ -302,11 +319,25 @@
         }
 
         if (runningSection && runningList) {
-            runningSection.hidden = runningTasks.length === 0 && taskStateSummaries.length === 0;
+            const tasksByKey = new Map();
+            runningTasks.forEach((task) => {
+                const key = String(task?.task_key || '');
+                if (key === '') return;
+                if (!tasksByKey.has(key)) tasksByKey.set(key, []);
+                tasksByKey.get(key).push(task);
+            });
+            const summaryCards = taskStateSummaries.map((summary) => ({
+                ...summary,
+                tasks: Array.isArray(summary?.tasks)
+                    ? summary.tasks
+                    : (tasksByKey.get(String(summary?.task_key || '')) || []),
+            }));
+            runningSection.hidden = summaryCards.length === 0;
             if (runningSummaryList) {
-                runningSummaryList.innerHTML = taskStateSummaries.map(renderRunningSummaryCard).join('');
+                runningSummaryList.innerHTML = summaryCards.map(renderRunningSummaryCard).join('');
             }
-            runningList.innerHTML = runningTasks.map(renderRunningTask).join('');
+            runningList.innerHTML = '';
+            runningList.hidden = true;
         }
 
         if (!grid) {

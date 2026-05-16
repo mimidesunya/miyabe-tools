@@ -828,6 +828,17 @@ function homepage_task_summary_int(array $taskStatus, string $key): ?int
     return max(0, (int)$value);
 }
 
+function homepage_search_rebuild_total_count_cache_path(): string
+{
+    return data_path('background_tasks/search_rebuild_total_count.json');
+}
+
+function homepage_search_rebuild_total_count_fallback(): int
+{
+    $cached = read_json_cache_file(homepage_search_rebuild_total_count_cache_path(), 0);
+    return is_array($cached) ? max(0, (int)($cached['total_count'] ?? 0)) : 0;
+}
+
 function homepage_task_summary_feature_counts(
     array $municipalities,
     string $featureKey,
@@ -919,6 +930,7 @@ function homepage_background_task_summary(
         return null;
     }
 
+    $taskKey = trim((string)($taskDefinition['task_key'] ?? ''));
     $featureKey = (string)($taskDefinition['feature_key'] ?? '');
     $label = trim((string)($taskDefinition['summary_label'] ?? ($taskDefinition['running_label'] ?? $featureKey)));
     if ($label === '') {
@@ -955,6 +967,9 @@ function homepage_background_task_summary(
     $pendingCount = homepage_task_summary_int($taskStatus, 'pending_count') ?? 0;
     $completedCount = homepage_task_summary_int($taskStatus, 'completed_count') ?? 0;
     $totalCount = homepage_task_summary_int($taskStatus, 'total_count') ?? 0;
+    if ($taskKey === 'search_rebuild' && $totalCount <= 0) {
+        $totalCount = homepage_search_rebuild_total_count_fallback();
+    }
     $completedLabel = trim((string)($taskDefinition['completed_stat_label'] ?? '完了'));
     if ($completedLabel === '') {
         $completedLabel = '完了';
@@ -1040,7 +1055,7 @@ function homepage_background_task_summary(
     }
 
     return [
-        'task_key' => (string)($taskDefinition['task_key'] ?? ''),
+        'task_key' => $taskKey,
         'feature_key' => $featureKey,
         'label' => $label,
         'icon' => (string)($featureIcons[$featureKey] ?? ''),
@@ -1490,6 +1505,39 @@ function homepage_build_api_payload(): array
             'feature_label' => (string)($entry['feature_label'] ?? ''),
             'feature_icon' => (string)($entry['feature_icon'] ?? ''),
             'display' => is_array($entry['display'] ?? null) ? $entry['display'] : null,
+        ];
+    }
+    $searchRebuildStatus = is_array($backgroundTaskStatuses['search_rebuild'] ?? null)
+        ? $backgroundTaskStatuses['search_rebuild']
+        : [];
+    if ((bool)($searchRebuildStatus['running'] ?? false)) {
+        $currentName = trim((string)($searchRebuildStatus['current_municipality_name'] ?? ''));
+        $currentSlug = trim((string)($searchRebuildStatus['current_slug'] ?? ''));
+        $processedCount = max(0, (int)($searchRebuildStatus['processed_count'] ?? 0));
+        $totalCount = max(0, (int)($searchRebuildStatus['total_count'] ?? 0));
+        if ($totalCount <= 0) {
+            $totalCount = homepage_search_rebuild_total_count_fallback();
+        }
+        $detailLines = [];
+        $updatedAt = trim((string)($searchRebuildStatus['updated_at'] ?? ''));
+        if ($updatedAt !== '') {
+            $detailLines[] = '更新 ' . $updatedAt;
+        }
+        $runningTasks[] = [
+            'slug' => $currentSlug,
+            'municipality_name' => $currentName !== '' ? $currentName : $currentSlug,
+            'feature_key' => '',
+            'task_key' => 'search_rebuild',
+            'feature_label' => '検索インデックス再構築',
+            'feature_icon' => '',
+            'display' => [
+                'label' => 'インデックス作成中',
+                'class' => 'task-running',
+                'detail' => implode("\n", $detailLines),
+                'progress_current' => $processedCount,
+                'progress_total' => $totalCount > 0 ? $totalCount : null,
+                'batch_running' => true,
+            ],
         ];
     }
 
