@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'municipalities.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'background_tasks.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'opensearch_search.php';
 
 // トップページで必要な件数集計やタスク表示の組み立てをここへ寄せる。
 // app/index.php 側は、返ってきた配列を描画するだけに留める。
@@ -399,6 +400,123 @@ function homepage_task_display_metadata_lines(?array $display): array
     return $metadata;
 }
 
+function homepage_search_index_cache_path(): string
+{
+    return data_path('background_tasks/search_indexed_slug_cache.json');
+}
+
+function homepage_feature_search_doc_type(string $featureKey): ?string
+{
+    return match ($featureKey) {
+        'gijiroku' => 'minutes',
+        'reiki' => 'reiki',
+        default => null,
+    };
+}
+
+function homepage_search_index_cache_ttl_seconds(): int
+{
+    // current alias の切替直後に長く古い表示を残さない範囲で、ホームAPIの連打からOpenSearchを守る。
+    return 60;
+}
+
+function homepage_fetch_indexed_slugs_for_doc_type(string $docType): array
+{
+    $alias = miyabe_search_alias_for_type($docType);
+    if ($alias === '') {
+        return [];
+    }
+
+    $response = miyabe_search_http_request(
+        'POST',
+        '/' . rawurlencode($alias) . '/_search',
+        [
+            'size' => 0,
+            'aggs' => [
+                'slugs' => [
+                    'terms' => [
+                        'field' => 'slug',
+                        'size' => 10000,
+                    ],
+                ],
+            ],
+        ]
+    );
+
+    $buckets = $response['aggregations']['slugs']['buckets'] ?? [];
+    if (!is_array($buckets)) {
+        return [];
+    }
+
+    $slugs = [];
+    foreach ($buckets as $bucket) {
+        if (!is_array($bucket)) {
+            continue;
+        }
+        $slug = trim((string)($bucket['key'] ?? ''));
+        $count = max(0, (int)($bucket['doc_count'] ?? 0));
+        if ($slug !== '' && $count > 0) {
+            $slugs[$slug] = $count;
+        }
+    }
+    return $slugs;
+}
+
+function homepage_search_indexed_slug_sets(): array
+{
+    static $cachedSets = null;
+    if (is_array($cachedSets)) {
+        return $cachedSets;
+    }
+
+    $cachePath = homepage_search_index_cache_path();
+    $cached = read_json_cache_file($cachePath, homepage_search_index_cache_ttl_seconds());
+    if (is_array($cached) && is_array($cached['features'] ?? null)) {
+        $cachedSets = $cached['features'];
+        return $cachedSets;
+    }
+
+    $features = [];
+    try {
+        foreach (['gijiroku', 'reiki'] as $featureKey) {
+            $docType = homepage_feature_search_doc_type($featureKey);
+            $features[$featureKey] = $docType !== null
+                ? homepage_fetch_indexed_slugs_for_doc_type($docType)
+                : [];
+        }
+        write_json_cache_file($cachePath, [
+            'generated_at' => app_now_tokyo(),
+            'features' => $features,
+        ]);
+        $cachedSets = $features;
+        return $cachedSets;
+    } catch (Throwable $error) {
+        error_log('[home_api] search index availability check failed: ' . $error->getMessage());
+        $staleCached = read_json_cache_file($cachePath, 0);
+        $cachedSets = is_array($staleCached) && is_array($staleCached['features'] ?? null)
+            ? $staleCached['features']
+            : [];
+        return $cachedSets;
+    }
+}
+
+function homepage_feature_search_indexed(string $featureKey, string $slug): bool
+{
+    $docType = homepage_feature_search_doc_type($featureKey);
+    if ($docType === null) {
+        return true;
+    }
+
+    $slug = trim($slug);
+    if ($slug === '') {
+        return false;
+    }
+
+    $sets = homepage_search_indexed_slug_sets();
+    $featureSet = is_array($sets[$featureKey] ?? null) ? $sets[$featureKey] : [];
+    return isset($featureSet[$slug]) && (int)$featureSet[$slug] > 0;
+}
+
 function homepage_feature_card_display(
     string $featureKey,
     array $feature,
@@ -633,6 +751,7 @@ function homepage_build_feature_runtime_states(
                     $displays['primary'],
                     $displays['publish']
                 ),
+                'search_indexed' => homepage_feature_search_indexed($featureKey, $normalizedSlug),
             ];
         }
     }
@@ -665,7 +784,11 @@ function homepage_feature_summaries(
             }
 
             $runtimeState = $featureRuntimeStates[(string)$slug][$featureKey] ?? null;
-            if (is_array($runtimeState) && !empty($runtimeState['has_data'])) {
+            if (
+                is_array($runtimeState)
+                && !empty($runtimeState['has_data'])
+                && !empty($runtimeState['search_indexed'])
+            ) {
                 $availableCount += 1;
             }
         }
@@ -679,7 +802,7 @@ function homepage_feature_summaries(
             'icon' => $icon,
             'target_count' => $targetCount,
             'available_count' => $availableCount,
-            'text' => sprintf('%s %s: 対象 %d / 利用可能 %d', $icon, $label, $targetCount, $availableCount),
+            'text' => sprintf('%s %s: 対象 %d / 検索可能 %d', $icon, $label, $targetCount, $availableCount),
         ];
     }
 
@@ -979,7 +1102,11 @@ function homepage_collect_visible_features(
         $hasData = is_array($runtimeState) && array_key_exists('has_data', $runtimeState)
             ? (bool)$runtimeState['has_data']
             : homepage_feature_has_available_data($slug, $featureKey, $feature, $primaryDisplay, $publishDisplay);
-        $isEnabled = $hasData;
+        $searchIndexed = is_array($runtimeState) && array_key_exists('search_indexed', $runtimeState)
+            ? (bool)$runtimeState['search_indexed']
+            : homepage_feature_search_indexed($featureKey, $slug);
+        $isSearchBacked = homepage_feature_search_doc_type($featureKey) !== null;
+        $isEnabled = $hasData && (!$isSearchBacked || $searchIndexed);
         $display = homepage_feature_card_display(
             $featureKey,
             $feature,
@@ -1006,6 +1133,10 @@ function homepage_collect_visible_features(
             $statusClass = 'status-ready';
             $mode = 'link';
             $readyVisibleCount += 1;
+        } elseif ($hasData && $isSearchBacked && !$searchIndexed) {
+            $statusLabel = '検索準備中';
+            $statusClass = 'status-needs-build';
+            $mode = 'disabled';
         } elseif ($hasData) {
             $statusLabel = '休止中';
             $statusClass = 'status-suspended';

@@ -98,6 +98,7 @@ def build_scraping_compose(
             "scraper-gijiroku": {
                 "image": image_name,
                 "restart": "no",
+                "cpus": "0.75",
                 "init": True,
                 "stop_grace_period": "2m",
                 "user": f"{uid}:{gid}",
@@ -135,6 +136,7 @@ def build_scraping_compose(
             "scraper-reiki": {
                 "image": image_name,
                 "restart": "no",
+                "cpus": "0.75",
                 "init": True,
                 "stop_grace_period": "2m",
                 "user": f"{uid}:{gid}",
@@ -171,6 +173,7 @@ def build_scraping_compose(
             "scraper-beat": {
                 "image": image_name,
                 "restart": "no",
+                "cpus": "0.25",
                 "init": True,
                 "stop_grace_period": "30s",
                 "user": f"{uid}:{gid}",

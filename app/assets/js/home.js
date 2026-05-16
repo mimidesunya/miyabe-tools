@@ -146,7 +146,7 @@
                     <div class="municipality-meta">
                         <div class="municipality-note">${escapeHtml(card.slug || '')}</div>
                         <div class="municipality-note municipality-availability" title="${escapeHtml(`表示中: ${card.available_summary || ''}`)}">
-                            ${escapeHtml(`${Number(card.ready_visible_count || 0)}/${Number(card.feature_count || 0)} 利用可`)}
+                            ${escapeHtml(`${Number(card.ready_visible_count || 0)}/${Number(card.feature_count || 0)} 検索可`)}
                         </div>
                     </div>
                 </div>
