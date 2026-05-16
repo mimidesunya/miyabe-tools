@@ -542,10 +542,33 @@ def index_documents(
     *,
     bulk_size: int,
     progress_callback: Callable[[int, dict[str, Any]], None] | None = None,
+    slug_complete_callback: Callable[[str, dict[str, Any], int], None] | None = None,
 ) -> int:
     actions: list[dict[str, Any]] = []
     total = 0
+    current_slug = ""
+    current_slug_last_source: dict[str, Any] = {}
+
+    def flush_actions() -> None:
+        nonlocal actions, total
+        if not actions:
+            return
+        last_source = actions[-1]["source"]
+        total += client.bulk(actions)
+        print(f"[BULK] index={index_name} total={total}", flush=True)
+        if progress_callback is not None:
+            progress_callback(total, last_source if isinstance(last_source, dict) else {})
+        actions = []
+
     for doc_id, source in documents:
+        slug = str(source.get("slug") or "").strip()
+        if current_slug and slug != "" and slug != current_slug:
+            flush_actions()
+            if slug_complete_callback is not None:
+                slug_complete_callback(current_slug, current_slug_last_source, total)
+        if slug != "":
+            current_slug = slug
+            current_slug_last_source = source
         actions.append(
             {
                 "meta": {"index": {"_index": index_name, "_id": doc_id}},
@@ -553,18 +576,10 @@ def index_documents(
             }
         )
         if len(actions) >= bulk_size:
-            last_source = actions[-1]["source"]
-            total += client.bulk(actions)
-            print(f"[BULK] index={index_name} total={total}", flush=True)
-            if progress_callback is not None:
-                progress_callback(total, last_source if isinstance(last_source, dict) else {})
-            actions = []
-    if actions:
-        last_source = actions[-1]["source"]
-        total += client.bulk(actions)
-        print(f"[BULK] index={index_name} total={total}", flush=True)
-        if progress_callback is not None:
-            progress_callback(total, last_source if isinstance(last_source, dict) else {})
+            flush_actions()
+    flush_actions()
+    if current_slug and slug_complete_callback is not None:
+        slug_complete_callback(current_slug, current_slug_last_source, total)
     return total
 
 
@@ -649,6 +664,145 @@ def switch_aliases(
         client.request("POST", "/_aliases", body={"actions": actions})
 
 
+def alias_filter_for_completed_slugs(slugs: set[str]) -> dict[str, Any]:
+    return {"terms": {"slug": sorted(slugs)}}
+
+
+def alias_filter_excluding_completed_slugs(slugs: set[str]) -> dict[str, Any]:
+    return {"bool": {"must_not": [{"terms": {"slug": sorted(slugs)}}]}}
+
+
+def add_alias_action(index: str, alias: str, *, filter_body: dict[str, Any] | None = None) -> dict[str, Any]:
+    action: dict[str, Any] = {"index": index, "alias": alias}
+    if filter_body is not None:
+        action["filter"] = filter_body
+    return {"add": action}
+
+
+def publish_partial_aliases(
+    client: OpenSearchClient,
+    *,
+    minutes_index: str | None,
+    reiki_index: str | None,
+    initial_minutes_indices: list[str],
+    initial_reiki_indices: list[str],
+    completed_minutes_slugs: set[str],
+    completed_reiki_slugs: set[str],
+    minutes_alias: str,
+    reiki_alias: str,
+    documents_alias: str,
+) -> None:
+    actions: list[dict[str, Any]] = []
+    for alias in [minutes_alias, reiki_alias, documents_alias]:
+        for index in indices_for_alias(client, alias):
+            actions.append({"remove": {"index": index, "alias": alias}})
+
+    if completed_minutes_slugs and minutes_index:
+        actions.append(
+            add_alias_action(minutes_index, minutes_alias, filter_body=alias_filter_for_completed_slugs(completed_minutes_slugs))
+        )
+    for index in initial_minutes_indices:
+        actions.append(
+            add_alias_action(
+                index,
+                minutes_alias,
+                filter_body=alias_filter_excluding_completed_slugs(completed_minutes_slugs)
+                if completed_minutes_slugs
+                else None,
+            )
+        )
+
+    if completed_reiki_slugs and reiki_index:
+        actions.append(add_alias_action(reiki_index, reiki_alias, filter_body=alias_filter_for_completed_slugs(completed_reiki_slugs)))
+    for index in initial_reiki_indices:
+        actions.append(
+            add_alias_action(
+                index,
+                reiki_alias,
+                filter_body=alias_filter_excluding_completed_slugs(completed_reiki_slugs)
+                if completed_reiki_slugs
+                else None,
+            )
+        )
+
+    if completed_minutes_slugs and minutes_index:
+        actions.append(
+            add_alias_action(
+                minutes_index,
+                documents_alias,
+                filter_body=alias_filter_for_completed_slugs(completed_minutes_slugs),
+            )
+        )
+    for index in initial_minutes_indices:
+        actions.append(
+            add_alias_action(
+                index,
+                documents_alias,
+                filter_body=alias_filter_excluding_completed_slugs(completed_minutes_slugs)
+                if completed_minutes_slugs
+                else None,
+            )
+        )
+
+    if completed_reiki_slugs and reiki_index:
+        actions.append(add_alias_action(reiki_index, documents_alias, filter_body=alias_filter_for_completed_slugs(completed_reiki_slugs)))
+    for index in initial_reiki_indices:
+        actions.append(
+            add_alias_action(
+                index,
+                documents_alias,
+                filter_body=alias_filter_excluding_completed_slugs(completed_reiki_slugs)
+                if completed_reiki_slugs
+                else None,
+            )
+        )
+
+    if actions:
+        client.request("POST", "/_aliases", body={"actions": actions})
+
+
+def publish_completed_slug(
+    client: OpenSearchClient,
+    *,
+    doc_type: str,
+    index_name: str,
+    minutes_index: str | None,
+    reiki_index: str | None,
+    slug: str,
+    initial_minutes_indices: list[str],
+    initial_reiki_indices: list[str],
+    completed_minutes_slugs: set[str],
+    completed_reiki_slugs: set[str],
+    minutes_alias: str,
+    reiki_alias: str,
+    documents_alias: str,
+) -> None:
+    slug = slug.strip()
+    if slug == "":
+        return
+    if doc_type == "minutes":
+        completed_minutes_slugs.add(slug)
+    elif doc_type == "reiki":
+        completed_reiki_slugs.add(slug)
+    else:
+        return
+
+    refresh_search_target(client, index_name)
+    publish_partial_aliases(
+        client,
+        minutes_index=minutes_index,
+        reiki_index=reiki_index,
+        initial_minutes_indices=initial_minutes_indices,
+        initial_reiki_indices=initial_reiki_indices,
+        completed_minutes_slugs=completed_minutes_slugs,
+        completed_reiki_slugs=completed_reiki_slugs,
+        minutes_alias=minutes_alias,
+        reiki_alias=reiki_alias,
+        documents_alias=documents_alias,
+    )
+    print(f"[PUBLISH] doc_type={doc_type} slug={slug} index={index_name}", flush=True)
+
+
 def build_one(
     client: OpenSearchClient,
     *,
@@ -658,10 +812,18 @@ def build_one(
     replicas: int,
     bulk_size: int,
     progress_callback: Callable[[int, dict[str, Any]], None] | None = None,
+    slug_complete_callback: Callable[[str, dict[str, Any], int], None] | None = None,
 ) -> int:
     print(f"[CREATE] {index_name}", flush=True)
     create_versioned_index(client, index_name, shards=shards, replicas=replicas)
-    count = index_documents(client, index_name, documents, bulk_size=bulk_size, progress_callback=progress_callback)
+    count = index_documents(
+        client,
+        index_name,
+        documents,
+        bulk_size=bulk_size,
+        progress_callback=progress_callback,
+        slug_complete_callback=slug_complete_callback,
+    )
     update_index_after_bulk(client, index_name, replicas=replicas)
     print(f"[DONE] index={index_name} count={count}", flush=True)
     return count
@@ -686,6 +848,9 @@ def search_rebuild_status_start(*, build_id: str, doc_type: str) -> dict[str, An
         "current_municipality_code": "",
         "current_municipality_name": "",
         "current_document_title": "",
+        "published_slug_count": 0,
+        "published_current_slug": "",
+        "published_current_municipality_name": "",
         "processed_count": 0,
         "total_count": 0,
         "completed_count": 0,
@@ -745,6 +910,22 @@ def search_rebuild_status_finish(state: dict[str, Any] | None, *, ok: bool, mess
     state["index_idle_count"] = 1
     state["status"] = "done" if ok else "failed"
     state["message"] = message
+    batch_status.write_state("search_rebuild", state)
+    batch_status.invalidate_runtime_caches(include_homepage_payload=True)
+
+
+def search_rebuild_status_slug_published(
+    state: dict[str, Any] | None,
+    *,
+    source: dict[str, Any],
+    published_slug_count: int,
+) -> None:
+    if batch_status is None or state is None:
+        return
+    state["published_slug_count"] = max(0, int(published_slug_count))
+    state["published_current_slug"] = str(source.get("slug") or "").strip()
+    state["published_current_municipality_name"] = str(source.get("municipality_name") or "").strip()
+    state["updated_at"] = batch_status.now_text()
     batch_status.write_state("search_rebuild", state)
     batch_status.invalidate_runtime_caches(include_homepage_payload=True)
 
@@ -871,6 +1052,10 @@ def main() -> int:
 
     built_minutes_index: str | None = None
     built_reiki_index: str | None = None
+    initial_minutes_indices = indices_for_alias(client, args.minutes_alias)
+    initial_reiki_indices = indices_for_alias(client, args.reiki_alias)
+    completed_minutes_slugs: set[str] = set()
+    completed_reiki_slugs: set[str] = set()
     status_state = search_rebuild_status_start(build_id=build_id, doc_type=args.doc_type)
     processed_offset = 0
     try:
@@ -890,6 +1075,32 @@ def main() -> int:
                     processed_count=processed_offset + total,
                     source=source,
                 ),
+                slug_complete_callback=(
+                    None
+                    if args.no_switch_alias
+                    else lambda slug, source, _total: (
+                        publish_completed_slug(
+                            client,
+                            doc_type="minutes",
+                            index_name=built_minutes_index or "",
+                            minutes_index=built_minutes_index,
+                            reiki_index=built_reiki_index,
+                            slug=slug,
+                            initial_minutes_indices=initial_minutes_indices,
+                            initial_reiki_indices=initial_reiki_indices,
+                            completed_minutes_slugs=completed_minutes_slugs,
+                            completed_reiki_slugs=completed_reiki_slugs,
+                            minutes_alias=args.minutes_alias,
+                            reiki_alias=args.reiki_alias,
+                            documents_alias=args.documents_alias,
+                        ),
+                        search_rebuild_status_slug_published(
+                            status_state,
+                            source=source,
+                            published_slug_count=len(completed_minutes_slugs) + len(completed_reiki_slugs),
+                        ),
+                    )
+                ),
             )
             processed_offset += minutes_count
         if args.doc_type in {"all", "reiki"}:
@@ -907,6 +1118,32 @@ def main() -> int:
                     index_name=built_reiki_index or "",
                     processed_count=processed_offset + total,
                     source=source,
+                ),
+                slug_complete_callback=(
+                    None
+                    if args.no_switch_alias
+                    else lambda slug, source, _total: (
+                        publish_completed_slug(
+                            client,
+                            doc_type="reiki",
+                            index_name=built_reiki_index or "",
+                            minutes_index=built_minutes_index,
+                            reiki_index=built_reiki_index,
+                            slug=slug,
+                            initial_minutes_indices=initial_minutes_indices,
+                            initial_reiki_indices=initial_reiki_indices,
+                            completed_minutes_slugs=completed_minutes_slugs,
+                            completed_reiki_slugs=completed_reiki_slugs,
+                            minutes_alias=args.minutes_alias,
+                            reiki_alias=args.reiki_alias,
+                            documents_alias=args.documents_alias,
+                        ),
+                        search_rebuild_status_slug_published(
+                            status_state,
+                            source=source,
+                            published_slug_count=len(completed_minutes_slugs) + len(completed_reiki_slugs),
+                        ),
+                    )
                 ),
             )
             processed_offset += reiki_count

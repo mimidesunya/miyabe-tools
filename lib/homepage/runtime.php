@@ -949,6 +949,7 @@ function homepage_background_task_summary(
     }
     $indexQueue = homepage_task_summary_int($taskStatus, 'index_queue_count');
     $processedCount = homepage_task_summary_int($taskStatus, 'processed_count');
+    $publishedSlugCount = homepage_task_summary_int($taskStatus, 'published_slug_count');
     $currentMunicipalityName = trim((string)($taskStatus['current_municipality_name'] ?? ''));
     $currentSlug = trim((string)($taskStatus['current_slug'] ?? ''));
     $pendingCount = homepage_task_summary_int($taskStatus, 'pending_count') ?? 0;
@@ -1013,6 +1014,9 @@ function homepage_background_task_summary(
     }
     if ($processedCount !== null && ($processedCount > 0 || $running)) {
         homepage_task_summary_append_stat($stats, '投入', (string)$processedCount);
+    }
+    if ($publishedSlugCount !== null && ($publishedSlugCount > 0 || $running)) {
+        homepage_task_summary_append_stat($stats, '検索可', (string)$publishedSlugCount);
     }
     if ($pendingDisplayCount > 0 || $running) {
         homepage_task_summary_append_stat($stats, $pendingLabel, (string)$pendingDisplayCount);
