@@ -14,7 +14,7 @@
     const taskSummariesElement = document.querySelector('[data-home-task-summaries]');
     const defaultPrefecture = '神奈川県';
     let latestPayload = null;
-    let selectedPrefecture = '';
+    let selectedPrefecture = readSelectedPrefecture() || defaultPrefecture;
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -223,7 +223,7 @@
     function writeSelectedPrefecture(prefectureLabel) {
         try {
             const url = new URL(window.location.href);
-            if (prefectureLabel === 'all') {
+            if (prefectureLabel === '' || prefectureLabel === 'all') {
                 url.searchParams.delete('prefecture');
             } else {
                 url.searchParams.set('prefecture', prefectureLabel);
@@ -234,60 +234,80 @@
         }
     }
 
-    function collectPrefectureOptions(groups) {
-        return groups
-            .map((group) => String(group?.label || '').trim())
-            .filter((label) => label !== '');
+    function buildPayloadUrl() {
+        const url = new URL(apiUrl, window.location.origin);
+        const selected = String(selectedPrefecture || '').trim();
+        if (selected !== '' && selected !== 'all') {
+            url.searchParams.set('prefecture', selected);
+        }
+        return url.toString();
     }
 
-    function syncPrefectureFilter(groups) {
-        const options = collectPrefectureOptions(groups);
-        const requested = selectedPrefecture === '' ? readSelectedPrefecture() : selectedPrefecture;
-        const preferred = requested !== '' ? requested : defaultPrefecture;
-        const nextSelection = options.includes(preferred) ? preferred : 'all';
+    function normalizePrefectureSelection(options, payload) {
+        const selectedCode = String(payload?.selected_prefecture_code || '').trim();
+        if (selectedCode !== '') {
+            return selectedCode;
+        }
+        const requested = String(selectedPrefecture || '').trim();
+        if (requested === '' || requested === 'all') {
+            return 'all';
+        }
+        const matched = options.find((option) => String(option?.code || '') === requested || String(option?.name || '') === requested);
+        return matched ? String(matched.code || '') : 'all';
+    }
+
+    function selectedPrefectureName(options) {
+        const selected = String(selectedPrefecture || '').trim();
+        if (selected === '' || selected === 'all') {
+            return '';
+        }
+        const matched = options.find((option) => String(option?.code || '') === selected);
+        return matched ? String(matched.name || '') : selected;
+    }
+
+    function syncPrefectureFilter(payload) {
+        const options = Array.isArray(payload?.prefectures) ? payload.prefectures.filter((item) => item && item.code && item.name) : [];
+        const nextSelection = normalizePrefectureSelection(options, payload);
         selectedPrefecture = nextSelection;
 
         if (!filterSection || !filterSelect) {
-            return;
+            return options;
         }
 
         filterSection.hidden = options.length <= 1;
         filterSelect.innerHTML = [
             '<option value="all">すべての都道府県</option>',
-            ...options.map((label) => `<option value="${escapeHtml(label)}">${escapeHtml(label)}</option>`),
+            ...options.map((option) => `<option value="${escapeHtml(option.code)}">${escapeHtml(option.name)}</option>`),
         ].join('');
         filterSelect.value = nextSelection;
-    }
-
-    function filterGroups(groups) {
-        if (selectedPrefecture === 'all') {
-            return groups;
-        }
-        return groups.filter((group) => String(group?.label || '') === selectedPrefecture);
+        return options;
     }
 
     function countCards(groups) {
         return groups.reduce((sum, group) => sum + (Array.isArray(group?.cards) ? group.cards.length : 0), 0);
     }
 
-    function renderGrid(municipalities) {
+    function renderGrid(payload) {
+        const municipalities = Array.isArray(payload?.municipalities) ? payload.municipalities : [];
         const groups = groupMunicipalitiesByPrefecture(municipalities);
-        syncPrefectureFilter(groups);
-        const visibleGroups = filterGroups(groups);
+        const options = syncPrefectureFilter(payload);
+        const visibleGroups = groups;
         const visibleCount = countCards(visibleGroups);
-        const totalCount = municipalities.length;
+        const totalCount = Number(payload?.display_municipality_count || municipalities.length || 0);
+        const allCount = Number(payload?.municipality_count || totalCount);
+        const selectedName = selectedPrefectureName(options);
 
         if (displayCountElement) {
             displayCountElement.textContent = selectedPrefecture === 'all'
                 ? `表示自治体: ${visibleCount}`
-                : `表示自治体: ${visibleCount} / ${totalCount}`;
+                : `表示自治体: ${visibleCount} / ${allCount}`;
         }
         if (filterHint) {
             filterHint.textContent = selectedPrefecture === 'all'
-                ? `全 ${totalCount} 自治体を都道府県ごとに表示しています。`
-                : `${selectedPrefecture} の ${visibleCount} 自治体を表示しています。`;
+                ? `全 ${allCount} 自治体を都道府県ごとに表示しています。`
+                : `${selectedName || selectedPrefecture} の ${visibleCount} 自治体を表示しています。`;
         }
-        writeSelectedPrefecture(selectedPrefecture);
+        writeSelectedPrefecture(selectedPrefecture === 'all' ? 'all' : selectedName);
 
         if (!grid) {
             return;
@@ -357,11 +377,11 @@
             return;
         }
 
-        renderGrid(municipalities);
+        renderGrid(payload);
     }
 
     async function loadPayload() {
-        const response = await fetch(apiUrl);
+        const response = await fetch(buildPayloadUrl());
         const responseText = await response.text();
         let payload;
         try {
@@ -399,9 +419,10 @@
     if (filterSelect) {
         filterSelect.addEventListener('change', () => {
             selectedPrefecture = String(filterSelect.value || 'all');
-            if (latestPayload && typeof latestPayload === 'object') {
-                renderGrid(Array.isArray(latestPayload.municipalities) ? latestPayload.municipalities : []);
-            }
+            writeSelectedPrefecture(selectedPrefecture === 'all'
+                ? 'all'
+                : String(filterSelect.options[filterSelect.selectedIndex]?.textContent || ''));
+            refresh();
         });
     }
 

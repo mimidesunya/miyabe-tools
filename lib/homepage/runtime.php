@@ -301,6 +301,95 @@ function homepage_prefecture_label(array $municipality): string
     return 'その他';
 }
 
+function homepage_prefecture_code(array $municipality): string
+{
+    $prefCode = trim((string)($municipality['pref_code'] ?? ''));
+    if ($prefCode !== '') {
+        return $prefCode;
+    }
+    return municipality_prefecture_code_from_code((string)($municipality['code'] ?? ''));
+}
+
+function homepage_prefecture_options_from_cards(array $municipalityCards): array
+{
+    $counts = [];
+    foreach ($municipalityCards as $card) {
+        if (!is_array($card)) {
+            continue;
+        }
+        $prefCode = trim((string)($card['prefecture_code'] ?? ''));
+        $prefectureLabel = trim((string)($card['prefecture_label'] ?? ''));
+        if ($prefCode === '' || $prefectureLabel === '') {
+            continue;
+        }
+        if (!isset($counts[$prefCode])) {
+            $counts[$prefCode] = [
+                'code' => $prefCode,
+                'name' => $prefectureLabel,
+                'count' => 0,
+            ];
+        }
+        $counts[$prefCode]['count'] += 1;
+    }
+
+    ksort($counts, SORT_STRING);
+    return array_values($counts);
+}
+
+function homepage_normalize_prefecture_filter(?string $value, array $prefectureOptions): string
+{
+    $requested = trim((string)$value);
+    if ($requested === '' || $requested === 'all') {
+        return '';
+    }
+    if (preg_match('/^\d{1,2}$/', $requested) === 1) {
+        $requested = str_pad($requested, 2, '0', STR_PAD_LEFT);
+    }
+    foreach ($prefectureOptions as $option) {
+        if (!is_array($option)) {
+            continue;
+        }
+        $code = trim((string)($option['code'] ?? ''));
+        $name = trim((string)($option['name'] ?? ''));
+        if ($requested === $code || $requested === $name) {
+            return $code;
+        }
+    }
+    return '';
+}
+
+function homepage_filter_api_payload_by_prefecture(array $payload, ?string $prefecture): array
+{
+    $prefectureOptions = is_array($payload['prefectures'] ?? null) ? $payload['prefectures'] : [];
+    $selectedCode = homepage_normalize_prefecture_filter($prefecture, $prefectureOptions);
+    $selectedName = '';
+    foreach ($prefectureOptions as $option) {
+        if (is_array($option) && (string)($option['code'] ?? '') === $selectedCode) {
+            $selectedName = (string)($option['name'] ?? '');
+            break;
+        }
+    }
+
+    if ($selectedCode === '') {
+        $payload['selected_prefecture_code'] = '';
+        $payload['selected_prefecture_name'] = '';
+        $payload['display_municipality_count'] = is_array($payload['municipalities'] ?? null)
+            ? count($payload['municipalities'])
+            : 0;
+        return $payload;
+    }
+
+    $municipalities = is_array($payload['municipalities'] ?? null) ? $payload['municipalities'] : [];
+    $payload['municipalities'] = array_values(array_filter(
+        $municipalities,
+        static fn($card): bool => is_array($card) && (string)($card['prefecture_code'] ?? '') === $selectedCode
+    ));
+    $payload['selected_prefecture_code'] = $selectedCode;
+    $payload['selected_prefecture_name'] = $selectedName;
+    $payload['display_municipality_count'] = count($payload['municipalities']);
+    return $payload;
+}
+
 function homepage_merge_task_display(?array $taskDisplay, ?array $fallbackDisplay): ?array
 {
     if (!is_array($taskDisplay)) {
@@ -1575,6 +1664,7 @@ function homepage_build_api_payload(): array
         $municipalityCards[] = [
             'slug' => (string)($municipality['public_slug'] ?? ($card['slug'] ?? '')),
             'name' => (string)($municipality['name'] ?? ''),
+            'prefecture_code' => homepage_prefecture_code($municipality),
             'prefecture_label' => homepage_prefecture_label($municipality),
             'ready_visible_count' => (int)($card['ready_visible_count'] ?? 0),
             'feature_count' => count($features),
@@ -1656,6 +1746,9 @@ function homepage_build_api_payload(): array
         'generated_at' => app_now_tokyo(),
         'municipality_count' => count($municipalities),
         'display_municipality_count' => count($municipalityCards),
+        'prefectures' => homepage_prefecture_options_from_cards($municipalityCards),
+        'selected_prefecture_code' => '',
+        'selected_prefecture_name' => '',
         'feature_summaries' => $featureSummaries,
         'task_state_summaries' => $taskStateSummaries,
         'running_tasks' => $runningTasks,

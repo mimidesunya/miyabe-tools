@@ -13,6 +13,10 @@ ob_start();
 
 try {
     $payload = homepage_build_api_payload_cached();
+    $payload = homepage_filter_api_payload_by_prefecture(
+        $payload,
+        is_string($_GET['prefecture'] ?? null) ? (string)$_GET['prefecture'] : ''
+    );
     $bufferedOutput = (string)ob_get_clean();
     if (trim($bufferedOutput) !== '') {
         error_log('[home_api] discarded unexpected output while building payload');
@@ -37,6 +41,10 @@ try {
 
     $stalePayload = read_json_cache_file(homepage_api_cache_path(), 0);
     if (is_array($stalePayload)) {
+        $stalePayload = homepage_filter_api_payload_by_prefecture(
+            $stalePayload,
+            is_string($_GET['prefecture'] ?? null) ? (string)$_GET['prefecture'] : ''
+        );
         $encoded = json_encode(
             $stalePayload,
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE

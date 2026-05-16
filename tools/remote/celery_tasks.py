@@ -122,7 +122,7 @@ def _reiki_scrape_command() -> list[str]:
     command.extend(
         [
             "--parallel",
-            str(celery_runtime.env_int("SCRAPER_REIKI_PARALLEL", 8, minimum=1)),
+            str(celery_runtime.env_int("SCRAPER_REIKI_PARALLEL", 1, minimum=1)),
             "--per-host-parallel",
             str(celery_runtime.env_int("SCRAPER_REIKI_PER_HOST_PARALLEL", 1, minimum=1)),
             "--per-host-start-interval",
