@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'japanese_search.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'municipalities.php';
 
 final class MiyabeOpenSearchException extends RuntimeException
 {
@@ -243,7 +244,9 @@ function miyabe_search_build_request(array $params): array
     $page = max(1, (int)($params['page'] ?? 1));
     $perPage = max(1, min(100, (int)($params['per_page'] ?? 20)));
     $sort = trim((string)($params['sort'] ?? 'date'));
-    $slug = trim((string)($params['slug'] ?? ''));
+    $requestedSlug = trim((string)($params['slug'] ?? ''));
+    $resolvedSlug = $requestedSlug !== '' ? resolve_municipality_slug($requestedSlug) : '';
+    $slug = $resolvedSlug !== '' ? municipality_public_slug($resolvedSlug) : $requestedSlug;
     $municipalityCode = trim((string)($params['municipality_code'] ?? ($params['code'] ?? '')));
     $prefCode = miyabe_search_normalize_pref_code((string)($params['pref_code'] ?? ($params['pref'] ?? '')));
     $yearFilter = miyabe_search_year_range_filter(

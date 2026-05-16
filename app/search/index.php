@@ -24,11 +24,36 @@ foreach (municipality_prefecture_names() as $code => $name) {
     $prefectures[] = ['code' => (string)$code, 'name' => (string)$name];
 }
 
+$requestedSlug = trim((string)($_GET['slug'] ?? ''));
+$resolvedSlug = $requestedSlug !== '' ? resolve_municipality_slug($requestedSlug) : '';
+$selectedSlug = $resolvedSlug !== '' ? municipality_public_slug($resolvedSlug) : $requestedSlug;
+$municipalities = [];
+foreach (municipality_catalog() as $slug => $entry) {
+    if (!is_array($entry)) {
+        continue;
+    }
+    $publicSlug = municipality_public_slug((string)($entry['public_slug'] ?? $slug));
+    $name = trim((string)($entry['name'] ?? ''));
+    if ($publicSlug === '' || $name === '') {
+        continue;
+    }
+    $prefName = trim((string)($entry['pref_name'] ?? ''));
+    if ($prefName === '') {
+        $prefName = municipality_prefecture_name_from_code((string)($entry['pref_code'] ?? ''));
+    }
+    $municipalities[] = [
+        'slug' => $publicSlug,
+        'label' => $prefName !== '' ? "{$name}（{$prefName}）" : $name,
+        'sort' => sprintf('%02d-%s', (int)($entry['pref_code'] ?? 0), $name),
+    ];
+}
+usort($municipalities, static fn(array $a, array $b): int => strcmp((string)$a['sort'], (string)$b['sort']));
+
 $boot = [
     'apiUrl' => '/api/search',
     'query' => trim((string)($_GET['q'] ?? '')),
     'docType' => trim((string)($_GET['doc_type'] ?? ($_GET['type'] ?? 'all'))),
-    'slug' => trim((string)($_GET['slug'] ?? '')),
+    'slug' => $selectedSlug,
     'prefCode' => trim((string)($_GET['pref_code'] ?? ($_GET['pref'] ?? ''))),
     'startYear' => trim((string)($_GET['start_year'] ?? '')),
     'endYear' => trim((string)($_GET['end_year'] ?? '')),
@@ -63,8 +88,15 @@ $boot = [
                     <input id="search-query" name="q" type="search" value="<?php echo search_h((string)$boot['query']); ?>" autocomplete="off" autofocus>
                 </label>
                 <label class="field" for="search-slug">
-                    <span>自治体 slug</span>
-                    <input id="search-slug" name="slug" type="text" value="<?php echo search_h((string)$boot['slug']); ?>" autocomplete="off">
+                    <span>自治体</span>
+                    <select id="search-slug" name="slug">
+                        <option value="">全国</option>
+                        <?php foreach ($municipalities as $municipality): ?>
+                            <option value="<?php echo search_h((string)$municipality['slug']); ?>" <?php echo (string)$municipality['slug'] === (string)$boot['slug'] ? 'selected' : ''; ?>>
+                                <?php echo search_h((string)$municipality['label']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </label>
                 <label class="field" for="search-pref">
                     <span>都道府県</span>
