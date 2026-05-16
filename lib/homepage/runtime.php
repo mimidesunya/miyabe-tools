@@ -949,6 +949,8 @@ function homepage_background_task_summary(
     }
     $indexQueue = homepage_task_summary_int($taskStatus, 'index_queue_count');
     $processedCount = homepage_task_summary_int($taskStatus, 'processed_count');
+    $currentMunicipalityName = trim((string)($taskStatus['current_municipality_name'] ?? ''));
+    $currentSlug = trim((string)($taskStatus['current_slug'] ?? ''));
     $pendingCount = homepage_task_summary_int($taskStatus, 'pending_count') ?? 0;
     $completedCount = homepage_task_summary_int($taskStatus, 'completed_count') ?? 0;
     $totalCount = homepage_task_summary_int($taskStatus, 'total_count') ?? 0;
@@ -997,6 +999,11 @@ function homepage_background_task_summary(
     }
     if ($workerCapacity !== null) {
         homepage_task_summary_append_stat($stats, '最大', (string)$workerCapacity);
+    }
+    if ($currentMunicipalityName !== '') {
+        homepage_task_summary_append_stat($stats, '処理中', $currentMunicipalityName);
+    } elseif ($currentSlug !== '') {
+        homepage_task_summary_append_stat($stats, '処理中', $currentSlug);
     }
     if ($indexCapacity !== null && $indexActive !== null) {
         homepage_task_summary_append_stat($stats, '反映', $indexActive . '/' . $indexCapacity);

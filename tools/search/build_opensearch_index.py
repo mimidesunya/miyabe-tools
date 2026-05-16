@@ -541,7 +541,7 @@ def index_documents(
     documents: Iterable[tuple[str, dict[str, Any]]],
     *,
     bulk_size: int,
-    progress_callback: Callable[[int], None] | None = None,
+    progress_callback: Callable[[int, dict[str, Any]], None] | None = None,
 ) -> int:
     actions: list[dict[str, Any]] = []
     total = 0
@@ -553,16 +553,18 @@ def index_documents(
             }
         )
         if len(actions) >= bulk_size:
+            last_source = actions[-1]["source"]
             total += client.bulk(actions)
             print(f"[BULK] index={index_name} total={total}", flush=True)
             if progress_callback is not None:
-                progress_callback(total)
+                progress_callback(total, last_source if isinstance(last_source, dict) else {})
             actions = []
     if actions:
+        last_source = actions[-1]["source"]
         total += client.bulk(actions)
         print(f"[BULK] index={index_name} total={total}", flush=True)
         if progress_callback is not None:
-            progress_callback(total)
+            progress_callback(total, last_source if isinstance(last_source, dict) else {})
     return total
 
 
@@ -655,7 +657,7 @@ def build_one(
     shards: int,
     replicas: int,
     bulk_size: int,
-    progress_callback: Callable[[int], None] | None = None,
+    progress_callback: Callable[[int, dict[str, Any]], None] | None = None,
 ) -> int:
     print(f"[CREATE] {index_name}", flush=True)
     create_versioned_index(client, index_name, shards=shards, replicas=replicas)
@@ -680,6 +682,10 @@ def search_rebuild_status_start(*, build_id: str, doc_type: str) -> dict[str, An
         "doc_type": doc_type,
         "current_stage": "",
         "current_index": "",
+        "current_slug": "",
+        "current_municipality_code": "",
+        "current_municipality_name": "",
+        "current_document_title": "",
         "processed_count": 0,
         "total_count": 0,
         "completed_count": 0,
@@ -705,6 +711,7 @@ def search_rebuild_status_progress(
     stage: str,
     index_name: str,
     processed_count: int,
+    source: dict[str, Any],
 ) -> None:
     if batch_status is None or state is None:
         return
@@ -712,6 +719,10 @@ def search_rebuild_status_progress(
     previous_processed = max(0, int(state.get("processed_count") or 0))
     state["current_stage"] = stage
     state["current_index"] = index_name
+    state["current_slug"] = str(source.get("slug") or "").strip()
+    state["current_municipality_code"] = str(source.get("municipality_code") or "").strip()
+    state["current_municipality_name"] = str(source.get("municipality_name") or "").strip()
+    state["current_document_title"] = str(source.get("title") or "").strip()
     state["processed_count"] = next_processed
     state["completed_count"] = next_processed
     state["updated_at"] = batch_status.now_text()
@@ -872,11 +883,12 @@ def main() -> int:
                 shards=args.shards,
                 replicas=args.replicas,
                 bulk_size=bulk_size,
-                progress_callback=lambda total: search_rebuild_status_progress(
+                progress_callback=lambda total, source: search_rebuild_status_progress(
                     status_state,
                     stage="minutes",
                     index_name=built_minutes_index or "",
                     processed_count=processed_offset + total,
+                    source=source,
                 ),
             )
             processed_offset += minutes_count
@@ -889,11 +901,12 @@ def main() -> int:
                 shards=args.shards,
                 replicas=args.replicas,
                 bulk_size=bulk_size,
-                progress_callback=lambda total: search_rebuild_status_progress(
+                progress_callback=lambda total, source: search_rebuild_status_progress(
                     status_state,
                     stage="reiki",
                     index_name=built_reiki_index or "",
                     processed_count=processed_offset + total,
+                    source=source,
                 ),
             )
             processed_offset += reiki_count
