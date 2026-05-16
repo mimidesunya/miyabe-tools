@@ -970,6 +970,7 @@ def search_rebuild_status_start(*, build_id: str, doc_type: str, total_count: in
         "current_municipality_name": "",
         "current_document_title": "",
         "published_slug_count": 0,
+        "published_municipality_count": 0,
         "published_current_slug": "",
         "published_current_municipality_name": "",
         "processed_count": 0,
@@ -1044,10 +1045,12 @@ def search_rebuild_status_slug_published(
     *,
     source: dict[str, Any],
     published_slug_count: int,
+    published_municipality_count: int,
 ) -> None:
     if batch_status is None or state is None:
         return
     state["published_slug_count"] = max(0, int(published_slug_count))
+    state["published_municipality_count"] = max(0, int(published_municipality_count))
     state["published_current_slug"] = str(source.get("slug") or "").strip()
     state["published_current_municipality_name"] = str(source.get("municipality_name") or "").strip()
     state["updated_at"] = batch_status.now_text()
@@ -1233,6 +1236,7 @@ def main() -> int:
                             status_state,
                             source=source,
                             published_slug_count=len(completed_minutes_slugs) + len(completed_reiki_slugs),
+                            published_municipality_count=len(completed_minutes_slugs | completed_reiki_slugs),
                         ),
                     )
                 ),
@@ -1279,6 +1283,7 @@ def main() -> int:
                             status_state,
                             source=source,
                             published_slug_count=len(completed_minutes_slugs) + len(completed_reiki_slugs),
+                            published_municipality_count=len(completed_minutes_slugs | completed_reiki_slugs),
                         ),
                     )
                 ),

@@ -1092,25 +1092,37 @@ function homepage_background_task_summary(
     if ($workerCapacity !== null) {
         homepage_task_summary_append_stat($stats, '最大', (string)$workerCapacity);
     }
-    if ($currentMunicipalityName !== '') {
+    $showCurrentStat = (bool)($taskDefinition['show_current_stat'] ?? true);
+    $showIndexStats = (bool)($taskDefinition['show_index_stats'] ?? true);
+    $showProcessedStat = (bool)($taskDefinition['show_processed_stat'] ?? true);
+    $showPublishedStat = (bool)($taskDefinition['show_published_stat'] ?? true);
+    $showPendingStat = (bool)($taskDefinition['show_pending_stat'] ?? true);
+    if ($currentMunicipalityName !== '' && $showCurrentStat) {
         homepage_task_summary_append_stat($stats, '処理中', $currentMunicipalityName);
-    } elseif ($currentSlug !== '') {
+    } elseif ($currentSlug !== '' && $showCurrentStat) {
         homepage_task_summary_append_stat($stats, '処理中', $currentSlug);
     }
-    if ($indexCapacity !== null && $indexActive !== null) {
+    if ($indexCapacity !== null && $indexActive !== null && $showIndexStats) {
         homepage_task_summary_append_stat($stats, '反映', $indexActive . '/' . $indexCapacity);
     }
-    if (($indexQueue ?? 0) > 0 || ($indexCapacity !== null && $running)) {
+    if ((($indexQueue ?? 0) > 0 || ($indexCapacity !== null && $running)) && $showIndexStats) {
         homepage_task_summary_append_stat($stats, '反映待ち', (string)($indexQueue ?? 0));
     }
-    if ($processedCount !== null && ($processedCount > 0 || $running)) {
+    if ($processedCount !== null && ($processedCount > 0 || $running) && $showProcessedStat) {
         homepage_task_summary_append_stat($stats, '投入', (string)$processedCount);
     }
-    if ($publishedSlugCount !== null && ($publishedSlugCount > 0 || $running)) {
+    if ($publishedSlugCount !== null && ($publishedSlugCount > 0 || $running) && $showPublishedStat) {
         homepage_task_summary_append_stat($stats, '検索可', (string)$publishedSlugCount);
     }
-    if ($pendingDisplayCount > 0 || $running) {
+    if (($pendingDisplayCount > 0 || $running) && $showPendingStat) {
         homepage_task_summary_append_stat($stats, $pendingLabel, (string)$pendingDisplayCount);
+    }
+    if ($taskKey === 'search_rebuild') {
+        $completedCount = min(
+            count($municipalities),
+            max(0, (int)($taskStatus['published_municipality_count'] ?? $publishedSlugCount ?? 0))
+        );
+        $totalCount = count($municipalities);
     }
     if ($totalCount > 0) {
         homepage_task_summary_append_stat($stats, $completedLabel, $completedCount . '/' . $totalCount);
@@ -1320,6 +1332,7 @@ function homepage_build_context(): array
             'running_label' => '会議録 スクレイピング',
             'summary_label' => '会議録 スクレイピング',
             'default_worker_capacity' => 8,
+            'show_index_stats' => false,
             'pending_stat_mode' => 'primary_complete',
             'pending_stat_label' => '未取得',
             'completion_stat_mode' => 'primary_complete',
@@ -1331,6 +1344,7 @@ function homepage_build_context(): array
             'running_label' => '例規集 スクレイピング',
             'summary_label' => '例規集 スクレイピング',
             'default_worker_capacity' => 8,
+            'show_index_stats' => false,
             'pending_stat_mode' => 'primary_complete',
             'pending_stat_label' => '未取得',
             'completion_stat_mode' => 'primary_complete',
@@ -1343,6 +1357,11 @@ function homepage_build_context(): array
             'summary_label' => '検索インデックス再構築',
             'show_when_idle' => false,
             'default_worker_capacity' => 1,
+            'show_current_stat' => false,
+            'show_index_stats' => false,
+            'show_processed_stat' => false,
+            'show_published_stat' => false,
+            'show_pending_stat' => false,
         ],
         [
             'task_key' => 'gijiroku_rebuild',
