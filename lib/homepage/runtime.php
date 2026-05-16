@@ -1083,14 +1083,25 @@ function homepage_background_task_summary(
     }
 
     $stats = [];
-    if ($workerActive !== null) {
-        homepage_task_summary_append_stat($stats, '稼働', (string)$workerActive);
-    }
-    if ($workerIdle !== null) {
-        homepage_task_summary_append_stat($stats, '空き', (string)$workerIdle);
-    }
-    if ($workerCapacity !== null) {
-        homepage_task_summary_append_stat($stats, '最大', (string)$workerCapacity);
+    $compactWorkerStats = (bool)($taskDefinition['compact_worker_stats'] ?? false);
+    if ($compactWorkerStats) {
+        if ($workerActive !== null && $workerCapacity !== null) {
+            homepage_task_summary_append_stat($stats, '稼働', $workerActive . '/' . $workerCapacity);
+        } elseif ($workerActive !== null) {
+            homepage_task_summary_append_stat($stats, '稼働', (string)$workerActive);
+        } elseif ($workerCapacity !== null) {
+            homepage_task_summary_append_stat($stats, '最大', (string)$workerCapacity);
+        }
+    } else {
+        if ($workerActive !== null) {
+            homepage_task_summary_append_stat($stats, '稼働', (string)$workerActive);
+        }
+        if ($workerIdle !== null) {
+            homepage_task_summary_append_stat($stats, '空き', (string)$workerIdle);
+        }
+        if ($workerCapacity !== null) {
+            homepage_task_summary_append_stat($stats, '最大', (string)$workerCapacity);
+        }
     }
     $showCurrentStat = (bool)($taskDefinition['show_current_stat'] ?? true);
     $showIndexStats = (bool)($taskDefinition['show_index_stats'] ?? true);
@@ -1332,7 +1343,9 @@ function homepage_build_context(): array
             'running_label' => '会議録 スクレイピング',
             'summary_label' => '会議録 スクレイピング',
             'default_worker_capacity' => 8,
+            'compact_worker_stats' => true,
             'show_index_stats' => false,
+            'show_pending_stat' => false,
             'pending_stat_mode' => 'primary_complete',
             'pending_stat_label' => '未取得',
             'completion_stat_mode' => 'primary_complete',
@@ -1344,7 +1357,9 @@ function homepage_build_context(): array
             'running_label' => '例規集 スクレイピング',
             'summary_label' => '例規集 スクレイピング',
             'default_worker_capacity' => 8,
+            'compact_worker_stats' => true,
             'show_index_stats' => false,
+            'show_pending_stat' => false,
             'pending_stat_mode' => 'primary_complete',
             'pending_stat_label' => '未取得',
             'completion_stat_mode' => 'primary_complete',
@@ -1357,6 +1372,7 @@ function homepage_build_context(): array
             'summary_label' => '検索インデックス再構築',
             'show_when_idle' => false,
             'default_worker_capacity' => 1,
+            'compact_worker_stats' => true,
             'show_current_stat' => false,
             'show_index_stats' => false,
             'show_processed_stat' => false,
