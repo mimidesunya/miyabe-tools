@@ -11,7 +11,7 @@ import os
 import re
 import ssl
 import sys
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -20,6 +20,7 @@ from urllib.parse import quote, urlencode, urljoin
 from urllib.request import Request, urlopen
 
 sys.path.append(str(Path(__file__).resolve().parent))
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 sys.path.append(str(Path(__file__).resolve().parents[1] / "gijiroku"))
 sys.path.append(str(Path(__file__).resolve().parents[1] / "reiki"))
 sys.path.append(str(Path(__file__).resolve().parents[2] / "lib" / "python"))
@@ -43,6 +44,11 @@ try:
     import japanese_search_tokenizer  # type: ignore
 except Exception:  # pragma: no cover - optional fallback for minimal machines
     japanese_search_tokenizer = None
+
+try:
+    import batch_status  # type: ignore
+except Exception:  # pragma: no cover - progress UI is best-effort
+    batch_status = None
 
 
 PREFECTURE_NAMES = {
@@ -535,6 +541,7 @@ def index_documents(
     documents: Iterable[tuple[str, dict[str, Any]]],
     *,
     bulk_size: int,
+    progress_callback: Callable[[int], None] | None = None,
 ) -> int:
     actions: list[dict[str, Any]] = []
     total = 0
@@ -548,10 +555,14 @@ def index_documents(
         if len(actions) >= bulk_size:
             total += client.bulk(actions)
             print(f"[BULK] index={index_name} total={total}", flush=True)
+            if progress_callback is not None:
+                progress_callback(total)
             actions = []
     if actions:
         total += client.bulk(actions)
         print(f"[BULK] index={index_name} total={total}", flush=True)
+        if progress_callback is not None:
+            progress_callback(total)
     return total
 
 
@@ -644,13 +655,87 @@ def build_one(
     shards: int,
     replicas: int,
     bulk_size: int,
+    progress_callback: Callable[[int], None] | None = None,
 ) -> int:
     print(f"[CREATE] {index_name}", flush=True)
     create_versioned_index(client, index_name, shards=shards, replicas=replicas)
-    count = index_documents(client, index_name, documents, bulk_size=bulk_size)
+    count = index_documents(client, index_name, documents, bulk_size=bulk_size, progress_callback=progress_callback)
     update_index_after_bulk(client, index_name, replicas=replicas)
     print(f"[DONE] index={index_name} count={count}", flush=True)
     return count
+
+
+def search_rebuild_status_start(*, build_id: str, doc_type: str) -> dict[str, Any] | None:
+    if batch_status is None:
+        return None
+    state = {
+        "task": "search_rebuild",
+        "run_id": build_id,
+        "running": True,
+        "started_at": batch_status.now_text(),
+        "finished_at": "",
+        "heartbeat_at": batch_status.now_text(),
+        "updated_at": batch_status.now_text(),
+        "running_label": "検索インデックス再構築",
+        "doc_type": doc_type,
+        "current_stage": "",
+        "current_index": "",
+        "processed_count": 0,
+        "total_count": 0,
+        "completed_count": 0,
+        "active_count": 1,
+        "pending_count": 0,
+        "worker_capacity": 1,
+        "worker_active_count": 1,
+        "worker_idle_count": 0,
+        "index_capacity": 1,
+        "index_active_count": 1,
+        "index_idle_count": 0,
+        "index_queue_count": 0,
+        "items": {},
+    }
+    batch_status.write_state("search_rebuild", state)
+    batch_status.invalidate_runtime_caches(include_homepage_payload=True)
+    return state
+
+
+def search_rebuild_status_progress(
+    state: dict[str, Any] | None,
+    *,
+    stage: str,
+    index_name: str,
+    processed_count: int,
+) -> None:
+    if batch_status is None or state is None:
+        return
+    next_processed = max(0, int(processed_count))
+    previous_processed = max(0, int(state.get("processed_count") or 0))
+    state["current_stage"] = stage
+    state["current_index"] = index_name
+    state["processed_count"] = next_processed
+    state["completed_count"] = next_processed
+    state["updated_at"] = batch_status.now_text()
+    batch_status.write_state("search_rebuild", state)
+    if next_processed // 1000 != previous_processed // 1000:
+        batch_status.invalidate_runtime_caches(include_homepage_payload=True)
+
+
+def search_rebuild_status_finish(state: dict[str, Any] | None, *, ok: bool, message: str = "") -> None:
+    if batch_status is None or state is None:
+        return
+    state["running"] = False
+    state["finished_at"] = batch_status.now_text()
+    state["heartbeat_at"] = state["finished_at"]
+    state["updated_at"] = state["finished_at"]
+    state["active_count"] = 0
+    state["worker_active_count"] = 0
+    state["worker_idle_count"] = 1
+    state["index_active_count"] = 0
+    state["index_idle_count"] = 1
+    state["status"] = "done" if ok else "failed"
+    state["message"] = message
+    batch_status.write_state("search_rebuild", state)
+    batch_status.invalidate_runtime_caches(include_homepage_payload=True)
 
 
 def update_one(
@@ -775,44 +860,65 @@ def main() -> int:
 
     built_minutes_index: str | None = None
     built_reiki_index: str | None = None
-    if args.doc_type in {"all", "minutes"}:
-        built_minutes_index = f"miyabe-minutes-v{build_id}"
-        build_one(
-            client,
-            index_name=built_minutes_index,
-            documents=iter_minutes_documents(limit=args.limit, slugs=slugs),
-            shards=args.shards,
-            replicas=args.replicas,
-            bulk_size=bulk_size,
-        )
-    if args.doc_type in {"all", "reiki"}:
-        built_reiki_index = f"miyabe-reiki-v{build_id}"
-        build_one(
-            client,
-            index_name=built_reiki_index,
-            documents=iter_reiki_documents(limit=args.limit, slugs=slugs),
-            shards=args.shards,
-            replicas=args.replicas,
-            bulk_size=bulk_size,
-        )
+    status_state = search_rebuild_status_start(build_id=build_id, doc_type=args.doc_type)
+    processed_offset = 0
+    try:
+        if args.doc_type in {"all", "minutes"}:
+            built_minutes_index = f"miyabe-minutes-v{build_id}"
+            minutes_count = build_one(
+                client,
+                index_name=built_minutes_index,
+                documents=iter_minutes_documents(limit=args.limit, slugs=slugs),
+                shards=args.shards,
+                replicas=args.replicas,
+                bulk_size=bulk_size,
+                progress_callback=lambda total: search_rebuild_status_progress(
+                    status_state,
+                    stage="minutes",
+                    index_name=built_minutes_index or "",
+                    processed_count=processed_offset + total,
+                ),
+            )
+            processed_offset += minutes_count
+        if args.doc_type in {"all", "reiki"}:
+            built_reiki_index = f"miyabe-reiki-v{build_id}"
+            reiki_count = build_one(
+                client,
+                index_name=built_reiki_index,
+                documents=iter_reiki_documents(limit=args.limit, slugs=slugs),
+                shards=args.shards,
+                replicas=args.replicas,
+                bulk_size=bulk_size,
+                progress_callback=lambda total: search_rebuild_status_progress(
+                    status_state,
+                    stage="reiki",
+                    index_name=built_reiki_index or "",
+                    processed_count=processed_offset + total,
+                ),
+            )
+            processed_offset += reiki_count
 
-    if not args.no_switch_alias:
-        print("[ALIAS] atomic switch", flush=True)
-        switch_aliases(
-            client,
-            minutes_index=built_minutes_index,
-            reiki_index=built_reiki_index,
-            minutes_alias=args.minutes_alias,
-            reiki_alias=args.reiki_alias,
-            documents_alias=args.documents_alias,
-        )
-        print(
-            "[ALIAS] "
-            f"{args.minutes_alias}={built_minutes_index or 'unchanged'} "
-            f"{args.reiki_alias}={built_reiki_index or 'unchanged'} "
-            f"{args.documents_alias}=combined",
-            flush=True,
-        )
+        if not args.no_switch_alias:
+            print("[ALIAS] atomic switch", flush=True)
+            switch_aliases(
+                client,
+                minutes_index=built_minutes_index,
+                reiki_index=built_reiki_index,
+                minutes_alias=args.minutes_alias,
+                reiki_alias=args.reiki_alias,
+                documents_alias=args.documents_alias,
+            )
+            print(
+                "[ALIAS] "
+                f"{args.minutes_alias}={built_minutes_index or 'unchanged'} "
+                f"{args.reiki_alias}={built_reiki_index or 'unchanged'} "
+                f"{args.documents_alias}=combined",
+                flush=True,
+            )
+    except Exception as exc:
+        search_rebuild_status_finish(status_state, ok=False, message=str(exc))
+        raise
+    search_rebuild_status_finish(status_state, ok=True)
     return 0
 
 

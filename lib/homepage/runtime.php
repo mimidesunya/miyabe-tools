@@ -948,6 +948,7 @@ function homepage_background_task_summary(
         $indexIdle = max(0, $indexCapacity - $indexActive);
     }
     $indexQueue = homepage_task_summary_int($taskStatus, 'index_queue_count');
+    $processedCount = homepage_task_summary_int($taskStatus, 'processed_count');
     $pendingCount = homepage_task_summary_int($taskStatus, 'pending_count') ?? 0;
     $completedCount = homepage_task_summary_int($taskStatus, 'completed_count') ?? 0;
     $totalCount = homepage_task_summary_int($taskStatus, 'total_count') ?? 0;
@@ -1002,6 +1003,9 @@ function homepage_background_task_summary(
     }
     if (($indexQueue ?? 0) > 0 || ($indexCapacity !== null && $running)) {
         homepage_task_summary_append_stat($stats, '反映待ち', (string)($indexQueue ?? 0));
+    }
+    if ($processedCount !== null && ($processedCount > 0 || $running)) {
+        homepage_task_summary_append_stat($stats, '投入', (string)$processedCount);
     }
     if ($pendingDisplayCount > 0 || $running) {
         homepage_task_summary_append_stat($stats, $pendingLabel, (string)$pendingDisplayCount);
@@ -1192,6 +1196,7 @@ function homepage_build_context(): array
     $backgroundTaskStatuses = [
         'gijiroku' => homepage_normalize_task_status_items(load_background_task_status('gijiroku')),
         'reiki' => homepage_normalize_task_status_items(load_background_task_status('reiki')),
+        'search_rebuild' => homepage_normalize_task_status_items(load_background_task_status('search_rebuild')),
         'gijiroku_reflect' => homepage_normalize_task_status_items(load_background_task_status('gijiroku_reflect')),
         'reiki_reflect' => homepage_normalize_task_status_items(load_background_task_status('reiki_reflect')),
         'gijiroku_rebuild' => homepage_normalize_task_status_items(load_background_task_status('gijiroku_rebuild')),
@@ -1228,6 +1233,14 @@ function homepage_build_context(): array
             'pending_stat_label' => '未取得',
             'completion_stat_mode' => 'primary_complete',
             'completed_stat_label' => 'DL済',
+        ],
+        [
+            'task_key' => 'search_rebuild',
+            'feature_key' => '',
+            'running_label' => '検索インデックス再構築',
+            'summary_label' => '検索インデックス再構築',
+            'show_when_idle' => false,
+            'default_worker_capacity' => 1,
         ],
         [
             'task_key' => 'gijiroku_reflect',
