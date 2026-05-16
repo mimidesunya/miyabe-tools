@@ -1,5 +1,6 @@
 (() => {
     const apiUrl = String(window.HOMEPAGE_API_URL || '/api/home.php');
+    const taskStatusApiUrl = String(window.HOMEPAGE_TASK_STATUS_API_URL || '/api/task-status.php');
     const runningSection = document.querySelector('[data-running-section]');
     const runningSummaryList = document.querySelector('[data-running-summary-list]');
     const runningList = document.querySelector('[data-running-list]');
@@ -15,6 +16,7 @@
     const defaultPrefecture = '神奈川県';
     let latestPayload = null;
     let selectedPrefecture = readSelectedPrefecture() || defaultPrefecture;
+    let latestTaskStatusEtag = '';
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -321,21 +323,9 @@
         grid.innerHTML = visibleGroups.map(renderPrefectureSection).join('');
     }
 
-    function renderPayload(payload) {
-        const municipalities = Array.isArray(payload?.municipalities) ? payload.municipalities : [];
+    function renderProcessingStatus(payload) {
         const runningTasks = Array.isArray(payload?.running_tasks) ? payload.running_tasks : [];
         const taskStateSummaries = Array.isArray(payload?.task_state_summaries) ? payload.task_state_summaries : [];
-        latestPayload = payload;
-
-        if (municipalityCountElement) {
-            municipalityCountElement.textContent = `自治体マスタ: ${Number(payload?.municipality_count || 0)}`;
-        }
-        if (generatedAtElement) {
-            generatedAtElement.textContent = `更新: ${String(payload?.generated_at || '不明')}`;
-        }
-        if (taskSummariesElement) {
-            taskSummariesElement.innerHTML = renderFeatureSummaries(payload?.feature_summaries);
-        }
 
         if (runningSection && runningList) {
             const tasksByKey = new Map();
@@ -358,6 +348,23 @@
             runningList.innerHTML = '';
             runningList.hidden = true;
         }
+    }
+
+    function renderPayload(payload) {
+        const municipalities = Array.isArray(payload?.municipalities) ? payload.municipalities : [];
+        latestPayload = payload;
+
+        if (municipalityCountElement) {
+            municipalityCountElement.textContent = `自治体マスタ: ${Number(payload?.municipality_count || 0)}`;
+        }
+        if (generatedAtElement) {
+            generatedAtElement.textContent = `更新: ${String(payload?.generated_at || '不明')}`;
+        }
+        if (taskSummariesElement) {
+            taskSummariesElement.innerHTML = renderFeatureSummaries(payload?.feature_summaries);
+        }
+
+        renderProcessingStatus(payload);
 
         if (!grid) {
             return;
@@ -396,6 +403,30 @@
         return payload;
     }
 
+    async function loadTaskStatus() {
+        const headers = {};
+        if (latestTaskStatusEtag !== '') {
+            headers['If-None-Match'] = latestTaskStatusEtag;
+        }
+        const response = await fetch(taskStatusApiUrl, { cache: 'no-store', headers });
+        if (response.status === 304) {
+            return null;
+        }
+        const responseText = await response.text();
+        let payload;
+        try {
+            payload = JSON.parse(responseText);
+        } catch (error) {
+            throw new Error(`Invalid JSON from task status API (HTTP ${response.status})`);
+        }
+        if (!response.ok) {
+            const apiError = payload && typeof payload === 'object' ? payload.error : '';
+            throw new Error(String(apiError || `HTTP ${response.status}`));
+        }
+        latestTaskStatusEtag = String(response.headers.get('ETag') || '');
+        return payload;
+    }
+
     let refreshing = false;
     async function refresh() {
         if (refreshing) {
@@ -416,6 +447,24 @@
         }
     }
 
+    let taskStatusRefreshing = false;
+    async function refreshTaskStatus() {
+        if (taskStatusRefreshing) {
+            return;
+        }
+        taskStatusRefreshing = true;
+        try {
+            const payload = await loadTaskStatus();
+            if (payload && typeof payload === 'object') {
+                renderProcessingStatus(payload);
+            }
+        } catch (error) {
+            console.error('task status refresh failed', error);
+        } finally {
+            taskStatusRefreshing = false;
+        }
+    }
+
     if (filterSelect) {
         filterSelect.addEventListener('change', () => {
             selectedPrefecture = String(filterSelect.value || 'all');
@@ -427,5 +476,6 @@
     }
 
     refresh();
-    window.setInterval(refresh, 5000);
+    window.setInterval(refreshTaskStatus, 3000);
+    window.setInterval(refresh, 60000);
 })();

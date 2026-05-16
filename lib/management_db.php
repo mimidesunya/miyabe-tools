@@ -123,10 +123,12 @@ CREATE TABLE IF NOT EXISTS management_task_statuses (
     running boolean NOT NULL DEFAULT false,
     heartbeat_at text NOT NULL DEFAULT '',
     updated_at_text text NOT NULL DEFAULT '',
+    source_mtime double precision NOT NULL DEFAULT 0,
     status_json jsonb NOT NULL,
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 SQL);
+    $pdo->exec('ALTER TABLE management_task_statuses ADD COLUMN IF NOT EXISTS source_mtime double precision NOT NULL DEFAULT 0');
     $done = true;
 }
 
@@ -204,7 +206,30 @@ SQL);
     }
 }
 
-function management_db_store_task_status(string $taskKey, array $status): void
+function management_db_update_homepage_task_status(array $taskStateSummaries, array $runningTasks): void
+{
+    $pdo = management_db_pdo();
+    if (!$pdo instanceof PDO) {
+        return;
+    }
+    try {
+        $stmt = $pdo->prepare(<<<'SQL'
+UPDATE homepage_payload_meta
+SET task_state_summaries = CAST(:task_state_summaries AS jsonb),
+    running_tasks = CAST(:running_tasks AS jsonb),
+    updated_at = now()
+WHERE id = 1
+SQL);
+        $stmt->execute([
+            ':task_state_summaries' => management_db_json_encode($taskStateSummaries),
+            ':running_tasks' => management_db_json_encode($runningTasks),
+        ]);
+    } catch (Throwable $error) {
+        error_log('[management_db] homepage task status update failed: ' . $error->getMessage());
+    }
+}
+
+function management_db_store_task_status(string $taskKey, array $status, float $sourceMtime = 0): void
 {
     $taskKey = trim($taskKey);
     if ($taskKey === '') {
@@ -217,14 +242,15 @@ function management_db_store_task_status(string $taskKey, array $status): void
     try {
         $stmt = $pdo->prepare(<<<'SQL'
 INSERT INTO management_task_statuses (
-    task_key, running, heartbeat_at, updated_at_text, status_json, updated_at
+    task_key, running, heartbeat_at, updated_at_text, source_mtime, status_json, updated_at
 ) VALUES (
-    :task_key, :running, :heartbeat_at, :updated_at_text, CAST(:status_json AS jsonb), now()
+    :task_key, :running, :heartbeat_at, :updated_at_text, :source_mtime, CAST(:status_json AS jsonb), now()
 )
 ON CONFLICT (task_key) DO UPDATE SET
     running = EXCLUDED.running,
     heartbeat_at = EXCLUDED.heartbeat_at,
     updated_at_text = EXCLUDED.updated_at_text,
+    source_mtime = EXCLUDED.source_mtime,
     status_json = EXCLUDED.status_json,
     updated_at = now()
 SQL);
@@ -233,10 +259,66 @@ SQL);
             ':running' => (bool)($status['running'] ?? false) ? 'true' : 'false',
             ':heartbeat_at' => (string)($status['heartbeat_at'] ?? ''),
             ':updated_at_text' => (string)($status['updated_at'] ?? ''),
+            ':source_mtime' => $sourceMtime,
             ':status_json' => management_db_json_encode($status),
         ]);
     } catch (Throwable $error) {
         error_log('[management_db] task status store failed: ' . $error->getMessage());
+    }
+}
+
+function management_db_task_status_if_fresh(string $taskKey, float $sourceMtime): ?array
+{
+    $taskKey = trim($taskKey);
+    if ($taskKey === '') {
+        return null;
+    }
+    $pdo = management_db_pdo();
+    if (!$pdo instanceof PDO) {
+        return null;
+    }
+    try {
+        $stmt = $pdo->prepare(
+            'SELECT status_json FROM management_task_statuses WHERE task_key = :task_key AND source_mtime >= :source_mtime'
+        );
+        $stmt->execute([
+            ':task_key' => $taskKey,
+            ':source_mtime' => $sourceMtime,
+        ]);
+        $row = $stmt->fetch();
+        if (!is_array($row)) {
+            return null;
+        }
+        $status = management_db_json_decode($row['status_json'] ?? '');
+        return is_array($status) ? $status : null;
+    } catch (Throwable $error) {
+        error_log('[management_db] task status fetch failed: ' . $error->getMessage());
+        return null;
+    }
+}
+
+function management_db_homepage_meta_payload(): ?array
+{
+    $pdo = management_db_pdo();
+    if (!$pdo instanceof PDO) {
+        return null;
+    }
+    try {
+        $row = $pdo->query('SELECT * FROM homepage_payload_meta WHERE id = 1')->fetch();
+        if (!is_array($row)) {
+            return null;
+        }
+        return [
+            'generated_at' => (string)($row['generated_at'] ?? ''),
+            'municipality_count' => (int)($row['municipality_count'] ?? 0),
+            'prefectures' => management_db_json_decode($row['prefectures'] ?? '') ?: [],
+            'feature_summaries' => management_db_json_decode($row['feature_summaries'] ?? '') ?: [],
+            'task_state_summaries' => management_db_json_decode($row['task_state_summaries'] ?? '') ?: [],
+            'running_tasks' => management_db_json_decode($row['running_tasks'] ?? '') ?: [],
+        ];
+    } catch (Throwable $error) {
+        error_log('[management_db] homepage meta fetch failed: ' . $error->getMessage());
+        return null;
     }
 }
 

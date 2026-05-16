@@ -26,8 +26,22 @@ function load_background_task_status(string $task): array
     if (!is_array($decoded)) {
         return [];
     }
-    management_db_store_task_status($task, $decoded);
+    management_db_store_task_status($task, $decoded, (float)@filemtime($path));
     return $decoded;
+}
+
+function load_background_task_status_fast(string $task): array
+{
+    $path = background_task_status_path($task);
+    if (!is_file($path)) {
+        return [];
+    }
+    $sourceMtime = (float)@filemtime($path);
+    $cached = management_db_task_status_if_fresh($task, $sourceMtime);
+    if (is_array($cached)) {
+        return $cached;
+    }
+    return load_background_task_status($task);
 }
 
 function background_task_is_stale(array $taskStatus, int $staleSeconds = 900): bool
