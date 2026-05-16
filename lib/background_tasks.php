@@ -126,6 +126,160 @@ function background_task_item_progress_detail(array $item): string
     return sprintf('%d/%d件', $current, $total);
 }
 
+function background_task_compact_detail_text(string $value, int $maxLength = 96): string
+{
+    $value = trim($value);
+    if ($value === '') {
+        return '';
+    }
+    $value = preg_replace('/\x1b\[[0-9;?]*[A-Za-z]/', '', $value) ?? $value;
+    $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]+/', ' ', $value) ?? $value;
+    $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+    $value = trim($value);
+    if ($value === '') {
+        return '';
+    }
+
+    foreach (['[INFO] ', '[DONE] '] as $prefix) {
+        if (str_starts_with($value, $prefix)) {
+            $value = trim(substr($value, strlen($prefix)));
+            break;
+        }
+    }
+
+    if (str_starts_with($value, '[PROGRESS] ')) {
+        return '';
+    }
+    if (preg_match('/^stderr\s+(\d+)\s+bytes$/i', $value, $matches) === 1) {
+        return 'エラー出力あり ' . (string)$matches[1] . ' bytes';
+    }
+    if ($value === 'starting...') {
+        return '起動中';
+    }
+
+    if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+        if (mb_strlen($value, 'UTF-8') > $maxLength) {
+            return rtrim(mb_substr($value, 0, max(1, $maxLength - 3), 'UTF-8')) . '...';
+        }
+        return $value;
+    }
+
+    if (strlen($value) > $maxLength) {
+        return rtrim(substr($value, 0, max(1, $maxLength - 3))) . '...';
+    }
+    return $value;
+}
+
+function background_task_item_activity_detail(array $item, string $prefix = '作業'): string
+{
+    $message = background_task_compact_detail_text((string)($item['message'] ?? ''));
+    if ($message === '') {
+        return '';
+    }
+    $prefix = trim($prefix);
+    return ($prefix !== '' ? ($prefix . ' ') : '') . $message;
+}
+
+function background_task_readable_log_path(string $rawPath): string
+{
+    $rawPath = trim($rawPath);
+    if ($rawPath === '') {
+        return '';
+    }
+
+    $candidates = [];
+    $normalized = str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $rawPath);
+    $isAbsolute = preg_match('/^(?:[A-Za-z]:)?[\\\\\/]/', $rawPath) === 1;
+    if ($isAbsolute) {
+        $candidates[] = $normalized;
+    } else {
+        $candidates[] = project_root_path() . DIRECTORY_SEPARATOR . $normalized;
+        $candidates[] = dirname(project_root_path()) . DIRECTORY_SEPARATOR . $normalized;
+    }
+
+    foreach ($candidates as $candidate) {
+        if (is_file($candidate) && is_readable($candidate)) {
+            return $candidate;
+        }
+    }
+    return '';
+}
+
+function background_task_tail_log_lines(string $path, int $maxBytes = 4096, int $maxLines = 10): array
+{
+    if ($path === '' || !is_file($path) || !is_readable($path)) {
+        return [];
+    }
+    $size = (int)@filesize($path);
+    if ($size <= 0) {
+        return [];
+    }
+    $handle = @fopen($path, 'rb');
+    if ($handle === false) {
+        return [];
+    }
+    try {
+        $readSize = min($size, $maxBytes);
+        if (@fseek($handle, -$readSize, SEEK_END) !== 0) {
+            @fseek($handle, 0, SEEK_SET);
+        }
+        $chunk = (string)@fread($handle, $readSize);
+    } finally {
+        @fclose($handle);
+    }
+    if ($chunk === '') {
+        return [];
+    }
+    if (function_exists('mb_convert_encoding')) {
+        $chunk = @mb_convert_encoding($chunk, 'UTF-8', 'UTF-8, SJIS-win, CP932, EUC-JP, ISO-2022-JP') ?: $chunk;
+    }
+    $lines = preg_split('/\R/u', $chunk, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    $cleaned = [];
+    foreach ($lines as $line) {
+        $line = background_task_compact_detail_text((string)$line, 180);
+        if ($line !== '') {
+            $cleaned[] = $line;
+        }
+    }
+    return array_slice($cleaned, -$maxLines);
+}
+
+function background_task_item_failure_log_lines(array $item): array
+{
+    $failureLines = [];
+    $message = background_task_compact_detail_text((string)($item['message'] ?? ''), 180);
+    if ($message !== '') {
+        $failureLines[] = '失敗理由: ' . $message;
+    }
+    $returncode = $item['returncode'] ?? null;
+    if ($returncode !== null && $returncode !== '') {
+        $failureLines[] = '終了コード: ' . (string)$returncode;
+    }
+
+    $candidates = [
+        'index_stderr_log' => 'インデックス stderr',
+        'stderr_log' => 'スクレイピング stderr',
+        'index_stdout_log' => 'インデックス stdout',
+        'stdout_log' => 'スクレイピング stdout',
+    ];
+
+    foreach ($candidates as $field => $label) {
+        $path = background_task_readable_log_path((string)($item[$field] ?? ''));
+        if ($path === '') {
+            continue;
+        }
+        $lines = background_task_tail_log_lines($path);
+        if ($lines !== []) {
+            array_unshift($lines, $label . ' 末尾');
+            return array_merge($failureLines, $lines);
+        }
+    }
+    if ($failureLines !== []) {
+        $failureLines[] = 'ログファイルは記録されていません';
+    }
+    return $failureLines;
+}
+
 function background_task_item_is_complete(array $item): bool
 {
     $progress = background_task_item_progress_numbers($item);
@@ -204,6 +358,10 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
         $detailParts[] = $itemProgress;
     } elseif (in_array($status, ['done', 'ok', 'failed'], true)) {
         $detailParts[] = '件数未集計';
+    }
+    $activityDetail = background_task_item_activity_detail($item, $status === 'failed' ? '理由' : '作業');
+    if ($activityDetail !== '' && in_array($status, ['pending', 'running', 'failed'], true)) {
+        $detailParts[] = $activityDetail;
     }
     if ($finishedAt !== '') {
         $timeLabel = $finishedAt;
@@ -299,6 +457,7 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
             'label' => $isReflectTask ? '直近反映失敗' : '直近失敗',
             'class' => 'task-failed',
             'detail' => $detail,
+            'log_lines' => background_task_item_failure_log_lines($item),
             'progress_current' => $progress['current'],
             'progress_total' => $progress['total'],
             'batch_running' => $running,

@@ -1005,6 +1005,21 @@ function homepage_search_rebuild_current_slug_total(array $taskStatus): int
         : homepage_unique_logical_file_count(work_path('gijiroku/' . $slug . '/downloads'), ['.txt', '.html', '.htm']);
 }
 
+function homepage_search_rebuild_activity_detail(array $searchRebuildStatus): string
+{
+    $title = background_task_compact_detail_text((string)($searchRebuildStatus['current_document_title'] ?? ''));
+    if ($title === '') {
+        return '';
+    }
+    $stage = trim((string)($searchRebuildStatus['current_stage'] ?? ''));
+    $prefix = match ($stage) {
+        'minutes' => '会議録投入',
+        'reiki' => '例規集投入',
+        default => '投入',
+    };
+    return $prefix . ' ' . $title;
+}
+
 function homepage_task_summary_feature_counts(
     array $municipalities,
     string $featureKey,
@@ -1719,6 +1734,10 @@ function homepage_build_api_payload(): array
             $currentSlugProcessed = min($currentSlugProcessed, $currentSlugTotal);
         }
         $detailLines = [];
+        $activityDetail = homepage_search_rebuild_activity_detail($searchRebuildStatus);
+        if ($activityDetail !== '') {
+            $detailLines[] = $activityDetail;
+        }
         $updatedAt = trim((string)($searchRebuildStatus['updated_at'] ?? ''));
         if ($updatedAt !== '') {
             $detailLines[] = '更新 ' . $updatedAt;
@@ -1955,7 +1974,15 @@ function homepage_search_rebuild_running_task(array $searchRebuildStatus): ?arra
     if ($currentSlugTotal > 0) {
         $currentSlugProcessed = min($currentSlugProcessed, $currentSlugTotal);
     }
+    $detailLines = [];
+    $activityDetail = homepage_search_rebuild_activity_detail($searchRebuildStatus);
+    if ($activityDetail !== '') {
+        $detailLines[] = $activityDetail;
+    }
     $updatedAt = trim((string)($searchRebuildStatus['updated_at'] ?? ''));
+    if ($updatedAt !== '') {
+        $detailLines[] = '更新 ' . $updatedAt;
+    }
     return [
         'slug' => $currentSlug,
         'municipality_name' => $currentName !== '' ? $currentName : $currentSlug,
@@ -1966,7 +1993,7 @@ function homepage_search_rebuild_running_task(array $searchRebuildStatus): ?arra
         'display' => [
             'label' => 'インデックス作成中',
             'class' => 'task-running',
-            'detail' => $updatedAt !== '' ? ('更新 ' . $updatedAt) : '',
+            'detail' => implode("\n", $detailLines),
             'progress_current' => $currentSlugProcessed,
             'progress_total' => $currentSlugTotal > 0 ? $currentSlugTotal : null,
             'batch_running' => true,

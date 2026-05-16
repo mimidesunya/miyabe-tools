@@ -630,6 +630,32 @@
         }
         .task-detail-line {
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .task-log {
+            font-size: 11px;
+            line-height: 1.45;
+            color: var(--muted);
+        }
+        .task-log summary {
+            width: fit-content;
+            cursor: pointer;
+            color: #92400e;
+            font-weight: 700;
+        }
+        .task-log pre {
+            margin: 4px 0 0;
+            max-height: 180px;
+            overflow: auto;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            border-radius: 8px;
+            border: 1px solid rgba(180, 83, 9, 0.18);
+            background: rgba(255, 251, 235, 0.8);
+            padding: 6px 8px;
+            color: #4b5563;
+            font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
         }
         @keyframes spin {
             to { transform: rotate(360deg); }
