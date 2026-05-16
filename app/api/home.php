@@ -12,11 +12,14 @@ header('Cache-Control: public, max-age=5, stale-while-revalidate=30');
 ob_start();
 
 try {
-    $payload = homepage_build_api_payload_cached();
-    $payload = homepage_filter_api_payload_by_prefecture(
-        $payload,
-        is_string($_GET['prefecture'] ?? null) ? (string)$_GET['prefecture'] : ''
-    );
+    $prefectureFilter = is_string($_GET['prefecture'] ?? null) ? (string)$_GET['prefecture'] : '';
+    $payload = management_db_homepage_payload($prefectureFilter);
+    if (!is_array($payload)) {
+        $payload = homepage_build_api_payload_cached();
+        $payload = homepage_filter_api_payload_by_prefecture($payload, $prefectureFilter);
+    } elseif (!headers_sent()) {
+        header('X-Homepage-Store: postgres');
+    }
     $bufferedOutput = (string)ob_get_clean();
     if (trim($bufferedOutput) !== '') {
         error_log('[home_api] discarded unexpected output while building payload');
@@ -39,12 +42,13 @@ try {
 
     error_log('[home_api] ' . $error->getMessage());
 
-    $stalePayload = read_json_cache_file(homepage_api_cache_path(), 0);
+    $prefectureFilter = is_string($_GET['prefecture'] ?? null) ? (string)$_GET['prefecture'] : '';
+    $stalePayload = management_db_homepage_payload($prefectureFilter);
+    if (!is_array($stalePayload)) {
+        $stalePayload = read_json_cache_file(homepage_api_cache_path(), 0);
+    }
     if (is_array($stalePayload)) {
-        $stalePayload = homepage_filter_api_payload_by_prefecture(
-            $stalePayload,
-            is_string($_GET['prefecture'] ?? null) ? (string)$_GET['prefecture'] : ''
-        );
+        $stalePayload = homepage_filter_api_payload_by_prefecture($stalePayload, $prefectureFilter);
         $encoded = json_encode(
             $stalePayload,
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE

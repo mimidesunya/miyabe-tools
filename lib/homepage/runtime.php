@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'municipalities.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'background_tasks.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'opensearch_search.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'management_db.php';
 
 // トップページで必要な件数集計やタスク表示の組み立てをここへ寄せる。
 // app/index.php 側は、返ってきた配列を描画するだけに留める。
@@ -1769,6 +1770,7 @@ function homepage_api_cache_refresh_lock_path(): string
 function homepage_store_cached_api_payload(string $path, array $payload): void
 {
     write_json_cache_file($path, $payload);
+    management_db_store_homepage_payload($payload);
 }
 
 function homepage_api_cache_dependencies_missing(): bool

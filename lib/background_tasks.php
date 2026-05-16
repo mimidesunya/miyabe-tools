@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'municipalities.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'management_db.php';
 
 // スクレイピングの live task JSON と snapshot JSON を読み、UI 向け表示へ整形する。
 
@@ -22,7 +23,11 @@ function load_background_task_status(string $task): array
     }
 
     $decoded = json_decode((string)file_get_contents($path), true);
-    return is_array($decoded) ? $decoded : [];
+    if (!is_array($decoded)) {
+        return [];
+    }
+    management_db_store_task_status($task, $decoded);
+    return $decoded;
 }
 
 function background_task_is_stale(array $taskStatus, int $staleSeconds = 900): bool
