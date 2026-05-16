@@ -154,6 +154,7 @@ def main() -> int:
         (
             f"mkdir -p {dest_dir}/tools {dest_dir}/lib/python {dest_dir}/data/municipalities "
             f"{dest_dir}/work/gijiroku {dest_dir}/work/reiki {dest_dir}/work/celery "
+            f"{shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery "
             f"{dest_dir}/docker/scraper {dest_dir}/logs/scraping"
         ),
     )
@@ -167,9 +168,9 @@ def main() -> int:
     rsync_dir(config, ssh_base, "docker/scraper/", f"{dest_dir}/docker/scraper/", dry_run=args.dry_run, delete=True)
 
     if args.sync_gijiroku_work:
-        rsync_dir(config, ssh_base, "work/gijiroku/", f"{dest_dir}/work/gijiroku/", dry_run=args.dry_run, delete=False)
+        rsync_dir(config, ssh_base, "work/gijiroku/", f"{shared_data_dir}/work/gijiroku/", dry_run=args.dry_run, delete=False)
     if args.sync_reiki_work:
-        rsync_dir(config, ssh_base, "work/reiki/", f"{dest_dir}/work/reiki/", dry_run=args.dry_run, delete=False)
+        rsync_dir(config, ssh_base, "work/reiki/", f"{shared_data_dir}/work/reiki/", dry_run=args.dry_run, delete=False)
 
     if not args.dry_run:
         cleanup_legacy_search_artifacts(config, dest_dir, shared_data_dir)

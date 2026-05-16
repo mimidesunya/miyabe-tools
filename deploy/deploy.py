@@ -439,13 +439,14 @@ def ensure_remote_shared_data_permissions(config, shared_data_dir):
     web_group = str(config.get('web_group', 'www-data')).strip() or 'www-data'
     permission_cmd = f"""
 mkdir -p {shared_data_dir}
-mkdir -p {shared_data_dir}/reiki {shared_data_dir}/gijiroku
+mkdir -p {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery
 chgrp {web_group} {shared_data_dir}
-chgrp {web_group} {shared_data_dir}/reiki {shared_data_dir}/gijiroku
+chgrp {web_group} {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery
 chmod 2775 {shared_data_dir}
-chmod 2775 {shared_data_dir}/reiki {shared_data_dir}/gijiroku
+chmod 2775 {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery
 if [ -d {shared_data_dir}/reiki ]; then find {shared_data_dir}/reiki -type d -exec chgrp {web_group} {{}} + -exec chmod 2775 {{}} +; fi
 if [ -d {shared_data_dir}/gijiroku ]; then find {shared_data_dir}/gijiroku -type d -exec chgrp {web_group} {{}} + -exec chmod 2775 {{}} +; fi
+if [ -d {shared_data_dir}/work ]; then find {shared_data_dir}/work -type d -exec chgrp {web_group} {{}} + -exec chmod 2775 {{}} +; fi
 if [ -d {shared_data_dir}/reiki ]; then find {shared_data_dir}/reiki -type f -name '*.sqlite' -exec chgrp {web_group} {{}} + -exec chmod 664 {{}} +; fi
 if [ -d {shared_data_dir}/gijiroku ]; then find {shared_data_dir}/gijiroku -type f -name '*.sqlite' -exec chgrp {web_group} {{}} + -exec chmod 664 {{}} +; fi
 """
@@ -468,7 +469,7 @@ def migrate_remote_data_layout(config, dest_dir, shared_data_dir):
     """Copies existing remote non-boards data to the shared data directory once."""
     print("=== Migrating Existing Remote Data Layout ===")
     migration_cmd = f"""
-mkdir -p {dest_dir}/data {dest_dir}/data/boards {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku
+mkdir -p {dest_dir}/data {dest_dir}/data/boards {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery
 if [ -f {shared_data_dir}/config.json ] && [ ! -f {dest_dir}/data/config.json ]; then cp -a {shared_data_dir}/config.json {dest_dir}/data/config.json; fi
 if [ -f {shared_data_dir}/users.sqlite ] && [ ! -f {dest_dir}/data/users.sqlite ]; then cp -a {shared_data_dir}/users.sqlite {dest_dir}/data/users.sqlite; fi
 if [ -d {dest_dir}/data/reiki ]; then rsync -a --ignore-existing {dest_dir}/data/reiki/ {shared_data_dir}/reiki/; fi
@@ -484,7 +485,7 @@ def normalize_remote_municipality_storage(config, dest_dir, shared_data_dir):
     normalization_cmd = f"""
 set -eu
 echo '[deploy] prepare municipality storage'
-mkdir -p {dest_dir}/tools {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {shared_data_dir}/municipalities {shared_data_dir}/reiki {shared_data_dir}/gijiroku
+mkdir -p {dest_dir}/tools {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {shared_data_dir}/municipalities {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery
 echo '[deploy] sync municipality metadata to shared data'
 rsync -a {dest_dir}/data/municipalities/ {shared_data_dir}/municipalities/
 if [ -f {dest_dir}/docker-compose.scraping.yml ]; then
@@ -560,7 +561,7 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
     # Ensure remote directories exist
     ssh_exec(
         config,
-        f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/src {dest_dir}/nginx {dest_dir}/docker/php {dest_dir}/tools {dest_dir}/data {dest_dir}/data/boards {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {dest_dir}/work/celery {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku"
+        f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/src {dest_dir}/nginx {dest_dir}/docker/php {dest_dir}/tools {dest_dir}/data {dest_dir}/data/boards {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {dest_dir}/work {dest_dir}/work/celery {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery"
     )
 
     # Use rsync for better handling of large number of files

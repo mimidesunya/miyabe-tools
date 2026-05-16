@@ -115,6 +115,8 @@ def build_scraping_compose(
                 "volumes": [
                     ".:/workspace",
                     f"{shared_data_dir}/gijiroku:/workspace/data/gijiroku",
+                    f"{shared_data_dir}/work/gijiroku:/workspace/work/gijiroku",
+                    f"{shared_data_dir}/work/celery:/workspace/work/celery",
                 ],
                 "command": [
                     "celery",
@@ -149,6 +151,8 @@ def build_scraping_compose(
                 "volumes": [
                     ".:/workspace",
                     f"{shared_data_dir}/reiki:/workspace/data/reiki",
+                    f"{shared_data_dir}/work/reiki:/workspace/work/reiki",
+                    f"{shared_data_dir}/work/celery:/workspace/work/celery",
                 ],
                 "command": [
                     "celery",
@@ -175,6 +179,7 @@ def build_scraping_compose(
                 "environment": common_environment,
                 "volumes": [
                     ".:/workspace",
+                    f"{shared_data_dir}/work/celery:/workspace/work/celery",
                 ],
                 "command": [
                     "celery",
