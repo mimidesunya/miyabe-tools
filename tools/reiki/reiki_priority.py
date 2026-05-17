@@ -1,92 +1,76 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import gzip
 import json
 from pathlib import Path
 from typing import Any
 
-import reiki_io
+
+STOP_RETURN_CODES = {-15, -2, 130, 143}
+_TASK_STATUS_CACHE: dict[str, dict[str, Any]] = {}
 
 
-HTML_SUFFIXES = {".html", ".htm"}
-
-
-def file_or_gzip_path(path: Path) -> Path | None:
-    candidates = [path]
-    if path.suffix.lower() == ".gz":
-        candidates.append(path.with_suffix(""))
-    else:
-        candidates.append(path.with_name(path.name + ".gz"))
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
-
-
-def load_json_array_count(path: Path) -> int:
-    candidate = file_or_gzip_path(path)
-    if candidate is None:
-        return 0
+def task_status(task_name: str) -> dict[str, Any]:
+    if task_name in _TASK_STATUS_CACHE:
+        return _TASK_STATUS_CACHE[task_name]
+    path = Path(__file__).resolve().parents[2] / "data" / "background_tasks" / f"{task_name}.json"
     try:
-        raw = candidate.read_bytes()
-        if candidate.suffix.lower() == ".gz":
-            raw = gzip.decompress(raw)
-        loaded = json.loads(raw.decode("utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
-        return 0
-    return len(loaded) if isinstance(loaded, list) else 0
-
-
-def count_html_files(root: Path) -> int:
-    if not root.exists():
-        return 0
-    seen: set[str] = set()
-    for file_path in root.rglob("*"):
-        if not file_path.is_file():
-            continue
-        logical = reiki_io.logical_path(file_path)
-        if logical.suffix.lower() not in HTML_SUFFIXES:
-            continue
-        seen.add(logical.relative_to(root).as_posix())
-    return len(seen)
-
-
-def load_scrape_progress(state_path: Path) -> tuple[int, int]:
-    try:
-        payload = reiki_io.load_json(state_path, {})
-    except Exception:
-        return 0, 0
+        payload = {}
     if not isinstance(payload, dict):
-        return 0, 0
+        payload = {}
+    _TASK_STATUS_CACHE[task_name] = payload
+    return payload
 
-    current_raw = payload.get("progress_current")
-    total_raw = payload.get("progress_total")
+
+def task_item(task_name: str, slug: str) -> dict[str, Any]:
+    payload = task_status(task_name)
+    item = payload.get("items", {}).get(slug)
+    return item if isinstance(item, dict) else {}
+
+
+def previous_item_failed_with_error(slug: str) -> bool:
+    item = task_item("reiki", slug)
+    if str(item.get("status", "")).strip() != "failed":
+        return False
+    message = str(item.get("message", "")).strip()
+    if message.startswith("停止"):
+        return False
     try:
-        current = max(0, int(current_raw))
-        total = max(0, int(total_raw))
+        returncode = int(item.get("returncode"))
+    except Exception:
+        return True
+    return returncode not in STOP_RETURN_CODES
+
+
+def item_progress(item: dict[str, Any]) -> tuple[int, int]:
+    try:
+        current = max(0, int(item.get("progress_current")))
+        total = max(0, int(item.get("progress_total")))
     except Exception:
         return 0, 0
     return current, total
 
 
+def priority_progress(slug: str) -> tuple[int, int]:
+    candidates = [
+        item_progress(task_item("reiki", slug)),
+        item_progress(task_item("reiki_snapshot", slug)),
+    ]
+    return max(candidates, key=lambda value: (value[1] > 0, value[0] < value[1], value[0], value[1]))
+
+
 def target_priority_info(target: dict[str, Any]) -> dict[str, Any]:
-    work_root = Path(target["work_root"])
-    source_dir = Path(target["source_dir"])
-    html_dir = Path(target["html_dir"])
-    manifest_path = work_root / "source_manifest.json.gz"
-    state_path = work_root / "scrape_state.json"
-
-    manifest_count = load_json_array_count(manifest_path)
-    source_count = count_html_files(source_dir)
-    clean_html_count = count_html_files(html_dir)
-    state_current, state_total = load_scrape_progress(state_path)
-
-    current_count = max(source_count, clean_html_count, state_current)
-    total_count = max(manifest_count, state_total, current_count)
+    slug = str(target.get("slug", "")).strip()
+    current_count, total_count = priority_progress(slug)
     ratio = (current_count / total_count) if total_count > 0 else 0.0
 
-    if total_count > 0 and current_count > 0 and current_count < total_count:
+    previously_failed = previous_item_failed_with_error(slug)
+    if previously_failed:
+        priority_group = 4
+        priority_label = "previous_failed"
+    elif total_count > 0 and current_count > 0 and current_count < total_count:
         priority_group = 1
         priority_label = "near_complete"
     elif total_count <= 0:
@@ -105,7 +89,8 @@ def target_priority_info(target: dict[str, Any]) -> dict[str, Any]:
         "progress_ratio": ratio,
         "current_count": current_count,
         "total_count": total_count,
-        "clean_html_count": clean_html_count,
+        "clean_html_count": current_count,
+        "previously_failed": previously_failed,
     }
 
 

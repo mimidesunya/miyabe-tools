@@ -1,86 +1,76 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import gzip
 import json
 from pathlib import Path
 from typing import Any
 
-import gijiroku_storage
+
+STOP_RETURN_CODES = {-15, -2, 130, 143}
+_TASK_STATUS_CACHE: dict[str, dict[str, Any]] = {}
 
 
-MINUTES_SUFFIXES = {".txt", ".html", ".htm"}
-
-
-def file_or_gzip_path(path: Path) -> Path | None:
-    candidates = [path]
-    if path.suffix.lower() == ".gz":
-        candidates.append(path.with_suffix(""))
-    else:
-        candidates.append(path.with_name(path.name + ".gz"))
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
-
-
-def load_json_array_count(path: Path) -> int:
-    candidate = file_or_gzip_path(path)
-    if candidate is None:
-        return 0
+def task_status(task_name: str) -> dict[str, Any]:
+    if task_name in _TASK_STATUS_CACHE:
+        return _TASK_STATUS_CACHE[task_name]
+    path = Path(__file__).resolve().parents[2] / "data" / "background_tasks" / f"{task_name}.json"
     try:
-        raw = candidate.read_bytes()
-        if candidate.suffix.lower() == ".gz":
-            raw = gzip.decompress(raw)
-        loaded = json.loads(raw.decode("utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
-        return 0
-    return len(loaded) if isinstance(loaded, list) else 0
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    _TASK_STATUS_CACHE[task_name] = payload
+    return payload
 
 
-def count_downloaded_minutes(downloads_dir: Path) -> int:
-    if not downloads_dir.exists():
-        return 0
-    seen: set[str] = set()
-    for file_path in downloads_dir.rglob("*"):
-        if not file_path.is_file():
-            continue
-        if gijiroku_storage.logical_suffix(file_path) not in MINUTES_SUFFIXES:
-            continue
-        seen.add(gijiroku_storage.source_key(file_path, downloads_dir))
-    return len(seen)
+def task_item(task_name: str, slug: str) -> dict[str, Any]:
+    payload = task_status(task_name)
+    item = payload.get("items", {}).get(slug)
+    return item if isinstance(item, dict) else {}
 
 
-def load_scrape_progress(state_path: Path) -> tuple[int, int]:
+def previous_item_failed_with_error(slug: str) -> bool:
+    item = task_item("gijiroku", slug)
+    if str(item.get("status", "")).strip() != "failed":
+        return False
+    message = str(item.get("message", "")).strip()
+    if message.startswith("停止"):
+        return False
     try:
-        payload = gijiroku_storage.load_state(state_path)
+        returncode = int(item.get("returncode"))
     except Exception:
-        return 0, 0
+        return True
+    return returncode not in STOP_RETURN_CODES
 
-    current_raw = payload.get("progress_current")
-    total_raw = payload.get("progress_total")
+
+def item_progress(item: dict[str, Any]) -> tuple[int, int]:
     try:
-        current = max(0, int(current_raw))
-        total = max(0, int(total_raw))
+        current = max(0, int(item.get("progress_current")))
+        total = max(0, int(item.get("progress_total")))
     except Exception:
         return 0, 0
     return current, total
 
 
+def priority_progress(slug: str) -> tuple[int, int]:
+    candidates = [
+        item_progress(task_item("gijiroku", slug)),
+        item_progress(task_item("gijiroku_snapshot", slug)),
+    ]
+    return max(candidates, key=lambda value: (value[1] > 0, value[0] < value[1], value[0], value[1]))
+
+
 def target_priority_info(target: dict[str, Any]) -> dict[str, Any]:
-    downloads_dir = Path(target["downloads_dir"])
-    index_json_path = Path(target["index_json_path"])
-    state_path = Path(target["work_dir"]) / "scrape_state.json"
-
-    downloaded_count = count_downloaded_minutes(downloads_dir)
-    index_total = load_json_array_count(index_json_path)
-    state_current, state_total = load_scrape_progress(state_path)
-
-    current_count = max(downloaded_count, state_current)
-    total_count = max(index_total, state_total, current_count)
+    slug = str(target.get("slug", "")).strip()
+    current_count, total_count = priority_progress(slug)
     ratio = (current_count / total_count) if total_count > 0 else 0.0
 
-    if total_count > 0 and current_count > 0 and current_count < total_count:
+    previously_failed = previous_item_failed_with_error(slug)
+    if previously_failed:
+        priority_group = 4
+        priority_label = "previous_failed"
+    elif total_count > 0 and current_count > 0 and current_count < total_count:
         priority_group = 1
         priority_label = "near_complete"
     elif total_count <= 0:
@@ -99,7 +89,8 @@ def target_priority_info(target: dict[str, Any]) -> dict[str, Any]:
         "progress_ratio": ratio,
         "current_count": current_count,
         "total_count": total_count,
-        "downloaded_count": downloaded_count,
+        "downloaded_count": current_count,
+        "previously_failed": previously_failed,
     }
 
 
