@@ -1202,14 +1202,10 @@ function homepage_scraper_index_summary(
     [$stateLabel, $stateClass] = homepage_task_status_index_state($taskStatus);
     $capacity = homepage_task_summary_int($taskStatus, 'index_capacity') ?? 1;
     $active = homepage_task_summary_int($taskStatus, 'index_active_count') ?? 0;
-    $queue = homepage_task_summary_int($taskStatus, 'index_queue_count') ?? 0;
     $counts = homepage_feature_search_index_counts($municipalities, $featureKey, $featureRuntimeStates);
 
     $stats = [];
     homepage_task_summary_append_stat($stats, '稼働', max(0, $active) . '/' . max(1, $capacity));
-    if ($queue > 0 || (bool)($taskStatus['running'] ?? false)) {
-        homepage_task_summary_append_stat($stats, '待機', (string)$queue);
-    }
     if ((int)$counts['total'] > 0) {
         homepage_task_summary_append_stat($stats, '完了', (int)$counts['complete'] . '/' . (int)$counts['total']);
     }
@@ -2013,12 +2009,8 @@ function homepage_task_status_index_summary_from_baseline(
     [$stateLabel, $stateClass] = homepage_task_status_index_state($taskStatus);
     $capacity = max(1, (int)($taskStatus['index_capacity'] ?? 1));
     $active = max(0, (int)($taskStatus['index_active_count'] ?? 0));
-    $queue = max(0, (int)($taskStatus['index_queue_count'] ?? 0));
     $stats = [];
     $stats[] = ['label' => '稼働', 'value' => $active . '/' . $capacity];
-    if ($queue > 0 || (bool)($taskStatus['running'] ?? false)) {
-        $stats[] = ['label' => '待機', 'value' => (string)$queue];
-    }
     $completed = homepage_task_status_stat_value($baselineIndex, '完了');
     if ($completed !== '') {
         $stats[] = ['label' => '完了', 'value' => $completed];
