@@ -1130,6 +1130,85 @@ function homepage_task_summary_feature_counts(
     ];
 }
 
+function homepage_feature_search_index_counts(
+    array $municipalities,
+    string $featureKey,
+    array $featureRuntimeStates
+): array {
+    $targetCodes = array_values(array_filter(
+        homepage_feature_target_codes($featureKey),
+        static fn(mixed $code): bool => trim((string)$code) !== ''
+    ));
+    $targetLookup = array_fill_keys($targetCodes, true);
+    $targetCount = 0;
+    $indexedCount = 0;
+    foreach ($municipalities as $slug => $municipality) {
+        if (!is_array($municipality)) {
+            continue;
+        }
+        $code = trim((string)($municipality['code'] ?? ''));
+        if ($code === '' || !isset($targetLookup[$code])) {
+            continue;
+        }
+        $targetCount += 1;
+        $runtimeState = $featureRuntimeStates[(string)$slug][$featureKey] ?? null;
+        if (
+            is_array($runtimeState)
+            && !empty($runtimeState['has_data'])
+            && !empty($runtimeState['search_indexed'])
+        ) {
+            $indexedCount += 1;
+        }
+    }
+    return ['complete' => $indexedCount, 'total' => $targetCount];
+}
+
+function homepage_task_status_index_state(array $taskStatus): array
+{
+    if (background_task_is_stale($taskStatus)) {
+        return ['停止の可能性', 'task-summary-stale'];
+    }
+    $active = max(0, (int)($taskStatus['index_active_count'] ?? 0));
+    $queue = max(0, (int)($taskStatus['index_queue_count'] ?? 0));
+    if ($active > 0 || $queue > 0) {
+        return ['実行中', 'task-summary-running'];
+    }
+    return ['待機中', 'task-summary-idle'];
+}
+
+function homepage_scraper_index_summary(
+    array $taskStatus,
+    string $featureKey,
+    array $featureIcons,
+    array $featureRuntimeStates,
+    array $municipalities
+): array {
+    $featureLabel = $featureKey === 'reiki' ? '例規集' : '会議録';
+    [$stateLabel, $stateClass] = homepage_task_status_index_state($taskStatus);
+    $capacity = homepage_task_summary_int($taskStatus, 'index_capacity') ?? 1;
+    $active = homepage_task_summary_int($taskStatus, 'index_active_count') ?? 0;
+    $queue = homepage_task_summary_int($taskStatus, 'index_queue_count') ?? 0;
+    $counts = homepage_feature_search_index_counts($municipalities, $featureKey, $featureRuntimeStates);
+
+    $stats = [];
+    homepage_task_summary_append_stat($stats, '稼働', max(0, $active) . '/' . max(1, $capacity));
+    if ($queue > 0 || (bool)($taskStatus['running'] ?? false)) {
+        homepage_task_summary_append_stat($stats, '待機', (string)$queue);
+    }
+    if ((int)$counts['total'] > 0) {
+        homepage_task_summary_append_stat($stats, '完了', (int)$counts['complete'] . '/' . (int)$counts['total']);
+    }
+
+    return [
+        'label' => $featureLabel . ' インデックス更新',
+        'icon' => (string)($featureIcons[$featureKey] ?? ''),
+        'state_label' => $stateLabel,
+        'state_class' => $stateClass,
+        'stats' => $stats,
+        'tasks' => [],
+    ];
+}
+
 function homepage_background_task_summary(
     array $taskStatus,
     array $taskDefinition,
@@ -1304,6 +1383,9 @@ function homepage_background_task_summary(
         'state_label' => $stateLabel,
         'state_class' => $stateClass,
         'stats' => $stats,
+        'index_summary' => in_array($taskKey, ['gijiroku', 'reiki'], true)
+            ? homepage_scraper_index_summary($taskStatus, $featureKey, $featureIcons, $featureRuntimeStates, $municipalities)
+            : null,
     ];
 }
 
@@ -1339,6 +1421,14 @@ function homepage_background_task_summaries(
         }
     }
     return $summaries;
+}
+
+function homepage_task_item_is_index_activity(array $item): bool
+{
+    $message = trim((string)($item['message'] ?? ''));
+    $indexStatus = trim((string)($item['index_status'] ?? ''));
+    return str_contains($message, 'インデックス')
+        || ($indexStatus !== '' && $indexStatus !== 'pending');
 }
 
 function homepage_collect_visible_features(
@@ -1509,20 +1599,6 @@ function homepage_build_context(): array
             'completed_stat_label' => 'DL済',
         ],
         [
-            'task_key' => 'search_rebuild',
-            'feature_key' => '',
-            'running_label' => '検索インデックス更新',
-            'summary_label' => '検索インデックス更新',
-            'show_when_idle' => false,
-            'default_worker_capacity' => 1,
-            'compact_worker_stats' => true,
-            'show_current_stat' => false,
-            'show_index_stats' => false,
-            'show_processed_stat' => false,
-            'show_published_stat' => false,
-            'show_pending_stat' => false,
-        ],
-        [
             'task_key' => 'gijiroku_rebuild',
             'feature_key' => 'gijiroku',
             'running_label' => '会議録 再構築',
@@ -1638,6 +1714,7 @@ function homepage_build_context(): array
                 'feature_key' => $featureKey,
                 'feature_label' => $featureLabel,
                 'task_key' => $taskKey,
+                'task_area' => homepage_task_item_is_index_activity($item) ? 'index' : 'scrape',
                 'task_order' => (int)($runningTaskOrder[$taskKey] ?? PHP_INT_MAX),
                 'feature_icon' => (string)($featureIcons[$featureKey] ?? ''),
                 'display' => $display,
@@ -1737,6 +1814,7 @@ function homepage_build_api_payload(): array
             'municipality_name' => (string)($entry['municipality_name'] ?? ''),
             'feature_key' => (string)($entry['feature_key'] ?? ''),
             'task_key' => (string)($entry['task_key'] ?? ''),
+            'task_area' => (string)($entry['task_area'] ?? 'scrape'),
             'feature_label' => (string)($entry['feature_label'] ?? ''),
             'feature_icon' => (string)($entry['feature_icon'] ?? ''),
             'display' => is_array($entry['display'] ?? null) ? $entry['display'] : null,
@@ -1783,8 +1861,9 @@ function homepage_build_api_payload(): array
         $runningTasks[] = [
             'slug' => $currentSlug,
             'municipality_name' => $currentName !== '' ? $currentName : $currentSlug,
-            'feature_key' => '',
-            'task_key' => 'search_rebuild',
+            'feature_key' => trim((string)($searchRebuildStatus['current_stage'] ?? '')) === 'reiki' ? 'reiki' : 'gijiroku',
+            'task_key' => trim((string)($searchRebuildStatus['current_stage'] ?? '')) === 'reiki' ? 'reiki' : 'gijiroku',
+            'task_area' => 'index',
             'feature_label' => '検索インデックス更新',
             'feature_icon' => '',
             'display' => [
@@ -1909,6 +1988,38 @@ function homepage_task_status_worker_stat(array $taskStatus, int $defaultCapacit
     ];
 }
 
+function homepage_task_status_index_summary_from_baseline(
+    string $taskKey,
+    array $taskStatus,
+    array $baselineSummary
+): ?array {
+    if (!in_array($taskKey, ['gijiroku', 'reiki'], true)) {
+        return null;
+    }
+    $baselineIndex = is_array($baselineSummary['index_summary'] ?? null) ? $baselineSummary['index_summary'] : [];
+    [$stateLabel, $stateClass] = homepage_task_status_index_state($taskStatus);
+    $capacity = max(1, (int)($taskStatus['index_capacity'] ?? 1));
+    $active = max(0, (int)($taskStatus['index_active_count'] ?? 0));
+    $queue = max(0, (int)($taskStatus['index_queue_count'] ?? 0));
+    $stats = [];
+    $stats[] = ['label' => '稼働', 'value' => $active . '/' . $capacity];
+    if ($queue > 0 || (bool)($taskStatus['running'] ?? false)) {
+        $stats[] = ['label' => '待機', 'value' => (string)$queue];
+    }
+    $completed = homepage_task_status_stat_value($baselineIndex, '完了');
+    if ($completed !== '') {
+        $stats[] = ['label' => '完了', 'value' => $completed];
+    }
+    return [
+        'label' => (string)($baselineIndex['label'] ?? ($taskKey === 'reiki' ? '例規集 インデックス更新' : '会議録 インデックス更新')),
+        'icon' => (string)($baselineIndex['icon'] ?? ''),
+        'state_label' => $stateLabel,
+        'state_class' => $stateClass,
+        'stats' => $stats,
+        'tasks' => [],
+    ];
+}
+
 function homepage_task_status_summary(
     string $taskKey,
     array $taskStatus,
@@ -1949,6 +2060,7 @@ function homepage_task_status_summary(
         'state_label' => $stateLabel,
         'state_class' => $stateClass,
         'stats' => $stats,
+        'index_summary' => homepage_task_status_index_summary_from_baseline($taskKey, $taskStatus, $baselineSummary),
     ];
 }
 
@@ -1974,6 +2086,7 @@ function homepage_task_status_running_tasks_from_items(
             'municipality_name' => (string)($item['name'] ?? $slug),
             'feature_key' => $featureKey,
             'task_key' => $taskKey,
+            'task_area' => homepage_task_item_is_index_activity($item) ? 'index' : 'scrape',
             'feature_label' => $featureLabel,
             'feature_icon' => $featureIcon,
             'display' => $display,
@@ -2024,8 +2137,9 @@ function homepage_search_rebuild_running_task(array $searchRebuildStatus): ?arra
     return [
         'slug' => $currentSlug,
         'municipality_name' => $currentName !== '' ? $currentName : $currentSlug,
-        'feature_key' => '',
-        'task_key' => 'search_rebuild',
+        'feature_key' => trim((string)($searchRebuildStatus['current_stage'] ?? '')) === 'reiki' ? 'reiki' : 'gijiroku',
+        'task_key' => trim((string)($searchRebuildStatus['current_stage'] ?? '')) === 'reiki' ? 'reiki' : 'gijiroku',
+        'task_area' => 'index',
         'feature_label' => '検索インデックス更新',
         'feature_icon' => '',
         'display' => [
@@ -2061,13 +2175,6 @@ function homepage_build_task_status_payload(): array
             'icon' => '⚖️',
             'default_capacity' => 3,
         ],
-        'search_rebuild' => [
-            'feature_key' => '',
-            'label' => '検索インデックス更新',
-            'icon' => '',
-            'default_capacity' => 1,
-            'municipality_count' => (int)($baseline['municipality_count'] ?? 0),
-        ],
     ];
 
     $summaries = [];
@@ -2100,6 +2207,12 @@ function homepage_build_task_status_payload(): array
                 $status
             )
         );
+    }
+    $searchTask = homepage_search_rebuild_running_task(
+        is_array($statuses['search_rebuild'] ?? null) ? $statuses['search_rebuild'] : []
+    );
+    if (is_array($searchTask)) {
+        $runningTasks[] = $searchTask;
     }
 
     $versionParts = [];

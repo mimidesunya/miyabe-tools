@@ -450,8 +450,10 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
     }
     if ($running && $status === 'running') {
         $label = $customRunningLabel !== '' ? $customRunningLabel : ($isReflectTask ? '反映中' : 'スクレイピング中');
-        if ($message === 'インデックス更新中') {
-            $label = $message;
+        if (str_contains($message, 'インデックス更新中')) {
+            $label = 'インデックス更新中';
+        } elseif (str_contains($message, 'インデックス待機中')) {
+            $label = 'インデックス待機中';
         } elseif ($isReflectTask && $message !== '' && $message !== '反映中') {
             $label = $message;
         }

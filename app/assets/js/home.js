@@ -129,6 +129,33 @@
         `.trim();
     }
 
+    function renderIndexSummary(entry) {
+        const index = entry?.index_summary;
+        if (!index || typeof index !== 'object') {
+            return '';
+        }
+        const stats = Array.isArray(index.stats) ? index.stats.filter((item) => item && item.label && item.value) : [];
+        const tasks = Array.isArray(index.tasks) ? index.tasks.filter((item) => item && item.display) : [];
+        if (stats.length === 0 && tasks.length === 0) {
+            return '';
+        }
+        return `
+            <div class="running-index-summary">
+                <div class="running-index-top">
+                    <span class="running-index-title">${renderFeatureIdentity(index.icon, index.label)}</span>
+                    <span class="running-summary-state ${escapeHtml(index.state_class || '')}">${escapeHtml(index.state_label || '')}</span>
+                </div>
+                ${stats.length ? `<div class="running-summary-stats running-index-stats">${stats.map((item) => `
+                    <span class="running-summary-stat">
+                        <span class="running-summary-stat-label">${escapeHtml(item.label || '')}</span>
+                        <span class="running-summary-stat-value">${escapeHtml(item.value || '')}</span>
+                    </span>
+                `.trim()).join('')}</div>` : ''}
+                ${tasks.length ? `<div class="running-summary-tasks running-index-tasks">${tasks.map((task) => renderRunningTask({ ...task, task_key: 'search_rebuild' })).join('')}</div>` : ''}
+            </div>
+        `.trim();
+    }
+
     function renderRunningSummaryCard(entry) {
         if (!entry || typeof entry !== 'object') {
             return '';
@@ -154,6 +181,7 @@
                         </span>
                     `.trim()).join('')}
                 </div>
+                ${renderIndexSummary(entry)}
                 ${tasks.length ? `<div class="running-summary-tasks">${tasks.map(renderRunningTask).join('')}</div>` : ''}
             </div>
         `.trim();
@@ -352,17 +380,28 @@
 
         if (runningSection && runningList) {
             const tasksByKey = new Map();
+            const indexTasksByKey = new Map();
             runningTasks.forEach((task) => {
                 const key = String(task?.task_key || '');
                 if (key === '') return;
-                if (!tasksByKey.has(key)) tasksByKey.set(key, []);
-                tasksByKey.get(key).push(task);
+                const area = String(task?.task_area || 'scrape');
+                const targetMap = area === 'index' ? indexTasksByKey : tasksByKey;
+                if (!targetMap.has(key)) targetMap.set(key, []);
+                targetMap.get(key).push(task);
             });
             const summaryCards = taskStateSummaries.map((summary) => ({
                 ...summary,
                 tasks: Array.isArray(summary?.tasks)
                     ? summary.tasks
                     : (tasksByKey.get(String(summary?.task_key || '')) || []),
+                index_summary: summary?.index_summary
+                    ? {
+                        ...summary.index_summary,
+                        tasks: Array.isArray(summary.index_summary.tasks)
+                            ? summary.index_summary.tasks
+                            : (indexTasksByKey.get(String(summary?.task_key || '')) || []),
+                    }
+                    : null,
             }));
             runningSection.hidden = summaryCards.length === 0;
             if (runningSummaryList) {

@@ -97,6 +97,27 @@
             display: grid;
             gap: 7px;
         }
+        .running-index-summary {
+            display: grid;
+            gap: 7px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(148, 163, 184, 0.18);
+        }
+        .running-index-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .running-index-title {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--ink);
+        }
         .running-summary-stat {
             display: inline-flex;
             align-items: baseline;
