@@ -391,13 +391,13 @@
             });
             const summaryCards = taskStateSummaries.map((summary) => ({
                 ...summary,
-                tasks: Array.isArray(summary?.tasks)
+                tasks: Array.isArray(summary?.tasks) && summary.tasks.length > 0
                     ? summary.tasks
                     : (tasksByKey.get(String(summary?.task_key || '')) || []),
                 index_summary: summary?.index_summary
                     ? {
                         ...summary.index_summary,
-                        tasks: Array.isArray(summary.index_summary.tasks)
+                        tasks: Array.isArray(summary.index_summary.tasks) && summary.index_summary.tasks.length > 0
                             ? summary.index_summary.tasks
                             : (indexTasksByKey.get(String(summary?.task_key || '')) || []),
                     }
