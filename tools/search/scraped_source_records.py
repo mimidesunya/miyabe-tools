@@ -4,6 +4,7 @@ import gzip
 import html
 import json
 import re
+import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -265,19 +266,54 @@ def normalize_year_label_candidate(value: str) -> str | None:
     return label
 
 
-def extract_held_on(text: str, title: str, source_year: int | None) -> tuple[str | None, int | None, int | None, int | None]:
-    match = MINUTES_DATE_PATTERN.search(joined_head_text(text, limit=20))
-    if match:
+def warn_invalid_minutes_date(candidate: str, *, year: int | None, month: int, day: int, source: str) -> None:
+    print(
+        "[WARN] invalid minutes date skipped "
+        f"source={source} candidate={candidate!r} year={year!r} month={month} day={day}",
+        file=sys.stderr,
+        flush=True,
+    )
+
+
+def extract_held_on(
+    text: str,
+    title: str,
+    source_year: int | None,
+    *,
+    source_hint: str = "",
+) -> tuple[str | None, int | None, int | None, int | None]:
+    source_label = source_hint or title
+    for match in MINUTES_DATE_PATTERN.finditer(joined_head_text(text, limit=20)):
         gregorian_year = era_to_gregorian(match.group(1), match.group(2))
         month = int(to_ascii_digits(match.group(4)))
         day = int(to_ascii_digits(match.group(5)))
-        if gregorian_year is not None:
+        if gregorian_year is None:
+            continue
+        try:
             return date(gregorian_year, month, day).isoformat(), gregorian_year, month, day
+        except ValueError:
+            warn_invalid_minutes_date(
+                match.group(0),
+                year=gregorian_year,
+                month=month,
+                day=day,
+                source=source_label,
+            )
+            continue
     match = FILE_DATE_PATTERN.search(title)
     if match and source_year is not None:
         month = int(match.group(1))
         day = int(match.group(2))
-        return date(source_year, month, day).isoformat(), source_year, month, day
+        try:
+            return date(source_year, month, day).isoformat(), source_year, month, day
+        except ValueError:
+            warn_invalid_minutes_date(
+                match.group(0),
+                year=source_year,
+                month=month,
+                day=day,
+                source=source_label,
+            )
     return None, source_year, None, None
 
 
@@ -392,7 +428,12 @@ def build_minutes_record(
     meta = meta_map.get((extracted_year_label, title, normalize_space(meeting_name or "")))
     if meta is None:
         meta = meta_map.get((extracted_year_label, title, ""))
-    held_on, gregorian_year, month, day = extract_held_on(content, title, meta.source_year if meta else None)
+    held_on, gregorian_year, month, day = extract_held_on(
+        content,
+        title,
+        meta.source_year if meta else None,
+        source_hint=file_path.relative_to(downloads_dir).as_posix(),
+    )
     return MinuteRecord(
         rel_path=file_path.relative_to(downloads_dir).as_posix(),
         title=title,
