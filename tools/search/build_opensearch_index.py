@@ -961,7 +961,7 @@ def search_rebuild_status_start(*, build_id: str, doc_type: str, total_count: in
         "finished_at": "",
         "heartbeat_at": batch_status.now_text(),
         "updated_at": batch_status.now_text(),
-        "running_label": "検索インデックス再構築",
+        "running_label": "検索インデックス更新",
         "doc_type": doc_type,
         "current_stage": "",
         "current_index": "",

@@ -79,6 +79,7 @@ def build_scraping_compose(
         "MIYABE_SEARCH_ALIAS": "${MIYABE_SEARCH_ALIAS:-miyabe-documents-current}",
         "MIYABE_MINUTES_ALIAS": "${MIYABE_MINUTES_ALIAS:-miyabe-minutes-current}",
         "MIYABE_REIKI_ALIAS": "${MIYABE_REIKI_ALIAS:-miyabe-reiki-current}",
+        "SCRAPER_BUILD_SEARCH_INDEX": "1",
     }
     compose = {
         "name": SCRAPING_COMPOSE_PROJECT,
@@ -107,7 +108,7 @@ def build_scraping_compose(
                 "environment": {
                     **common_environment,
                     "SCRAPER_GIJIROKU_ACK_ROBOTS": "1",
-                    "SCRAPER_GIJIROKU_PARALLEL": "1",
+                    "SCRAPER_GIJIROKU_PARALLEL": "3",
                     "SCRAPER_GIJIROKU_INDEX_PARALLEL": "1",
                     "SCRAPER_GIJIROKU_PER_HOST_PARALLEL": "1",
                     "SCRAPER_GIJIROKU_PER_HOST_START_INTERVAL": "10",
@@ -145,7 +146,8 @@ def build_scraping_compose(
                 "environment": {
                     **common_environment,
                     "SCRAPER_REIKI_CHECK_UPDATES": "1",
-                    "SCRAPER_REIKI_PARALLEL": "1",
+                    "SCRAPER_REIKI_PARALLEL": "3",
+                    "SCRAPER_REIKI_INDEX_PARALLEL": "1",
                     "SCRAPER_REIKI_PER_HOST_PARALLEL": "1",
                     "SCRAPER_REIKI_PER_HOST_START_INTERVAL": "10",
                 },
