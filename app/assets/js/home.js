@@ -94,7 +94,7 @@
         const detailLines = String(display.detail || '')
             .split(/\r?\n/)
             .map((line) => line.trim())
-            .filter((line) => countText === '' || !/^(DL済|投入済|反映)?\s*\d+(?:\/\d+)?件$/.test(line))
+            .filter((line) => countText === '' || !/^(DL済|投入済|追加済|反映)?\s*\d+(?:\/\d+)?件$/.test(line))
             .filter((line) => line !== '');
         const rawCurrent = Number(display.progress_current ?? NaN);
         const rawTotal = Number(display.progress_total ?? NaN);
@@ -124,7 +124,7 @@
         return `
             <div class="running-item">
                 <span class="running-name">${escapeHtml(entry.municipality_name || '')}</span>
-                ${renderTaskMarkup(display, { countLabel: entry?.task_key === 'search_rebuild' ? '投入済' : 'DL済' })}
+                ${renderTaskMarkup(display, { countLabel: entry?.task_area === 'index' || entry?.task_key === 'search_rebuild' ? '追加済' : 'DL済' })}
             </div>
         `.trim();
     }
@@ -151,7 +151,7 @@
                         <span class="running-summary-stat-value">${escapeHtml(item.value || '')}</span>
                     </span>
                 `.trim()).join('')}</div>` : ''}
-                ${tasks.length ? `<div class="running-summary-tasks running-index-tasks">${tasks.map((task) => renderRunningTask({ ...task, task_key: 'search_rebuild' })).join('')}</div>` : ''}
+                ${tasks.length ? `<div class="running-summary-tasks running-index-tasks">${tasks.map((task) => renderRunningTask({ ...task, task_area: 'index' })).join('')}</div>` : ''}
             </div>
         `.trim();
     }

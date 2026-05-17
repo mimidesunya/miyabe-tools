@@ -27,6 +27,7 @@ from batch_runner_common import (
     process_group_popen_kwargs,
     run_logged_subprocess,
     summarize_worker,
+    tail_text_lines,
     target_host,
     target_matches,
     terminate_process_group,
@@ -46,6 +47,8 @@ TAIKEI_LIKE_SYSTEMS = {"taikei", "g-reiki"}
 PROGRESS_RE = re.compile(
     r"^\[PROGRESS\]\s+unit=(?P<unit>[a-z_]+)\s+current=(?P<current>\d+)\s+total=(?P<total>\d+)\s*$"
 )
+INDEX_BULK_RE = re.compile(r"^\[BULK\]\s+.*\btotal=(?P<total>\d+)\b")
+INDEX_DONE_RE = re.compile(r"^\[DONE\]\s+.*\bcount=(?P<count>\d+)\b")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -215,6 +218,73 @@ def extract_worker_progress_for_display(worker: dict) -> dict[str, object] | Non
     if progress is not None:
         return progress
     return extract_worker_progress(worker["stdout_path"])
+
+
+def index_worker_total(index_worker: dict) -> int:
+    scrape_worker = index_worker.get("scrape_worker")
+    if not isinstance(scrape_worker, dict):
+        return 0
+    progress = extract_worker_progress_for_display(scrape_worker)
+    if not isinstance(progress, dict):
+        return 0
+    return max(0, int(progress.get("progress_total") or progress.get("progress_current") or 0))
+
+
+def extract_index_progress_for_display(index_worker: dict) -> dict[str, object] | None:
+    current: int | None = None
+    for line in reversed(tail_text_lines(index_worker["stdout_path"], max_bytes=16_384)):
+        stripped = line.strip()
+        done_match = INDEX_DONE_RE.match(stripped)
+        if done_match:
+            current = int(done_match.group("count"))
+            break
+        bulk_match = INDEX_BULK_RE.match(stripped)
+        if bulk_match:
+            current = int(bulk_match.group("total"))
+            break
+
+    total = index_worker_total(index_worker)
+    if current is None and total <= 0:
+        return None
+    current = max(0, int(current or 0))
+    if total <= 0:
+        total = current
+    return {
+        "progress_current": min(current, total) if total > 0 else current,
+        "progress_total": total,
+        "progress_unit": "document",
+    }
+
+
+def summarize_index_worker(index_worker: dict) -> str:
+    stderr_path = index_worker["stderr_path"]
+    if stderr_path.exists() and stderr_path.stat().st_size > 0:
+        return f"エラー出力あり {stderr_path.stat().st_size}バイト"
+
+    progress = extract_index_progress_for_display(index_worker)
+    if progress is not None:
+        current = int(progress["progress_current"])
+        total = int(progress["progress_total"])
+        if total > 0 and current >= total:
+            return "検索可能状態へ反映中"
+        return "インデックスへ追加中"
+
+    for line in reversed(tail_text_lines(index_worker["stdout_path"], max_bytes=16_384)):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("[DELETE] "):
+            return "既存インデックスを整理中"
+        if stripped.startswith("[PUBLISH] "):
+            return "検索可能状態へ反映中"
+        if stripped.startswith("[DONE] "):
+            return "インデックス更新完了"
+        if stripped.startswith("[BULK] "):
+            return "インデックスへ追加中"
+        if stripped.startswith("[INFO] "):
+            return stripped[7:].strip() or "インデックス更新中"
+        return "インデックス更新中"
+    return "インデックス更新を起動中"
 
 
 def launch_worker(
@@ -476,11 +546,16 @@ def refresh_active_worker_heartbeats(
         )
     for worker in active_index_workers:
         target = worker["target"]
-        summary = summarize_worker(worker["stdout_path"], worker["stderr_path"])
+        update_kwargs = {
+            "message": summarize_index_worker(worker),
+        }
+        progress = extract_index_progress_for_display(worker)
+        if progress is not None:
+            update_kwargs.update(progress)
         batch_status.update_item(
             status_state,
             str(target["slug"]),
-            message=f"インデックス更新中: {summary}",
+            **update_kwargs,
         )
     batch_status.update_runtime_metrics(
         status_state,
@@ -1019,11 +1094,13 @@ def main() -> int:
                     status_state,
                     str(launched_worker["target"]["slug"]),
                     status="running",
-                    message="インデックス更新中",
+                    message=summarize_index_worker(launched_worker),
                     pid=int(launched_worker["process"].pid),
-                    progress_current=None,
-                    progress_total=None,
-                    progress_unit="",
+                    **(extract_index_progress_for_display(launched_worker) or {
+                        "progress_current": 0,
+                        "progress_total": index_worker_total(launched_worker) or None,
+                        "progress_unit": "document",
+                    }),
                 )
                 write_status_state()
                 print(

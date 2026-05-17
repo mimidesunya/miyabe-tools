@@ -956,6 +956,21 @@ function homepage_task_summary_int(array $taskStatus, string $key): ?int
     return max(0, (int)$value);
 }
 
+function homepage_task_summary_last_run_text(array $taskStatus): string
+{
+    $running = (bool)($taskStatus['running'] ?? false);
+    $candidateKeys = $running
+        ? ['started_at', 'updated_at', 'heartbeat_at']
+        : ['finished_at', 'started_at', 'updated_at'];
+    foreach ($candidateKeys as $key) {
+        $value = trim((string)($taskStatus[$key] ?? ''));
+        if ($value !== '') {
+            return $value;
+        }
+    }
+    return '';
+}
+
 function homepage_search_rebuild_total_count_cache_path(): string
 {
     return data_path('background_tasks/search_rebuild_total_count.json');
@@ -1198,6 +1213,7 @@ function homepage_scraper_index_summary(
     if ((int)$counts['total'] > 0) {
         homepage_task_summary_append_stat($stats, '完了', (int)$counts['complete'] . '/' . (int)$counts['total']);
     }
+    homepage_task_summary_append_stat($stats, '最終実行', homepage_task_summary_last_run_text($taskStatus));
 
     return [
         'label' => $featureLabel . ' インデックス更新',
@@ -1360,6 +1376,7 @@ function homepage_background_task_summary(
     if ($totalCount > 0) {
         homepage_task_summary_append_stat($stats, $completedLabel, $completedCount . '/' . $totalCount);
     }
+    homepage_task_summary_append_stat($stats, '最終実行', homepage_task_summary_last_run_text($taskStatus));
     if ($stats === []) {
         return null;
     }
@@ -1854,10 +1871,6 @@ function homepage_build_api_payload(): array
         if ($activityDetail !== '') {
             $detailLines[] = $activityDetail;
         }
-        $updatedAt = trim((string)($searchRebuildStatus['updated_at'] ?? ''));
-        if ($updatedAt !== '') {
-            $detailLines[] = '更新 ' . $updatedAt;
-        }
         $runningTasks[] = [
             'slug' => $currentSlug,
             'municipality_name' => $currentName !== '' ? $currentName : $currentSlug,
@@ -2010,6 +2023,10 @@ function homepage_task_status_index_summary_from_baseline(
     if ($completed !== '') {
         $stats[] = ['label' => '完了', 'value' => $completed];
     }
+    $lastRun = homepage_task_summary_last_run_text($taskStatus);
+    if ($lastRun !== '') {
+        $stats[] = ['label' => '最終実行', 'value' => $lastRun];
+    }
     return [
         'label' => (string)($baselineIndex['label'] ?? ($taskKey === 'reiki' ? '例規集 インデックス更新' : '会議録 インデックス更新')),
         'icon' => (string)($baselineIndex['icon'] ?? ''),
@@ -2050,6 +2067,10 @@ function homepage_task_status_summary(
         if ($downloaded !== '') {
             $stats[] = ['label' => 'DL済', 'value' => $downloaded];
         }
+    }
+    $lastRun = homepage_task_summary_last_run_text($taskStatus);
+    if ($lastRun !== '') {
+        $stats[] = ['label' => '最終実行', 'value' => $lastRun];
     }
 
     return [
@@ -2129,10 +2150,6 @@ function homepage_search_rebuild_running_task(array $searchRebuildStatus): ?arra
     $activityDetail = homepage_search_rebuild_activity_detail($searchRebuildStatus);
     if ($activityDetail !== '') {
         $detailLines[] = $activityDetail;
-    }
-    $updatedAt = trim((string)($searchRebuildStatus['updated_at'] ?? ''));
-    if ($updatedAt !== '') {
-        $detailLines[] = '更新 ' . $updatedAt;
     }
     return [
         'slug' => $currentSlug,

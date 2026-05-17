@@ -420,7 +420,7 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
     } else {
         $timeLabel = $updatedAt;
     }
-    if ($timeLabel !== '') {
+    if ($timeLabel !== '' && !($running && in_array($status, ['pending', 'running'], true))) {
         $detailParts[] = '更新 ' . $timeLabel;
     }
     $heartbeatDetail = background_task_item_running_heartbeat_detail($taskStatus, $item);
@@ -450,10 +450,10 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
     }
     if ($running && $status === 'running') {
         $label = $customRunningLabel !== '' ? $customRunningLabel : ($isReflectTask ? '反映中' : 'スクレイピング中');
-        if (str_contains($message, 'インデックス更新中')) {
-            $label = 'インデックス更新中';
-        } elseif (str_contains($message, 'インデックス待機中')) {
+        if (str_contains($message, 'インデックス待機中')) {
             $label = 'インデックス待機中';
+        } elseif (str_contains($message, 'インデックス')) {
+            $label = 'インデックス更新中';
         } elseif ($isReflectTask && $message !== '' && $message !== '反映中') {
             $label = $message;
         }
