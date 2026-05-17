@@ -1155,7 +1155,7 @@ function homepage_feature_search_index_counts(
         static fn(mixed $code): bool => trim((string)$code) !== ''
     ));
     $targetLookup = array_fill_keys($targetCodes, true);
-    $targetCount = 0;
+    $addableCount = 0;
     $indexedCount = 0;
     foreach ($municipalities as $slug => $municipality) {
         if (!is_array($municipality)) {
@@ -1165,17 +1165,18 @@ function homepage_feature_search_index_counts(
         if ($code === '' || !isset($targetLookup[$code])) {
             continue;
         }
-        $targetCount += 1;
         $runtimeState = $featureRuntimeStates[(string)$slug][$featureKey] ?? null;
-        if (
-            is_array($runtimeState)
-            && !empty($runtimeState['has_data'])
-            && !empty($runtimeState['search_indexed'])
-        ) {
+        if (!is_array($runtimeState) || empty($runtimeState['has_data'])) {
+            continue;
+        }
+        // インデックス更新の母数は、全対象自治体ではなく、
+        // 部分取得を含めて検索インデックスに追加できるデータを持つ自治体にする。
+        $addableCount += 1;
+        if (!empty($runtimeState['search_indexed'])) {
             $indexedCount += 1;
         }
     }
-    return ['complete' => $indexedCount, 'total' => $targetCount];
+    return ['complete' => $indexedCount, 'total' => $addableCount];
 }
 
 function homepage_task_status_index_state(array $taskStatus): array
