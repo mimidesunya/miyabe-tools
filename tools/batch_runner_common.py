@@ -29,7 +29,7 @@ def target_host(target: dict) -> str:
 
 
 def tail_text_lines(path: Path, max_bytes: int = 8192) -> list[str]:
-    if not path.exists() or path.stat().st_size == 0:
+    if not path.is_file() or path.stat().st_size == 0:
         return []
     with path.open("rb") as handle:
         size = handle.seek(0, os.SEEK_END)
@@ -38,6 +38,23 @@ def tail_text_lines(path: Path, max_bytes: int = 8192) -> list[str]:
         chunk = handle.read(read_size)
     text = chunk.decode("utf-8", errors="replace")
     return [line.rstrip() for line in text.splitlines() if line.strip()]
+
+
+def extract_warning_lines(*paths: Path, max_bytes: int = 32768, max_lines: int = 20) -> list[str]:
+    warnings: list[str] = []
+    seen: set[str] = set()
+    for path in paths:
+        for line in tail_text_lines(path, max_bytes=max_bytes):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if "[WARN]" not in stripped and "WARNING" not in stripped.upper() and "警告" not in stripped:
+                continue
+            if stripped in seen:
+                continue
+            seen.add(stripped)
+            warnings.append(stripped)
+    return warnings[-max_lines:]
 
 
 def summarize_worker(stdout_path: Path, stderr_path: Path) -> str:

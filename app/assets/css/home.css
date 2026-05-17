@@ -644,6 +644,9 @@
             color: #92400e;
             font-weight: 700;
         }
+        .task-warning-log summary {
+            color: #a16207;
+        }
         .task-log pre {
             margin: 4px 0 0;
             max-height: 180px;
@@ -656,6 +659,10 @@
             padding: 6px 8px;
             color: #4b5563;
             font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        }
+        .task-warning-log pre {
+            border-color: rgba(202, 138, 4, 0.22);
+            background: rgba(254, 252, 232, 0.9);
         }
         @keyframes spin {
             to { transform: rotate(360deg); }

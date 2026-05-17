@@ -184,6 +184,7 @@ def update_item(
     progress_current: int | None | object = _UNSET,
     progress_total: int | None | object = _UNSET,
     progress_unit: str | None | object = _UNSET,
+    extra_fields: dict[str, Any] | None = None,
 ) -> None:
     items = state.setdefault("items", {})
     item = items.get(slug)
@@ -235,6 +236,13 @@ def update_item(
             item["progress_unit"] = next_value
             changed = True
             progress_changed = True
+    if extra_fields is not None:
+        for key, value in extra_fields.items():
+            if not isinstance(key, str) or key.strip() == "":
+                continue
+            if item.get(key) != value:
+                item[key] = value
+                changed = True
 
     if progress_changed:
         # UI の「更新」は件数が最後に動いた時刻として扱いたいので、進捗専用タイムスタンプを分ける。

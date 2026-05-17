@@ -18,6 +18,7 @@ import batch_status
 from batch_runner_common import (
     close_worker_streams,
     count_active_by_host,
+    extract_warning_lines,
     extract_worker_progress_from_log as common_extract_worker_progress_from_log,
     extract_worker_progress_from_state as common_extract_worker_progress_from_state,
     install_stop_signal_handlers,
@@ -563,6 +564,20 @@ def record_target_result(
         update_kwargs["started_at"] = started_at
     if progress is not None:
         update_kwargs.update(progress)
+    warning_lines = extract_warning_lines(
+        Path(stderr_log),
+        Path(index_stderr_log),
+        Path(stdout_log),
+        Path(index_stdout_log),
+    )
+    update_kwargs["extra_fields"] = {
+        "stdout_log": stdout_log,
+        "stderr_log": stderr_log,
+        "index_stdout_log": index_stdout_log,
+        "index_stderr_log": index_stderr_log,
+        "warning_count": len(warning_lines),
+        "warning_lines": warning_lines,
+    }
     batch_status.update_item(
         status_state,
         str(target["slug"]),

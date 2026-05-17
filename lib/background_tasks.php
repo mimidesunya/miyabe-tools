@@ -280,6 +280,51 @@ function background_task_item_failure_log_lines(array $item): array
     return $failureLines;
 }
 
+function background_task_item_warning_lines(array $item): array
+{
+    $rawLines = $item['warning_lines'] ?? null;
+    $warningLines = [];
+    if (is_array($rawLines)) {
+        foreach ($rawLines as $line) {
+            $line = background_task_compact_detail_text((string)$line, 220);
+            if ($line !== '' && !in_array($line, $warningLines, true)) {
+                $warningLines[] = $line;
+            }
+        }
+    }
+
+    $warningCount = max(0, (int)($item['warning_count'] ?? 0));
+    if ($warningLines !== [] || $warningCount <= 0) {
+        return array_slice($warningLines, -20);
+    }
+
+    foreach (['index_stderr_log', 'stderr_log', 'index_stdout_log', 'stdout_log'] as $field) {
+        $path = background_task_readable_log_path((string)($item[$field] ?? ''));
+        if ($path === '') {
+            continue;
+        }
+        foreach (background_task_tail_log_lines($path, 32768, 40) as $line) {
+            if (
+                str_contains($line, '[WARN]')
+                || str_contains(strtoupper($line), 'WARNING')
+                || str_contains($line, '警告')
+            ) {
+                $warningLines[] = $line;
+            }
+        }
+    }
+    $warningLines = array_slice(array_values(array_unique($warningLines)), -20);
+    if ($warningLines === [] && $warningCount > 0) {
+        return ['警告が記録されましたが、詳細ログを取得できませんでした'];
+    }
+    return $warningLines;
+}
+
+function background_task_item_warning_count(array $item, array $warningLines): int
+{
+    return max(count($warningLines), max(0, (int)($item['warning_count'] ?? 0)));
+}
+
 function background_task_item_is_complete(array $item): bool
 {
     $progress = background_task_item_progress_numbers($item);
@@ -382,6 +427,11 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
     if ($heartbeatDetail !== '') {
         $detailParts[] = $heartbeatDetail;
     }
+    $warningLines = background_task_item_warning_lines($item);
+    $warningCount = background_task_item_warning_count($item, $warningLines);
+    if ($warningCount > 0) {
+        $detailParts[] = '警告あり ' . (string)$warningCount . '件';
+    }
     $detail = implode("\n", $detailParts);
 
     if ($stale && in_array($status, ['pending', 'running'], true) && !$hasStarted) {
@@ -395,6 +445,7 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
             'progress_current' => $progress['current'],
             'progress_total' => $progress['total'],
             'batch_running' => $running,
+            'warning_lines' => $warningLines,
         ];
     }
     if ($running && $status === 'running') {
@@ -411,6 +462,7 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
             'progress_current' => $progress['current'],
             'progress_total' => $progress['total'],
             'batch_running' => $running,
+            'warning_lines' => $warningLines,
         ];
     }
     if ($running && $status === 'pending') {
@@ -426,6 +478,7 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
             'progress_current' => $progress['current'],
             'progress_total' => $progress['total'],
             'batch_running' => $running,
+            'warning_lines' => $warningLines,
         ];
     }
     if ($status === 'done' || $status === 'ok') {
@@ -436,6 +489,7 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
             'progress_current' => $progress['current'],
             'progress_total' => $progress['total'],
             'batch_running' => $running,
+            'warning_lines' => $warningLines,
         ];
     }
     if ($status === 'failed') {
@@ -461,6 +515,7 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
             'progress_current' => $progress['current'],
             'progress_total' => $progress['total'],
             'batch_running' => $running,
+            'warning_lines' => $warningLines,
         ];
     }
 

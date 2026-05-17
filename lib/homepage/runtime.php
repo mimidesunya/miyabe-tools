@@ -490,6 +490,22 @@ function homepage_task_display_metadata_lines(?array $display): array
     return $metadata;
 }
 
+function homepage_task_display_warning_lines(?array $display): array
+{
+    if (!is_array($display) || !is_array($display['warning_lines'] ?? null)) {
+        return [];
+    }
+    $lines = [];
+    foreach ($display['warning_lines'] as $line) {
+        $line = trim((string)$line);
+        if ($line === '' || in_array($line, $lines, true)) {
+            continue;
+        }
+        $lines[] = $line;
+    }
+    return $lines;
+}
+
 function homepage_search_index_cache_path(): string
 {
     return data_path('background_tasks/search_indexed_slug_cache.json');
@@ -649,6 +665,28 @@ function homepage_feature_card_display(
             continue;
         }
         $detailLines[] = $line;
+    }
+
+    $warningLines = [];
+    foreach ([$statusDisplay, $publishDisplay, $fallbackDisplay] as $warningDisplay) {
+        foreach (homepage_task_display_warning_lines(is_array($warningDisplay) ? $warningDisplay : null) as $line) {
+            if (!in_array($line, $warningLines, true)) {
+                $warningLines[] = $line;
+            }
+        }
+    }
+    if ($warningLines !== []) {
+        $hasWarningDetail = false;
+        foreach ($detailLines as $line) {
+            if (str_starts_with($line, '警告あり')) {
+                $hasWarningDetail = true;
+                break;
+            }
+        }
+        if (!$hasWarningDetail) {
+            $detailLines[] = '警告あり ' . (string)count($warningLines) . '件';
+        }
+        $merged['warning_lines'] = $warningLines;
     }
     if ($detailLines !== []) {
         $merged['detail'] = implode("\n", $detailLines);

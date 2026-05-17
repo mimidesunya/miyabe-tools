@@ -62,19 +62,26 @@
         return `${label} ${Math.round(current)}/${Math.round(rawTotal)}件`;
     }
 
-    function renderTaskLog(display) {
-        const lines = Array.isArray(display?.log_lines)
-            ? display.log_lines.map((line) => String(line || '').trim()).filter((line) => line !== '')
+    function renderTaskDisclosure(display, fieldName, summaryText, className) {
+        const lines = Array.isArray(display?.[fieldName])
+            ? display[fieldName].map((line) => String(line || '').trim()).filter((line) => line !== '')
             : [];
         if (lines.length === 0) {
             return '';
         }
         return `
-            <details class="task-log">
-                <summary>失敗ログを表示</summary>
+            <details class="${escapeHtml(className)}">
+                <summary>${escapeHtml(summaryText)}</summary>
                 <pre>${escapeHtml(lines.join('\n'))}</pre>
             </details>
         `.trim();
+    }
+
+    function renderTaskLogs(display) {
+        return [
+            renderTaskDisclosure(display, 'warning_lines', '警告を表示', 'task-log task-warning-log'),
+            renderTaskDisclosure(display, 'log_lines', '失敗ログを表示', 'task-log task-failure-log'),
+        ].join('');
     }
 
     function renderTaskMarkup(display, options = {}) {
@@ -103,7 +110,7 @@
                 </span>
                 ${hasProgress ? `<span class="task-progress ${escapeHtml(progressClass(display))}" aria-hidden="true"><span class="task-progress-bar" style="width: ${width.toFixed(2)}%"></span></span>` : ''}
                 ${detailLines.length ? `<span class="task-detail">${detailLines.map((line) => `<span class="task-detail-line">${escapeHtml(line)}</span>`).join('')}</span>` : ''}
-                ${renderTaskLog(display)}
+                ${renderTaskLogs(display)}
             </div>
         `.trim();
     }
