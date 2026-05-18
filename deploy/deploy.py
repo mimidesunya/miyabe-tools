@@ -489,15 +489,27 @@ mkdir -p {dest_dir}/tools {dest_dir}/data/background_tasks {dest_dir}/data/munic
 echo '[deploy] sync municipality metadata to shared data'
 rsync -a {dest_dir}/data/municipalities/ {shared_data_dir}/municipalities/
 if [ -f {dest_dir}/docker-compose.scraping.yml ]; then
+  running_scrapers="$(docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml ps --status running --services | grep -E '^(scraper-gijiroku|scraper-reiki|scraper-beat)$' || true)"
+  restore_scrapers() {{
+    if [ -n "$running_scrapers" ]; then
+      echo '[deploy] restore scraper workers after normalization'
+      docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml up -d $running_scrapers >/dev/null 2>&1 || true
+    fi
+  }}
+  trap restore_scrapers EXIT
   echo '[deploy] stop scraper workers for normalization'
   cd {dest_dir}
-  docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml stop scraper-gijiroku scraper-reiki scraper-beat >/dev/null 2>&1 || true
+  if [ -n "$running_scrapers" ]; then
+    docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml stop $running_scrapers >/dev/null 2>&1 || true
+  fi
   echo '[deploy] run municipality normalization container'
   docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml run --rm -T --no-deps -v {shared_data_dir}/reiki:/workspace/data/reiki --entrypoint sh scraper-gijiroku -lc '
 set -eu
 python3 /workspace/tools/normalize_municipality_storage.py --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work --background-task-dir /workspace/data/background_tasks
 python3 /workspace/tools/backfill_background_tasks.py --fast --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work
 '
+  trap - EXIT
+  restore_scrapers
 else
   printf '%s\n' 'SKIP: remote municipality normalization requires docker-compose.scraping.yml'
 fi
@@ -531,6 +543,14 @@ def prewarm_runtime_caches(config, dest_dir):
     """Builds homepage / cross-search caches inside the php container after deploy."""
     prewarm_cmd = f"""
 cd {dest_dir}
+if command -v timeout >/dev/null 2>&1; then
+  timeout 180s docker compose exec -T php php /var/www/lib/prewarm_runtime_caches.php || status=$?
+  if [ "${{status:-0}}" -eq 124 ]; then
+    echo '[deploy] WARN: runtime cache prewarm timed out; continuing deployment'
+    exit 0
+  fi
+  exit "${{status:-0}}"
+fi
 docker compose exec -T php php /var/www/lib/prewarm_runtime_caches.php
 """
     return ssh_exec(config, prewarm_cmd)
@@ -748,6 +768,7 @@ services:
       - ./data:/var/www/data
       - {shared_data_dir}/reiki:/var/www/data/reiki
       - {shared_data_dir}/gijiroku:/var/www/data/gijiroku
+      - {shared_data_dir}/work:/var/www/work
       - ./app:/var/www/html
       - ./lib:/var/www/lib
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
@@ -769,6 +790,7 @@ services:
       - ./data:/var/www/data
       - {shared_data_dir}/reiki:/var/www/data/reiki
       - {shared_data_dir}/gijiroku:/var/www/data/gijiroku
+      - {shared_data_dir}/work:/var/www/work
       - ./app:/var/www/html
       - ./lib:/var/www/lib
       - ./docker/php/zz-www-overrides.conf:/usr/local/etc/php-fpm.d/zz-www-overrides.conf:ro
@@ -808,8 +830,15 @@ volumes:
         ssh_exec(config, f"cd {dest_dir} && docker compose pull && docker compose up -d")
     else:
         print("=== Restarting services to pick up code changes ===")
-        # Explicit restart to ensure PHP/Nginx reload
-        ssh_exec(config, f"cd {dest_dir} && docker compose up -d && docker compose restart")
+        # Restart PHP first, then start/restart Nginx after the php service name
+        # is present in Docker DNS. Restarting every service at once can leave
+        # Nginx failing at startup with "host not found in upstream php".
+        ssh_exec(
+            config,
+            f"cd {dest_dir} && docker compose up -d php opensearch && "
+            "docker compose restart php && sleep 2 && "
+            "docker compose up -d web && docker compose restart web"
+        )
 
     print("=== Prewarming runtime caches ===")
     prewarm_output = prewarm_runtime_caches(config, dest_dir)

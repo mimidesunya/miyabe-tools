@@ -19,17 +19,36 @@
         results: document.getElementById('results'),
         pager: document.getElementById('pager'),
         facets: document.getElementById('facet-list'),
+        queryHelpOpen: document.querySelector('[data-query-help-open]'),
+        queryHelpModal: document.querySelector('[data-query-help-modal]'),
+        queryHelpPanel: document.querySelector('[data-query-help-modal] .help-modal-panel'),
+        queryHelpCloseButtons: Array.from(document.querySelectorAll('[data-query-help-close]')),
     };
 
     const prefNames = new Map((Array.isArray(boot.prefectures) ? boot.prefectures : [])
         .map((item) => [String(item.code || ''), String(item.name || '')]));
+    function normalizeMunicipalityList(items) {
+        return (Array.isArray(items) ? items : []).map((item) => ({
+            slug: String(item.slug || '').trim(),
+            name: String(item.name || '').trim(),
+            prefCode: normalizePrefCode(item.prefCode),
+            prefName: String(item.prefName || '').trim(),
+            label: String(item.label || item.name || '').trim(),
+        }))
+        .filter((item) => item.slug && item.name);
+    }
+
+    let municipalities = normalizeMunicipalityList(boot.municipalities);
+    let municipalityBySlug = new Map(municipalities.map((item) => [item.slug, item]));
+    let municipalitiesLoading = municipalities.length === 0;
+    let municipalitiesLoadFailed = false;
 
     const state = {
         apiUrl: String(boot.apiUrl || '/api/search'),
         docType: normalizeDocType(boot.docType),
         query: String(boot.query || '').trim(),
         slug: String(boot.slug || '').trim(),
-        prefCode: normalizePrefCode(boot.prefCode),
+        prefCode: normalizePrefCode(boot.prefCode) || normalizePrefCode(municipalityBySlug.get(String(boot.slug || '').trim())?.prefCode),
         startYear: normalizeYear(boot.startYear),
         endYear: normalizeYear(boot.endYear),
         sort: normalizeSort(boot.sort),
@@ -51,7 +70,7 @@
 
     function normalizeDocType(value) {
         const text = String(value || '').trim();
-        return ['all', 'minutes', 'reiki'].includes(text) ? text : 'all';
+        return text === 'reiki' ? 'reiki' : 'minutes';
     }
 
     function normalizePrefCode(value) {
@@ -82,7 +101,7 @@
             case 'reiki':
                 return '例規集';
             default:
-                return '統合';
+                return '会議録';
         }
     }
 
@@ -90,10 +109,81 @@
         return value === 'minutes' ? '会議録' : (value === 'reiki' ? '例規集' : '文書');
     }
 
+    function filteredMunicipalities() {
+        if (!state.prefCode) {
+            return municipalities;
+        }
+        return municipalities.filter((municipality) => municipality.prefCode === state.prefCode);
+    }
+
+    function municipalityOptionLabel(municipality) {
+        if (state.prefCode) {
+            return municipality.name;
+        }
+        return municipality.label || (municipality.prefName ? `${municipality.name}（${municipality.prefName}）` : municipality.name);
+    }
+
+    function renderMunicipalityOptions() {
+        const visibleMunicipalities = filteredMunicipalities();
+        if (!municipalitiesLoading && state.slug && !visibleMunicipalities.some((municipality) => municipality.slug === state.slug)) {
+            state.slug = '';
+        }
+
+        const allLabel = state.prefCode
+            ? `${prefNames.get(state.prefCode) || '選択中の都道府県'}すべて`
+            : '全国';
+        const fallbackOptions = municipalitiesLoading
+            ? ['<option value="">読み込み中</option>']
+            : municipalitiesLoadFailed
+                ? ['<option value="">自治体一覧を取得できません</option>']
+                : [`<option value="">${escapeHtml(allLabel)}</option>`];
+        refs.slug.disabled = municipalitiesLoading || municipalitiesLoadFailed;
+        refs.slug.innerHTML = [
+            ...fallbackOptions,
+            ...visibleMunicipalities.map((municipality) => (
+                `<option value="${escapeHtml(municipality.slug)}" data-pref-code="${escapeHtml(municipality.prefCode)}">${escapeHtml(municipalityOptionLabel(municipality))}</option>`
+            )),
+        ].join('');
+        refs.slug.value = state.slug;
+    }
+
+    function setMunicipalities(items) {
+        municipalities = normalizeMunicipalityList(items);
+        municipalityBySlug = new Map(municipalities.map((item) => [item.slug, item]));
+        municipalitiesLoading = false;
+        municipalitiesLoadFailed = municipalities.length === 0;
+        if (!state.prefCode && state.slug) {
+            state.prefCode = normalizePrefCode(municipalityBySlug.get(state.slug)?.prefCode);
+        }
+        renderAll();
+    }
+
+    async function loadMunicipalities() {
+        if (!municipalitiesLoading) {
+            return;
+        }
+        const url = String(boot.municipalitiesApiUrl || '/api/municipalities.php');
+        try {
+            const response = await fetch(url, {
+                headers: { Accept: 'application/json' },
+                cache: 'force-cache',
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || payload.status !== 'ok') {
+                throw new Error(String(payload.error || `HTTP ${response.status}`));
+            }
+            setMunicipalities(payload.municipalities);
+        } catch (_error) {
+            municipalitiesLoading = false;
+            municipalitiesLoadFailed = true;
+            renderAll();
+        }
+    }
+
     function syncControls() {
         refs.query.value = state.query;
-        refs.slug.value = state.slug;
         refs.pref.value = state.prefCode;
+        renderMunicipalityOptions();
         refs.startYear.value = state.startYear;
         refs.endYear.value = state.endYear;
         refs.sort.value = state.sort;
@@ -107,7 +197,7 @@
     function updateUrl() {
         const params = new URLSearchParams();
         if (state.query) params.set('q', state.query);
-        if (state.docType !== 'all') params.set('doc_type', state.docType);
+        if (state.docType !== 'minutes') params.set('doc_type', state.docType);
         if (state.slug) params.set('slug', state.slug);
         if (state.prefCode) params.set('pref_code', state.prefCode);
         if (state.startYear) params.set('start_year', state.startYear);
@@ -186,6 +276,20 @@
         return item.held_on || item.promulgated_on || item.sort_date || item.updated_at || '';
     }
 
+    function buildDetailUrl(item) {
+        if (item.doc_type === 'minutes' && item.id) {
+            const params = new URLSearchParams({
+                id: String(item.id),
+                doc_type: 'minutes',
+            });
+            if (state.query) {
+                params.set('q', state.query);
+            }
+            return `/search/detail/?${params.toString()}`;
+        }
+        return item.detail_url || item.source_url || '#';
+    }
+
     function resultMeta(item) {
         const parts = [
             item.pref_name,
@@ -229,7 +333,7 @@
         renderMessage('');
         refs.results.innerHTML = items.map((item) => {
             const meta = resultMeta(item);
-            const detailUrl = item.detail_url || item.source_url || '#';
+            const detailUrl = buildDetailUrl(item);
             const sourceUrl = item.source_url || '';
             return `
                 <article class="result-item">
@@ -241,8 +345,8 @@
                     ${meta.length ? `<div class="result-meta">${meta.map((value) => `<span>${escapeHtml(value)}</span>`).join('')}</div>` : ''}
                     ${item.excerpt ? `<p class="result-excerpt">${renderExcerpt(item.excerpt)}</p>` : ''}
                     <div class="result-actions">
-                        <a class="result-link" href="${escapeHtml(detailUrl)}">詳細</a>
-                        ${sourceUrl ? `<a class="result-link" href="${escapeHtml(sourceUrl)}" target="_blank" rel="noreferrer">原サイト</a>` : ''}
+                        <a class="result-link" href="${escapeHtml(detailUrl)}" target="_blank" rel="noopener noreferrer">詳細</a>
+                        ${sourceUrl ? `<a class="result-link" href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">原サイト</a>` : ''}
                     </div>
                 </article>
             `;
@@ -263,10 +367,28 @@
         renderResults();
     }
 
+    function openQueryHelp() {
+        if (!refs.queryHelpModal) {
+            return;
+        }
+        refs.queryHelpModal.hidden = false;
+        document.body.classList.add('has-help-modal');
+        refs.queryHelpPanel?.focus();
+    }
+
+    function closeQueryHelp() {
+        if (!refs.queryHelpModal || refs.queryHelpModal.hidden) {
+            return;
+        }
+        refs.queryHelpModal.hidden = true;
+        document.body.classList.remove('has-help-modal');
+        refs.queryHelpOpen?.focus();
+    }
+
     async function runSearch(page = 1) {
         state.query = refs.query.value.trim();
-        state.slug = refs.slug.value.trim();
         state.prefCode = normalizePrefCode(refs.pref.value);
+        state.slug = refs.slug.value.trim();
         state.startYear = normalizeYear(refs.startYear.value);
         state.endYear = normalizeYear(refs.endYear.value);
         state.sort = normalizeSort(refs.sort.value);
@@ -333,6 +455,15 @@
         runSearch(1);
     });
 
+    refs.pref.addEventListener('change', () => {
+        state.prefCode = normalizePrefCode(refs.pref.value);
+        renderMunicipalityOptions();
+    });
+
+    refs.slug.addEventListener('change', () => {
+        state.slug = refs.slug.value.trim();
+    });
+
     refs.pager.addEventListener('click', (event) => {
         const button = event.target.closest('[data-page]');
         if (!button || button.disabled) {
@@ -344,8 +475,19 @@
         }
     });
 
+    refs.queryHelpOpen?.addEventListener('click', openQueryHelp);
+    refs.queryHelpCloseButtons.forEach((button) => {
+        button.addEventListener('click', closeQueryHelp);
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeQueryHelp();
+        }
+    });
+
     syncControls();
     renderAll();
+    loadMunicipalities();
     if (state.query) {
         runSearch(1);
     }

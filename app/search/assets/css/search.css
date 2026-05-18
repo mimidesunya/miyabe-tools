@@ -48,6 +48,29 @@ a {
   text-decoration: none;
 }
 
+.page-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.topbar .page-links {
+  margin-top: 0;
+  justify-content: flex-end;
+}
+
+.page-links a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.page-links a:hover {
+  text-decoration: underline;
+}
+
 .topnav {
   display: flex;
   gap: 8px;
@@ -112,12 +135,41 @@ a {
   gap: 12px;
 }
 
-.field span {
+.field > span {
   display: block;
   margin-bottom: 6px;
   font-size: 12px;
   font-weight: 800;
   color: var(--muted);
+}
+
+.field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.inline-help-button,
+.help-close-button {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.inline-help-button {
+  min-height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.inline-help-button:hover,
+.help-close-button:hover {
+  border-color: var(--accent);
+  background: var(--accent-weak);
 }
 
 .field input,
@@ -303,6 +355,182 @@ mark {
   background: var(--mark);
 }
 
+.has-help-modal {
+  overflow: hidden;
+}
+
+.help-modal[hidden] {
+  display: none;
+}
+
+.help-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.help-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(23, 33, 28, 0.44);
+}
+
+.help-modal-panel {
+  position: relative;
+  z-index: 1;
+  width: min(720px, 100%);
+  max-height: min(760px, calc(100vh - 36px));
+  overflow: auto;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: 0 24px 70px rgba(23, 33, 28, 0.22);
+}
+
+.help-modal-panel:focus {
+  outline: 2px solid var(--accent-weak);
+}
+
+.help-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.help-modal-head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.help-close-button {
+  min-width: 36px;
+  min-height: 36px;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.help-modal-body {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.query-help-list {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.query-help-list dt {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.query-help-list dd {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.query-help-list code {
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px 6px;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--line);
+  background: #f8faf8;
+  color: var(--text);
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 13px;
+}
+
+.help-modal-body p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.docs-shell {
+  max-width: 960px;
+}
+
+.docs-page {
+  display: grid;
+  gap: 16px;
+}
+
+.docs-hero,
+.docs-section {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.docs-hero {
+  padding: 24px;
+}
+
+.docs-section {
+  padding: 20px 24px;
+}
+
+.docs-hero p,
+.docs-section p,
+.docs-params {
+  max-width: 780px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+.docs-section h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.docs-page code {
+  font-family: Consolas, "SFMono-Regular", monospace;
+}
+
+.docs-page pre {
+  overflow-x: auto;
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: #f8faf8;
+  color: var(--text);
+}
+
+.docs-params {
+  display: grid;
+  grid-template-columns: minmax(130px, max-content) minmax(0, 1fr);
+  gap: 8px 18px;
+  margin: 0;
+}
+
+.docs-params dt {
+  font-weight: 800;
+  color: var(--text);
+}
+
+.docs-params dd {
+  margin: 0;
+}
+
+.docs-params-wide {
+  grid-template-columns: minmax(180px, max-content) minmax(0, 1fr);
+}
+
 .pager {
   display: flex;
   align-items: center;
@@ -320,6 +548,112 @@ mark {
   cursor: default;
 }
 
+.detail-page .app-shell {
+  max-width: 1180px;
+}
+
+.detail-source-link {
+  min-width: 92px;
+  justify-content: center;
+}
+
+.detail-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.detail-head,
+.detail-search,
+.detail-body {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.detail-head {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+}
+
+.detail-head h1 {
+  font-size: 24px;
+}
+
+.detail-meta {
+  gap: 10px;
+}
+
+.detail-search {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+}
+
+.detail-search-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-search-actions button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.detail-search-actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.detail-count {
+  min-width: 76px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: right;
+}
+
+.detail-body {
+  padding: 22px;
+  font-family: "BIZ UDMincho", "Yu Mincho", serif;
+  font-size: 16px;
+  line-height: 2;
+  overflow-wrap: anywhere;
+}
+
+.detail-body p {
+  margin: 0 0 1.2em;
+}
+
+.detail-body p:last-child {
+  margin-bottom: 0;
+}
+
+.detail-empty {
+  color: var(--muted);
+  font-family: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic", sans-serif;
+}
+
+.detail-hit {
+  border-radius: 2px;
+}
+
+.detail-hit.is-active {
+  background: #ffbf47;
+  box-shadow: 0 0 0 2px rgba(255, 191, 71, 0.35);
+}
+
 @media (max-width: 900px) {
   .app-shell {
     padding: 12px;
@@ -329,6 +663,10 @@ mark {
   .workspace-head {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .topbar .page-links {
+    justify-content: flex-start;
   }
 
   .search-layout {
@@ -345,5 +683,26 @@ mark {
 
   .topnav button {
     flex: 1;
+  }
+
+  .detail-search {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-search-actions {
+    justify-content: space-between;
+  }
+
+  .detail-body {
+    padding: 16px;
+    font-size: 15px;
+  }
+
+  .query-help-list {
+    grid-template-columns: 1fr;
+  }
+
+  .docs-params {
+    grid-template-columns: 1fr;
   }
 }

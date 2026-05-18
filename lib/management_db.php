@@ -383,3 +383,59 @@ function management_db_homepage_payload(?string $prefecture): ?array
         return null;
     }
 }
+
+function management_db_homepage_feature_complete_count(string $featureKey): ?int
+{
+    $featureKey = trim($featureKey);
+    if ($featureKey === '') {
+        return null;
+    }
+
+    $pdo = management_db_pdo();
+    if (!$pdo instanceof PDO) {
+        return null;
+    }
+
+    try {
+        $stmt = $pdo->query('SELECT card_json FROM homepage_municipality_cards ORDER BY sort_key');
+        $completeCount = 0;
+        while ($row = $stmt->fetch()) {
+            $card = management_db_json_decode($row['card_json'] ?? '');
+            if (!is_array($card)) {
+                continue;
+            }
+            $features = is_array($card['features'] ?? null) ? $card['features'] : [];
+            foreach ($features as $feature) {
+                if (!is_array($feature) || (string)($feature['feature_key'] ?? '') !== $featureKey) {
+                    continue;
+                }
+                $display = is_array($feature['display'] ?? null) ? $feature['display'] : null;
+                if (management_db_homepage_display_is_complete($display)) {
+                    $completeCount += 1;
+                }
+                break;
+            }
+        }
+        return $completeCount;
+    } catch (Throwable $error) {
+        error_log('[management_db] homepage feature complete count failed: ' . $error->getMessage());
+        return null;
+    }
+}
+
+function management_db_homepage_display_is_complete(?array $display): bool
+{
+    if (!is_array($display)) {
+        return false;
+    }
+    if (trim((string)($display['label'] ?? '')) === '完了') {
+        return true;
+    }
+
+    $current = $display['progress_current'] ?? null;
+    $total = $display['progress_total'] ?? null;
+    if ($current === null || $total === null) {
+        return false;
+    }
+    return (int)$total > 0 && (int)$current >= (int)$total;
+}

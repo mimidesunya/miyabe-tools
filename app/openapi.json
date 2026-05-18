@@ -1,0 +1,493 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "宮部たつひこの自治体調査 検索API",
+    "version": "1.0.0",
+    "description": "全国自治体の会議録と例規集を検索する公開APIです。既定では会議録を検索します。"
+  },
+  "servers": [
+    {
+      "url": "https://tools.miya.be",
+      "description": "Production"
+    }
+  ],
+  "paths": {
+    "/api/search": {
+      "get": {
+        "operationId": "searchMunicipalDocuments",
+        "summary": "会議録または例規集を検索する",
+        "description": "検索語、文書種別、都道府県、自治体、年範囲で絞り込み、該当箇所の抜粋と原典URLを返します。",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "検索語。空白区切りはAND検索、引用符で完全一致、OR/NOT/括弧も利用できます。",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "example": "盛土 メガソーラー"
+          },
+          {
+            "name": "doc_type",
+            "in": "query",
+            "required": false,
+            "description": "検索対象。省略時は会議録です。",
+            "schema": {
+              "type": "string",
+              "enum": ["minutes", "reiki"],
+              "default": "minutes"
+            }
+          },
+          {
+            "name": "pref_code",
+            "in": "query",
+            "required": false,
+            "description": "都道府県コード。神奈川県は14です。",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,2}$"
+            },
+            "example": "14"
+          },
+          {
+            "name": "slug",
+            "in": "query",
+            "required": false,
+            "description": "自治体を1つに絞るID。検索結果や検索画面のURLに含まれます。",
+            "schema": {
+              "type": "string"
+            },
+            "example": "14216-zama-shi"
+          },
+          {
+            "name": "municipality_code",
+            "in": "query",
+            "required": false,
+            "description": "全国地方公共団体コードで絞り込みます。",
+            "schema": {
+              "type": "string"
+            },
+            "example": "142166"
+          },
+          {
+            "name": "start_year",
+            "in": "query",
+            "required": false,
+            "description": "検索対象期間の開始年。",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9999
+            },
+            "example": 2020
+          },
+          {
+            "name": "end_year",
+            "in": "query",
+            "required": false,
+            "description": "検索対象期間の終了年。",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9999
+            },
+            "example": 2024
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "並び順。dateは新しい順、relevanceは関連度順です。",
+            "schema": {
+              "type": "string",
+              "enum": ["date", "relevance"],
+              "default": "date"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "ページ番号。",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "description": "1ページあたりの件数。最大100件です。",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "検索結果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "検索語が未指定です。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "検索処理に失敗しました。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "検索基盤が利用できません。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/document": {
+      "get": {
+        "operationId": "getMunicipalDocument",
+        "summary": "文書の全文を取得する",
+        "description": "検索結果のidとdoc_typeを指定して、会議録または例規集の全文テキストを返します。",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "description": "/api/search の items[].id で返る文書IDです。",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "doc_type",
+            "in": "query",
+            "required": false,
+            "description": "文書種別。省略時は会議録です。",
+            "schema": {
+              "type": "string",
+              "enum": ["minutes", "reiki"],
+              "default": "minutes"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "文書全文",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "文書が見つかりません。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "文書IDが未指定です。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "文書取得に失敗しました。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "検索基盤が利用できません。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "SearchResponse": {
+        "type": "object",
+        "required": ["status", "query", "doc_type", "page", "per_page", "total", "items"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          },
+          "error": {
+            "type": "string",
+            "example": ""
+          },
+          "query": {
+            "type": "string"
+          },
+          "doc_type": {
+            "type": "string",
+            "enum": ["minutes", "reiki"]
+          },
+          "index_alias": {
+            "type": "string"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "per_page": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "total_relation": {
+            "type": "string",
+            "enum": ["eq", "gte"]
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "took_ms": {
+            "type": "integer"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchItem"
+            }
+          },
+          "aggregations": {
+            "$ref": "#/components/schemas/Aggregations"
+          }
+        }
+      },
+      "DocumentResponse": {
+        "type": "object",
+        "required": ["status", "document"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          },
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          }
+        }
+      },
+      "Document": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SearchItem"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "body": {
+                "type": "string",
+                "description": "文書本文の全文テキストです。"
+              },
+              "indexed_at": {
+                "type": "string"
+              },
+              "speaker": {
+                "type": "string"
+              },
+              "speaker_role": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "SearchItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "score": {
+            "type": ["number", "null"]
+          },
+          "doc_type": {
+            "type": "string",
+            "enum": ["minutes", "reiki"]
+          },
+          "slug": {
+            "type": "string"
+          },
+          "municipality_code": {
+            "type": "string"
+          },
+          "pref_code": {
+            "type": "string"
+          },
+          "pref_name": {
+            "type": "string"
+          },
+          "municipality_name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "title_highlight": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string",
+            "description": "該当箇所の抜粋。検索語は [[[ と ]]] で囲まれます。"
+          },
+          "body_length": {
+            "type": "integer"
+          },
+          "source_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "detail_url": {
+            "type": "string",
+            "description": "会議録ではサイト内の詳細ページURL、例規集では原サイト等のURLです。"
+          },
+          "api_document_url": {
+            "type": "string",
+            "description": "この文書の全文をJSONで取得するAPI URLです。"
+          },
+          "source_system": {
+            "type": "string"
+          },
+          "sort_date": {
+            "type": "string"
+          },
+          "held_on": {
+            "type": "string"
+          },
+          "promulgated_on": {
+            "type": "string"
+          },
+          "assembly_name": {
+            "type": "string"
+          },
+          "meeting_name": {
+            "type": "string"
+          },
+          "year_label": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          }
+        }
+      },
+      "Aggregations": {
+        "type": "object",
+        "properties": {
+          "doc_types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Bucket"
+            }
+          },
+          "prefectures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Bucket"
+            }
+          },
+          "municipalities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Bucket"
+            }
+          }
+        }
+      },
+      "Bucket": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "total_relation": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

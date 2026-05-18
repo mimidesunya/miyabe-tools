@@ -34,7 +34,7 @@ function miyabe_search_alias_for_type(string $docType): string
     return match ($docType) {
         'minutes' => miyabe_search_env('MIYABE_MINUTES_ALIAS', 'miyabe-minutes-current'),
         'reiki' => miyabe_search_env('MIYABE_REIKI_ALIAS', 'miyabe-reiki-current'),
-        default => miyabe_search_env('MIYABE_SEARCH_ALIAS', 'miyabe-documents-current'),
+        default => miyabe_search_env('MIYABE_MINUTES_ALIAS', 'miyabe-minutes-current'),
     };
 }
 
@@ -136,7 +136,7 @@ function miyabe_search_request_int(string $key, int $default, int $min, int $max
 function miyabe_search_normalize_doc_type(string $value): string
 {
     $value = strtolower(trim($value));
-    return in_array($value, ['minutes', 'reiki'], true) ? $value : 'all';
+    return $value === 'reiki' ? 'reiki' : 'minutes';
 }
 
 function miyabe_search_normalize_pref_code(string $value): string
@@ -240,7 +240,7 @@ function miyabe_search_build_query_clause(string $query): array
 function miyabe_search_build_request(array $params): array
 {
     $query = trim((string)($params['q'] ?? ''));
-    $docType = miyabe_search_normalize_doc_type((string)($params['doc_type'] ?? ($params['type'] ?? 'all')));
+    $docType = miyabe_search_normalize_doc_type((string)($params['doc_type'] ?? ($params['type'] ?? 'minutes')));
     $page = max(1, (int)($params['page'] ?? 1));
     $perPage = max(1, min(100, (int)($params['per_page'] ?? 20)));
     $sort = trim((string)($params['sort'] ?? 'date'));
@@ -256,9 +256,7 @@ function miyabe_search_build_request(array $params): array
 
     $queryClause = miyabe_search_build_query_clause($query);
     $filters = [];
-    if ($docType !== 'all') {
-        $filters[] = ['term' => ['doc_type' => $docType]];
-    }
+    $filters[] = ['term' => ['doc_type' => $docType]];
     if ($slug !== '') {
         $filters[] = ['term' => ['slug' => $slug]];
     }
@@ -364,7 +362,43 @@ function miyabe_search_first_highlight(array $hit, string $field): string
     return trim(implode(' … ', array_map('strval', $values)));
 }
 
-function miyabe_search_hit_to_item(array $hit): array
+function miyabe_search_local_detail_url(array $hit, array $source, string $query = ''): string
+{
+    if ((string)($source['doc_type'] ?? '') !== 'minutes') {
+        return (string)($source['detail_url'] ?? '');
+    }
+
+    $id = trim((string)($hit['_id'] ?? ''));
+    if ($id === '') {
+        return (string)($source['detail_url'] ?? $source['source_url'] ?? '');
+    }
+
+    $params = [
+        'id' => $id,
+        'doc_type' => 'minutes',
+    ];
+    $query = trim($query);
+    if ($query !== '') {
+        $params['q'] = $query;
+    }
+    return '/search/detail/?' . http_build_query($params);
+}
+
+function miyabe_search_api_document_url(array $hit, array $source): string
+{
+    $id = trim((string)($hit['_id'] ?? ''));
+    if ($id === '') {
+        return '';
+    }
+
+    $docType = miyabe_search_normalize_doc_type((string)($source['doc_type'] ?? 'minutes'));
+    return '/api/document?' . http_build_query([
+        'id' => $id,
+        'doc_type' => $docType,
+    ]);
+}
+
+function miyabe_search_hit_to_item(array $hit, string $query = ''): array
 {
     $source = is_array($hit['_source'] ?? null) ? $hit['_source'] : [];
     $titleHighlight = miyabe_search_first_highlight($hit, 'title');
@@ -384,7 +418,8 @@ function miyabe_search_hit_to_item(array $hit): array
         'excerpt' => $bodyHighlight !== '' ? $bodyHighlight : ($meetingHighlight !== '' ? $meetingHighlight : $titleHighlight),
         'body_length' => (int)($source['body_length'] ?? 0),
         'source_url' => (string)($source['source_url'] ?? ''),
-        'detail_url' => (string)($source['detail_url'] ?? ''),
+        'detail_url' => miyabe_search_local_detail_url($hit, $source, $query),
+        'api_document_url' => miyabe_search_api_document_url($hit, $source),
         'source_file' => (string)($source['source_file'] ?? ''),
         'source_system' => (string)($source['source_system'] ?? ''),
         'updated_at' => (string)($source['updated_at'] ?? ''),
@@ -401,6 +436,81 @@ function miyabe_search_hit_to_item(array $hit): array
         'enforced_on' => (string)($source['enforced_on'] ?? ''),
         'amended_on' => (string)($source['amended_on'] ?? ''),
     ];
+}
+
+function miyabe_search_hit_to_detail(array $hit): array
+{
+    $item = miyabe_search_hit_to_item($hit);
+    $source = is_array($hit['_source'] ?? null) ? $hit['_source'] : [];
+    $item['body'] = (string)($source['body'] ?? '');
+    $item['indexed_at'] = (string)($source['indexed_at'] ?? '');
+    $item['speaker'] = (string)($source['speaker'] ?? '');
+    $item['speaker_role'] = (string)($source['speaker_role'] ?? '');
+    return $item;
+}
+
+function miyabe_search_fetch_detail_document(string $id, string $docType): ?array
+{
+    $id = trim($id);
+    if ($id === '' || strlen($id) > 512) {
+        return null;
+    }
+
+    $docType = miyabe_search_normalize_doc_type($docType);
+    $filters = [
+        ['ids' => ['values' => [$id]]],
+    ];
+    $filters[] = ['term' => ['doc_type' => $docType]];
+
+    $index = miyabe_search_alias_for_type($docType);
+    $response = miyabe_search_http_request('POST', '/' . rawurlencode($index) . '/_search', [
+        'size' => 1,
+        'track_total_hits' => false,
+        'query' => [
+            'bool' => [
+                'filter' => $filters,
+            ],
+        ],
+        '_source' => [
+            'doc_type',
+            'slug',
+            'municipality_code',
+            'pref_code',
+            'pref_name',
+            'municipality_name',
+            'title',
+            'body',
+            'body_length',
+            'source_url',
+            'detail_url',
+            'source_file',
+            'source_system',
+            'indexed_at',
+            'updated_at',
+            'sort_date',
+            'assembly_name',
+            'meeting_name',
+            'year_label',
+            'held_on',
+            'speaker',
+            'speaker_role',
+            'local_id',
+            'filename',
+            'ordinance_no',
+            'category',
+            'promulgated_on',
+            'enforced_on',
+            'amended_on',
+        ],
+    ]);
+
+    $hits = is_array($response['hits']['hits'] ?? null) ? $response['hits']['hits'] : [];
+    foreach ($hits as $hit) {
+        if (is_array($hit)) {
+            return miyabe_search_hit_to_detail($hit);
+        }
+    }
+    return null;
 }
 
 function miyabe_search_serialize_aggregations(array $aggregations): array
@@ -459,7 +569,7 @@ function miyabe_search_execute_request(array $params): array
         'has_more' => ($page * $perPage) < $total || $relation !== 'eq',
         'took_ms' => (int)($response['took'] ?? 0),
         'items' => array_values(array_map(
-            static fn($hit): array => is_array($hit) ? miyabe_search_hit_to_item($hit) : [],
+            static fn($hit): array => is_array($hit) ? miyabe_search_hit_to_item($hit, $query) : [],
             $hits
         )),
         'aggregations' => miyabe_search_serialize_aggregations(

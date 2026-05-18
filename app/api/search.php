@@ -6,7 +6,7 @@ require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPAR
 try {
     $payload = miyabe_search_execute_request([
         'q' => miyabe_search_request_string('q'),
-        'doc_type' => miyabe_search_request_string('doc_type', miyabe_search_request_string('type', 'all')),
+        'doc_type' => miyabe_search_request_string('doc_type', miyabe_search_request_string('type', 'minutes')),
         'slug' => miyabe_search_request_string('slug'),
         'municipality_code' => miyabe_search_request_string('municipality_code', miyabe_search_request_string('code')),
         'pref_code' => miyabe_search_request_string('pref_code', miyabe_search_request_string('pref')),

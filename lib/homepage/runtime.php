@@ -266,6 +266,17 @@ function homepage_task_display_is_complete(?array $display): bool
     return (int)$total > 0 && (int)$current >= (int)$total;
 }
 
+function homepage_task_display_is_index_waiting(?array $display): bool
+{
+    if (!is_array($display)) {
+        return false;
+    }
+    if (trim((string)($display['label'] ?? '')) === 'インデックス待機中') {
+        return true;
+    }
+    return str_contains((string)($display['detail'] ?? ''), 'インデックス待機中');
+}
+
 function homepage_task_display_should_hide(?array $display): bool
 {
     if (!is_array($display)) {
@@ -401,14 +412,10 @@ function homepage_merge_task_display(?array $taskDisplay, ?array $fallbackDispla
     }
 
     $taskHasCount = homepage_task_display_has_count_detail($taskDisplay);
-    $taskClass = trim((string)($taskDisplay['class'] ?? ''));
     $taskCurrent = (int)($taskDisplay['progress_current'] ?? 0);
     $fallbackCurrent = (int)($fallbackDisplay['progress_current'] ?? 0);
     $preferFallbackCount = !$taskHasCount
-        || (
-            in_array($taskClass, ['task-running', 'task-failed', 'task-stale'], true)
-            && $fallbackCurrent > $taskCurrent
-        );
+        || $fallbackCurrent > $taskCurrent;
     if (!$preferFallbackCount) {
         return $taskDisplay;
     }
@@ -764,6 +771,9 @@ function homepage_feature_runtime_displays(
     $taskDisplay = null;
     if (isset($backgroundTaskStatuses[$featureKey]) && is_array($backgroundTaskStatuses[$featureKey])) {
         $taskDisplay = background_task_item_display($backgroundTaskStatuses[$featureKey], $slug);
+        if (homepage_task_display_is_index_waiting($taskDisplay)) {
+            $taskDisplay = null;
+        }
     }
 
     $snapshotDisplay = null;
@@ -1208,7 +1218,9 @@ function homepage_scraper_index_summary(
     $stats = [];
     homepage_task_summary_append_stat($stats, '稼働', max(0, $active) . '/' . max(1, $capacity));
     if ((int)$counts['total'] > 0) {
-        homepage_task_summary_append_stat($stats, '完了', (int)$counts['complete'] . '/' . (int)$counts['total']);
+        $completeCount = (int)$counts['complete'];
+        $totalCount = (int)$counts['total'];
+        homepage_task_summary_append_stat($stats, '検索可', $completeCount . '/' . $totalCount);
     }
     homepage_task_summary_append_stat($stats, '最終実行', homepage_task_summary_last_run_text($taskStatus));
 
@@ -1707,6 +1719,9 @@ function homepage_build_context(): array
                 ? $runtimeState['feature']
                 : (is_array($municipality[$featureKey] ?? null) ? $municipality[$featureKey] : []);
             $taskDisplay = background_task_item_display($taskStatus, $normalizedSlug);
+            if (homepage_task_display_is_index_waiting($taskDisplay)) {
+                continue;
+            }
             $snapshotDisplay = is_array($runtimeState['displays']['snapshot'] ?? null)
                 ? $runtimeState['displays']['snapshot']
                 : null;
@@ -1971,6 +1986,36 @@ function homepage_task_status_stat_value(array $summary, string $label): string
     return '';
 }
 
+function homepage_task_status_stat_complete_count(string $value): int
+{
+    $value = trim($value);
+    if ($value === '') {
+        return 0;
+    }
+    if (preg_match('/^(\d+)(?:\/\d+)?$/', $value, $matches) !== 1) {
+        return 0;
+    }
+    return (int)$matches[1];
+}
+
+function homepage_task_status_downloaded_value(string $featureKey, array $baselineSummary): string
+{
+    $baselineValue = homepage_task_status_stat_value($baselineSummary, 'DL済');
+    $baselineComplete = homepage_task_status_stat_complete_count($baselineValue);
+    $targetCount = count(array_filter(
+        homepage_feature_target_codes($featureKey),
+        static fn(mixed $code): bool => trim((string)$code) !== ''
+    ));
+    $cardComplete = function_exists('management_db_homepage_feature_complete_count')
+        ? management_db_homepage_feature_complete_count($featureKey)
+        : null;
+
+    if ($cardComplete !== null && $targetCount > 0 && $cardComplete > $baselineComplete) {
+        return min($cardComplete, $targetCount) . '/' . $targetCount;
+    }
+    return $baselineValue;
+}
+
 function homepage_task_status_state(array $taskStatus): array
 {
     if (background_task_is_stale($taskStatus)) {
@@ -2012,9 +2057,12 @@ function homepage_task_status_index_summary_from_baseline(
     $active = max(0, (int)($taskStatus['index_active_count'] ?? 0));
     $stats = [];
     $stats[] = ['label' => '稼働', 'value' => $active . '/' . $capacity];
-    $completed = homepage_task_status_stat_value($baselineIndex, '完了');
+    $completed = homepage_task_status_stat_value($baselineIndex, '検索可');
+    if ($completed === '') {
+        $completed = homepage_task_status_stat_value($baselineIndex, '完了');
+    }
     if ($completed !== '') {
-        $stats[] = ['label' => '完了', 'value' => $completed];
+        $stats[] = ['label' => '検索可', 'value' => $completed];
     }
     $lastRun = homepage_task_summary_last_run_text($taskStatus);
     if ($lastRun !== '') {
@@ -2056,7 +2104,8 @@ function homepage_task_status_summary(
             $stats[] = ['label' => '完了', 'value' => min($completed, $total) . '/' . $total];
         }
     } else {
-        $downloaded = homepage_task_status_stat_value($baselineSummary, 'DL済');
+        $featureKey = (string)($options['feature_key'] ?? $taskKey);
+        $downloaded = homepage_task_status_downloaded_value($featureKey, $baselineSummary);
         if ($downloaded !== '') {
             $stats[] = ['label' => 'DL済', 'value' => $downloaded];
         }
@@ -2093,6 +2142,9 @@ function homepage_task_status_running_tasks_from_items(
         }
         $display = background_task_item_display($taskStatus, (string)$slug);
         if (!is_array($display) || ($display['class'] ?? '') !== 'task-running') {
+            continue;
+        }
+        if (homepage_task_display_is_index_waiting($display)) {
             continue;
         }
         $tasks[] = [
