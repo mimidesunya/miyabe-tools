@@ -984,6 +984,7 @@ def main() -> int:
                 overall_returncode = int(index_worker["scrape_returncode"] if returncode == 0 else returncode)
                 progress = extract_worker_progress_for_display(scrape_worker)
                 finished_at = batch_status.now_text()
+                status_state["index_finished_at"] = finished_at
                 record_target_result(
                     writer,
                     handle,
@@ -1090,6 +1091,7 @@ def main() -> int:
                 pending_index_workers.pop(launch_index)
                 active_index_workers.append(launched_worker)
                 made_progress = True
+                status_state["index_started_at"] = batch_status.now_text()
                 batch_status.update_item(
                     status_state,
                     str(launched_worker["target"]["slug"]),

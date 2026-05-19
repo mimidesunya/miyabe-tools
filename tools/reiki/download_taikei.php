@@ -57,7 +57,23 @@ function main(array $argv): void
 
     $manifestPath = $workRoot . DIRECTORY_SEPARATOR . 'source_manifest.json.gz';
     $taxonomyPath = $workRoot . DIRECTORY_SEPARATOR . 'taxonomy_pages.json.gz';
-    $previousManifestBySource = index_manifest_by_source(load_json_file($manifestPath, []));
+    $previousManifestRecords = load_json_file($manifestPath, []);
+    $previousManifestBySource = index_manifest_by_source($previousManifestRecords);
+    $catalogVersion = catalog_version_from_pages($crawl['pages']);
+    $previousCatalogVersion = first_manifest_catalog_version($previousManifestRecords);
+    if ($catalogVersion !== '') {
+        echo "[INFO] catalog content current: {$catalogVersion}\n";
+    } else {
+        echo "[INFO] catalog content current: not found\n";
+    }
+    $catalogChanged = null;
+    if ($catalogVersion !== '') {
+        $catalogChanged = $previousCatalogVersion === '' || $previousCatalogVersion !== $catalogVersion;
+    }
+    if ($previousCatalogVersion !== '' && $catalogVersion !== '') {
+        $statusLabel = $catalogChanged ? 'changed' : 'unchanged';
+        echo "[INFO] catalog content current {$statusLabel}: previous={$previousCatalogVersion} current={$catalogVersion}\n";
+    }
     write_json_file($taxonomyPath, array_values($crawl['pages']), true);
 
     echo 'Found ' . count($records) . " ordinance pages across " . count($crawl['pages']) . " taxonomy pages.\n";
@@ -68,31 +84,80 @@ function main(array $argv): void
         return;
     }
 
+    $selectedRecords = $limit > 0 ? array_slice($records, 0, $limit) : $records;
+    $total = count($selectedRecords);
+
+    $planState = build_source_plan(
+        $selectedRecords,
+        $sourceDir,
+        $htmlDir,
+        $markdownDir,
+        $previousManifestBySource
+    );
+    $plans = $planState['plans'];
+    $workMode = assign_work_mode($plans, $force, $checkUpdates, $catalogChanged);
+    $incompleteCount = (int)$workMode['incomplete_count'];
+    $listedChangeCount = (int)$planState['listed_change_count'];
+    $resumeMode = (bool)$workMode['resume_mode'];
+    $updateMode = (bool)$workMode['update_mode'];
+    $workCount = (int)$workMode['work_count'];
+
+    if ($resumeMode) {
+        echo "[MODE] resume missing ordinances only: {$incompleteCount}/{$total}\n";
+    } elseif ($updateMode) {
+        echo "[MODE] update check from listing metadata: {$listedChangeCount}/{$total} candidates\n";
+    } elseif ($force) {
+        echo "[MODE] force rebuild: {$total}/{$total}\n";
+    } elseif ($checkUpdates && $catalogChanged === false) {
+        echo "[MODE] catalog unchanged; update check skipped.\n";
+    } else {
+        echo "[MODE] complete; no update check requested.\n";
+    }
+
+    $progressBase = (int)$workMode['progress_base'];
+    emit_progress($progressBase, $total, $statePath);
+
     $downloaded = 0;
     $checked = 0;
     $skipped = 0;
     $parsed = 0;
     $reused = 0;
     $manifests = [];
-    $selectedRecords = $limit > 0 ? array_slice($records, 0, $limit) : $records;
-    $total = count($selectedRecords);
-    emit_progress(0, $total, $statePath);
+    $processedWork = 0;
 
-    foreach ($selectedRecords as $index => $record) {
-        $sourceFileName = ordinance_file_name_from_url((string)$record['detail_url']);
-        $sourcePath = $sourceDir . DIRECTORY_SEPARATOR . $sourceFileName;
-        $htmlPath = $htmlDir . DIRECTORY_SEPARATOR . preg_replace('/\.html$/i', '.html', $sourceFileName);
-        $markdownPath = $markdownDir . DIRECTORY_SEPARATOR . preg_replace('/\.html$/i', '.md', $sourceFileName);
-        $existingSourcePath = existing_path($sourcePath);
+    foreach ($plans as $index => $plan) {
+        $record = $plan['record'];
+        $sourceFileName = (string)$plan['source_file_name'];
+        $sourcePath = (string)$plan['source_path'];
+        $htmlPath = (string)$plan['html_path'];
+        $existingSourcePath = is_string($plan['existing_source_path']) ? $plan['existing_source_path'] : null;
         $storedSourcePath = $existingSourcePath ?? gzip_path($sourcePath);
-        $previousManifest = $previousManifestBySource[$sourceFileName] ?? null;
+        $previousManifest = is_array($plan['previous_manifest'] ?? null) ? $plan['previous_manifest'] : null;
+        $shouldWork = (bool)($plan['should_work'] ?? false);
 
         $sourceHtml = '';
         $sourceHash = $existingSourcePath !== null ? sha256_file_auto($existingSourcePath) : '';
         $sourceChanged = false;
 
-        if (!$force && $existingSourcePath !== null && filesize($existingSourcePath) > 0 && !$checkUpdates) {
+        if (!$shouldWork) {
             $skipped++;
+            $manifestEntry = merge_manifest_record($previousManifest ?? [], $record, $sourceFileName);
+        } elseif (!$force && $existingSourcePath !== null && filesize($existingSourcePath) > 0 && !$updateMode) {
+            $skipped++;
+            $storedMarkdownPath = existing_path((string)$plan['markdown_path']);
+            $needsParse = !is_file($htmlPath) || $storedMarkdownPath === null || !is_array($previousManifest);
+            if ($needsParse) {
+                $sourceHtml = read_text_file_auto($storedSourcePath);
+                $parsedRecord = parse_taikei_ordinance_html($sourceHtml, (string)$record['detail_url'], $record);
+                write_text_file($htmlPath, $parsedRecord['clean_html']);
+                $storedMarkdownPath = write_text_file((string)$plan['markdown_path'], $parsedRecord['markdown'], true);
+                unset($parsedRecord['clean_html'], $parsedRecord['markdown']);
+                $manifestEntry = $parsedRecord;
+                $parsed++;
+            } else {
+                $manifestEntry = merge_manifest_record($previousManifest ?? [], $record, $sourceFileName);
+                $reused++;
+            }
         } else {
             $fetchedHtml = fetch_url((string)$record['detail_url']);
             $fetchedHash = sha256_string($fetchedHtml);
@@ -110,38 +175,42 @@ function main(array $argv): void
             }
 
             throttled_sleep();
-        }
 
-        $storedMarkdownPath = existing_path($markdownPath);
-        $needsParse = $force
-            || $sourceChanged
-            || !is_file($htmlPath)
-            || $storedMarkdownPath === null
-            || !is_array($previousManifest);
+            $storedMarkdownPath = existing_path((string)$plan['markdown_path']);
+            $needsParse = $force
+                || $sourceChanged
+                || !is_file($htmlPath)
+                || $storedMarkdownPath === null
+                || !is_array($previousManifest);
 
-        if ($needsParse) {
-            if ($sourceHtml === '') {
-                $sourceHtml = read_text_file_auto($storedSourcePath);
+            if ($needsParse) {
+                if ($sourceHtml === '') {
+                    $sourceHtml = read_text_file_auto($storedSourcePath);
+                }
+
+                $parsedRecord = parse_taikei_ordinance_html($sourceHtml, (string)$record['detail_url'], $record);
+                write_text_file($htmlPath, $parsedRecord['clean_html']);
+                $storedMarkdownPath = write_text_file((string)$plan['markdown_path'], $parsedRecord['markdown'], true);
+                unset($parsedRecord['clean_html'], $parsedRecord['markdown']);
+                $manifestEntry = $parsedRecord;
+                $parsed++;
+            } else {
+                $manifestEntry = merge_manifest_record($previousManifest ?? [], $record, $sourceFileName);
+                $reused++;
             }
-
-            $parsedRecord = parse_taikei_ordinance_html($sourceHtml, (string)$record['detail_url'], $record);
-            write_text_file($htmlPath, $parsedRecord['clean_html']);
-            $storedMarkdownPath = write_text_file($markdownPath, $parsedRecord['markdown'], true);
-            unset($parsedRecord['clean_html'], $parsedRecord['markdown']);
-            $manifestEntry = $parsedRecord;
-            $parsed++;
-        } else {
-            $manifestEntry = merge_manifest_record($previousManifest, $record, $sourceFileName);
-            $reused++;
         }
 
         $manifestEntry['source_file'] = $sourceFileName;
         $manifestEntry['stored_source_file'] = basename($storedSourcePath);
         $manifestEntry['source_sha256'] = $sourceHash !== '' ? $sourceHash : sha256_file_auto($storedSourcePath);
+        $manifestEntry['catalog_content_current'] = $catalogVersion;
         $manifestEntry['checked_updates'] = $checkUpdates;
         $manifestEntry['updated_at'] = gmdate('c');
         $manifests[] = $manifestEntry;
-        emit_progress($index + 1, $total, $statePath);
+        if ($shouldWork) {
+            $processedWork++;
+            emit_progress($progressBase + $processedWork, $total, $statePath);
+        }
 
         if ((($index + 1) % 25) === 0 || ($index + 1) === $total) {
             // 中断後の補完でも detail_url や taxonomy を拾えるよう、manifest を途中でも保存する。
@@ -236,6 +305,7 @@ function crawl_taxonomy(string $entryUrl): array
         $pages[$url] = [
             'url' => $url,
             'path' => $currentPath,
+            'catalog_content_current' => extract_catalog_version($html),
         ];
 
         foreach (extract_taxonomy_links($xpath, $url) as $taxonomyUrl) {
@@ -1403,6 +1473,152 @@ function index_manifest_by_source(array $records): array
     }
 
     return $indexed;
+}
+
+function extract_catalog_version(string $html): string
+{
+    $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $text = normalize_whitespace($text);
+    if (preg_match('/内容現在\s*(?:[：:]\s*)?((?:明治|大正|昭和|平成|令和)[0-9０-９元]+年[0-9０-９]+月[0-9０-９]+日)/u', $text, $matches) === 1) {
+        return trim((string)$matches[1]);
+    }
+    return '';
+}
+
+function catalog_version_from_pages(array $pages): string
+{
+    foreach ($pages as $page) {
+        if (!is_array($page)) {
+            continue;
+        }
+        $value = trim((string)($page['catalog_content_current'] ?? ''));
+        if ($value !== '') {
+            return $value;
+        }
+    }
+    return '';
+}
+
+function first_manifest_catalog_version(array $records): string
+{
+    foreach ($records as $record) {
+        if (!is_array($record)) {
+            continue;
+        }
+        $value = trim((string)($record['catalog_content_current'] ?? ''));
+        if ($value !== '') {
+            return $value;
+        }
+    }
+    return '';
+}
+
+function listed_metadata_changed(?array $manifestRecord, array $crawlRecord): bool
+{
+    if ($manifestRecord === null) {
+        return true;
+    }
+
+    foreach (['title', 'date', 'number'] as $key) {
+        $current = normalize_whitespace((string)($crawlRecord[$key] ?? ''));
+        if ($current === '') {
+            continue;
+        }
+        $previous = normalize_whitespace((string)($manifestRecord[$key] ?? ''));
+        if ($previous === '' || $previous !== $current) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function build_source_plan(
+    array $records,
+    string $sourceDir,
+    string $htmlDir,
+    string $markdownDir,
+    array $previousManifestBySource
+): array {
+    $plans = [];
+    $incompleteCount = 0;
+    $listedChangeCount = 0;
+    foreach ($records as $record) {
+        if (!is_array($record)) {
+            continue;
+        }
+        $sourceFileName = ordinance_file_name_from_url((string)$record['detail_url']);
+        $sourcePath = $sourceDir . DIRECTORY_SEPARATOR . $sourceFileName;
+        $htmlPath = $htmlDir . DIRECTORY_SEPARATOR . preg_replace('/\.html$/i', '.html', $sourceFileName);
+        $markdownPath = $markdownDir . DIRECTORY_SEPARATOR . preg_replace('/\.html$/i', '.md', $sourceFileName);
+        $existingSourcePath = existing_path($sourcePath);
+        $storedMarkdownPath = existing_path($markdownPath);
+        $previousManifest = $previousManifestBySource[$sourceFileName] ?? null;
+        $hasSource = $existingSourcePath !== null && filesize($existingSourcePath) > 0;
+        $isIncomplete = !$hasSource || !is_file($htmlPath) || $storedMarkdownPath === null;
+        $listedMetadataChanged = listed_metadata_changed(
+            is_array($previousManifest) ? $previousManifest : null,
+            $record
+        );
+        if ($isIncomplete) {
+            $incompleteCount++;
+        }
+        if ($listedMetadataChanged) {
+            $listedChangeCount++;
+        }
+        $plans[] = [
+            'record' => $record,
+            'source_file_name' => $sourceFileName,
+            'source_path' => $sourcePath,
+            'html_path' => $htmlPath,
+            'markdown_path' => $markdownPath,
+            'existing_source_path' => $existingSourcePath,
+            'stored_markdown_path' => $storedMarkdownPath,
+            'previous_manifest' => $previousManifest,
+            'is_incomplete' => $isIncomplete,
+            'listed_metadata_changed' => $listedMetadataChanged,
+        ];
+    }
+
+    return [
+        'plans' => $plans,
+        'incomplete_count' => $incompleteCount,
+        'listed_change_count' => $listedChangeCount,
+    ];
+}
+
+function assign_work_mode(array &$plans, bool $force, bool $checkUpdates, ?bool $catalogChanged = null): array
+{
+    $total = count($plans);
+    $incompleteCount = 0;
+    foreach ($plans as $plan) {
+        if ((bool)($plan['is_incomplete'] ?? false)) {
+            $incompleteCount++;
+        }
+    }
+
+    $resumeMode = !$force && $incompleteCount > 0;
+    $updateMode = !$force && !$resumeMode && $checkUpdates && $catalogChanged !== false;
+    $workCount = 0;
+    foreach ($plans as $index => $plan) {
+        $shouldWork = $force
+            || (bool)($plan['is_incomplete'] ?? false)
+            || ($updateMode && (bool)($plan['listed_metadata_changed'] ?? false));
+        $plans[$index]['should_work'] = $shouldWork;
+        if ($shouldWork) {
+            $workCount++;
+        }
+    }
+
+    return [
+        'total' => $total,
+        'incomplete_count' => $incompleteCount,
+        'resume_mode' => $resumeMode,
+        'update_mode' => $updateMode,
+        'catalog_changed' => $catalogChanged,
+        'work_count' => $workCount,
+        'progress_base' => max(0, $total - $workCount),
+    ];
 }
 
 function merge_manifest_record(array $manifestRecord, array $crawlRecord, string $sourceFile): array

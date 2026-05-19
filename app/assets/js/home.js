@@ -53,8 +53,8 @@
     }
 
     function progressCountText(display, label) {
-        const rawCurrent = Number(display?.progress_current ?? NaN);
-        const rawTotal = Number(display?.progress_total ?? NaN);
+        const rawCurrent = Number(display?.count_current ?? display?.progress_current ?? NaN);
+        const rawTotal = Number(display?.count_total ?? display?.progress_total ?? NaN);
         if (!Number.isFinite(rawCurrent) || !Number.isFinite(rawTotal) || rawTotal <= 0) {
             return '';
         }
@@ -94,7 +94,7 @@
         const detailLines = String(display.detail || '')
             .split(/\r?\n/)
             .map((line) => line.trim())
-            .filter((line) => countText === '' || !/^(DL済|投入済|追加済|反映)?\s*\d+(?:\/\d+)?件$/.test(line))
+            .filter((line) => countText === '' || !/^(DL済|HTML|投入済|追加済|反映)?\s*\d+(?:\/\d+)?件$/.test(line))
             .filter((line) => line !== '');
         const rawCurrent = Number(display.progress_current ?? NaN);
         const rawTotal = Number(display.progress_total ?? NaN);
@@ -129,6 +129,11 @@
         `.trim();
     }
 
+    function runningSummaryStatClass(item) {
+        const label = String(item?.label || '').trim();
+        return label === '開始' ? ' running-summary-stat-break' : '';
+    }
+
     function renderIndexSummary(entry) {
         const index = entry?.index_summary;
         if (!index || typeof index !== 'object') {
@@ -146,7 +151,7 @@
                     <span class="running-summary-state ${escapeHtml(index.state_class || '')}">${escapeHtml(index.state_label || '')}</span>
                 </div>
                 ${stats.length ? `<div class="running-summary-stats running-index-stats">${stats.map((item) => `
-                    <span class="running-summary-stat">
+                    <span class="running-summary-stat${runningSummaryStatClass(item)}">
                         <span class="running-summary-stat-label">${escapeHtml(item.label || '')}</span>
                         <span class="running-summary-stat-value">${escapeHtml(item.value || '')}</span>
                     </span>
@@ -175,7 +180,7 @@
                 </div>
                 <div class="running-summary-stats">
                     ${stats.map((item) => `
-                        <span class="running-summary-stat">
+                        <span class="running-summary-stat${runningSummaryStatClass(item)}">
                             <span class="running-summary-stat-label">${escapeHtml(item.label || '')}</span>
                             <span class="running-summary-stat-value">${escapeHtml(item.value || '')}</span>
                         </span>

@@ -90,8 +90,8 @@
             background: rgba(245, 158, 11, 0.14);
         }
         .running-summary-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(74px, max-content));
+            display: flex;
+            flex-wrap: wrap;
             gap: 6px;
             align-items: start;
         }
@@ -133,6 +133,9 @@
             color: var(--accent);
             line-height: 1.2;
             white-space: nowrap;
+        }
+        .running-summary-stat-break {
+            flex-basis: 100%;
         }
         .running-summary-stat-label {
             font-size: 11px;

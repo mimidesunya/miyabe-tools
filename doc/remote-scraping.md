@@ -20,6 +20,18 @@ python deploy/prepare_remote_scraping.py deploy.json --sync-gijiroku-work --sync
 
 既定では、スクレイパ image が未作成か、`docker/scraper/Dockerfile` / `tools/requirements-scraping.txt` の内容が前回 build 時から変わっている場合だけ自動で rebuild します。`--build-image` を付けると差分有無に関係なく強制 rebuild します。
 
+## 実行状態の保存先
+
+スクレイパの実行状態は PostgreSQL の `management_task_statuses` と `processing_task_items` に保存します。旧 `data/background_tasks/*.json` は移行期間の控えとして残しますが、公開画面の正本ではありません。
+
+既存環境を PostgreSQL 管理へ移すときは、スクレイパを止めてから Web 側 compose を更新し、PHP コンテナ内で次を実行します。
+
+```bash
+php /var/www/lib/migrate_runtime_state_to_postgres.php
+```
+
+この移行は旧 JSON の状態を DB に取り込み、トップページ用の派生カードも再生成します。移行後はスクレイパイメージを `psycopg` 入りで再ビルドし、通常サイクルで DB が更新されることを確認します。
+
 ## リモートでの議事録取得
 
 `assembly_minutes_system_urls.tsv` のうち、実装済みの `gijiroku.com` / `voices` / `kaigiroku.net` / `dbsr` / `db-search` / `kaigiroku-indexphp` / `kensakusystem` を対象にします。  
@@ -40,6 +52,22 @@ docker compose -f docker-compose.scraping.yml logs -f scraper-beat
 docker compose -f docker-compose.scraping.yml restart scraper-gijiroku scraper-beat
 ```
 
+ローカルから `deploy.sh --restart-scraping` を実行すると、通常デプロイ後に scraper compose を再作成したうえで、既存ファイルから `gijiroku_snapshot` / `reiki_snapshot` を再集計し、会議録・例規集の通常サイクルを 1 回ずつ即時投入します。再起動前に worker / beat / scraper 用 Redis コンテナを破棄するため、古い Celery キューは持ち越しません。単なるコンテナ再起動だけでは、直近の `finished_at` / `heartbeat_at` / `updated_at` によって dispatcher が `not_due` と判断し、次の 6 時間周期まで実作業を積まないことがあります。
+
+スクレイパだけを再起動したい場合は、Web/PHP の同期やキャッシュ prewarm を巻き込まない次の形を使います。
+
+```bash
+./deploy.sh --restart-scraping-only
+```
+
+スクレイパを止め切るだけの場合は、次を使います。この操作は worker / beat だけでなく scraper 用 Redis コンテナも破棄するため、未処理の Celery キューも残りません。
+
+```bash
+./deploy.sh --stop-scraping-only
+```
+
+再集計は既定で最大 30 分で打ち切ります。必要なら `--reconcile-timeout-seconds` で調整します。
+
 ローカルから単発のリモートコマンドを打ちたい場合は、`deploy.json` の鍵設定を使うヘルパーを使えます。
 このヘルパーは `wsl_key_path` / `key_path` を読み、一時鍵へコピーして権限を絞ってから SSH 実行します。
 
@@ -52,8 +80,8 @@ python3 deploy/remote_exec.py deploy.json -- "cd ~/services/miyabe-tools && dock
 即時に 1 サイクル走らせたい場合:
 
 ```bash
-docker compose -f docker-compose.scraping.yml exec scraper-gijiroku \
-  python3 tools/remote/celery_enqueue.py gijiroku-cycle
+docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml exec -T scraper-gijiroku \
+  sh -lc 'cd /workspace && PYTHONPATH=/workspace python3 tools/remote/celery_enqueue.py gijiroku-cycle'
 ```
 
 会議録の OpenSearch index を明示的に再構築したい場合:
@@ -92,8 +120,8 @@ docker compose -f docker-compose.scraping.yml restart scraper-reiki scraper-beat
 即時に 1 サイクル走らせたい場合:
 
 ```bash
-docker compose -f docker-compose.scraping.yml exec scraper-reiki \
-  python3 tools/remote/celery_enqueue.py reiki-cycle
+docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml exec -T scraper-reiki \
+  sh -lc 'cd /workspace && PYTHONPATH=/workspace python3 tools/remote/celery_enqueue.py reiki-cycle'
 ```
 
 例規集の OpenSearch index を明示的に再構築したい場合:
@@ -113,7 +141,7 @@ python3 tools/reiki/scrape_all_reiki.py --list-targets --max-targets 20
 
 - スクレイパ本体は `miyabe-tools-scraper` イメージ内で動かします。
 - 公開データの書き込み先は `SHARED_DATA_DIR`（既定: `/mnt/big/miyabe-tools`）を `data/reiki` / `data/gijiroku` に重ねて、`boards` と分離したまま共有領域へ保存します。
-- デプロイ時の正規化では、旧 `name-only` ディレクトリも `自治体コード-ローマ字名称` へ移動します。背景タスク JSON の slug も同じ正規形に揃えます。
+- デプロイ時の正規化では、旧 `name-only` ディレクトリも `自治体コード-ローマ字名称` へ移動します。移行期間中の背景タスク JSON の slug も同じ正規形に揃えます。
 - 会議録・例規とも、ホスト単位の同時実行数と起動間隔で負荷を抑えます。
 - サービスは `unless-stopped` で起動し、Celery beat の dispatcher が既定 6 時間ごとに次の巡回を queue へ積みます。
 - `work/gijiroku` / `work/reiki` を同期した場合は、既存のレジューム状態をそのまま利用できます。

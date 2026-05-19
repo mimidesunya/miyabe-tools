@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import argparse
+import html
 import re
 import sys
 import time
 from pathlib import Path
-from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qs, urlencode, urljoin, urlsplit, urlunsplit
 
 import requests
 
@@ -26,6 +27,10 @@ OPENSEARCH_RESULT_RE = re.compile(
     r"(?P<ichikey>null|'[^']*'),\s*'(?P<from_jsp>[^']+)'\)"
 )
 OPENSEARCH_PAGING_RE = re.compile(r"doPaging\('([0-9]+)'\)")
+CATALOG_VERSION_RE = re.compile(
+    r"内容現在\s*(?:[：:]\s*)?"
+    r"((?:明治|大正|昭和|平成|令和)[0-9０-９元]+年[0-9０-９]+月[0-9０-９]+日)"
+)
 
 
 def emit_progress(current: int, total: int, state_path: Path | None = None) -> None:
@@ -34,26 +39,170 @@ def emit_progress(current: int, total: int, state_path: Path | None = None) -> N
     print(f"[PROGRESS] unit=ordinance current={max(0, current)} total={max(0, total)}", flush=True)
 
 
-def download_file(url, dest_path, force=False, check_updates=False, session: requests.Session | None = None):
+def response_header(response: requests.Response, name: str) -> str:
+    return str(response.headers.get(name, "") or "").strip()
+
+
+def html_to_text_fragment(value: str) -> str:
+    text = re.sub(r"<[^>]+>", " ", value)
+    text = html.unescape(text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def response_text_auto(response: requests.Response) -> str:
+    if not response.encoding or response.encoding.lower() in {"iso-8859-1", "ascii"}:
+        response.encoding = response.apparent_encoding or "utf-8"
+    return response.text
+
+
+def extract_catalog_version_from_html(value: str) -> str:
+    text = html_to_text_fragment(value)
+    match = CATALOG_VERSION_RE.search(text)
+    return match.group(1).strip() if match else ""
+
+
+def fetch_catalog_version(source_url: str, session: requests.Session | None = None) -> str:
+    requester = session or requests
+    try:
+        response = requester.get(source_url, headers={"User-Agent": USER_AGENT}, timeout=15)
+        response.raise_for_status()
+    except Exception as exc:
+        print(f"[WARN] catalog version fetch failed: {exc}", flush=True)
+        return ""
+    version = extract_catalog_version_from_html(response_text_auto(response))
+    if version == "":
+        for href in re.findall(r"""(?:href|src)=["']([^"']*d1w_reiki/reiki\.html?)["']""", response.text, flags=re.I):
+            candidate_url = urljoin(response.url, href)
+            if candidate_url == response.url:
+                continue
+            try:
+                candidate_response = requester.get(candidate_url, headers={"User-Agent": USER_AGENT}, timeout=15)
+                candidate_response.raise_for_status()
+            except Exception:
+                continue
+            version = extract_catalog_version_from_html(response_text_auto(candidate_response))
+            if version:
+                break
+    if version:
+        print(f"[INFO] catalog content current: {version}", flush=True)
+    else:
+        print("[INFO] catalog content current: not found", flush=True)
+    return version
+
+
+def download_file(
+    url,
+    dest_path,
+    force=False,
+    check_updates=False,
+    session: requests.Session | None = None,
+    previous_manifest: dict | None = None,
+):
     existing_path = reiki_io.existing_path(dest_path)
     if not force and existing_path and existing_path.stat().st_size > 0 and not check_updates:
-        return False, existing_path, reiki_io.sha256_path(existing_path)
+        return (
+            False,
+            existing_path,
+            reiki_io.sha256_path(existing_path),
+            {
+                "status_code": "",
+                "not_modified": False,
+                "conditional": False,
+                "etag": str((previous_manifest or {}).get("source_etag") or ""),
+                "last_modified": str((previous_manifest or {}).get("source_last_modified") or ""),
+            },
+        )
 
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         requester = session or requests
-        response = requester.get(url, headers={"User-Agent": USER_AGENT}, timeout=15)
+        previous_manifest = previous_manifest if isinstance(previous_manifest, dict) else {}
+        headers = {"User-Agent": USER_AGENT}
+        conditional = False
+        if check_updates and not force and existing_path is not None:
+            etag = str(previous_manifest.get("source_etag") or "").strip()
+            last_modified = str(previous_manifest.get("source_last_modified") or "").strip()
+            if etag != "":
+                headers["If-None-Match"] = etag
+                conditional = True
+            if last_modified != "":
+                headers["If-Modified-Since"] = last_modified
+                conditional = True
+
+        response = requester.get(url, headers=headers, timeout=15)
+        if response.status_code == 304 and existing_path is not None:
+            print(f"Not modified: {url}")
+            return (
+                False,
+                existing_path,
+                str(previous_manifest.get("source_sha256") or "") or reiki_io.sha256_path(existing_path),
+                {
+                    "status_code": 304,
+                    "not_modified": True,
+                    "conditional": conditional,
+                    "etag": response_header(response, "ETag") or str(previous_manifest.get("source_etag") or ""),
+                    "last_modified": response_header(response, "Last-Modified")
+                    or str(previous_manifest.get("source_last_modified") or ""),
+                },
+            )
         response.raise_for_status()
         source_hash = reiki_io.sha256_bytes(response.content)
+        metadata = {
+            "status_code": response.status_code,
+            "not_modified": False,
+            "conditional": conditional,
+            "etag": response_header(response, "ETag"),
+            "last_modified": response_header(response, "Last-Modified"),
+        }
         if existing_path and reiki_io.sha256_path(existing_path) == source_hash and not force:
-            return False, existing_path, source_hash
+            return False, existing_path, source_hash, metadata
         written_path = reiki_io.write_bytes(dest_path, response.content, compress=True)
         print(f"Downloaded: {url}")
         time.sleep(DELAY)
-        return True, written_path, source_hash
+        return True, written_path, source_hash, metadata
     except Exception as exc:
         print(f"Failed to download {url}: {exc}")
-        return False, existing_path or dest_path, ""
+        return (
+            False,
+            existing_path or dest_path,
+            "",
+            {
+                "status_code": "",
+                "not_modified": False,
+                "conditional": False,
+                "etag": str((previous_manifest or {}).get("source_etag") or ""),
+                "last_modified": str((previous_manifest or {}).get("source_last_modified") or ""),
+            },
+        )
+
+
+def index_manifest_by_source(records) -> dict[str, dict]:
+    indexed: dict[str, dict] = {}
+    if not isinstance(records, list):
+        return indexed
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        source_file = str(record.get("source_file") or "").strip()
+        if source_file == "":
+            stored_source_file = str(record.get("stored_source_file") or "").strip()
+            if stored_source_file != "":
+                source_file = reiki_io.logical_path(Path(stored_source_file)).name
+        if source_file != "":
+            indexed[source_file] = record
+    return indexed
+
+
+def first_manifest_catalog_version(records) -> str:
+    if not isinstance(records, list):
+        return ""
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        value = str(record.get("catalog_content_current") or "").strip()
+        if value:
+            return value
+    return ""
 
 
 def get_hno_list(base_url, data_dir, force=False, check_updates=False):
@@ -75,7 +224,7 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False):
         file_path = data_dir / current
         stored_path = reiki_io.existing_path(file_path)
         if stored_path is None:
-            _, stored_path, _ = download_file(base_url + current, file_path, check_updates=check_updates)
+            _, stored_path, _, _ = download_file(base_url + current, file_path, check_updates=check_updates)
         if stored_path is None or not stored_path.exists():
             continue
 
@@ -225,6 +374,83 @@ def collect_opensearch_entries(source_url: str) -> tuple[requests.Session, list[
     return session, list(entries_by_houcd.values())
 
 
+def build_source_plan(
+    *,
+    source_items,
+    base_url: str,
+    source_dir: Path,
+    html_dir: Path,
+    markdown_dir: Path,
+    opensearch_session: requests.Session | None,
+    previous_manifest_by_source: dict[str, dict],
+) -> tuple[list[dict], int]:
+    plans = []
+    incomplete_count = 0
+    for source_item in source_items:
+        if isinstance(source_item, dict):
+            code = str(source_item["houcd"])
+            url = str(source_item["detail_url"])
+            filename = f"{code}_j.html"
+            session = opensearch_session
+        else:
+            code = str(source_item)
+            filename = f"{code}_j.html"
+            url = f"{base_url}{code}/{filename}"
+            session = None
+
+        dest_path = source_dir / filename
+        existing_source_path = reiki_io.existing_path(dest_path)
+        source_file_path = existing_source_path or reiki_io.gzip_path(dest_path)
+        logical_source = reiki_io.logical_path(source_file_path)
+        html_output = html_dir / f"{logical_source.stem}.html"
+        markdown_output = reiki_io.existing_path(markdown_dir / f"{logical_source.stem}.md")
+        has_source = existing_source_path is not None and existing_source_path.stat().st_size > 0
+        is_incomplete = not has_source or not html_output.exists() or markdown_output is None
+        if is_incomplete:
+            incomplete_count += 1
+        plans.append(
+            {
+                "source_item": source_item,
+                "code": code,
+                "url": url,
+                "filename": filename,
+                "session": session,
+                "dest_path": dest_path,
+                "source_file_path": source_file_path,
+                "html_output": html_output,
+                "markdown_output": markdown_output,
+                "previous_manifest": previous_manifest_by_source.get(filename),
+                "is_incomplete": is_incomplete,
+            }
+        )
+    return plans, incomplete_count
+
+
+def assign_work_mode(
+    plans: list[dict],
+    *,
+    force: bool,
+    check_updates: bool,
+    catalog_changed: bool | None = None,
+) -> dict[str, int | bool]:
+    total = len(plans)
+    incomplete_count = sum(1 for plan in plans if bool(plan["is_incomplete"]))
+    resume_mode = not force and incomplete_count > 0
+    update_mode = not force and not resume_mode and check_updates and catalog_changed is not False
+    for plan in plans:
+        plan["should_work"] = bool(force or plan["is_incomplete"] or update_mode)
+    work_count = sum(1 for plan in plans if plan["should_work"])
+    return {
+        "total": total,
+        "incomplete_count": incomplete_count,
+        "resume_mode": resume_mode,
+        "update_mode": update_mode,
+        "catalog_changed": catalog_changed,
+        "work_count": work_count,
+        "progress_base": max(0, total - work_count),
+    }
+
+
 def main():
     default_slug = reiki_targets.default_slug_for_system("d1-law")
     parser = argparse.ArgumentParser(description="Download ordinances from D1-Law systems.")
@@ -251,6 +477,7 @@ def main():
     print(f"Target directory: {source_dir}")
     source_dir.mkdir(parents=True, exist_ok=True)
 
+    catalog_version = fetch_catalog_version(str(target["source_url"]))
     opensearch_session: requests.Session | None = None
     hno_list: list[str] = []
     opensearch_entries: list[dict[str, str]] = []
@@ -265,37 +492,104 @@ def main():
     source_items = opensearch_entries if opensearch_entries else hno_list
     if total_regulations <= 0:
         print("[WARN] No regulations found.", flush=True)
-    emit_progress(0, total_regulations, state_path)
+
+    previous_manifest_records = reiki_io.load_json(manifest_path, [])
+    previous_catalog_version = first_manifest_catalog_version(previous_manifest_records)
+    if catalog_version == "":
+        catalog_changed: bool | None = None
+    else:
+        catalog_changed = previous_catalog_version == "" or previous_catalog_version != catalog_version
+    if previous_catalog_version != "" and catalog_version != "":
+        status_label = "changed" if catalog_changed else "unchanged"
+        print(
+            f"[INFO] catalog content current {status_label}: "
+            f"previous={previous_catalog_version} current={catalog_version}",
+            flush=True,
+        )
+
+    previous_manifest_by_source = index_manifest_by_source(previous_manifest_records)
+    plans, _ = build_source_plan(
+        source_items=source_items,
+        base_url=base_url,
+        source_dir=source_dir,
+        html_dir=html_dir,
+        markdown_dir=markdown_dir,
+        opensearch_session=opensearch_session,
+        previous_manifest_by_source=previous_manifest_by_source,
+    )
+    work_mode = assign_work_mode(
+        plans,
+        force=args.force,
+        check_updates=args.check_updates,
+        catalog_changed=catalog_changed,
+    )
+    incomplete_count = int(work_mode["incomplete_count"])
+    resume_mode = bool(work_mode["resume_mode"])
+    update_mode = bool(work_mode["update_mode"])
+    work_count = int(work_mode["work_count"])
+    if resume_mode:
+        print(f"[MODE] resume missing ordinances only: {incomplete_count}/{total_regulations}", flush=True)
+    elif update_mode:
+        print(f"[MODE] update check: {total_regulations}/{total_regulations}", flush=True)
+    elif args.force:
+        print(f"[MODE] force rebuild: {total_regulations}/{total_regulations}", flush=True)
+    elif args.check_updates and catalog_changed is False:
+        print("[MODE] catalog unchanged; update check skipped.", flush=True)
+    else:
+        print("[MODE] complete; no update check requested.", flush=True)
+
+    progress_base = int(work_mode["progress_base"])
+    emit_progress(progress_base, total_regulations, state_path)
 
     downloaded_count = 0
     checked_count = 0
+    not_modified_count = 0
+    conditional_count = 0
     parsed_count = 0
+    skipped_count = 0
+    processed_work_count = 0
     manifest_entries = []
-    for index, source_item in enumerate(source_items):
-        if isinstance(source_item, dict):
-            code = str(source_item["houcd"])
-            url = str(source_item["detail_url"])
-            filename = f"{code}_j.html"
-            session = opensearch_session
-        else:
-            code = str(source_item)
-            filename = f"{code}_j.html"
-            url = f"{base_url}{code}/{filename}"
-            session = None
-        dest_path = source_dir / filename
-        source_file_path = reiki_io.existing_path(dest_path) or reiki_io.gzip_path(dest_path)
+    for index, plan in enumerate(plans):
+        source_item = plan["source_item"]
+        code = str(plan["code"])
+        url = str(plan["url"])
+        filename = str(plan["filename"])
+        dest_path = plan["dest_path"]
+        session = plan["session"]
+        source_file_path = plan["source_file_path"]
+        previous_manifest = plan["previous_manifest"] if isinstance(plan["previous_manifest"], dict) else {}
+        should_work = bool(plan["should_work"])
+        source_hash = str(previous_manifest.get("source_sha256") or "")
+        metadata = {
+            "status_code": "",
+            "not_modified": False,
+            "conditional": False,
+            "etag": str(previous_manifest.get("source_etag") or ""),
+            "last_modified": str(previous_manifest.get("source_last_modified") or ""),
+        }
 
-        downloaded, source_file_path, source_hash = download_file(
-            url,
-            dest_path,
-            force=args.force,
-            check_updates=args.check_updates,
-            session=session,
-        )
-        if downloaded:
-            downloaded_count += 1
-        elif args.check_updates:
-            checked_count += 1
+        if should_work:
+            downloaded, source_file_path, source_hash, metadata = download_file(
+                url,
+                dest_path,
+                force=args.force,
+                check_updates=update_mode,
+                session=session,
+                previous_manifest=previous_manifest,
+            )
+            if metadata.get("conditional"):
+                conditional_count += 1
+            if metadata.get("not_modified"):
+                not_modified_count += 1
+            if downloaded:
+                downloaded_count += 1
+            elif update_mode:
+                checked_count += 1
+        else:
+            downloaded = False
+            skipped_count += 1
+            if source_hash == "" and source_file_path.exists():
+                source_hash = reiki_io.sha256_path(source_file_path)
 
         logical_source = reiki_io.logical_path(source_file_path)
         html_output = html_dir / f"{logical_source.stem}.html"
@@ -325,6 +619,12 @@ def main():
                 "source_file": logical_source.name,
                 "stored_source_file": source_file_path.name,
                 "source_sha256": source_hash or (reiki_io.sha256_path(source_file_path) if source_file_path.exists() else ""),
+                "source_etag": str(metadata.get("etag") or ""),
+                "source_last_modified": str(metadata.get("last_modified") or ""),
+                "source_http_status": str(metadata.get("status_code") or ""),
+                "source_not_modified": bool(metadata.get("not_modified")),
+                "source_conditional_request": bool(metadata.get("conditional")),
+                "catalog_content_current": catalog_version,
                 "checked_updates": bool(args.check_updates),
             }
         )
@@ -334,11 +634,16 @@ def main():
         if ((index + 1) % 25) == 0 or (index + 1) == total_regulations:
             # 途中停止しても後追い補完が source_url 等を復元できるよう、manifest を定期保存する。
             reiki_io.write_json(manifest_path, manifest_entries, compress=True)
-        emit_progress(index + 1, total_regulations, state_path)
+        if should_work:
+            processed_work_count += 1
+            emit_progress(progress_base + processed_work_count, total_regulations, state_path)
 
     reiki_io.write_json(manifest_path, manifest_entries, compress=True)
     print(f"Finished. Downloaded {downloaded_count} files.")
     print(f"Checked existing: {checked_count}")
+    print(f"Conditional requests: {conditional_count}")
+    print(f"Not modified (304): {not_modified_count}")
+    print(f"Skipped existing: {skipped_count}")
     print(f"Parsed outputs: {parsed_count}")
     print(f"Manifest: {manifest_path}")
     if opensearch_session is not None:

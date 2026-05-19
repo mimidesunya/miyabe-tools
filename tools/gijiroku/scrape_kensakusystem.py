@@ -18,6 +18,7 @@ from urllib.parse import parse_qs, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 
 sys.path.append(str(Path(__file__).parent))
+import gijiroku_planning
 import gijiroku_storage
 import gijiroku_targets
 
@@ -88,10 +89,7 @@ def to_ascii_digits(value: str) -> str:
 
 
 def sanitize_filename(text: str, fallback: str) -> str:
-    cleaned = re.sub(r"[\\/:*?\"<>|\t\r\n]+", "_", text).strip(" .")
-    if not cleaned:
-        return fallback
-    return cleaned[:180]
+    return gijiroku_planning.sanitize_filename(text, fallback)
 
 
 def normalize_year_dir(year_label: str) -> str:
@@ -517,21 +515,43 @@ def main() -> int:
         )
         writer.writeheader()
 
-        for idx, item in enumerate(meeting_items, start=1):
-            print(f"[{idx}/{len(meeting_items)}] {item.year_label} {item.title}")
+        planned_items = [
+            gijiroku_planning.attach_text_output(plan)
+            for plan in gijiroku_planning.build_base_plans(meeting_items, downloads_dir)
+        ]
+        previous_missing = gijiroku_planning.previous_missing_count(state)
+        planned_items, work_items, missing_count = gijiroku_planning.select_work_items(
+            planned_items,
+            no_resume=args.no_resume,
+            previous_missing_count=previous_missing,
+        )
+        date_range = gijiroku_planning.describe_date_range(planned_items)
+        if date_range:
+            print(f"[INFO] Discovered meeting date range: {date_range}", flush=True)
+        gijiroku_planning.save_plan_summary(state_path, state, planned_items, missing_count, previous_missing)
+        if missing_count > 0:
+            work_mode = gijiroku_planning.work_mode_label(missing_count, previous_missing)
+            if work_mode == "update_check":
+                print(f"[INFO] Update check found new outputs: {missing_count}/{len(planned_items)}", flush=True)
+            else:
+                print(f"[INFO] Resume missing outputs first: {missing_count}/{len(planned_items)}", flush=True)
+        if not args.no_resume and not work_items:
+            print("[INFO] All expected outputs already exist; skipping download loop.", flush=True)
+            emit_progress(len(meeting_items), len(meeting_items), state_path, state)
+
+        for idx, plan in enumerate(work_items, start=1):
+            item = plan["item"]
+            print(f"[{idx}/{len(work_items)}] {item.year_label} {item.title}")
             status = ""
             output_path = ""
             error_msg = ""
             fragment_count = 0
-            year_dir_name = normalize_year_dir(item.year_label)
-            meeting_group_dir = normalize_meeting_group_dir(item.meeting_group)
-            meeting_download_dir = downloads_dir / year_dir_name
-            if meeting_group_dir:
-                meeting_download_dir = meeting_download_dir / meeting_group_dir
-            meeting_download_dir.mkdir(parents=True, exist_ok=True)
-            dest_base = meeting_download_dir / (sanitize_filename(item.title, "meeting") + ".txt")
-            resume_key = gijiroku_storage.item_signature(asdict(item))
-            existing_output = gijiroku_storage.existing_output(dest_base)
+            year_dir_name = plan["year_dir_name"]
+            meeting_group_dir = plan["meeting_group_dir"]
+            stem = plan["stem"]
+            resume_key = plan["resume_key"]
+            dest_base = plan["dest_base"]
+            existing_output = plan["existing_output"]
 
             if not args.no_resume and existing_output is not None:
                 output_path = str(existing_output)
@@ -558,7 +578,7 @@ def main() -> int:
                     }
                 )
                 handle.flush()
-                emit_progress(idx, len(meeting_items), state_path, state)
+                emit_progress(len(meeting_items) - len(work_items) + idx, len(meeting_items), state_path, state)
                 continue
 
             try:
@@ -576,7 +596,7 @@ def main() -> int:
                     try:
                         debug_html, _ = request_text(opener, item.url, args.timeout_ms, referer=item.url)
                         gijiroku_storage.write_text(
-                            debug_path / (sanitize_filename(item.title, "meeting") + ".html"),
+                            debug_path / (stem + ".html"),
                             debug_html,
                             compress=True,
                         )
@@ -606,8 +626,8 @@ def main() -> int:
                 }
             )
             handle.flush()
-            emit_progress(idx, len(meeting_items), state_path, state)
-            if args.delay_seconds > 0 and idx < len(meeting_items):
+            emit_progress(len(meeting_items) - len(work_items) + idx, len(meeting_items), state_path, state)
+            if args.delay_seconds > 0 and idx < len(work_items):
                 time.sleep(args.delay_seconds)
 
     print(f"[DONE] Saved index: {index_json}")

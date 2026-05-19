@@ -18,23 +18,33 @@ function background_task_status_path(string $task): string
 function load_background_task_status(string $task): array
 {
     $path = background_task_status_path($task);
-    if (!is_file($path)) {
-        return [];
+    if (is_file($path)) {
+        $sourceMtime = (float)@filemtime($path);
+        $cached = management_db_task_status_if_fresh($task, $sourceMtime);
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $decoded = json_decode((string)file_get_contents($path), true);
+        if (is_array($decoded)) {
+            management_db_store_task_status($task, $decoded, $sourceMtime);
+            return $decoded;
+        }
     }
 
-    $decoded = json_decode((string)file_get_contents($path), true);
-    if (!is_array($decoded)) {
-        return [];
+    $dbStatus = management_db_task_status($task);
+    if (is_array($dbStatus)) {
+        return $dbStatus;
     }
-    management_db_store_task_status($task, $decoded, (float)@filemtime($path));
-    return $decoded;
+    return [];
 }
 
 function load_background_task_status_fast(string $task): array
 {
     $path = background_task_status_path($task);
     if (!is_file($path)) {
-        return [];
+        $dbStatus = management_db_task_status($task);
+        return is_array($dbStatus) ? $dbStatus : [];
     }
     $sourceMtime = (float)@filemtime($path);
     $cached = management_db_task_status_if_fresh($task, $sourceMtime);
@@ -126,6 +136,28 @@ function background_task_item_progress_detail(array $item): string
     return sprintf('%d/%d件', $current, $total);
 }
 
+function background_task_public_text(string $value): string
+{
+    $value = trim($value);
+    if ($value === '') {
+        return '';
+    }
+
+    if (preg_match('/(?:^|\s)result:\s+\S+.*\bstderr\s+(\d+)\s+bytes\b/i', $value, $matches) === 1) {
+        return '処理結果の出力後にエラー出力あり ' . (string)$matches[1] . 'バイト';
+    }
+    if (preg_match('/^result:\s+\S+/i', $value) === 1) {
+        return '処理結果を出力しました';
+    }
+    if (preg_match('/^\[WARN\]\s+No regulations found\.?$/i', $value) === 1) {
+        return '例規本文を検出できませんでした（対象サイトの構造変更または空ページの可能性）';
+    }
+
+    $value = preg_replace('/(?<!:)\/(?:mnt|var|workspace|home|tmp|srv|opt)\/[^\s,;:)]+/i', '内部ファイル', $value) ?? $value;
+    $value = preg_replace('/[A-Za-z]:[\\\\\/][^\s,;:)]+/', '内部ファイル', $value) ?? $value;
+    return $value;
+}
+
 function background_task_compact_detail_text(string $value, int $maxLength = 96): string
 {
     $value = trim($value);
@@ -149,6 +181,22 @@ function background_task_compact_detail_text(string $value, int $maxLength = 96)
 
     if (str_starts_with($value, '[PROGRESS] ')) {
         return '';
+    }
+    $value = background_task_public_text($value);
+    if ($value === '') {
+        return '';
+    }
+    if (preg_match('/^\[\d+\/\d+\]\s*(.*)$/u', $value, $matches) === 1) {
+        $value = trim((string)$matches[1]);
+        if ($value === '') {
+            $value = '処理中';
+        }
+    }
+    if (preg_match('/\b(downloaded|checked|skipped|parsed|reused)=\d+\b/u', $value) === 1) {
+        $value = '既存データを確認中';
+    }
+    if (preg_match('/^Found\s+\d+\s+(?:unique regulation IDs|ordinance pages)\b/i', $value) === 1) {
+        $value = '例規一覧を確認中';
     }
     if (preg_match('/^stderr\s+(\d+)\s+bytes$/i', $value, $matches) === 1) {
         return 'エラー出力あり ' . (string)$matches[1] . 'バイト';
@@ -275,7 +323,7 @@ function background_task_item_failure_log_lines(array $item): array
         }
     }
     if ($failureLines !== []) {
-        $failureLines[] = 'ログファイルは記録されていません';
+        $failureLines[] = '詳細ログは公開画面では表示していません';
     }
     return $failureLines;
 }
@@ -423,10 +471,6 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
     if ($timeLabel !== '' && !($running && in_array($status, ['pending', 'running'], true))) {
         $detailParts[] = '更新 ' . $timeLabel;
     }
-    $heartbeatDetail = background_task_item_running_heartbeat_detail($taskStatus, $item);
-    if ($heartbeatDetail !== '') {
-        $detailParts[] = $heartbeatDetail;
-    }
     $warningLines = background_task_item_warning_lines($item);
     $warningCount = background_task_item_warning_count($item, $warningLines);
     if ($warningCount > 0) {
@@ -495,6 +539,23 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
         ];
     }
     if ($status === 'failed') {
+        if (background_task_item_is_complete($item)) {
+            $completeDetailLines = preg_split('/\R/u', $detail, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $completeDetailLines = array_values(array_filter(
+                $completeDetailLines,
+                static fn($line): bool => !str_starts_with(trim((string)$line), '理由 ')
+            ));
+            $completeDetail = implode("\n", $completeDetailLines);
+            return [
+                'label' => '完了',
+                'class' => 'task-done',
+                'detail' => $completeDetail,
+                'progress_current' => $progress['current'],
+                'progress_total' => $progress['total'],
+                'batch_running' => $running,
+                'warning_lines' => $warningLines,
+            ];
+        }
         $returncode = $item['returncode'] ?? null;
         if ($returncode !== null && $returncode !== '') {
             if ($detail === '') {

@@ -18,6 +18,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 sys.path.append(str(Path(__file__).parent))
+import gijiroku_planning
 import gijiroku_storage
 import gijiroku_targets
 
@@ -93,10 +94,7 @@ def normalize_space(value: str) -> str:
 
 
 def sanitize_filename(text: str, fallback: str) -> str:
-    cleaned = re.sub(r"[\\/:*?\"<>|\t\r\n]+", "_", text).strip(" .")
-    if not cleaned:
-        return fallback
-    return cleaned[:180]
+    return gijiroku_planning.sanitize_filename(text, fallback)
 
 
 def normalize_year_dir(year_label: str) -> str:
@@ -417,7 +415,14 @@ def extract_document_rows_from_page(page) -> list[DocumentRow]:
     return rows
 
 
-def collect_list_page_documents(page, list_url: str, timeout_ms: int) -> list[DocumentRow]:
+def collect_list_page_documents(
+    page,
+    list_url: str,
+    timeout_ms: int,
+    *,
+    known_urls: set[str] | None = None,
+    stop_after_known_page: bool = False,
+) -> list[DocumentRow]:
     page.goto(list_url, wait_until="domcontentloaded", timeout=timeout_ms)
     try:
         page.wait_for_load_state("networkidle", timeout=3_000)
@@ -435,11 +440,16 @@ def collect_list_page_documents(page, list_url: str, timeout_ms: int) -> list[Do
             break
         seen_page_signatures.add(signature)
 
+        page_is_known = bool(page_rows) and bool(known_urls) and all(row.url in known_urls for row in page_rows)
+
         for row in page_rows:
             if row.url in seen_urls:
                 continue
             seen_urls.add(row.url)
             collected.append(row)
+
+        if stop_after_known_page and page_is_known:
+            break
 
         next_button = page.locator("nav.pagination button[aria-label='次のページ']").first
         if next_button.count() > 0 and not is_disabled(next_button):
@@ -476,6 +486,96 @@ def collect_list_page_documents(page, list_url: str, timeout_ms: int) -> list[Do
             break
 
     return collected
+
+
+def meeting_item_from_dict(payload: dict) -> MeetingItem | None:
+    try:
+        title = normalize_space(str(payload.get("title", "") or ""))
+        url = str(payload.get("url", "") or "").strip()
+        year_label = normalize_space(str(payload.get("year_label", "") or ""))
+        if not title or not url:
+            return None
+        doc_urls = payload.get("doc_urls")
+        if not isinstance(doc_urls, list):
+            doc_urls = [url]
+        return MeetingItem(
+            title=title,
+            url=url,
+            year_label=year_label or "不明",
+            meeting_group=payload.get("meeting_group"),
+            list_url=payload.get("list_url"),
+            held_on=payload.get("held_on"),
+            doc_urls=[str(value) for value in doc_urls if str(value or "").strip()],
+            doc_kind=payload.get("doc_kind"),
+        )
+    except Exception:
+        return None
+
+
+def load_previous_meeting_items(index_json: Path) -> list[MeetingItem]:
+    loaded = gijiroku_storage.load_json(index_json, [])
+    if not isinstance(loaded, list):
+        return []
+    items: list[MeetingItem] = []
+    for entry in loaded:
+        if not isinstance(entry, dict):
+            continue
+        item = meeting_item_from_dict(entry)
+        if item is not None:
+            items.append(item)
+    return items
+
+
+def meeting_merge_key(item: MeetingItem) -> tuple[str, str, str, str, str, str]:
+    return (
+        str(item.list_url or ""),
+        str(item.held_on or ""),
+        str(item.doc_kind or ""),
+        str(item.url or ""),
+        str(item.year_label or ""),
+        str(item.title or ""),
+    )
+
+
+def merge_meeting_items(new_items: list[MeetingItem], previous_items: list[MeetingItem]) -> list[MeetingItem]:
+    merged: list[MeetingItem] = []
+    seen: set[tuple[str, str, str, str, str, str]] = set()
+    for item in [*new_items, *previous_items]:
+        key = meeting_merge_key(item)
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(item)
+    return merged
+
+
+def previous_doc_urls_by_list_url(previous_items: list[MeetingItem]) -> dict[str, set[str]]:
+    urls_by_list_url: dict[str, set[str]] = {}
+    for item in previous_items:
+        list_url = str(item.list_url or "").strip()
+        if not list_url:
+            continue
+        urls = urls_by_list_url.setdefault(list_url, set())
+        for doc_url in item.doc_urls or []:
+            if doc_url:
+                urls.add(str(doc_url))
+    return urls_by_list_url
+
+
+def should_quick_update_from_state(state: dict) -> bool:
+    summary = state.get("plan_summary")
+    if not isinstance(summary, dict):
+        return False
+    try:
+        missing_total = int(summary.get("missing_total") or 0)
+    except Exception:
+        return False
+    return (
+        missing_total == 0
+        and bool(summary.get("source_order_trustworthy"))
+        and str(summary.get("source_date_order") or "") == "descending"
+        and str(summary.get("date_precision") or "") in {"day", "mixed"}
+    )
 
 
 def build_day_groups(list_page: ListPage, list_url: str, rows: list[DocumentRow]) -> list[DayDocumentGroup]:
@@ -516,17 +616,32 @@ def title_from_heading_or_filename(page_html: str, fallback: str) -> str:
     return fallback
 
 
-def discover_meeting_items(page, target: dict, timeout_ms: int, max_meetings: int = 0) -> list[MeetingItem]:
+def discover_meeting_items(
+    page,
+    target: dict,
+    timeout_ms: int,
+    max_meetings: int = 0,
+    *,
+    previous_items: list[MeetingItem] | None = None,
+    quick_update: bool = False,
+) -> list[MeetingItem]:
     base_url = str(target["base_url"])
     list_pages = discover_list_pages(page, target, timeout_ms)
 
     meetings: list[MeetingItem] = []
     seen_titles: set[tuple[str, str, str]] = set()
+    known_urls_by_list_url = previous_doc_urls_by_list_url(previous_items or []) if quick_update else {}
 
     for list_page in list_pages:
         try:
             list_url = list_url_with_origin(list_page.url, base_url)
-            rows = collect_list_page_documents(page, list_url, timeout_ms)
+            rows = collect_list_page_documents(
+                page,
+                list_url,
+                timeout_ms,
+                known_urls=known_urls_by_list_url.get(list_url),
+                stop_after_known_page=quick_update,
+            )
         except Exception:
             continue
 
@@ -575,6 +690,8 @@ def discover_meeting_items(page, target: dict, timeout_ms: int, max_meetings: in
             if max_meetings > 0 and len(meetings) >= max_meetings:
                 return meetings
 
+    if quick_update and previous_items:
+        return merge_meeting_items(meetings, previous_items)
     return meetings
 
 
@@ -767,7 +884,21 @@ def main() -> int:
         page.set_default_timeout(args.timeout_ms)
 
         print("[INFO] 会議一覧を収集中...")
-        meeting_items = discover_meeting_items(page, target, args.timeout_ms, args.max_meetings)
+        previous_items = [] if args.no_resume or args.max_meetings > 0 else load_previous_meeting_items(index_json)
+        quick_update = bool(previous_items) and should_quick_update_from_state(state)
+        if quick_update:
+            print(
+                f"[INFO] Quick update listing enabled: previous_index={len(previous_items)}",
+                flush=True,
+            )
+        meeting_items = discover_meeting_items(
+            page,
+            target,
+            args.timeout_ms,
+            args.max_meetings,
+            previous_items=previous_items,
+            quick_update=quick_update,
+        )
         print(f"[INFO] 会議候補 {len(meeting_items)} 件")
 
         index_json.parent.mkdir(parents=True, exist_ok=True)
@@ -784,22 +915,44 @@ def main() -> int:
             )
             writer.writeheader()
 
-            for idx, item in enumerate(meeting_items, start=1):
-                print(f"[{idx}/{len(meeting_items)}] {item.year_label} {item.title}")
+            planned_items = [
+                gijiroku_planning.attach_text_output(plan)
+                for plan in gijiroku_planning.build_base_plans(meeting_items, downloads_dir)
+            ]
+            previous_missing = gijiroku_planning.previous_missing_count(state)
+            planned_items, work_items, missing_count = gijiroku_planning.select_work_items(
+                planned_items,
+                no_resume=args.no_resume,
+                previous_missing_count=previous_missing,
+            )
+            date_range = gijiroku_planning.describe_date_range(planned_items)
+            if date_range:
+                print(f"[INFO] Discovered meeting date range: {date_range}", flush=True)
+            gijiroku_planning.save_plan_summary(state_path, state, planned_items, missing_count, previous_missing)
+            if missing_count > 0:
+                work_mode = gijiroku_planning.work_mode_label(missing_count, previous_missing)
+                if work_mode == "update_check":
+                    print(f"[INFO] Update check found new outputs: {missing_count}/{len(planned_items)}", flush=True)
+                else:
+                    print(f"[INFO] Resume missing outputs first: {missing_count}/{len(planned_items)}", flush=True)
+            if not args.no_resume and not work_items:
+                print("[INFO] All expected outputs already exist; skipping download loop.", flush=True)
+                emit_progress(len(meeting_items), len(meeting_items), state_path, state)
+
+            for idx, plan in enumerate(work_items, start=1):
+                item = plan["item"]
+                print(f"[{idx}/{len(work_items)}] {item.year_label} {item.title}")
                 status = ""
                 output_path = ""
                 error_msg = ""
                 document_count = len(item.doc_urls or [])
                 fragment_count = 0
-                year_dir_name = normalize_year_dir(item.year_label)
-                meeting_group_dir = normalize_meeting_group_dir(item.meeting_group)
-                meeting_download_dir = downloads_dir / year_dir_name
-                if meeting_group_dir:
-                    meeting_download_dir = meeting_download_dir / meeting_group_dir
-                meeting_download_dir.mkdir(parents=True, exist_ok=True)
-                dest_base = meeting_download_dir / (sanitize_filename(item.title, "meeting") + ".txt")
-                resume_key = gijiroku_storage.item_signature(asdict(item))
-                existing_output = gijiroku_storage.existing_output(dest_base)
+                year_dir_name = plan["year_dir_name"]
+                meeting_group_dir = plan["meeting_group_dir"]
+                stem = plan["stem"]
+                resume_key = plan["resume_key"]
+                dest_base = plan["dest_base"]
+                existing_output = plan["existing_output"]
 
                 if not args.no_resume and existing_output is not None:
                     output_path = str(existing_output)
@@ -826,7 +979,7 @@ def main() -> int:
                         }
                     )
                     handle.flush()
-                    emit_progress(idx, len(meeting_items), state_path, state)
+                    emit_progress(len(meeting_items) - len(work_items) + idx, len(meeting_items), state_path, state)
                     continue
 
                 try:
@@ -850,7 +1003,7 @@ def main() -> int:
                         try:
                             sample_html = request_text(context.request, item.doc_urls[0], args.timeout_ms, referer=item.url)
                             gijiroku_storage.write_text(
-                                debug_path / (sanitize_filename(item.title, "meeting") + ".html"),
+                                debug_path / (stem + ".html"),
                                 sample_html,
                                 compress=True,
                             )
@@ -880,8 +1033,8 @@ def main() -> int:
                     }
                 )
                 handle.flush()
-                emit_progress(idx, len(meeting_items), state_path, state)
-                if args.delay_seconds > 0 and idx < len(meeting_items):
+                emit_progress(len(meeting_items) - len(work_items) + idx, len(meeting_items), state_path, state)
+                if args.delay_seconds > 0 and idx < len(work_items):
                     time.sleep(args.delay_seconds)
 
         browser.close()

@@ -127,6 +127,41 @@ CREATE TABLE IF NOT EXISTS management_task_statuses (
     status_json jsonb NOT NULL,
     updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS processing_task_items (
+    task_key text NOT NULL,
+    slug text NOT NULL,
+    code text NOT NULL DEFAULT '',
+    name text NOT NULL DEFAULT '',
+    full_name text NOT NULL DEFAULT '',
+    feature_key text NOT NULL DEFAULT '',
+    task_area text NOT NULL DEFAULT 'scrape',
+    status text NOT NULL DEFAULT '',
+    message text NOT NULL DEFAULT '',
+    host text NOT NULL DEFAULT '',
+    system_type text NOT NULL DEFAULT '',
+    source_url text NOT NULL DEFAULT '',
+    started_at_text text NOT NULL DEFAULT '',
+    finished_at_text text NOT NULL DEFAULT '',
+    updated_at_text text NOT NULL DEFAULT '',
+    progress_updated_at_text text NOT NULL DEFAULT '',
+    returncode integer,
+    pid integer,
+    progress_current integer,
+    progress_total integer,
+    progress_unit text NOT NULL DEFAULT '',
+    warning_count integer NOT NULL DEFAULT 0,
+    warning_lines jsonb NOT NULL DEFAULT '[]'::jsonb,
+    item_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (task_key, slug)
+);
+
+CREATE INDEX IF NOT EXISTS idx_processing_task_items_task_status
+    ON processing_task_items (task_key, status, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_processing_task_items_slug
+    ON processing_task_items (slug);
 SQL);
     $pdo->exec('ALTER TABLE management_task_statuses ADD COLUMN IF NOT EXISTS source_mtime double precision NOT NULL DEFAULT 0');
     $done = true;
@@ -240,6 +275,7 @@ function management_db_store_task_status(string $taskKey, array $status, float $
         return;
     }
     try {
+        $pdo->beginTransaction();
         $stmt = $pdo->prepare(<<<'SQL'
 INSERT INTO management_task_statuses (
     task_key, running, heartbeat_at, updated_at_text, source_mtime, status_json, updated_at
@@ -262,8 +298,139 @@ SQL);
             ':source_mtime' => $sourceMtime,
             ':status_json' => management_db_json_encode($status),
         ]);
+        management_db_store_task_status_items($pdo, $taskKey, $status);
+        $pdo->commit();
     } catch (Throwable $error) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         error_log('[management_db] task status store failed: ' . $error->getMessage());
+    }
+}
+
+function management_db_store_task_status_items(PDO $pdo, string $taskKey, array $status): void
+{
+    $items = is_array($status['items'] ?? null) ? $status['items'] : [];
+    $seenSlugs = [];
+    $stmt = $pdo->prepare(<<<'SQL'
+INSERT INTO processing_task_items (
+    task_key, slug, code, name, full_name, feature_key, task_area, status, message,
+    host, system_type, source_url, started_at_text, finished_at_text, updated_at_text,
+    progress_updated_at_text, returncode, pid, progress_current, progress_total,
+    progress_unit, warning_count, warning_lines, item_json, updated_at
+) VALUES (
+    :task_key, :slug, :code, :name, :full_name, :feature_key, :task_area, :status, :message,
+    :host, :system_type, :source_url, :started_at_text, :finished_at_text, :updated_at_text,
+    :progress_updated_at_text, :returncode, :pid, :progress_current, :progress_total,
+    :progress_unit, :warning_count, CAST(:warning_lines AS jsonb), CAST(:item_json AS jsonb), now()
+)
+ON CONFLICT (task_key, slug) DO UPDATE SET
+    code = EXCLUDED.code,
+    name = EXCLUDED.name,
+    full_name = EXCLUDED.full_name,
+    feature_key = EXCLUDED.feature_key,
+    task_area = EXCLUDED.task_area,
+    status = EXCLUDED.status,
+    message = EXCLUDED.message,
+    host = EXCLUDED.host,
+    system_type = EXCLUDED.system_type,
+    source_url = EXCLUDED.source_url,
+    started_at_text = EXCLUDED.started_at_text,
+    finished_at_text = EXCLUDED.finished_at_text,
+    updated_at_text = EXCLUDED.updated_at_text,
+    progress_updated_at_text = EXCLUDED.progress_updated_at_text,
+    returncode = EXCLUDED.returncode,
+    pid = EXCLUDED.pid,
+    progress_current = EXCLUDED.progress_current,
+    progress_total = EXCLUDED.progress_total,
+    progress_unit = EXCLUDED.progress_unit,
+    warning_count = EXCLUDED.warning_count,
+    warning_lines = EXCLUDED.warning_lines,
+    item_json = EXCLUDED.item_json,
+    updated_at = now()
+SQL);
+    foreach ($items as $rawSlug => $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $slug = trim((string)($item['slug'] ?? (string)$rawSlug));
+        if ($slug === '') {
+            continue;
+        }
+        $item['slug'] = $slug;
+        $seenSlugs[] = $slug;
+        $message = (string)($item['message'] ?? '');
+        $taskArea = str_contains($message, 'インデックス') || trim((string)($item['index_status'] ?? '')) !== ''
+            ? 'index'
+            : 'scrape';
+        $stmt->execute([
+            ':task_key' => $taskKey,
+            ':slug' => $slug,
+            ':code' => (string)($item['code'] ?? ''),
+            ':name' => (string)($item['name'] ?? ''),
+            ':full_name' => (string)($item['full_name'] ?? ''),
+            ':feature_key' => str_starts_with($taskKey, 'reiki') ? 'reiki' : (str_starts_with($taskKey, 'gijiroku') ? 'gijiroku' : ''),
+            ':task_area' => $taskArea,
+            ':status' => (string)($item['status'] ?? ''),
+            ':message' => $message,
+            ':host' => (string)($item['host'] ?? ''),
+            ':system_type' => (string)($item['system_type'] ?? ''),
+            ':source_url' => (string)($item['source_url'] ?? ''),
+            ':started_at_text' => (string)($item['started_at'] ?? ''),
+            ':finished_at_text' => (string)($item['finished_at'] ?? ''),
+            ':updated_at_text' => (string)($item['updated_at'] ?? ''),
+            ':progress_updated_at_text' => (string)($item['progress_updated_at'] ?? ''),
+            ':returncode' => is_numeric($item['returncode'] ?? null) ? (int)$item['returncode'] : null,
+            ':pid' => is_numeric($item['pid'] ?? null) ? (int)$item['pid'] : null,
+            ':progress_current' => is_numeric($item['progress_current'] ?? null) ? (int)$item['progress_current'] : null,
+            ':progress_total' => is_numeric($item['progress_total'] ?? null) ? (int)$item['progress_total'] : null,
+            ':progress_unit' => (string)($item['progress_unit'] ?? ''),
+            ':warning_count' => max(0, (int)($item['warning_count'] ?? 0)),
+            ':warning_lines' => management_db_json_encode(is_array($item['warning_lines'] ?? null) ? $item['warning_lines'] : []),
+            ':item_json' => management_db_json_encode($item),
+        ]);
+    }
+
+    if ($seenSlugs === []) {
+        $delete = $pdo->prepare('DELETE FROM processing_task_items WHERE task_key = :task_key');
+        $delete->execute([':task_key' => $taskKey]);
+    } else {
+        $placeholders = [];
+        $params = [':task_key' => $taskKey];
+        foreach ($seenSlugs as $index => $slug) {
+            $key = ':slug' . $index;
+            $placeholders[] = $key;
+            $params[$key] = $slug;
+        }
+        $delete = $pdo->prepare(
+            'DELETE FROM processing_task_items WHERE task_key = :task_key AND slug NOT IN (' . implode(',', $placeholders) . ')'
+        );
+        $delete->execute($params);
+    }
+}
+
+function management_db_task_status(string $taskKey): ?array
+{
+    $taskKey = trim($taskKey);
+    if ($taskKey === '') {
+        return null;
+    }
+    $pdo = management_db_pdo();
+    if (!$pdo instanceof PDO) {
+        return null;
+    }
+    try {
+        $stmt = $pdo->prepare('SELECT status_json FROM management_task_statuses WHERE task_key = :task_key');
+        $stmt->execute([':task_key' => $taskKey]);
+        $row = $stmt->fetch();
+        if (!is_array($row)) {
+            return null;
+        }
+        $status = management_db_json_decode($row['status_json'] ?? '');
+        return is_array($status) ? $status : null;
+    } catch (Throwable $error) {
+        error_log('[management_db] task status fetch failed: ' . $error->getMessage());
+        return null;
     }
 }
 
@@ -397,28 +564,62 @@ function management_db_homepage_feature_complete_count(string $featureKey): ?int
     }
 
     try {
-        $stmt = $pdo->query('SELECT card_json FROM homepage_municipality_cards ORDER BY sort_key');
-        $completeCount = 0;
-        while ($row = $stmt->fetch()) {
-            $card = management_db_json_decode($row['card_json'] ?? '');
-            if (!is_array($card)) {
-                continue;
-            }
-            $features = is_array($card['features'] ?? null) ? $card['features'] : [];
-            foreach ($features as $feature) {
-                if (!is_array($feature) || (string)($feature['feature_key'] ?? '') !== $featureKey) {
-                    continue;
-                }
-                $display = is_array($feature['display'] ?? null) ? $feature['display'] : null;
-                if (management_db_homepage_display_is_complete($display)) {
-                    $completeCount += 1;
-                }
-                break;
-            }
-        }
-        return $completeCount;
+        $stmt = $pdo->prepare(<<<'SQL'
+SELECT count(*) AS complete_count
+FROM homepage_municipality_cards AS cards
+CROSS JOIN LATERAL jsonb_array_elements(cards.card_json->'features') AS feature
+WHERE feature->>'feature_key' = :feature_key
+  AND (
+    feature->'display'->>'label' = '完了'
+    OR (
+      NULLIF(feature->'display'->>'progress_total', '')::integer > 0
+      AND NULLIF(feature->'display'->>'progress_current', '')::integer >= NULLIF(feature->'display'->>'progress_total', '')::integer
+    )
+  )
+SQL);
+        $stmt->execute([':feature_key' => $featureKey]);
+        $row = $stmt->fetch();
+        return is_array($row) ? max(0, (int)($row['complete_count'] ?? 0)) : 0;
     } catch (Throwable $error) {
         error_log('[management_db] homepage feature complete count failed: ' . $error->getMessage());
+        return null;
+    }
+}
+
+function management_db_homepage_feature_display(string $slug, string $featureKey): ?array
+{
+    $slug = trim($slug);
+    $featureKey = trim($featureKey);
+    if ($slug === '' || $featureKey === '') {
+        return null;
+    }
+
+    $pdo = management_db_pdo();
+    if (!$pdo instanceof PDO) {
+        return null;
+    }
+
+    try {
+        $stmt = $pdo->prepare(<<<'SQL'
+SELECT feature->'display' AS display_json
+FROM homepage_municipality_cards AS cards
+CROSS JOIN LATERAL jsonb_array_elements(cards.card_json->'features') AS feature
+WHERE cards.slug = :slug
+  AND feature->>'feature_key' = :feature_key
+LIMIT 1
+SQL);
+        $stmt->execute([
+            ':slug' => $slug,
+            ':feature_key' => $featureKey,
+        ]);
+        $row = $stmt->fetch();
+        if (!is_array($row)) {
+            return null;
+        }
+        $display = management_db_json_decode($row['display_json'] ?? '');
+        return is_array($display) ? $display : null;
+    } catch (Throwable $error) {
+        error_log('[management_db] homepage feature display fetch failed: ' . $error->getMessage());
         return null;
     }
 }

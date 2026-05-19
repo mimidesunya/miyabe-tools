@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -21,6 +22,7 @@ sys.path.append(str(TOOLS_DIR / "gijiroku"))
 sys.path.append(str(TOOLS_DIR / "reiki"))
 
 import batch_status
+import gijiroku_planning
 import gijiroku_storage
 import gijiroku_targets
 import reiki_io
@@ -92,6 +94,36 @@ def load_json_array_count(path: Path) -> int:
     return len(loaded) if isinstance(loaded, list) else 0
 
 
+def load_gijiroku_index_unique_count(path: Path) -> int:
+    loaded = load_gijiroku_index_rows(path)
+    if not loaded:
+        return 0
+    seen: set[str] = set()
+    for row in loaded:
+        url = str(row.get("url") or "").strip()
+        if url:
+            seen.add("url:" + url)
+        else:
+            seen.add("row:" + gijiroku_storage.item_signature(row))
+    return len(seen)
+
+
+def load_gijiroku_index_rows(path: Path) -> list[dict[str, Any]]:
+    candidate = file_or_gzip_path(path)
+    if candidate is None:
+        return []
+    try:
+        raw = candidate.read_bytes()
+        if candidate.suffix.lower() == ".gz":
+            raw = gzip.decompress(raw)
+        loaded = json.loads(raw.decode("utf-8"))
+    except Exception:
+        return []
+    if not isinstance(loaded, list):
+        return []
+    return [row for row in loaded if isinstance(row, dict)]
+
+
 def latest_mtime(paths: list[Path]) -> float | None:
     mtimes: list[float] = []
     for path in paths:
@@ -114,6 +146,64 @@ def count_gijiroku_downloads(downloads_dir: Path) -> int:
             continue
         seen.add(gijiroku_storage.source_key(file_path, downloads_dir))
     return len(seen)
+
+
+def sanitize_gijiroku_filename(text: str, fallback: str) -> str:
+    return gijiroku_planning.sanitize_filename(text, fallback)
+
+
+def gijiroku_index_output_stem(row: dict[str, Any]) -> str:
+    year_dir = sanitize_gijiroku_filename(str(row.get("year_label") or "unknown").strip(), "unknown")
+    group = str(row.get("meeting_group") or "").strip()
+    group_dir = sanitize_gijiroku_filename(group, "meeting") if group else ""
+    stem = sanitize_gijiroku_filename(str(row.get("title") or ""), "meeting")
+    return "/".join(part for part in [year_dir, group_dir, stem] if part)
+
+
+def indexed_gijiroku_item_key(row: dict[str, Any]) -> str:
+    url = str(row.get("url") or "").strip()
+    return "url:" + url if url else "row:" + gijiroku_storage.item_signature(row)
+
+
+def output_exists_for_stem(downloads_dir: Path, rel_stem: str) -> bool:
+    stem_path = downloads_dir / Path(rel_stem)
+    directory = stem_path.parent
+    try:
+        if not directory.exists():
+            return False
+    except OSError:
+        return False
+    prefix = stem_path.name + "."
+    try:
+        return any(path.is_file() and path.name.startswith(prefix) for path in directory.iterdir())
+    except OSError:
+        return False
+
+
+def count_gijiroku_indexed_downloads(index_json_path: Path, downloads_dir: Path) -> int:
+    rows = load_gijiroku_index_rows(index_json_path)
+    if not rows or not downloads_dir.exists():
+        return 0
+    seen_items: set[str] = set()
+    seen_output_stems: dict[str, int] = {}
+    downloaded = 0
+    for row in rows:
+        item_key = indexed_gijiroku_item_key(row)
+        if item_key in seen_items:
+            continue
+        seen_items.add(item_key)
+        rel_stem = gijiroku_index_output_stem(row)
+        occurrence_index = seen_output_stems.get(rel_stem, 0)
+        seen_output_stems[rel_stem] = occurrence_index + 1
+        if occurrence_index > 0:
+            rel_stem = gijiroku_storage.disambiguated_stem(
+                rel_stem,
+                gijiroku_storage.item_signature(row),
+                occurrence_index,
+            )
+        if output_exists_for_stem(downloads_dir, rel_stem):
+            downloaded += 1
+    return downloaded
 
 
 def count_reiki_html_files(root: Path) -> int:
@@ -158,8 +248,14 @@ def gijiroku_snapshot_items(*, fast: bool = False) -> dict[str, dict[str, Any]]:
         downloads_dir = Path(target["downloads_dir"])
         index_json_path = Path(target["index_json_path"])
 
-        downloaded_count = 0 if fast else count_gijiroku_downloads(downloads_dir)
-        total_count = max(load_json_array_count(index_json_path), downloaded_count)
+        indexed_total_count = load_gijiroku_index_unique_count(index_json_path)
+        if fast:
+            downloaded_count = 0
+        elif indexed_total_count > 0:
+            downloaded_count = count_gijiroku_indexed_downloads(index_json_path, downloads_dir)
+        else:
+            downloaded_count = count_gijiroku_downloads(downloads_dir)
+        total_count = max(indexed_total_count, downloaded_count)
         current_count = downloaded_count
         if total_count <= 0:
             continue

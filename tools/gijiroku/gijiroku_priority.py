@@ -53,26 +53,39 @@ def item_progress(item: dict[str, Any]) -> tuple[int, int]:
     return current, total
 
 
-def priority_progress(slug: str) -> tuple[int, int]:
+def state_file_progress(target: dict[str, Any]) -> tuple[int, int]:
+    state_path = Path(target.get("work_dir", "")) / "scrape_state.json"
+    try:
+        payload = json.loads(state_path.read_text(encoding="utf-8"))
+    except Exception:
+        return 0, 0
+    if not isinstance(payload, dict):
+        return 0, 0
+    return item_progress(payload)
+
+
+def priority_progress(slug: str, target: dict[str, Any] | None = None) -> tuple[int, int]:
     candidates = [
         item_progress(task_item("gijiroku", slug)),
         item_progress(task_item("gijiroku_snapshot", slug)),
     ]
+    if target is not None:
+        candidates.append(state_file_progress(target))
     return max(candidates, key=lambda value: (value[1] > 0, value[0] < value[1], value[0], value[1]))
 
 
 def target_priority_info(target: dict[str, Any]) -> dict[str, Any]:
     slug = str(target.get("slug", "")).strip()
-    current_count, total_count = priority_progress(slug)
+    current_count, total_count = priority_progress(slug, target)
     ratio = (current_count / total_count) if total_count > 0 else 0.0
 
     previously_failed = previous_item_failed_with_error(slug)
-    if previously_failed:
+    if total_count > 0 and current_count > 0 and current_count < total_count:
+        priority_group = 1
+        priority_label = "near_complete_failed" if previously_failed else "near_complete"
+    elif previously_failed:
         priority_group = 4
         priority_label = "previous_failed"
-    elif total_count > 0 and current_count > 0 and current_count < total_count:
-        priority_group = 1
-        priority_label = "near_complete"
     elif total_count <= 0:
         priority_group = 2
         priority_label = "not_started"

@@ -25,18 +25,27 @@ def existing_output(path: Path) -> Path | None:
     if gzip_path(path) != path:
         candidates.append(path)
     for candidate in candidates:
-        if candidate.exists():
-            return candidate
+        try:
+            if candidate.exists():
+                return candidate
+        except OSError:
+            continue
     return None
 
 
 def existing_named_outputs(directory: Path, stem: str) -> list[Path]:
-    if not directory.exists():
+    try:
+        if not directory.exists():
+            return []
+    except OSError:
         return []
-    return sorted(
-        [path for path in directory.glob(stem + ".*") if path.is_file()],
-        key=lambda path: path.name,
-    )
+    try:
+        return sorted(
+            [path for path in directory.glob(stem + ".*") if path.is_file()],
+            key=lambda path: path.name,
+        )
+    except OSError:
+        return []
 
 
 def read_bytes(path: Path) -> bytes:
@@ -111,6 +120,15 @@ def item_signature(payload: Any) -> str:
         payload = asdict(payload)
     normalized = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha1(normalized.encode("utf-8")).hexdigest()
+
+
+def disambiguated_stem(stem: str, discriminator: str, occurrence_index: int) -> str:
+    """Keep the first output path stable and suffix later same-name collisions."""
+    stem = str(stem).strip() or "meeting"
+    if occurrence_index <= 0:
+        return stem
+    token = hashlib.sha1(str(discriminator or stem).encode("utf-8")).hexdigest()[:8]
+    return f"{stem}-{token}"
 
 
 def load_state(path: Path) -> dict[str, Any]:

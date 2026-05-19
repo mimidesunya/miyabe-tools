@@ -19,6 +19,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 sys.path.append(str(Path(__file__).parent))
+import gijiroku_planning
 import gijiroku_storage
 import gijiroku_targets
 
@@ -68,10 +69,7 @@ def unique_preserve_order(values: Iterable[str]) -> list[str]:
 
 
 def sanitize_filename(text: str, fallback: str) -> str:
-    cleaned = re.sub(r"[\\/:*?\"<>|\t\r\n]+", "_", text).strip(" .")
-    if not cleaned:
-        return fallback
-    return cleaned[:180]
+    return gijiroku_planning.sanitize_filename(text, fallback)
 
 
 def normalize_year_dir(year_label: str) -> str:
@@ -358,7 +356,7 @@ def discover_meeting_items(page, base_url: str, timeout_ms: int) -> list[Meeting
     return list(uniq.values())
 
 
-def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_ms: int) -> tuple[str, str]:
+def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_ms: int, stem: str) -> tuple[str, str]:
     page.goto(item.url, wait_until="domcontentloaded", timeout=timeout_ms)
     try:
         page.wait_for_load_state("networkidle", timeout=3_000)
@@ -399,7 +397,7 @@ def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_
                 locator.click(timeout=2_000)
             download = dl_info.value
             ext = Path(download.suggested_filename).suffix or ".dat"
-            filename = sanitize_filename(item.title, "meeting") + ext
+            filename = stem + ext
             dest = output_dir / filename
             download.save_as(str(dest))
             return "downloaded", str(dest)
@@ -413,7 +411,7 @@ def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_
             if full_html:
                 text = html_to_text(full_html)
                 dest = gijiroku_storage.write_text(
-                    output_dir / (sanitize_filename(item.title, "meeting") + ".txt"),
+                    output_dir / (stem + ".txt"),
                     text,
                     compress=True,
                 )
@@ -435,7 +433,7 @@ def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_
                 elif "html" in ctype:
                     ext = ".html"
                 dest = gijiroku_storage.write_bytes(
-                    output_dir / (sanitize_filename(item.title, "meeting") + ext),
+                    output_dir / (stem + ext),
                     content,
                     compress=ext in {".html", ".htm", ".txt"},
                 )
@@ -447,7 +445,7 @@ def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_
         response = page.context.request.get(item.url, timeout=timeout_ms)
         if response.ok:
             dest = gijiroku_storage.write_bytes(
-                output_dir / (sanitize_filename(item.title, "meeting") + ".html"),
+                output_dir / (stem + ".html"),
                 response.body(),
                 compress=True,
             )
@@ -519,19 +517,12 @@ def main() -> int:
             )
             writer.writeheader()
 
-            for idx, item in enumerate(meeting_items, start=1):
-                print(f"[{idx}/{len(meeting_items)}] {item.year_label} {item.title}")
-                status = ""
-                output_path = ""
-                error_msg = ""
-                year_dir_name = normalize_year_dir(item.year_label)
-                meeting_group_dir = normalize_meeting_group_dir(item.meeting_group)
-                meeting_download_dir = downloads_dir / year_dir_name
-                if meeting_group_dir:
-                    meeting_download_dir = meeting_download_dir / meeting_group_dir
-                meeting_download_dir.mkdir(parents=True, exist_ok=True)
-                stem = sanitize_filename(item.title, "meeting")
-                resume_key = gijiroku_storage.item_signature(asdict(item))
+            planned_items = gijiroku_planning.build_base_plans(meeting_items, downloads_dir)
+            for plan in planned_items:
+                item = plan["item"]
+                meeting_download_dir = plan["meeting_download_dir"]
+                stem = plan["stem"]
+                resume_key = plan["resume_key"]
                 existing_outputs = gijiroku_storage.existing_named_outputs(meeting_download_dir, stem)
                 existing_text_output = next(
                     (path for path in existing_outputs if gijiroku_storage.logical_suffix(path) == ".txt"),
@@ -548,6 +539,52 @@ def main() -> int:
                     and existing_html_output is not None
                     and saved_status in {"", "saved_html", "not_found", "timeout", "error"}
                 )
+                needs_work = not existing_outputs or should_retry_fallback_html
+                plan.update(
+                    {
+                        "existing_outputs": existing_outputs,
+                        "existing_text_output": existing_text_output,
+                        "existing_html_output": existing_html_output,
+                        "should_retry_fallback_html": should_retry_fallback_html,
+                        "needs_work": needs_work,
+                    }
+                )
+
+            previous_missing = gijiroku_planning.previous_missing_count(state)
+            planned_items, work_items, missing_count = gijiroku_planning.select_work_items(
+                planned_items,
+                no_resume=args.no_resume,
+                previous_missing_count=previous_missing,
+            )
+            date_range = gijiroku_planning.describe_date_range(planned_items)
+            if date_range:
+                print(f"[INFO] Discovered meeting date range: {date_range}", flush=True)
+            gijiroku_planning.save_plan_summary(state_path, state, planned_items, missing_count, previous_missing)
+            if missing_count > 0:
+                work_mode = gijiroku_planning.work_mode_label(missing_count, previous_missing)
+                if work_mode == "update_check":
+                    print(f"[INFO] Update check found new outputs: {missing_count}/{len(planned_items)}", flush=True)
+                else:
+                    print(f"[INFO] Resume missing outputs first: {missing_count}/{len(planned_items)}", flush=True)
+            if not args.no_resume and not work_items:
+                print("[INFO] All expected outputs already exist; skipping download loop.", flush=True)
+                emit_progress(len(meeting_items), len(meeting_items), state_path, state)
+
+            for idx, plan in enumerate(work_items, start=1):
+                item = plan["item"]
+                print(f"[{idx}/{len(work_items)}] {item.year_label} {item.title}")
+                status = ""
+                output_path = ""
+                error_msg = ""
+                year_dir_name = plan["year_dir_name"]
+                meeting_group_dir = plan["meeting_group_dir"]
+                meeting_download_dir = plan["meeting_download_dir"]
+                stem = plan["stem"]
+                resume_key = plan["resume_key"]
+                existing_outputs = plan["existing_outputs"]
+                existing_text_output = plan["existing_text_output"]
+                existing_html_output = plan["existing_html_output"]
+                should_retry_fallback_html = plan["should_retry_fallback_html"]
 
                 if not args.no_resume and existing_outputs and not should_retry_fallback_html:
                     preferred_output = existing_text_output or existing_html_output or existing_outputs[0]
@@ -573,7 +610,7 @@ def main() -> int:
                         }
                     )
                     handle.flush()
-                    emit_progress(idx, len(meeting_items), state_path, state)
+                    emit_progress(len(meeting_items) - len(work_items) + idx, len(meeting_items), state_path, state)
                     continue
                 try:
                     status, output_path = try_download_from_detail(
@@ -581,6 +618,7 @@ def main() -> int:
                         item,
                         meeting_download_dir,
                         args.timeout_ms,
+                        stem,
                     )
                     if args.save_html and status == "not_found":
                         page_year_dir = pages_dir / year_dir_name
@@ -588,7 +626,7 @@ def main() -> int:
                             page_year_dir = page_year_dir / meeting_group_dir
                         page_year_dir.mkdir(parents=True, exist_ok=True)
                         gijiroku_storage.write_text(
-                            page_year_dir / (sanitize_filename(item.title, "meeting") + ".html"),
+                            page_year_dir / (stem + ".html"),
                             page.content(),
                             compress=True,
                         )
@@ -620,8 +658,9 @@ def main() -> int:
                     }
                 )
                 handle.flush()
-                emit_progress(idx, len(meeting_items), state_path, state)
-                time.sleep(max(args.delay_seconds, 0))
+                emit_progress(len(meeting_items) - len(work_items) + idx, len(meeting_items), state_path, state)
+                if args.delay_seconds > 0 and idx < len(work_items):
+                    time.sleep(args.delay_seconds)
 
         context.close()
         browser.close()

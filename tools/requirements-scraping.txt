@@ -5,3 +5,4 @@ pypdf>=4.0.0
 sudachipy>=0.6
 sudachidict_core
 celery[redis]>=5.4,<6
+psycopg[binary]>=3.2,<4

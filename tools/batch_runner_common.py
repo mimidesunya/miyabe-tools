@@ -77,8 +77,14 @@ def summarize_worker(stdout_path: Path, stderr_path: Path) -> str:
             return stripped
         if stripped.startswith("[PROGRESS] "):
             continue
-        if re.match(r"^\[\d+/\d+\]", stripped):
-            return stripped
+        progress_match = re.match(r"^\[\d+/\d+\]\s*(.*)$", stripped)
+        if progress_match:
+            detail = progress_match.group(1).strip()
+            if re.search(r"\b(downloaded|checked|skipped|parsed|reused)=\d+\b", detail):
+                return "既存データを確認中"
+            if re.match(r"^Found\s+\d+\s+(unique regulation IDs|ordinance pages)\b", detail, re.IGNORECASE):
+                return "例規一覧を確認中"
+            return detail or "処理中"
         return stripped
     return "starting..."
 

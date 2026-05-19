@@ -20,6 +20,7 @@ try {
     } elseif (!headers_sent()) {
         header('X-Homepage-Store: postgres');
     }
+    $payload = homepage_overlay_live_status($payload);
     $bufferedOutput = (string)ob_get_clean();
     if (trim($bufferedOutput) !== '') {
         error_log('[home_api] discarded unexpected output while building payload');

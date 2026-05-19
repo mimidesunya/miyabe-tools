@@ -15,6 +15,7 @@ import requests
 from bs4 import BeautifulSoup
 
 sys.path.append(str(Path(__file__).parent))
+import gijiroku_planning
 import gijiroku_storage
 import gijiroku_targets
 from scrape_kami_city_pdf import (
@@ -402,13 +403,41 @@ def main() -> int:
         )
         writer.writeheader()
 
-        for idx, item in enumerate(meeting_items, start=1):
-            print(f"[{idx}/{len(meeting_items)}] {item.year_label} {item.title}")
-            year_dir = normalize_year_dir(item.year_label)
-            text_base = downloads_dir / year_dir / (sanitize_filename(item.title, "meeting") + ".txt")
-            pdf_path = pdf_dir / year_dir / f"{item.source_fino or idx}_{sanitize_filename(item.title, 'meeting')}.pdf"
-            resume_key = gijiroku_storage.item_signature(asdict(item))
-            existing_output = gijiroku_storage.existing_output(text_base)
+        planned_items = []
+        for plan in gijiroku_planning.build_base_plans(meeting_items, downloads_dir, use_group_dir=False):
+            item = plan["item"]
+            gijiroku_planning.attach_text_output(plan, key="text_base")
+            plan["pdf_path"] = pdf_dir / plan["year_dir"] / f"{item.source_fino or plan['original_idx']}_{plan['stem']}.pdf"
+            planned_items.append(plan)
+
+        previous_missing = gijiroku_planning.previous_missing_count(state)
+        planned_items, work_items, missing_count = gijiroku_planning.select_work_items(
+            planned_items,
+            no_resume=args.no_resume,
+            previous_missing_count=previous_missing,
+        )
+        date_range = gijiroku_planning.describe_date_range(planned_items)
+        if date_range:
+            print(f"[INFO] Discovered meeting date range: {date_range}", flush=True)
+        gijiroku_planning.save_plan_summary(state_path, state, planned_items, missing_count, previous_missing)
+        if missing_count > 0:
+            work_mode = gijiroku_planning.work_mode_label(missing_count, previous_missing)
+            if work_mode == "update_check":
+                print(f"[INFO] Update check found new outputs: {missing_count}/{len(planned_items)}", flush=True)
+            else:
+                print(f"[INFO] Resume missing outputs first: {missing_count}/{len(planned_items)}", flush=True)
+        if not args.no_resume and not work_items:
+            print("[INFO] All expected outputs already exist; skipping download loop.", flush=True)
+            emit_progress(len(meeting_items), len(meeting_items), state_path, state)
+
+        for idx, plan in enumerate(work_items, start=1):
+            item = plan["item"]
+            print(f"[{idx}/{len(work_items)}] {item.year_label} {item.title}")
+            year_dir = plan["year_dir"]
+            resume_key = plan["resume_key"]
+            text_base = plan["text_base"]
+            pdf_path = plan["pdf_path"]
+            existing_output = plan["existing_output"]
             status = ""
             output_path = ""
             pdf_output = ""
@@ -463,8 +492,8 @@ def main() -> int:
                 }
             )
             handle.flush()
-            emit_progress(idx, len(meeting_items), state_path, state)
-            if args.delay_seconds > 0 and idx < len(meeting_items):
+            emit_progress(len(meeting_items) - len(work_items) + idx, len(meeting_items), state_path, state)
+            if args.delay_seconds > 0 and idx < len(work_items):
                 time.sleep(args.delay_seconds)
 
     print(f"[DONE] Saved index: {index_json}")

@@ -8,6 +8,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+try:
+    import management_db
+except Exception:
+    management_db = None
+
 # 一括スクレイパから書き込む background_tasks JSON の共通更新処理。
 _UNSET = object()
 TOKYO = timezone(timedelta(hours=9))
@@ -37,6 +42,7 @@ def runtime_cache_paths(include_homepage_payload: bool = False) -> list[Path]:
     root = status_root()
     paths = [
         root / "municipality_catalog_cache.json",
+        root / "search_indexed_slug_cache.json",
     ]
     if include_homepage_payload:
         paths.insert(1, root / "home_api_payload.json")
@@ -60,15 +66,31 @@ def rel_path(path: Path) -> str:
         return str(path)
 
 
+def read_state(task_name: str) -> dict[str, Any]:
+    path = status_path(task_name)
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
 def build_state(task_name: str, run_id: str, total_count: int, summary_path: Path, log_dir: Path) -> dict[str, Any]:
+    started_at = now_text()
+    previous = read_state(task_name)
+    last_finished_at = str(previous.get("finished_at") or previous.get("last_finished_at") or "").strip()
+    index_started_at = str(previous.get("index_started_at") or "").strip()
+    index_finished_at = str(previous.get("index_finished_at") or "").strip()
     return {
         "task": task_name,
         "run_id": run_id,
         "running": True,
-        "started_at": now_text(),
+        "started_at": started_at,
+        "last_started_at": started_at,
         "finished_at": "",
+        "last_finished_at": last_finished_at,
         "heartbeat_at": now_text(),
-        "updated_at": now_text(),
+        "updated_at": started_at,
         "total_count": total_count,
         "completed_count": 0,
         "active_count": 0,
@@ -83,6 +105,8 @@ def build_state(task_name: str, run_id: str, total_count: int, summary_path: Pat
         "index_active_count": 0,
         "index_idle_count": None,
         "index_queue_count": 0,
+        "index_started_at": index_started_at,
+        "index_finished_at": index_finished_at,
         "per_host_capacity": None,
         "items": {},
     }
@@ -286,6 +310,7 @@ def finish_batch(state: dict[str, Any]) -> None:
     state["running"] = False
     state["active_count"] = 0
     state["finished_at"] = now_text()
+    state["last_finished_at"] = state["finished_at"]
     state["heartbeat_at"] = state["finished_at"]
     state["updated_at"] = state["finished_at"]
     refresh_counts(state)
@@ -319,6 +344,16 @@ def write_state(task_name: str, state: dict[str, Any]) -> Path:
             file=sys.stderr,
             flush=True,
         )
+    if management_db is not None:
+        try:
+            management_db.store_task_status(task_name, state, path)
+        except Exception as exc:
+            print(
+                f"[WARN] management DB state write failed task={task_name} "
+                f"[{type(exc).__name__}] {exc}",
+                file=sys.stderr,
+                flush=True,
+            )
     return path
 
 

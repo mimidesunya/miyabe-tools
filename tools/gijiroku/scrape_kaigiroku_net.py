@@ -18,6 +18,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 sys.path.append(str(Path(__file__).parent))
+import gijiroku_planning
 import gijiroku_storage
 import gijiroku_targets
 
@@ -36,6 +37,7 @@ class MeetingItem:
     url: str
     year_label: str
     meeting_group: str | None = None
+    held_on: str | None = None
     tenant_id: int | None = None
     council_id: int | None = None
     schedule_id: int | None = None
@@ -63,10 +65,7 @@ def emit_progress(
 
 
 def sanitize_filename(text: str, fallback: str) -> str:
-    cleaned = re.sub(r"[\\/:*?\"<>|\t\r\n]+", "_", text).strip(" .")
-    if not cleaned:
-        return fallback
-    return cleaned[:180]
+    return gijiroku_planning.sanitize_filename(text, fallback)
 
 
 def normalize_year_dir(year_label: str) -> str:
@@ -112,6 +111,25 @@ def schedule_date_label(title: str, year_label: str) -> str | None:
     month_text = to_ascii_digits(day_match.group(1))
     day_text = to_ascii_digits(day_match.group(2))
     return f"{year_match.group(1)}{year_text}年{month_text}月{day_text}日"
+
+
+def schedule_held_on(title: str, year_label: str) -> str | None:
+    year_match = re.search(r"(昭和|平成|令和)\s*([元\d０-９]+)年", year_label)
+    day_match = re.search(r"([\d０-９]{1,2})月([\d０-９]{1,2})日", title)
+    if not year_match or not day_match:
+        return None
+    era_base = {"昭和": 1925, "平成": 1988, "令和": 2018}
+    year_text = to_ascii_digits(year_match.group(2))
+    if year_text == "元":
+        era_year = 1
+    elif year_text.isdigit():
+        era_year = int(year_text)
+    else:
+        return None
+    year = era_base[year_match.group(1)] + era_year
+    month = int(to_ascii_digits(day_match.group(1)))
+    day = int(to_ascii_digits(day_match.group(2)))
+    return f"{year:04d}-{month:02d}-{day:02d}"
 
 
 def source_api_root(source_url: str) -> str:
@@ -227,6 +245,7 @@ def fetch_schedule_items_for_council(page, api_root: str, source_url: str, timeo
                 url=build_schedule_url(source_url, tenant_id, council_id, schedule_id),
                 year_label=year_label,
                 meeting_group=council_title,
+                held_on=schedule_held_on(title, year_label),
                 tenant_id=tenant_id,
                 council_id=council_id,
                 schedule_id=schedule_id,
@@ -452,6 +471,8 @@ def build_meeting_text(item: MeetingItem, section_text: str) -> str:
     held_on_label = schedule_date_label(item.title, item.year_label)
     if held_on_label:
         header_lines.append(f"開催日: {held_on_label}")
+    if item.held_on:
+        header_lines.append(f"Held-On: {item.held_on}")
     header_lines.append(f"Source URL: {item.url}")
     header_lines.append("")
     if section_text:
@@ -591,28 +612,51 @@ def main() -> int:
             )
             writer.writeheader()
 
-            for idx, item in enumerate(meeting_items, start=1):
-                print(f"[{idx}/{len(meeting_items)}] {item.year_label} {item.title}")
+            planned_items = [
+                gijiroku_planning.attach_named_outputs(plan)
+                for plan in gijiroku_planning.build_base_plans(meeting_items, downloads_dir)
+            ]
+            previous_missing = gijiroku_planning.previous_missing_count(state)
+            planned_items, work_items, missing_count = gijiroku_planning.select_work_items(
+                planned_items,
+                no_resume=args.no_resume,
+                previous_missing_count=previous_missing,
+            )
+            date_range = gijiroku_planning.describe_date_range(planned_items)
+            if date_range:
+                print(f"[INFO] Discovered meeting date range: {date_range}", flush=True)
+            gijiroku_planning.save_plan_summary(state_path, state, planned_items, missing_count, previous_missing)
+            if missing_count > 0:
+                work_mode = gijiroku_planning.work_mode_label(missing_count, previous_missing)
+                if work_mode == "update_check":
+                    print(f"[INFO] Update check found new outputs: {missing_count}/{len(planned_items)}", flush=True)
+                else:
+                    print(f"[INFO] Resume missing outputs first: {missing_count}/{len(planned_items)}", flush=True)
+            if not args.no_resume and not work_items:
+                print("[INFO] All expected outputs already exist; skipping download loop.", flush=True)
+                emit_progress(len(meeting_items), len(meeting_items), state_path, state)
+
+            for idx, plan in enumerate(work_items, start=1):
+                item = plan["item"]
+                print(f"[{idx}/{len(work_items)}] {item.year_label} {item.title}")
                 status = ""
                 output_path = ""
                 error_msg = ""
                 schedule_count = 0
                 fragment_count = 0
-                year_dir_name = normalize_year_dir(item.year_label)
-                meeting_group_dir = normalize_meeting_group_dir(item.meeting_group)
-                meeting_download_dir = downloads_dir / year_dir_name
-                if meeting_group_dir:
-                    meeting_download_dir = meeting_download_dir / meeting_group_dir
-                meeting_download_dir.mkdir(parents=True, exist_ok=True)
-                stem = sanitize_filename(item.title, "meeting")
-                resume_key = gijiroku_storage.item_signature(asdict(item))
-                existing_outputs = gijiroku_storage.existing_named_outputs(meeting_download_dir, stem)
+                year_dir_name = plan["year_dir_name"]
+                meeting_group_dir = plan["meeting_group_dir"]
+                meeting_download_dir = plan["meeting_download_dir"]
+                stem = plan["stem"]
+                resume_key = plan["resume_key"]
+                existing_outputs = plan["existing_outputs"]
                 if not args.no_resume and existing_outputs:
                     output_path = str(existing_outputs[0])
                     status = "skipped_existing"
                     state["items"][resume_key] = {
                         "title": item.title,
                         "year_label": item.year_label,
+                        "held_on": item.held_on,
                         "url": item.url,
                         "status": "saved",
                         "output_rel_path": str(existing_outputs[0].relative_to(downloads_dir)),
@@ -632,7 +676,7 @@ def main() -> int:
                         }
                     )
                     handle.flush()
-                    emit_progress(idx, len(meeting_items), state_path, state)
+                    emit_progress(len(meeting_items) - len(work_items) + idx, len(meeting_items), state_path, state)
                     continue
 
                 try:
@@ -647,7 +691,7 @@ def main() -> int:
                     else:
                         meeting_text = build_meeting_text(item, section_text)
                         dest = gijiroku_storage.write_text(
-                            meeting_download_dir / (sanitize_filename(item.title, "meeting") + ".txt"),
+                            meeting_download_dir / (stem + ".txt"),
                             meeting_text,
                             compress=True,
                         )
@@ -663,7 +707,7 @@ def main() -> int:
                         debug_path = debug_dir / year_dir_name
                         if meeting_group_dir:
                             debug_path = debug_path / meeting_group_dir
-                        debug_path = debug_path / (sanitize_filename(item.title, "meeting") + ".json")
+                        debug_path = debug_path / (stem + ".json")
                         save_debug_json(
                             debug_path,
                             {
@@ -677,11 +721,12 @@ def main() -> int:
                         )
 
                 state["items"][resume_key] = {
-                    "title": item.title,
-                    "year_label": item.year_label,
-                    "url": item.url,
-                    "status": status,
-                    "output_rel_path": str(Path(output_path).relative_to(downloads_dir)) if output_path else "",
+                        "title": item.title,
+                        "year_label": item.year_label,
+                        "held_on": item.held_on,
+                        "url": item.url,
+                        "status": status,
+                        "output_rel_path": str(Path(output_path).relative_to(downloads_dir)) if output_path else "",
                     "updated_at": now_ts(),
                 }
                 gijiroku_storage.save_state(state_path, state)
@@ -699,8 +744,8 @@ def main() -> int:
                     }
                 )
                 handle.flush()
-                emit_progress(idx, len(meeting_items), state_path, state)
-                if args.delay_seconds > 0 and idx < len(meeting_items):
+                emit_progress(len(meeting_items) - len(work_items) + idx, len(meeting_items), state_path, state)
+                if args.delay_seconds > 0 and idx < len(work_items):
                     time.sleep(args.delay_seconds)
 
         browser.close()

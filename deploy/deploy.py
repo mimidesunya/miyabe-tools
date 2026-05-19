@@ -263,7 +263,27 @@ def run_command(cmd, capture_output=True, ignore_error=False):
         print(f"Stderr: {e.stderr}")
         sys.exit(1)
 
-def ssh_exec(config, command, *, stream=False):
+def terminate_local_process(process: subprocess.Popen) -> None:
+    try:
+        process.terminate()
+    except Exception:
+        pass
+    try:
+        process.wait(timeout=5)
+        return
+    except Exception:
+        pass
+    try:
+        process.kill()
+    except Exception:
+        pass
+    try:
+        process.wait(timeout=5)
+    except Exception:
+        pass
+
+
+def ssh_exec(config, command, *, stream=False, timeout_seconds=None):
     """Executes a command on the remote server via SSH."""
     command_bytes = command.replace('\r\n', '\n').replace('\r', '\n').encode('utf-8')
     ssh_args = [
@@ -286,15 +306,24 @@ def ssh_exec(config, command, *, stream=False):
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            bufsize=1,
         )
         assert process.stdin is not None
         process.stdin.write(command_bytes)
         process.stdin.close()
-        if process.stdout is not None:
-            for line in process.stdout:
-                print(line.decode('utf-8', errors='replace'), end="")
-        returncode = process.wait()
+        try:
+            if process.stdout is not None:
+                for line in process.stdout:
+                    print(line.decode('utf-8', errors='replace'), end="")
+            returncode = process.wait(timeout=timeout_seconds)
+        except subprocess.TimeoutExpired:
+            terminate_local_process(process)
+            print(f"Error executing remote command via SSH: timed out after {timeout_seconds}s")
+            print(f"Remote script:\n{command}")
+            sys.exit(124)
+        except KeyboardInterrupt:
+            terminate_local_process(process)
+            print("Interrupted; local SSH process was terminated.")
+            raise
         if returncode != 0:
             print(f"Error executing remote command via SSH: {debug_cmd}")
             print(f"Remote script:\n{command}")
@@ -308,8 +337,13 @@ def ssh_exec(config, command, *, stream=False):
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            timeout=timeout_seconds,
         )
         return result.stdout.decode('utf-8', errors='replace').strip()
+    except subprocess.TimeoutExpired:
+        print(f"Error executing remote command via SSH: timed out after {timeout_seconds}s")
+        print(f"Remote script:\n{command}")
+        sys.exit(124)
     except subprocess.CalledProcessError as e:
         print(f"Error executing remote command via SSH: {debug_cmd}")
         print(f"Remote script:\n{command}")
@@ -362,6 +396,17 @@ docker ps -a --filter ancestor={shlex.quote(scraper_image_name)} --format '{{{{.
     *) docker rm -f "$name" >/dev/null 2>&1 || true ;;
   esac
 done
+""".strip()
+
+
+def remote_stop_scraping_stack_cmd(scraper_image_name: str = DEFAULT_SCRAPER_IMAGE_NAME) -> str:
+    """Builds a shell snippet that stops managed scraper processes and containers."""
+    return f"""
+if [ -f docker-compose.scraping.yml ]; then
+  docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml stop scraper-beat scraper-gijiroku scraper-reiki scraper-redis >/dev/null 2>&1 || true
+  docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml rm -f scraper-beat scraper-gijiroku scraper-reiki scraper-redis >/dev/null 2>&1 || true
+fi
+{remote_scraper_cleanup_cmd(scraper_image_name)}
 """.strip()
 
 
@@ -433,6 +478,47 @@ echo "$running" | grep -qx 'scraper-reiki'
 echo "$running" | grep -qx 'scraper-beat'
 """
     return ssh_exec(config, verify_cmd)
+
+
+def enqueue_scraping_cycles(config, dest_dir: str) -> str:
+    """Enqueues one immediate scraping cycle for both scraper queues."""
+    # The periodic dispatchers intentionally skip work until the normal interval
+    # passes after the latest status timestamp. A manual --restart-scraping is an
+    # operator action, so it should bypass that due guard and restart work now.
+    enqueue_cmd = f"""
+set -eu
+cd {dest_dir}
+docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml exec -T scraper-gijiroku sh -lc 'cd /workspace && PYTHONPATH=/workspace python3 tools/remote/celery_enqueue.py gijiroku-cycle'
+docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml exec -T scraper-reiki sh -lc 'cd /workspace && PYTHONPATH=/workspace python3 tools/remote/celery_enqueue.py reiki-cycle'
+"""
+    return ssh_exec(config, enqueue_cmd)
+
+def reconcile_scraping_metadata(
+    config,
+    dest_dir: str,
+    shared_data_dir: str,
+    *,
+    timeout_seconds: int = 1800,
+) -> str:
+    """Rebuilds task snapshots from files before a manual scraper restart."""
+    # Restarting the scheduler is an operator boundary. Reconcile the compact
+    # management metadata with the on-disk source files before new work starts,
+    # otherwise dashboard counters can remain pinned to stale homepage caches.
+    reconcile_cmd = f"""
+set -eu
+cd {dest_dir}
+rm -f data/background_tasks/home_api_payload.json data/background_tasks/municipality_catalog_cache.json data/background_tasks/search_indexed_slug_cache.json
+reconcile_container="{SCRAPING_COMPOSE_PROJECT}-metadata-reconcile"
+docker rm -f "$reconcile_container" >/dev/null 2>&1 || true
+cleanup_reconcile() {{
+  docker rm -f "$reconcile_container" >/dev/null 2>&1 || true
+}}
+trap cleanup_reconcile INT TERM HUP EXIT
+docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml run --name "$reconcile_container" --rm -T --no-deps --entrypoint sh -v {shared_data_dir}/reiki:/workspace/data/reiki -v {shared_data_dir}/work/reiki:/workspace/work/reiki scraper-gijiroku -lc 'cd /workspace && if command -v timeout >/dev/null 2>&1; then PYTHONPATH=/workspace timeout -k 30s {max(60, int(timeout_seconds))}s python3 tools/backfill_background_tasks.py --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work; else PYTHONPATH=/workspace python3 tools/backfill_background_tasks.py --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work; fi'
+trap - INT TERM HUP EXIT
+cleanup_reconcile
+"""
+    return ssh_exec(config, reconcile_cmd, stream=True, timeout_seconds=max(120, int(timeout_seconds) + 60))
 
 def ensure_remote_shared_data_permissions(config, shared_data_dir):
     """Ensures shared non-boards directories support app writes."""
@@ -523,28 +609,41 @@ def restart_scraping_services_if_present(
     dest_dir,
     shared_data_dir,
     scraper_image_name=DEFAULT_SCRAPER_IMAGE_NAME,
+    *,
+    reconcile_timeout_seconds: int = 1800,
 ):
     """Ensures the scraper stack exists and restarts it."""
     # deploy 単体でもスクレイパを確実に再開できるよう、compose と image をここで self-heal する。
     ensure_remote_scraping_compose(config, dest_dir, shared_data_dir, scraper_image_name)
     ensure_scraper_image(config, dest_dir, scraper_image_name)
+    prepare_cmd = f"""
+set -eu
+cd {dest_dir}
+{remote_stop_scraping_stack_cmd(scraper_image_name)}
+{remote_scraping_compose_cmd(dest_dir, 'up -d scraper-redis')}
+"""
+    prepare_output = ssh_exec(config, prepare_cmd)
+    reconcile_output = reconcile_scraping_metadata(
+        config,
+        dest_dir,
+        shared_data_dir,
+        timeout_seconds=reconcile_timeout_seconds,
+    )
     restart_cmd = f"""
 set -eu
-{remote_scraper_cleanup_cmd(scraper_image_name)}
-{remote_scraping_compose_cmd(dest_dir, 'up -d --force-recreate --remove-orphans')}
+{remote_scraping_compose_cmd(dest_dir, 'up -d --force-recreate --remove-orphans scraper-redis scraper-gijiroku scraper-reiki scraper-beat')}
 """
-    output = ssh_exec(config, restart_cmd)
+    restart_output = ssh_exec(config, restart_cmd)
     verify_output = verify_scraping_services_running(config, dest_dir)
-    if output and verify_output:
-        return output + "\n" + verify_output
-    return output or verify_output
+    enqueue_output = enqueue_scraping_cycles(config, dest_dir)
+    return "\n".join(part for part in (prepare_output, reconcile_output, restart_output, verify_output, enqueue_output) if part)
 
-def prewarm_runtime_caches(config, dest_dir):
+def prewarm_runtime_caches(config, dest_dir, *, timeout_seconds: int = 180):
     """Builds homepage / cross-search caches inside the php container after deploy."""
     prewarm_cmd = f"""
 cd {dest_dir}
 if command -v timeout >/dev/null 2>&1; then
-  timeout 180s docker compose exec -T php php /var/www/lib/prewarm_runtime_caches.php || status=$?
+  timeout {max(1, int(timeout_seconds))}s docker compose exec -T php php /var/www/lib/prewarm_runtime_caches.php || status=$?
   if [ "${{status:-0}}" -eq 124 ]; then
     echo '[deploy] WARN: runtime cache prewarm timed out; continuing deployment'
     exit 0
@@ -553,7 +652,7 @@ if command -v timeout >/dev/null 2>&1; then
 fi
 docker compose exec -T php php /var/www/lib/prewarm_runtime_caches.php
 """
-    return ssh_exec(config, prewarm_cmd)
+    return ssh_exec(config, prewarm_cmd, timeout_seconds=max(30, int(timeout_seconds) + 60))
 
 def sync_single_file(config, ssh_base, local_path, remote_path, dry_run=False, required=True, ignore_existing_remote=False):
     """Syncs a single file to the remote server using rsync."""
@@ -695,7 +794,34 @@ def main():
     parser.add_argument(
         '--restart-scraping',
         action='store_true',
-        help='Restart remote scraping workers after deployment. Disabled by default to avoid unintended load.',
+        help='Restart remote scraping workers and enqueue one immediate cycle after deployment. Disabled by default to avoid unintended load.',
+    )
+    parser.add_argument(
+        '--restart-scraping-only',
+        action='store_true',
+        help='Only reconcile metadata, restart scraping workers, and enqueue one immediate cycle. Skip code sync, web restart, and prewarm.',
+    )
+    parser.add_argument(
+        '--stop-scraping-only',
+        action='store_true',
+        help='Only stop remote scraping workers, remove the scraper Redis queue, and clean legacy scraper processes. Skip code sync and web restart.',
+    )
+    parser.add_argument(
+        '--skip-prewarm',
+        action='store_true',
+        help='Skip runtime cache prewarm after web deployment.',
+    )
+    parser.add_argument(
+        '--prewarm-timeout-seconds',
+        type=int,
+        default=180,
+        help='Maximum seconds for runtime cache prewarm before continuing. Default: 180.',
+    )
+    parser.add_argument(
+        '--reconcile-timeout-seconds',
+        type=int,
+        default=1800,
+        help='Maximum seconds for restart-scraping metadata reconciliation. Default: 1800.',
     )
     
     args = parser.parse_args()
@@ -712,6 +838,35 @@ def main():
 
     dest_dir = resolve_remote_dest_dir(config['dest_dir'])
     shared_data_dir = resolve_remote_shared_data_dir(config)
+
+    if args.stop_scraping_only:
+        print("=== Stopping scraping services only ===")
+        stop_cmd = f"""
+set -eu
+cd {dest_dir}
+{remote_stop_scraping_stack_cmd(DEFAULT_SCRAPER_IMAGE_NAME)}
+if [ -f docker-compose.scraping.yml ]; then
+  docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml ps -a
+fi
+"""
+        stop_output = ssh_exec(config, stop_cmd, stream=True, timeout_seconds=120)
+        if stop_output:
+            print(stop_output)
+        print("=== Scraping Stop Complete ===")
+        return
+
+    if args.restart_scraping_only:
+        print("=== Restarting scraping services only ===")
+        restart_output = restart_scraping_services_if_present(
+            config,
+            dest_dir,
+            shared_data_dir,
+            reconcile_timeout_seconds=args.reconcile_timeout_seconds,
+        )
+        if restart_output:
+            print(restart_output)
+        print("=== Scraping Restart Complete ===")
+        return
 
     if args.full:
         print("=== 1. Docker Login ===")
@@ -786,6 +941,7 @@ services:
       MIYABE_SEARCH_ALIAS: ${{MIYABE_SEARCH_ALIAS:-miyabe-documents-current}}
       MIYABE_MINUTES_ALIAS: ${{MIYABE_MINUTES_ALIAS:-miyabe-minutes-current}}
       MIYABE_REIKI_ALIAS: ${{MIYABE_REIKI_ALIAS:-miyabe-reiki-current}}
+      MANAGEMENT_DATABASE_URL: ${{MANAGEMENT_DATABASE_URL:-pgsql://miyabe:miyabe@postgres:5432/miyabe_management}}
     volumes:
       - ./data:/var/www/data
       - {shared_data_dir}/reiki:/var/www/data/reiki
@@ -797,6 +953,26 @@ services:
     depends_on:
       opensearch:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    restart: "no"
+    cpus: "0.5"
+    environment:
+      POSTGRES_DB: ${{POSTGRES_DB:-miyabe_management}}
+      POSTGRES_USER: ${{POSTGRES_USER:-miyabe}}
+      POSTGRES_PASSWORD: ${{POSTGRES_PASSWORD:-miyabe}}
+    ports:
+      - "127.0.0.1:{config.get('postgres_port', 5432)}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${{POSTGRES_USER}} -d $${{POSTGRES_DB}}"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
 
   opensearch:
     image: opensearchproject/opensearch:2.15.0
@@ -809,7 +985,7 @@ services:
     ports:
       - "{config.get('opensearch_port', 9200)}:9200"
     volumes:
-      - opensearch-data:/usr/share/opensearch/data
+      - {shared_data_dir}/opensearch-data:/usr/share/opensearch/data
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null || exit 1"]
       interval: 10s
@@ -817,7 +993,7 @@ services:
       retries: 30
 
 volumes:
-  opensearch-data:
+  postgres-data:
 """
     
     print("=== 4. Deploy to Remote ===")
@@ -840,14 +1016,26 @@ volumes:
             "docker compose up -d web && docker compose restart web"
         )
 
-    print("=== Prewarming runtime caches ===")
-    prewarm_output = prewarm_runtime_caches(config, dest_dir)
-    if prewarm_output:
-        print(prewarm_output)
+    if args.skip_prewarm:
+        print("=== Skipping runtime cache prewarm ===")
+    else:
+        print("=== Prewarming runtime caches ===")
+        prewarm_output = prewarm_runtime_caches(
+            config,
+            dest_dir,
+            timeout_seconds=args.prewarm_timeout_seconds,
+        )
+        if prewarm_output:
+            print(prewarm_output)
 
     if args.restart_scraping:
         print("=== Restarting scraping services if configured ===")
-        restart_output = restart_scraping_services_if_present(config, dest_dir, shared_data_dir)
+        restart_output = restart_scraping_services_if_present(
+            config,
+            dest_dir,
+            shared_data_dir,
+            reconcile_timeout_seconds=args.reconcile_timeout_seconds,
+        )
         if restart_output:
             print(restart_output)
     else:
