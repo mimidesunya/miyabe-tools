@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 sys.path.append(str(Path(__file__).parent))
 import batch_status
+import freshness_metadata
 from batch_runner_common import (
     close_worker_streams,
     count_active_by_host,
@@ -645,6 +646,11 @@ def record_target_result(
         Path(stdout_log),
         Path(index_stdout_log),
     )
+    latest_freshness = (
+        freshness_metadata.gijiroku_target_freshness(target)
+        if overall_status == "ok"
+        else {"freshness_date": str(target.get("freshness_date", "") or ""), "freshness_basis": str(target.get("freshness_basis", "") or "")}
+    )
     update_kwargs["extra_fields"] = {
         "stdout_log": stdout_log,
         "stderr_log": stderr_log,
@@ -652,7 +658,11 @@ def record_target_result(
         "index_stderr_log": index_stderr_log,
         "warning_count": len(warning_lines),
         "warning_lines": warning_lines,
+        "freshness_date": latest_freshness["freshness_date"],
+        "freshness_basis": latest_freshness["freshness_basis"],
     }
+    if overall_status == "ok":
+        update_kwargs["extra_fields"]["last_checked_at"] = finished_at
     batch_status.update_item(
         status_state,
         str(target["slug"]),
@@ -668,6 +678,7 @@ def list_targets(targets: list[dict]) -> None:
         print(
             f"{target['slug']}\t{target['code']}\t{priority['priority_label']}\t"
             f"{priority['current_count']}/{priority['total_count']}\t{target['system_type']}\t"
+            f"fresh={priority.get('freshness_date', '') or '-'}\tchecked={priority.get('last_checked_at', '') or '-'}\t"
             f"{target_host(target)}\t{target['name']}\t{target['source_url']}"
         )
 
@@ -702,7 +713,22 @@ def restrict_to_resume_targets_when_needed(targets: list[dict]) -> list[dict]:
             flush=True,
         )
         return resume_targets
-    return targets
+
+    update_targets = []
+    skipped = {"fresh": 0, "recently_checked": 0}
+    for target in targets:
+        reason = gijiroku_priority.update_check_skip_reason(target)
+        if reason:
+            skipped[reason] = skipped.get(reason, 0) + 1
+            continue
+        update_targets.append(target)
+    if skipped["fresh"] or skipped["recently_checked"]:
+        print(
+            f"[INFO] 更新チェック対象を鮮度メタで絞り込みました: "
+            f"check={len(update_targets)} fresh_skip={skipped['fresh']} recent_skip={skipped['recently_checked']}",
+            flush=True,
+        )
+    return update_targets
 
 
 def main() -> int:
@@ -728,7 +754,7 @@ def main() -> int:
         return 2
 
     targets = [
-        target
+        freshness_metadata.attach_target_freshness("gijiroku", target)
         for target in gijiroku_targets.iter_gijiroku_targets()
         if (
             str(target.get("system_type", "")).strip() in requested_systems

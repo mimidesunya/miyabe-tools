@@ -150,6 +150,9 @@ CREATE TABLE IF NOT EXISTS processing_task_items (
     progress_current integer,
     progress_total integer,
     progress_unit text NOT NULL DEFAULT '',
+    freshness_date date,
+    freshness_basis text NOT NULL DEFAULT '',
+    last_checked_at_text text NOT NULL DEFAULT '',
     warning_count integer NOT NULL DEFAULT 0,
     warning_lines jsonb NOT NULL DEFAULT '[]'::jsonb,
     item_json jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -164,6 +167,12 @@ CREATE INDEX IF NOT EXISTS idx_processing_task_items_slug
     ON processing_task_items (slug);
 SQL);
     $pdo->exec('ALTER TABLE management_task_statuses ADD COLUMN IF NOT EXISTS source_mtime double precision NOT NULL DEFAULT 0');
+    $pdo->exec('ALTER TABLE processing_task_items ADD COLUMN IF NOT EXISTS freshness_date date');
+    $pdo->exec("ALTER TABLE processing_task_items ADD COLUMN IF NOT EXISTS freshness_basis text NOT NULL DEFAULT ''");
+    $pdo->exec("ALTER TABLE processing_task_items ADD COLUMN IF NOT EXISTS last_checked_at_text text NOT NULL DEFAULT ''");
+    $pdo->exec(
+        'CREATE INDEX IF NOT EXISTS idx_processing_task_items_freshness ON processing_task_items (task_key, freshness_date, last_checked_at_text)'
+    );
     $done = true;
 }
 
@@ -317,12 +326,14 @@ INSERT INTO processing_task_items (
     task_key, slug, code, name, full_name, feature_key, task_area, status, message,
     host, system_type, source_url, started_at_text, finished_at_text, updated_at_text,
     progress_updated_at_text, returncode, pid, progress_current, progress_total,
-    progress_unit, warning_count, warning_lines, item_json, updated_at
+    progress_unit, freshness_date, freshness_basis, last_checked_at_text,
+    warning_count, warning_lines, item_json, updated_at
 ) VALUES (
     :task_key, :slug, :code, :name, :full_name, :feature_key, :task_area, :status, :message,
     :host, :system_type, :source_url, :started_at_text, :finished_at_text, :updated_at_text,
     :progress_updated_at_text, :returncode, :pid, :progress_current, :progress_total,
-    :progress_unit, :warning_count, CAST(:warning_lines AS jsonb), CAST(:item_json AS jsonb), now()
+    :progress_unit, NULLIF(:freshness_date, '')::date, :freshness_basis, :last_checked_at_text,
+    :warning_count, CAST(:warning_lines AS jsonb), CAST(:item_json AS jsonb), now()
 )
 ON CONFLICT (task_key, slug) DO UPDATE SET
     code = EXCLUDED.code,
@@ -344,6 +355,9 @@ ON CONFLICT (task_key, slug) DO UPDATE SET
     progress_current = EXCLUDED.progress_current,
     progress_total = EXCLUDED.progress_total,
     progress_unit = EXCLUDED.progress_unit,
+    freshness_date = EXCLUDED.freshness_date,
+    freshness_basis = EXCLUDED.freshness_basis,
+    last_checked_at_text = EXCLUDED.last_checked_at_text,
     warning_count = EXCLUDED.warning_count,
     warning_lines = EXCLUDED.warning_lines,
     item_json = EXCLUDED.item_json,
@@ -385,6 +399,9 @@ SQL);
             ':progress_current' => is_numeric($item['progress_current'] ?? null) ? (int)$item['progress_current'] : null,
             ':progress_total' => is_numeric($item['progress_total'] ?? null) ? (int)$item['progress_total'] : null,
             ':progress_unit' => (string)($item['progress_unit'] ?? ''),
+            ':freshness_date' => (string)($item['freshness_date'] ?? ''),
+            ':freshness_basis' => (string)($item['freshness_basis'] ?? ''),
+            ':last_checked_at_text' => (string)($item['last_checked_at'] ?? ''),
             ':warning_count' => max(0, (int)($item['warning_count'] ?? 0)),
             ':warning_lines' => management_db_json_encode(is_array($item['warning_lines'] ?? null) ? $item['warning_lines'] : []),
             ':item_json' => management_db_json_encode($item),

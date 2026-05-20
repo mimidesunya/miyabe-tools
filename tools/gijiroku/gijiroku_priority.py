@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import freshness_metadata
+
 
 STOP_RETURN_CODES = {-15, -2, 130, 143}
 _TASK_STATUS_CACHE: dict[str, dict[str, Any]] = {}
@@ -104,13 +106,18 @@ def target_priority_info(target: dict[str, Any]) -> dict[str, Any]:
         "total_count": total_count,
         "downloaded_count": current_count,
         "previously_failed": previously_failed,
+        **freshness_metadata.item_freshness("gijiroku", target),
     }
 
 
 def priority_sort_key(target: dict[str, Any]) -> tuple[Any, ...]:
     info = target_priority_info(target)
+    freshness_date = str(info.get("freshness_date") or "")
+    last_checked_at = str(info.get("last_checked_at") or "")
     return (
         int(info["priority_group"]),
+        freshness_date if int(info["priority_group"]) == 3 else "",
+        last_checked_at if int(info["priority_group"]) == 3 else "",
         -float(info["progress_ratio"]),
         -int(info["current_count"]),
         str(target.get("name", "")),
@@ -120,3 +127,7 @@ def priority_sort_key(target: dict[str, Any]) -> tuple[Any, ...]:
 
 def sort_targets_by_priority(targets: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(targets, key=priority_sort_key)
+
+
+def update_check_skip_reason(target: dict[str, Any]) -> str:
+    return freshness_metadata.update_check_skip_reason("gijiroku", target)

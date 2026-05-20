@@ -189,6 +189,9 @@ def register_target(state: dict[str, Any], target: dict[str, Any], host: str) ->
         "progress_current": None,
         "progress_total": None,
         "progress_unit": "",
+        "freshness_date": str(target.get("freshness_date", "") or "").strip(),
+        "freshness_basis": str(target.get("freshness_basis", "") or "").strip(),
+        "last_checked_at": str(target.get("last_checked_at", "") or "").strip(),
     }
     # バッチ全体の updated_at は、実際に item 構成が増えたときだけ進める。
     state["updated_at"] = now_text()

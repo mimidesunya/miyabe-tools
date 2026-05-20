@@ -228,6 +228,30 @@ function background_task_item_activity_detail(array $item, string $prefix = '作
     return ($prefix !== '' ? ($prefix . ' ') : '') . $message;
 }
 
+function background_task_item_freshness_detail(array $item): string
+{
+    $date = trim((string)($item['freshness_date'] ?? ''));
+    if ($date === '' || preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
+        return '';
+    }
+    $basis = trim((string)($item['freshness_basis'] ?? ''));
+    $label = match ($basis) {
+        'content_current' => '内容現在',
+        'latest_document' => '最新日付',
+        default => '鮮度',
+    };
+    return $label . ' ' . $date;
+}
+
+function background_task_display_freshness_fields(array $item): array
+{
+    return [
+        'freshness_date' => trim((string)($item['freshness_date'] ?? '')),
+        'freshness_basis' => trim((string)($item['freshness_basis'] ?? '')),
+        'last_checked_at' => trim((string)($item['last_checked_at'] ?? '')),
+    ];
+}
+
 function background_task_readable_log_path(string $rawPath): string
 {
     $rawPath = trim($rawPath);
@@ -422,7 +446,7 @@ function background_task_item_fallback_display(array $taskStatus, string $slug):
         'progress_current' => background_task_item_progress_numbers($item)['current'],
         'progress_total' => background_task_item_progress_numbers($item)['total'],
         'batch_running' => (bool)($taskStatus['running'] ?? false),
-    ];
+    ] + background_task_display_freshness_fields($item);
 }
 
 // 生の status を、そのまま画面へ出せるラベルと詳細文へ変換する。
@@ -451,6 +475,10 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
         $detailParts[] = $itemProgress;
     } elseif (in_array($status, ['done', 'ok', 'failed'], true)) {
         $detailParts[] = '件数未集計';
+    }
+    $freshnessDetail = background_task_item_freshness_detail($item);
+    if ($freshnessDetail !== '') {
+        $detailParts[] = $freshnessDetail;
     }
     $activityDetail = background_task_item_activity_detail($item, $status === 'failed' ? '理由' : '作業');
     if ($activityDetail !== '' && in_array($status, ['pending', 'running', 'failed'], true)) {
@@ -490,7 +518,7 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
             'progress_total' => $progress['total'],
             'batch_running' => $running,
             'warning_lines' => $warningLines,
-        ];
+        ] + background_task_display_freshness_fields($item);
     }
     if ($running && $status === 'running') {
         $label = $customRunningLabel !== '' ? $customRunningLabel : ($isReflectTask ? '反映中' : 'スクレイピング中');
@@ -509,7 +537,7 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
             'progress_total' => $progress['total'],
             'batch_running' => $running,
             'warning_lines' => $warningLines,
-        ];
+        ] + background_task_display_freshness_fields($item);
     }
     if ($running && $status === 'pending') {
         // まだ着手していない queued item は、自治体カードに出しても
@@ -525,7 +553,7 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
             'progress_total' => $progress['total'],
             'batch_running' => $running,
             'warning_lines' => $warningLines,
-        ];
+        ] + background_task_display_freshness_fields($item);
     }
     if ($status === 'done' || $status === 'ok') {
         return [
@@ -536,7 +564,7 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
             'progress_total' => $progress['total'],
             'batch_running' => $running,
             'warning_lines' => $warningLines,
-        ];
+        ] + background_task_display_freshness_fields($item);
     }
     if ($status === 'failed') {
         if (background_task_item_is_complete($item)) {
@@ -554,7 +582,7 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
                 'progress_total' => $progress['total'],
                 'batch_running' => $running,
                 'warning_lines' => $warningLines,
-            ];
+            ] + background_task_display_freshness_fields($item);
         }
         $returncode = $item['returncode'] ?? null;
         if ($returncode !== null && $returncode !== '') {
@@ -579,7 +607,7 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
             'progress_total' => $progress['total'],
             'batch_running' => $running,
             'warning_lines' => $warningLines,
-        ];
+        ] + background_task_display_freshness_fields($item);
     }
 
     return null;

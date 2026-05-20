@@ -100,6 +100,9 @@ def migrate(conn) -> None:
             progress_current integer,
             progress_total integer,
             progress_unit text NOT NULL DEFAULT '',
+            freshness_date date,
+            freshness_basis text NOT NULL DEFAULT '',
+            last_checked_at_text text NOT NULL DEFAULT '',
             warning_count integer NOT NULL DEFAULT 0,
             warning_lines jsonb NOT NULL DEFAULT '[]'::jsonb,
             item_json jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -115,6 +118,13 @@ def migrate(conn) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_processing_task_items_slug "
         "ON processing_task_items (slug)"
+    )
+    conn.execute("ALTER TABLE processing_task_items ADD COLUMN IF NOT EXISTS freshness_date date")
+    conn.execute("ALTER TABLE processing_task_items ADD COLUMN IF NOT EXISTS freshness_basis text NOT NULL DEFAULT ''")
+    conn.execute("ALTER TABLE processing_task_items ADD COLUMN IF NOT EXISTS last_checked_at_text text NOT NULL DEFAULT ''")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_processing_task_items_freshness "
+        "ON processing_task_items (task_key, freshness_date, last_checked_at_text)"
     )
 
 
@@ -204,13 +214,16 @@ def store_task_status(task_key: str, status: dict[str, Any], source_path: Path |
                         started_at_text, finished_at_text, updated_at_text,
                         progress_updated_at_text, returncode, pid, progress_current,
                         progress_total, progress_unit, warning_count, warning_lines,
+                        freshness_date, freshness_basis, last_checked_at_text,
                         item_json, updated_at
                     ) VALUES (
                         %s, %s, %s, %s, %s, %s, %s,
                         %s, %s, %s, %s, %s,
                         %s, %s, %s,
                         %s, %s, %s, %s,
-                        %s, %s, %s::jsonb, %s::jsonb,
+                        %s, %s, %s, %s::jsonb,
+                        NULLIF(%s, '')::date, %s, %s,
+                        %s::jsonb,
                         now()
                     )
                     ON CONFLICT (task_key, slug) DO UPDATE SET
@@ -233,6 +246,9 @@ def store_task_status(task_key: str, status: dict[str, Any], source_path: Path |
                         progress_current = EXCLUDED.progress_current,
                         progress_total = EXCLUDED.progress_total,
                         progress_unit = EXCLUDED.progress_unit,
+                        freshness_date = EXCLUDED.freshness_date,
+                        freshness_basis = EXCLUDED.freshness_basis,
+                        last_checked_at_text = EXCLUDED.last_checked_at_text,
                         warning_count = EXCLUDED.warning_count,
                         warning_lines = EXCLUDED.warning_lines,
                         item_json = EXCLUDED.item_json,
@@ -262,6 +278,9 @@ def store_task_status(task_key: str, status: dict[str, Any], source_path: Path |
                         str(item.get("progress_unit", "")),
                         max(0, int(item.get("warning_count") or 0)),
                         json.dumps(warning_lines, ensure_ascii=False),
+                        str(item.get("freshness_date", "")),
+                        str(item.get("freshness_basis", "")),
+                        str(item.get("last_checked_at", "")),
                         json.dumps(item, ensure_ascii=False),
                     ),
                 )

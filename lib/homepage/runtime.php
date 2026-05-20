@@ -782,6 +782,24 @@ function homepage_task_display_count_lines(?array $display): array
     return $counts;
 }
 
+function homepage_task_display_freshness_line(?array $display): string
+{
+    if (!is_array($display)) {
+        return '';
+    }
+    $date = trim((string)($display['freshness_date'] ?? ''));
+    if ($date === '' || preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
+        return '';
+    }
+    $basis = trim((string)($display['freshness_basis'] ?? ''));
+    $label = match ($basis) {
+        'content_current' => '内容現在',
+        'latest_document' => '最新日付',
+        default => '鮮度',
+    };
+    return $label . ' ' . $date;
+}
+
 function homepage_task_display_public_activity_line(string $line): string
 {
     $line = trim($line);
@@ -833,6 +851,10 @@ function homepage_sanitize_home_card_display(?array $display): ?array
     }
 
     $detailLines = homepage_task_display_count_lines($display);
+    $freshnessLine = homepage_task_display_freshness_line($display);
+    if ($freshnessLine !== '' && !in_array($freshnessLine, $detailLines, true)) {
+        $detailLines[] = $freshnessLine;
+    }
     $class = trim((string)($display['class'] ?? ''));
     if (in_array($class, ['task-running', 'task-stale', 'task-failed'], true)) {
         foreach (homepage_task_display_metadata_lines($display) as $line) {
@@ -1031,6 +1053,13 @@ function homepage_feature_card_display(
     }
 
     $detailLines = homepage_task_display_count_lines($fallbackDisplay);
+    $freshnessLine = homepage_task_display_freshness_line($fallbackDisplay);
+    if ($freshnessLine === '') {
+        $freshnessLine = homepage_task_display_freshness_line($statusDisplay);
+    }
+    if ($freshnessLine !== '' && !in_array($freshnessLine, $detailLines, true)) {
+        $detailLines[] = $freshnessLine;
+    }
     foreach (homepage_task_display_metadata_lines($statusDisplay) as $line) {
         if (in_array($line, $detailLines, true)) {
             continue;

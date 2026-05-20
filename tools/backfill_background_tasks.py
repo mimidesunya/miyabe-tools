@@ -22,6 +22,7 @@ sys.path.append(str(TOOLS_DIR / "gijiroku"))
 sys.path.append(str(TOOLS_DIR / "reiki"))
 
 import batch_status
+import freshness_metadata
 import gijiroku_planning
 import gijiroku_storage
 import gijiroku_targets
@@ -263,6 +264,8 @@ def gijiroku_snapshot_items(*, fast: bool = False) -> dict[str, dict[str, Any]]:
         updated_at = format_timestamp(latest_mtime([downloads_dir, file_or_gzip_path(index_json_path) or index_json_path]))
         source_url = str(target.get("source_url", "")).strip()
         host = (urlsplit(source_url).hostname or "").strip().lower()
+        freshness = freshness_metadata.gijiroku_target_freshness(target)
+        freshness["last_checked_at"] = freshness_metadata.existing_last_checked_at("gijiroku", str(target["slug"]))
         items[str(target["slug"])] = {
             "slug": str(target["slug"]),
             "code": str(target.get("code", "")).strip(),
@@ -281,6 +284,9 @@ def gijiroku_snapshot_items(*, fast: bool = False) -> dict[str, dict[str, Any]]:
             "progress_current": current_count,
             "progress_total": total_count,
             "progress_unit": "meeting",
+            "freshness_date": freshness["freshness_date"],
+            "freshness_basis": freshness["freshness_basis"],
+            "last_checked_at": freshness["last_checked_at"],
         }
     return items
 
@@ -308,6 +314,8 @@ def reiki_snapshot_items(*, fast: bool = False) -> dict[str, dict[str, Any]]:
         )
         source_url = str(target.get("source_url", "")).strip()
         host = (urlsplit(source_url).hostname or "").strip().lower()
+        freshness = freshness_metadata.reiki_target_freshness(target)
+        freshness["last_checked_at"] = freshness_metadata.existing_last_checked_at("reiki", str(target["slug"]))
         items[str(target["slug"])] = {
             "slug": str(target["slug"]),
             "code": str(target.get("code", "")).strip(),
@@ -326,6 +334,9 @@ def reiki_snapshot_items(*, fast: bool = False) -> dict[str, dict[str, Any]]:
             "progress_current": current_count,
             "progress_total": total_count,
             "progress_unit": "ordinance",
+            "freshness_date": freshness["freshness_date"],
+            "freshness_basis": freshness["freshness_basis"],
+            "last_checked_at": freshness["last_checked_at"],
         }
     return items
 
