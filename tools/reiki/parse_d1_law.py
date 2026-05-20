@@ -17,11 +17,12 @@ import reiki_targets
 
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+OPENSEARCH_INIT_PATH_RE = re.compile(r"/opensearch/sr[a-z0-9]+/init$", re.I)
 
 
 def is_opensearch_mokuji_source_url(source_url):
     parts = urlsplit(source_url.strip())
-    return parts.netloc.lower().endswith("d1-law.com") and parts.path.lower().endswith("/opensearch/srmjf01/init")
+    return parts.netloc.lower().endswith("d1-law.com") and OPENSEARCH_INIT_PATH_RE.search(parts.path or "") is not None
 
 
 def wareki_to_seireki(wareki_str):

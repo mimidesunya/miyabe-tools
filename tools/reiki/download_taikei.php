@@ -974,10 +974,16 @@ function normalize_url_path(string $path): string
             array_pop($parts);
             continue;
         }
-        $parts[] = $part;
+        $parts[] = encode_url_path_segment($part);
     }
 
     return '/' . implode('/', $parts) . $query . $fragment;
+}
+
+function encode_url_path_segment(string $segment): string
+{
+    $decoded = rawurldecode($segment);
+    return rawurlencode($decoded);
 }
 
 function project_root(): string

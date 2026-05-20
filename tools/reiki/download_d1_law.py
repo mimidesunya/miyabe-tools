@@ -7,7 +7,7 @@ import re
 import sys
 import time
 from pathlib import Path
-from urllib.parse import parse_qs, urlencode, urljoin, urlsplit, urlunsplit
+from urllib.parse import urlencode, urljoin, urlsplit, urlunsplit
 
 import requests
 
@@ -246,7 +246,10 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False):
 
 def normalize_source_url(source_url: str) -> str:
     parts = urlsplit(source_url.strip())
-    return urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, ""))
+    path = parts.path
+    if parse_d1_law.is_opensearch_mokuji_source_url(source_url):
+        path = re.sub(r"/opensearch/Sr[A-Za-z0-9]+/init$", "/opensearch/SrMjF01/init", path)
+    return urlunsplit((parts.scheme, parts.netloc, path, parts.query, ""))
 
 
 def normalize_js_value(raw_value: str) -> str:
@@ -282,9 +285,6 @@ def fetch_opensearch_pages(
     site_root: str,
     mokujicd: str,
 ) -> list[str]:
-    parts = urlsplit(source_url)
-    query_params = parse_qs(parts.query)
-    jctcd = str(query_params.get("jctcd", [""])[0]).strip()
     referer = source_url
     search_data = {
         "typeSearch": "SrMj_Genko",
@@ -298,8 +298,6 @@ def fetch_opensearch_pages(
         "downloadname": "",
     }
     search_url = f"{site_root}/opensearch/SrMjF01/search"
-    if jctcd != "":
-        search_url += f"?{urlencode({'jctcd': jctcd})}"
     response = session.post(search_url, headers={"User-Agent": USER_AGENT, "Referer": referer}, data=search_data, timeout=15)
     response.raise_for_status()
     pages = [response.text]
@@ -484,6 +482,10 @@ def main():
     if parse_d1_law.is_opensearch_mokuji_source_url(str(target["source_url"])):
         opensearch_session, opensearch_entries = collect_opensearch_entries(str(target["source_url"]))
         print(f"Found {len(opensearch_entries)} unique opensearch regulations.")
+        if not opensearch_entries:
+            raise RuntimeError(
+                "No opensearch regulations were collected; refusing to mark the target as successfully scraped."
+            )
     else:
         hno_list = get_hno_list(base_url, source_dir, force=args.force, check_updates=args.check_updates)
         print(f"Found {len(hno_list)} unique regulation IDs.")
