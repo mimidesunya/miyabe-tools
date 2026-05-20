@@ -682,6 +682,29 @@ def highest_pending_priority_group(targets: list[dict]) -> int | None:
     return min(groups) if groups else None
 
 
+def restrict_to_resume_targets_when_needed(targets: list[dict]) -> list[dict]:
+    resume_targets = []
+    scraped_targets = []
+    for target in targets:
+        try:
+            priority_group = int(gijiroku_priority.target_priority_info(target)["priority_group"])
+        except Exception:
+            priority_group = 2
+        if priority_group == 3:
+            scraped_targets.append(target)
+        else:
+            resume_targets.append(target)
+
+    if resume_targets:
+        print(
+            f"[INFO] 未完了または失敗済みの対象があるため、完了済み更新確認はこのサイクルではスキップします: "
+            f"resume={len(resume_targets)} scraped={len(scraped_targets)}",
+            flush=True,
+        )
+        return resume_targets
+    return targets
+
+
 def main() -> int:
     args = build_parser().parse_args()
     stop_controller = install_stop_signal_handlers()
@@ -721,7 +744,7 @@ def main() -> int:
     if keyword:
         targets = [target for target in targets if target_matches(target, keyword, extra_fields=("system_type",))]
 
-    targets = gijiroku_priority.sort_targets_by_priority(targets)
+    targets = restrict_to_resume_targets_when_needed(gijiroku_priority.sort_targets_by_priority(targets))
     if args.max_targets > 0:
         targets = targets[: args.max_targets]
 
