@@ -405,6 +405,16 @@ function homepage_directory_matching_file_count(string $path, array $patterns = 
 
 function homepage_feature_fallback_display(string $featureKey, array $feature, ?array $snapshotDisplay = null): ?array
 {
+    $freshnessFields = [];
+    if (is_array($snapshotDisplay)) {
+        foreach (['freshness_date', 'freshness_basis', 'last_checked_at'] as $field) {
+            $value = trim((string)($snapshotDisplay[$field] ?? ''));
+            if ($value !== '') {
+                $freshnessFields[$field] = $value;
+            }
+        }
+    }
+
     if ($featureKey === 'reiki') {
         $manifestPath = dirname((string)($feature['source_dir'] ?? '')) . DIRECTORY_SEPARATOR . 'source_manifest.json';
         $manifestCount = homepage_json_array_count_auto($manifestPath);
@@ -425,7 +435,7 @@ function homepage_feature_fallback_display(string $featureKey, array $feature, ?
             'detail' => implode("\n", $detailLines),
             'progress_current' => $cleanHtmlCount,
             'progress_total' => $totalCount > 0 ? $totalCount : null,
-        ];
+        ] + $freshnessFields;
     }
 
     if ($featureKey === 'gijiroku') {
@@ -447,7 +457,7 @@ function homepage_feature_fallback_display(string $featureKey, array $feature, ?
             'detail' => implode("\n", $detailLines),
             'progress_current' => $downloadedCount,
             'progress_total' => $totalCount > 0 ? $totalCount : null,
-        ];
+        ] + $freshnessFields;
     }
 
     return null;
