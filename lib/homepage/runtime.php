@@ -663,6 +663,13 @@ function homepage_merge_task_display(?array $taskDisplay, ?array $fallbackDispla
     $taskDetail = preg_replace('/(^| \/ )件数未集計(?= \/ |$)/u', '$1', $taskDetail) ?? $taskDetail;
     $taskDetail = trim(preg_replace('/\s*\/\s*\/\s*/u', ' / ', $taskDetail) ?? $taskDetail, ' /');
     $fallbackLines = homepage_task_display_count_lines($fallbackDisplay);
+    $freshnessLine = homepage_task_display_freshness_line($fallbackDisplay);
+    if ($freshnessLine === '') {
+        $freshnessLine = homepage_task_display_freshness_line($taskDisplay);
+    }
+    if ($freshnessLine !== '' && !in_array($freshnessLine, $fallbackLines, true)) {
+        $fallbackLines[] = $freshnessLine;
+    }
     if ($fallbackDetail !== '') {
         $taskLines = preg_split('/\R/u', $taskDetail, -1, PREG_SPLIT_NO_EMPTY) ?: [];
         if ($taskLines !== [] && preg_match('/\d+(?:\/\d+)?\s*件/u', trim((string)$taskLines[0])) === 1) {

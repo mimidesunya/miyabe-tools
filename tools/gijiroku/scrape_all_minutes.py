@@ -1026,15 +1026,7 @@ def main() -> int:
             host_active_counts = count_active_by_host(active_workers)
             while pending_targets and len(active_workers) < args.parallel and not shutdown_started:
                 launch_index = None
-                pending_priority_group = highest_pending_priority_group(pending_targets)
                 for index, target in enumerate(pending_targets):
-                    if pending_priority_group is not None:
-                        try:
-                            target_priority_group = int(gijiroku_priority.target_priority_info(target)["priority_group"])
-                        except Exception:
-                            target_priority_group = pending_priority_group
-                        if target_priority_group != pending_priority_group:
-                            continue
                     host = target_host(target)
                     if host_active_counts.get(host, 0) >= args.per_host_parallel:
                         continue
