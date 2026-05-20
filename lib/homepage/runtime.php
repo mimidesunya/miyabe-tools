@@ -1208,6 +1208,7 @@ function homepage_feature_target_codes(string $featureKey): array
         default => [],
     };
 
+    $supportedSystemTypes = homepage_feature_supported_system_types($featureKey);
     $codes = [];
     foreach ($index as $code => $row) {
         if (!is_array($row)) {
@@ -1216,10 +1217,40 @@ function homepage_feature_target_codes(string $featureKey): array
         if (trim((string)($row['url'] ?? '')) === '') {
             continue;
         }
+        $systemType = trim((string)($row['system_type'] ?? ''));
+        if ($supportedSystemTypes !== [] && !isset($supportedSystemTypes[$systemType])) {
+            continue;
+        }
         $codes[] = trim((string)$code);
     }
     $cache[$featureKey] = $codes;
     return $cache[$featureKey];
+}
+
+function homepage_feature_supported_system_types(string $featureKey): array
+{
+    return match ($featureKey) {
+        // tools/gijiroku/scrape_all_minutes.py の SUPPORTED_SYSTEMS / SUPPORTED_INPUT_SYSTEMS と同期する。
+        'gijiroku' => array_fill_keys([
+            'gijiroku.com',
+            'voices',
+            'kaigiroku.net',
+            'dbsr',
+            'db-search',
+            'kaigiroku-indexphp',
+            'kensakusystem',
+            'kami-city-pdf',
+            'site-gikai-pdf',
+            'static-kaigiroku-dir',
+        ], true),
+        // tools/reiki/scrape_all_reiki.py の SUPPORTED_SYSTEMS と同期する。
+        'reiki' => array_fill_keys([
+            'd1-law',
+            'taikei',
+            'g-reiki',
+        ], true),
+        default => [],
+    };
 }
 
 function homepage_build_feature_runtime_states(
