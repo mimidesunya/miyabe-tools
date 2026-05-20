@@ -149,8 +149,8 @@ def build_scraping_compose(
                     "SCRAPER_REIKI_CHECK_UPDATES": "1",
                     "SCRAPER_REIKI_PARALLEL": "3",
                     "SCRAPER_REIKI_INDEX_PARALLEL": "1",
-                    "SCRAPER_REIKI_PER_HOST_PARALLEL": "1",
-                    "SCRAPER_REIKI_PER_HOST_START_INTERVAL": "10",
+                    "SCRAPER_REIKI_PER_HOST_PARALLEL": "3",
+                    "SCRAPER_REIKI_PER_HOST_START_INTERVAL": "2",
                 },
                 "extra_hosts": ["host.docker.internal:host-gateway"],
                 "volumes": [
