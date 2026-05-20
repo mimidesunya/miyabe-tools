@@ -651,9 +651,20 @@ def list_targets(targets: list[dict]) -> None:
     for target in targets:
         priority = reiki_priority.target_priority_info(target)
         print(
-            f"{target['slug']}\t{target['code']}\t{priority['priority_label']}\t{target['system_type']}\t"
+            f"{target['slug']}\t{target['code']}\t{priority['priority_label']}\t"
+            f"{priority['current_count']}/{priority['total_count']}\t{target['system_type']}\t"
             f"{target_host(target)}\t{target['name']}\t{target['source_url']}"
         )
+
+
+def highest_pending_priority_group(targets: list[dict]) -> int | None:
+    groups: list[int] = []
+    for target in targets:
+        try:
+            groups.append(int(reiki_priority.target_priority_info(target)["priority_group"]))
+        except Exception:
+            continue
+    return min(groups) if groups else None
 
 
 def main() -> int:
@@ -836,7 +847,15 @@ def main() -> int:
             host_active_counts = count_active_by_host(active_workers)
             while pending_targets and len(active_workers) < args.parallel and not shutdown_started:
                 launch_index = None
+                pending_priority_group = highest_pending_priority_group(pending_targets)
                 for index, target in enumerate(pending_targets):
+                    if pending_priority_group is not None:
+                        try:
+                            target_priority_group = int(reiki_priority.target_priority_info(target)["priority_group"])
+                        except Exception:
+                            target_priority_group = pending_priority_group
+                        if target_priority_group != pending_priority_group:
+                            continue
                     host = target_host(target)
                     if host_active_counts.get(host, 0) >= args.per_host_parallel:
                         continue
