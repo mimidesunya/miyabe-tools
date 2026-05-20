@@ -647,7 +647,7 @@ function homepage_merge_task_display(?array $taskDisplay, ?array $fallbackDispla
         || $fallbackCurrent > $taskCurrent;
     $taskClass = trim((string)($taskDisplay['class'] ?? ''));
     $taskIsTransient = in_array($taskClass, ['task-running', 'task-stale'], true);
-    if (!$preferFallbackCount) {
+    if (!$preferFallbackCount && !$taskIsTransient) {
         $activityLines = homepage_task_display_metadata_lines($taskDisplay);
         if ($activityLines !== []) {
             $taskDisplay['detail'] = implode("\n", $activityLines);
@@ -655,8 +655,8 @@ function homepage_merge_task_display(?array $taskDisplay, ?array $fallbackDispla
         return $taskDisplay;
     }
 
-    // 旧 task JSON に件数がない場合と、公開済み件数のほうが新しい場合だけ
-    // DB/ファイル走査で復元した件数を優先して合成する。
+    // running 中の progress は「一覧収集」「更新確認」などの作業進捗にも使う。
+    // DL済件数は DB/ファイル走査で復元した count_* として分けて合成する。
     $merged = $taskDisplay;
     $fallbackDetail = trim((string)($fallbackDisplay['detail'] ?? ''));
     $taskDetail = trim((string)($taskDisplay['detail'] ?? ''));
@@ -2746,6 +2746,13 @@ function homepage_task_status_summary(
 
 function homepage_task_status_feature_display_fallback(string $slug, string $featureKey): ?array
 {
+    $snapshotTask = $featureKey . '_snapshot';
+    $snapshotStatus = homepage_normalize_task_status_items(load_background_task_status_fast($snapshotTask));
+    $snapshotDisplay = background_task_item_display($snapshotStatus, $slug);
+    if (is_array($snapshotDisplay) && homepage_task_display_has_count_detail($snapshotDisplay)) {
+        return $snapshotDisplay;
+    }
+
     if (function_exists('management_db_homepage_feature_display')) {
         $display = management_db_homepage_feature_display($slug, $featureKey);
         if (is_array($display)) {
