@@ -683,52 +683,28 @@ def list_targets(targets: list[dict]) -> None:
         )
 
 
-def highest_pending_priority_group(targets: list[dict]) -> int | None:
-    groups: list[int] = []
-    for target in targets:
-        try:
-            groups.append(int(gijiroku_priority.target_priority_info(target)["priority_group"]))
-        except Exception:
-            continue
-    return min(groups) if groups else None
-
-
-def restrict_to_resume_targets_when_needed(targets: list[dict]) -> list[dict]:
-    resume_targets = []
-    scraped_targets = []
+def select_runnable_targets(targets: list[dict]) -> list[dict]:
+    runnable_targets = []
+    skipped_fresh = 0
+    group_counts: dict[int, int] = {}
     for target in targets:
         try:
             priority_group = int(gijiroku_priority.target_priority_info(target)["priority_group"])
         except Exception:
             priority_group = 2
-        if priority_group == 3:
-            scraped_targets.append(target)
-        else:
-            resume_targets.append(target)
-
-    if resume_targets:
-        print(
-            f"[INFO] 未完了または失敗済みの対象があるため、完了済み更新確認はこのサイクルではスキップします: "
-            f"resume={len(resume_targets)} scraped={len(scraped_targets)}",
-            flush=True,
-        )
-        return resume_targets
-
-    update_targets = []
-    skipped = {"fresh": 0, "recently_checked": 0}
-    for target in targets:
-        reason = gijiroku_priority.update_check_skip_reason(target)
-        if reason:
-            skipped[reason] = skipped.get(reason, 0) + 1
+        group_counts[priority_group] = group_counts.get(priority_group, 0) + 1
+        if priority_group >= 4:
+            skipped_fresh += 1
             continue
-        update_targets.append(target)
-    if skipped["fresh"] or skipped["recently_checked"]:
-        print(
-            f"[INFO] 更新チェック対象を鮮度メタで絞り込みました: "
-            f"check={len(update_targets)} fresh_skip={skipped['fresh']} recent_skip={skipped['recently_checked']}",
-            flush=True,
-        )
-    return update_targets
+        runnable_targets.append(target)
+
+    print(
+        "[INFO] 実行対象を優先度で選定しました: "
+        f"incomplete={group_counts.get(1, 0)} unknown_total={group_counts.get(2, 0)} "
+        f"stale_complete={group_counts.get(3, 0)} fresh_skip={skipped_fresh}",
+        flush=True,
+    )
+    return runnable_targets
 
 
 def main() -> int:
@@ -770,7 +746,7 @@ def main() -> int:
     if keyword:
         targets = [target for target in targets if target_matches(target, keyword, extra_fields=("system_type",))]
 
-    targets = restrict_to_resume_targets_when_needed(gijiroku_priority.sort_targets_by_priority(targets))
+    targets = select_runnable_targets(gijiroku_priority.sort_targets_by_priority(targets))
     if args.max_targets > 0:
         targets = targets[: args.max_targets]
 

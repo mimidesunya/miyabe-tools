@@ -86,13 +86,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--gijiroku-loop-seconds",
         type=int,
-        default=21600,
+        default=86400,
         help="会議録スクレイパの実行サイクル間隔（秒）",
     )
     parser.add_argument(
         "--reiki-loop-seconds",
         type=int,
-        default=21600,
+        default=86400,
         help="例規スクレイパの実行サイクル間隔（秒）",
     )
     parser.add_argument(

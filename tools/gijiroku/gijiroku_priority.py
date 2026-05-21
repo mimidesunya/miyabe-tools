@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -82,21 +83,25 @@ def target_priority_info(target: dict[str, Any]) -> dict[str, Any]:
     ratio = (current_count / total_count) if total_count > 0 else 0.0
 
     previously_failed = previous_item_failed_with_error(slug)
-    if total_count > 0 and current_count > 0 and current_count < total_count:
+    freshness = freshness_metadata.item_freshness("gijiroku", target)
+    freshness_date = freshness_metadata.parse_date(freshness.get("freshness_date"))
+    is_fresh = (
+        freshness_date is not None
+        and freshness_date >= freshness_metadata.today_tokyo() - timedelta(days=freshness_metadata.FRESHNESS_SKIP_DAYS)
+    )
+
+    if total_count > 0 and current_count < total_count:
         priority_group = 1
-        priority_label = "near_complete_failed" if previously_failed else "near_complete"
-    elif previously_failed:
-        priority_group = 4
-        priority_label = "previous_failed"
+        priority_label = "incomplete_failed" if previously_failed else "incomplete"
     elif total_count <= 0:
         priority_group = 2
-        priority_label = "not_started"
-    elif current_count >= total_count:
-        priority_group = 3
-        priority_label = "scraped"
+        priority_label = "unknown_total_failed" if previously_failed else "unknown_total"
+    elif is_fresh:
+        priority_group = 4
+        priority_label = "fresh_complete_failed" if previously_failed else "fresh_complete"
     else:
-        priority_group = 2
-        priority_label = "not_started"
+        priority_group = 3
+        priority_label = "stale_complete_failed" if previously_failed else "stale_complete"
 
     return {
         "priority_group": priority_group,
@@ -106,7 +111,7 @@ def target_priority_info(target: dict[str, Any]) -> dict[str, Any]:
         "total_count": total_count,
         "downloaded_count": current_count,
         "previously_failed": previously_failed,
-        **freshness_metadata.item_freshness("gijiroku", target),
+        **freshness,
     }
 
 
