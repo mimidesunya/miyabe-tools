@@ -138,6 +138,34 @@ def task_is_running(task_name: str, *, stale_seconds: int = DEFAULT_STALE_SECOND
     return (time.time() - heartbeat) <= max(0, stale_seconds)
 
 
+def _item_progress(item: object) -> tuple[int, int]:
+    if not isinstance(item, dict):
+        return 0, 0
+    try:
+        current = max(0, int(item.get("progress_current") or 0))
+        total = max(0, int(item.get("progress_total") or 0))
+    except Exception:
+        return 0, 0
+    return current, total
+
+
+def task_has_remaining_work(task_name: str) -> bool:
+    for status_name in (task_name, f"{task_name}_snapshot"):
+        payload = load_background_task_status(status_name)
+        items = payload.get("items")
+        if not isinstance(items, dict):
+            continue
+        for item in items.values():
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("status") or "").strip() == "failed":
+                return True
+            current, total = _item_progress(item)
+            if total > 0 and current < total:
+                return True
+    return False
+
+
 def cycle_is_due(
     task_name: str,
     schedule_seconds: int,
@@ -151,7 +179,10 @@ def cycle_is_due(
     latest = latest_status_timestamp(task_name)
     if latest is None:
         return True
-    return (time.time() - latest) >= max(1, schedule_seconds)
+    due_seconds = schedule_seconds
+    if task_has_remaining_work(task_name):
+        due_seconds = env_int("SCRAPER_INCOMPLETE_SCHEDULE_SECONDS", 10 * 60, minimum=60)
+    return (time.time() - latest) >= max(1, due_seconds)
 
 
 def command_text(command: list[str]) -> str:

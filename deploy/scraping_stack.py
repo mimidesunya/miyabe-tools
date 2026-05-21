@@ -69,6 +69,7 @@ def build_scraping_compose(
         "CELERY_DISPATCH_INTERVAL_SECONDS": "60",
         "CELERY_GIJIROKU_SCHEDULE_SECONDS": str(gijiroku_loop_seconds),
         "CELERY_REIKI_SCHEDULE_SECONDS": str(reiki_loop_seconds),
+        "SCRAPER_INCOMPLETE_SCHEDULE_SECONDS": "600",
         "SCRAPER_FAIL_SLEEP_SECONDS": str(fail_sleep_seconds),
         "SCRAPER_PYTHON_COMMAND": "python3",
         "SCRAPER_PHP_COMMAND": "php",
