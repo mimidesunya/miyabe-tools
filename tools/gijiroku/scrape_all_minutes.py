@@ -701,7 +701,7 @@ def select_runnable_targets(targets: list[dict]) -> list[dict]:
     print(
         "[INFO] 実行対象を優先度で選定しました: "
         f"incomplete={group_counts.get(1, 0)} unknown_total={group_counts.get(2, 0)} "
-        f"stale_complete={group_counts.get(3, 0)} fresh_skip={skipped_fresh}",
+        f"due_complete={group_counts.get(3, 0)} recent_complete_skip={skipped_fresh}",
         flush=True,
     )
     return runnable_targets

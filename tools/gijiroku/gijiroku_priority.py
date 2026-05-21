@@ -56,6 +56,32 @@ def item_progress(item: dict[str, Any]) -> tuple[int, int]:
     return current, total
 
 
+def successful_item_finished_at(item: dict[str, Any]) -> str:
+    status = str(item.get("status") or "").strip()
+    if status not in {"done", "ok"}:
+        return ""
+    try:
+        returncode = int(item.get("returncode"))
+    except Exception:
+        return ""
+    if returncode != 0:
+        return ""
+    return str(item.get("finished_at") or "").strip()
+
+
+def recently_completed_successfully(slug: str, current_count: int, total_count: int) -> tuple[bool, str]:
+    if total_count <= 0 or current_count != total_count:
+        return False, ""
+
+    finished_at = successful_item_finished_at(task_item("gijiroku", slug))
+    finished = freshness_metadata.parse_datetime_text(finished_at)
+    if finished is None:
+        return False, finished_at
+
+    age = freshness_metadata.now_tokyo() - finished
+    return age < timedelta(days=freshness_metadata.FRESHNESS_SKIP_DAYS), finished_at
+
+
 def state_file_progress(target: dict[str, Any]) -> tuple[int, int]:
     state_path = Path(target.get("work_dir", "")) / "scrape_state.json"
     try:
@@ -89,6 +115,7 @@ def target_priority_info(target: dict[str, Any]) -> dict[str, Any]:
         freshness_date is not None
         and freshness_date >= freshness_metadata.today_tokyo() - timedelta(days=freshness_metadata.FRESHNESS_SKIP_DAYS)
     )
+    recently_complete, finished_at = recently_completed_successfully(slug, current_count, total_count)
 
     if total_count > 0 and current_count < total_count:
         priority_group = 1
@@ -96,12 +123,15 @@ def target_priority_info(target: dict[str, Any]) -> dict[str, Any]:
     elif total_count <= 0:
         priority_group = 2
         priority_label = "unknown_total_failed" if previously_failed else "unknown_total"
-    elif is_fresh:
+    elif recently_complete:
         priority_group = 4
-        priority_label = "fresh_complete_failed" if previously_failed else "fresh_complete"
+        priority_label = "recent_complete_failed" if previously_failed else "recent_complete"
     else:
         priority_group = 3
-        priority_label = "stale_complete_failed" if previously_failed else "stale_complete"
+        if is_fresh:
+            priority_label = "fresh_but_due_failed" if previously_failed else "fresh_but_due"
+        else:
+            priority_label = "stale_complete_failed" if previously_failed else "stale_complete"
 
     return {
         "priority_group": priority_group,
@@ -110,6 +140,7 @@ def target_priority_info(target: dict[str, Any]) -> dict[str, Any]:
         "current_count": current_count,
         "total_count": total_count,
         "downloaded_count": current_count,
+        "finished_at": finished_at,
         "previously_failed": previously_failed,
         **freshness,
     }
