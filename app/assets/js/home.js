@@ -542,7 +542,9 @@
         });
     }
 
-    refresh();
+    refresh().finally(() => {
+        refreshTaskStatus();
+    });
     window.setInterval(refreshTaskStatus, 3000);
     window.setInterval(refresh, 60000);
 })();

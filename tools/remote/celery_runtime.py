@@ -138,6 +138,16 @@ def task_is_running(task_name: str, *, stale_seconds: int = DEFAULT_STALE_SECOND
     return (time.time() - heartbeat) <= max(0, stale_seconds)
 
 
+def task_is_stale_running(task_name: str, *, stale_seconds: int = DEFAULT_STALE_SECONDS) -> bool:
+    payload = load_background_task_status(task_name)
+    if not bool(payload.get("running")):
+        return False
+    heartbeat = parse_status_timestamp(payload.get("heartbeat_at") or payload.get("updated_at"))
+    if heartbeat is None:
+        return True
+    return (time.time() - heartbeat) > max(0, stale_seconds)
+
+
 def _item_progress(item: object) -> tuple[int, int]:
     if not isinstance(item, dict):
         return 0, 0

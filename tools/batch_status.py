@@ -43,6 +43,7 @@ def runtime_cache_paths(include_homepage_payload: bool = False) -> list[Path]:
     paths = [
         root / "municipality_catalog_cache.json",
         root / "search_indexed_slug_cache.json",
+        root / "home_task_status_payload.json",
     ]
     if include_homepage_payload:
         paths.insert(1, root / "home_api_payload.json")
@@ -364,5 +365,14 @@ def invalidate_runtime_caches(*, include_homepage_payload: bool = False) -> None
     for path in runtime_cache_paths(include_homepage_payload=include_homepage_payload):
         try:
             path.unlink(missing_ok=True)
+        except Exception:
+            pass
+    if include_homepage_payload:
+        try:
+            for path in status_root().glob("home_api_filtered_v2_*.json"):
+                try:
+                    path.unlink(missing_ok=True)
+                except Exception:
+                    pass
         except Exception:
             pass

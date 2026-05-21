@@ -9,7 +9,7 @@ header('Cache-Control: no-store, max-age=0');
 ob_start();
 
 try {
-    $payload = homepage_build_task_status_payload();
+    $payload = homepage_build_task_status_payload_cached();
     $etag = '"' . (string)($payload['version'] ?? sha1(json_encode($payload))) . '"';
     header('ETag: ' . $etag);
 

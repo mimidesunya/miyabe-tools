@@ -9,6 +9,7 @@ import json
 import re
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -136,17 +137,21 @@ def latest_mtime(paths: list[Path]) -> float | None:
     return max(mtimes) if mtimes else None
 
 
-def count_gijiroku_downloads(downloads_dir: Path) -> int:
+def gijiroku_download_stems(downloads_dir: Path) -> set[str]:
+    stems: set[str] = set()
     if not downloads_dir.exists():
-        return 0
-    seen: set[str] = set()
+        return stems
     for file_path in downloads_dir.rglob("*"):
         if not file_path.is_file():
             continue
         if gijiroku_storage.logical_suffix(file_path) not in MINUTES_SUFFIXES:
             continue
-        seen.add(gijiroku_storage.source_key(file_path, downloads_dir))
-    return len(seen)
+        stems.add(gijiroku_storage.source_key(file_path, downloads_dir))
+    return stems
+
+
+def count_gijiroku_downloads(downloads_dir: Path) -> int:
+    return len(gijiroku_download_stems(downloads_dir))
 
 
 def sanitize_gijiroku_filename(text: str, fallback: str) -> str:
@@ -166,25 +171,11 @@ def indexed_gijiroku_item_key(row: dict[str, Any]) -> str:
     return "url:" + url if url else "row:" + gijiroku_storage.item_signature(row)
 
 
-def output_exists_for_stem(downloads_dir: Path, rel_stem: str) -> bool:
-    stem_path = downloads_dir / Path(rel_stem)
-    directory = stem_path.parent
-    try:
-        if not directory.exists():
-            return False
-    except OSError:
-        return False
-    prefix = stem_path.name + "."
-    try:
-        return any(path.is_file() and path.name.startswith(prefix) for path in directory.iterdir())
-    except OSError:
-        return False
-
-
 def count_gijiroku_indexed_downloads(index_json_path: Path, downloads_dir: Path) -> int:
     rows = load_gijiroku_index_rows(index_json_path)
     if not rows or not downloads_dir.exists():
         return 0
+    existing_stems = gijiroku_download_stems(downloads_dir)
     seen_items: set[str] = set()
     seen_output_stems: dict[str, int] = {}
     downloaded = 0
@@ -202,7 +193,7 @@ def count_gijiroku_indexed_downloads(index_json_path: Path, downloads_dir: Path)
                 gijiroku_storage.item_signature(row),
                 occurrence_index,
             )
-        if output_exists_for_stem(downloads_dir, rel_stem):
+        if rel_stem in existing_stems:
             downloaded += 1
     return downloaded
 
@@ -231,6 +222,7 @@ def build_snapshot_state(task_name: str, items: dict[str, dict[str, Any]]) -> di
         "running": False,
         "started_at": latest_updated,
         "finished_at": latest_updated,
+        "heartbeat_at": latest_updated,
         "updated_at": latest_updated,
         "total_count": len(items),
         "completed_count": len(items),
@@ -355,6 +347,28 @@ def write_snapshot(task_name: str, *, fast: bool = False) -> tuple[Path, Path, i
     return main_path, snapshot_path, len(items)
 
 
+def parse_status_timestamp(value: object) -> float | None:
+    text = str(value or "").strip()
+    if text == "":
+        return None
+    normalized = text[:-1] + "+00:00" if text.endswith("Z") else text
+    for parser in (datetime.fromisoformat, lambda raw: datetime.strptime(raw, "%Y-%m-%d %H:%M:%S")):
+        try:
+            return parser(normalized).timestamp()
+        except Exception:
+            continue
+    return None
+
+
+def status_is_active_running(status: dict[str, Any], *, stale_seconds: int) -> bool:
+    if not bool(status.get("running")):
+        return False
+    heartbeat = parse_status_timestamp(status.get("heartbeat_at") or status.get("updated_at"))
+    if heartbeat is None:
+        return True
+    return (time.time() - heartbeat) <= max(0, stale_seconds)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="既存の work/data から background_tasks JSON を復元します。")
     parser.add_argument(
@@ -378,6 +392,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--work-root",
         help="gijiroku/reiki の work root。既定は <workspace-root>/work です。",
+    )
+    parser.add_argument(
+        "--stale-seconds",
+        type=int,
+        default=15 * 60,
+        help="running 状態を異常終了扱いにするまでの秒数。既定は 900 秒です。",
+    )
+    parser.add_argument(
+        "--force-running",
+        action="store_true",
+        help="running 状態が新しくても、呼び出し側が停止済みである前提で snapshot を再生成します。",
     )
     return parser
 
@@ -416,9 +441,21 @@ def main() -> int:
         return 2
 
     for task_name in tasks:
+        current_status = batch_status.read_state(task_name)
+        if not args.force_running and status_is_active_running(
+            current_status,
+            stale_seconds=max(0, int(args.stale_seconds)),
+        ):
+            print(
+                f"[ERROR] {task_name} is still running; stop the scraper or pass --force-running after stopping it.",
+                flush=True,
+            )
+            return 3
+
         main_path, snapshot_path, count = write_snapshot(task_name, fast=args.fast)
         print(f"[DONE] {task_name}: {count} items -> {main_path}", flush=True)
         print(f"[DONE] {task_name}_snapshot: {count} items -> {snapshot_path}", flush=True)
+    batch_status.invalidate_runtime_caches(include_homepage_payload=True)
     return 0
 
 

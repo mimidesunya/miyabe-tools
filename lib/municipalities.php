@@ -543,6 +543,41 @@ function sqlite_table_has_rows(string $dbPath, string $table): bool
     return sqlite_table_max_id($dbPath, $table) > 0;
 }
 
+function municipality_feature_metadata_has_data(string $task, string $slug): bool
+{
+    static $itemsByTask = [];
+    $task = trim($task);
+    $slug = trim($slug);
+    if ($task === '' || $slug === '') {
+        return false;
+    }
+
+    if (!array_key_exists($task, $itemsByTask)) {
+        $status = read_json_cache_file(data_path('background_tasks/' . $task . '.json'), 0);
+        $itemsByTask[$task] = is_array($status) && is_array($status['items'] ?? null)
+            ? $status['items']
+            : [];
+    }
+
+    $item = $itemsByTask[$task][$slug] ?? null;
+    if (!is_array($item)) {
+        return false;
+    }
+
+    $current = $item['progress_current'] ?? null;
+    if (is_numeric($current) && (int)$current > 0) {
+        return true;
+    }
+
+    $status = trim((string)($item['status'] ?? ''));
+    $total = $item['progress_total'] ?? null;
+    return in_array($status, ['done', 'ok', 'snapshot'], true)
+        && is_numeric($total)
+        && (int)$total > 0
+        && is_numeric($current)
+        && (int)$current >= (int)$total;
+}
+
 function municipality_feature_live_has_data(string $feature, array $featureConfig): bool
 {
     switch ($feature) {
@@ -644,6 +679,10 @@ function municipality_cache_mark_feature_available(string $slug, string $feature
 
 function municipality_feature_live_has_data_with_cache_heal(string $slug, string $feature, array $featureConfig): bool
 {
+    if ($feature === 'gijiroku' || $feature === 'reiki') {
+        return municipality_feature_metadata_has_data($feature, $slug);
+    }
+
     $hasData = municipality_feature_live_has_data($feature, $featureConfig);
     if ($hasData && empty($featureConfig['has_data'])) {
         municipality_cache_mark_feature_available($slug, $feature);
@@ -712,10 +751,7 @@ function normalize_municipality_entry(string $slug, array $entry): array
         $reikiDetected = false;
         $reikiEnabled = false;
     } else {
-        $reikiDetected = directory_contains_matching_file(
-            $reikiCleanHtmlPath,
-            ['/\.(?:html|htm)(?:\.gz)?$/i']
-        );
+        $reikiDetected = municipality_feature_metadata_has_data('reiki', $slug);
         $reikiEnabled = $reikiDetected || feature_enabled_value($reikiConfig['enabled'] ?? null, false);
     }
 
@@ -733,11 +769,7 @@ function normalize_municipality_entry(string $slug, array $entry): array
         $gijirokuDetected = false;
         $gijirokuEnabled = false;
     } else {
-        $gijirokuDetected = json_array_has_items_auto($gijirokuIndexJsonPath)
-            || directory_contains_matching_file(
-                $gijirokuDownloadsPath,
-                ['/\.(?:txt|html|htm)(?:\.gz)?$/i']
-            );
+        $gijirokuDetected = municipality_feature_metadata_has_data('gijiroku', $slug);
         $gijirokuEnabled = $gijirokuDetected || feature_enabled_value($gijirokuConfig['enabled'] ?? null, false);
     }
 

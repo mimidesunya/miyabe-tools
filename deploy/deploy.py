@@ -8,6 +8,8 @@ import tempfile
 import atexit
 import shlex
 import re
+import queue
+import threading
 from pathlib import Path
 
 from scraping_stack import (
@@ -310,16 +312,34 @@ def ssh_exec(config, command, *, stream=False, timeout_seconds=None):
         assert process.stdin is not None
         process.stdin.write(command_bytes)
         process.stdin.close()
+        output_queue = queue.Queue()
+
+        def enqueue_output() -> None:
+            assert process.stdout is not None
+            for line in process.stdout:
+                output_queue.put(line)
+            output_queue.put(None)
+
+        reader = threading.Thread(target=enqueue_output, daemon=True)
+        reader.start()
+        deadline = time.monotonic() + timeout_seconds if timeout_seconds is not None else None
         try:
-            if process.stdout is not None:
-                for line in process.stdout:
-                    print(line.decode('utf-8', errors='replace'), end="")
-            returncode = process.wait(timeout=timeout_seconds)
-        except subprocess.TimeoutExpired:
-            terminate_local_process(process)
-            print(f"Error executing remote command via SSH: timed out after {timeout_seconds}s")
-            print(f"Remote script:\n{command}")
-            sys.exit(124)
+            while True:
+                if deadline is not None and time.monotonic() > deadline:
+                    terminate_local_process(process)
+                    print(f"Error executing remote command via SSH: timed out after {timeout_seconds}s")
+                    print(f"Remote script:\n{command}")
+                    sys.exit(124)
+                try:
+                    line = output_queue.get(timeout=1)
+                except queue.Empty:
+                    if process.poll() is not None and output_queue.empty():
+                        break
+                    continue
+                if line is None:
+                    break
+                print(line.decode('utf-8', errors='replace'), end="")
+            returncode = process.wait(timeout=5)
         except KeyboardInterrupt:
             terminate_local_process(process)
             print("Interrupted; local SSH process was terminated.")
@@ -507,14 +527,14 @@ def reconcile_scraping_metadata(
     reconcile_cmd = f"""
 set -eu
 cd {dest_dir}
-rm -f data/background_tasks/home_api_payload.json data/background_tasks/municipality_catalog_cache.json data/background_tasks/search_indexed_slug_cache.json
+rm -f data/background_tasks/home_api_payload.json data/background_tasks/home_task_status_payload.json data/background_tasks/municipality_catalog_cache.json data/background_tasks/search_indexed_slug_cache.json data/background_tasks/home_api_filtered_v2_*.json
 reconcile_container="{SCRAPING_COMPOSE_PROJECT}-metadata-reconcile"
 docker rm -f "$reconcile_container" >/dev/null 2>&1 || true
 cleanup_reconcile() {{
   docker rm -f "$reconcile_container" >/dev/null 2>&1 || true
 }}
 trap cleanup_reconcile INT TERM HUP EXIT
-docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml run --name "$reconcile_container" --rm -T --no-deps --entrypoint sh -v {shared_data_dir}/reiki:/workspace/data/reiki -v {shared_data_dir}/work/reiki:/workspace/work/reiki scraper-gijiroku -lc 'cd /workspace && if command -v timeout >/dev/null 2>&1; then PYTHONPATH=/workspace timeout -k 30s {max(60, int(timeout_seconds))}s python3 tools/backfill_background_tasks.py --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work; else PYTHONPATH=/workspace python3 tools/backfill_background_tasks.py --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work; fi'
+docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml run --name "$reconcile_container" --rm -T --no-deps --entrypoint sh -v {shared_data_dir}/reiki:/workspace/data/reiki -v {shared_data_dir}/work/reiki:/workspace/work/reiki scraper-gijiroku -lc 'cd /workspace && if command -v timeout >/dev/null 2>&1; then PYTHONPATH=/workspace timeout -k 30s {max(60, int(timeout_seconds))}s python3 tools/backfill_background_tasks.py --force-running --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work; else PYTHONPATH=/workspace python3 tools/backfill_background_tasks.py --force-running --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work; fi'
 trap - INT TERM HUP EXIT
 cleanup_reconcile
 """
@@ -592,7 +612,7 @@ if [ -f {dest_dir}/docker-compose.scraping.yml ]; then
   docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml run --rm -T --no-deps -v {shared_data_dir}/reiki:/workspace/data/reiki --entrypoint sh scraper-gijiroku -lc '
 set -eu
 python3 /workspace/tools/normalize_municipality_storage.py --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work --background-task-dir /workspace/data/background_tasks
-python3 /workspace/tools/backfill_background_tasks.py --fast --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work
+python3 /workspace/tools/backfill_background_tasks.py --force-running --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work
 '
   trap - EXIT
   restore_scrapers
@@ -642,17 +662,34 @@ def prewarm_runtime_caches(config, dest_dir, *, timeout_seconds: int = 180):
     """Builds homepage / cross-search caches inside the php container after deploy."""
     prewarm_cmd = f"""
 cd {dest_dir}
+echo '[deploy] runtime cache prewarm starting'
 if command -v timeout >/dev/null 2>&1; then
-  timeout {max(1, int(timeout_seconds))}s docker compose exec -T php php /var/www/lib/prewarm_runtime_caches.php || status=$?
+  prewarm_pid=
+  cleanup_prewarm() {{
+    if [ -n "$prewarm_pid" ] && kill -0 "$prewarm_pid" >/dev/null 2>&1; then
+      kill "$prewarm_pid" >/dev/null 2>&1 || true
+    fi
+  }}
+  trap cleanup_prewarm INT TERM HUP EXIT
+  timeout -k 30s {max(1, int(timeout_seconds))}s docker compose exec -T -u www-data php php /var/www/lib/prewarm_runtime_caches.php &
+  prewarm_pid=$!
+  while kill -0 "$prewarm_pid" >/dev/null 2>&1; do
+    sleep 30
+    if kill -0 "$prewarm_pid" >/dev/null 2>&1; then
+      date '+[deploy] runtime cache prewarm still running at %F %T %z'
+    fi
+  done
+  wait "$prewarm_pid" || status=$?
+  trap - INT TERM HUP EXIT
   if [ "${{status:-0}}" -eq 124 ]; then
     echo '[deploy] WARN: runtime cache prewarm timed out; continuing deployment'
     exit 0
   fi
   exit "${{status:-0}}"
 fi
-docker compose exec -T php php /var/www/lib/prewarm_runtime_caches.php
+docker compose exec -T -u www-data php php /var/www/lib/prewarm_runtime_caches.php
 """
-    return ssh_exec(config, prewarm_cmd, timeout_seconds=max(30, int(timeout_seconds) + 60))
+    return ssh_exec(config, prewarm_cmd, stream=True, timeout_seconds=max(30, int(timeout_seconds) + 90))
 
 def sync_single_file(config, ssh_base, local_path, remote_path, dry_run=False, required=True, ignore_existing_remote=False):
     """Syncs a single file to the remote server using rsync."""
@@ -787,9 +824,19 @@ def main():
         help='Skip remote municipality storage normalization; useful for code-only scraper restarts.',
     )
     parser.add_argument(
+        '--with-normalize',
+        action='store_true',
+        help='Run remote municipality storage normalization during a code-only deploy. Full deploys still run it by default.',
+    )
+    parser.add_argument(
         '--skip-data-maintenance',
         action='store_true',
         help='Skip remote shared-data permission and migration passes for fast code-only deploys.',
+    )
+    parser.add_argument(
+        '--with-data-maintenance',
+        action='store_true',
+        help='Run remote shared-data permission and migration passes during a code-only deploy. Full deploys still run them by default.',
     )
     parser.add_argument(
         '--restart-scraping',
@@ -812,6 +859,11 @@ def main():
         help='Skip runtime cache prewarm after web deployment.',
     )
     parser.add_argument(
+        '--with-prewarm',
+        action='store_true',
+        help='Run runtime cache prewarm during a code-only deploy. Full deploys still run it by default.',
+    )
+    parser.add_argument(
         '--prewarm-timeout-seconds',
         type=int,
         default=180,
@@ -825,6 +877,18 @@ def main():
     )
     
     args = parser.parse_args()
+
+    if args.skip_normalize and args.with_normalize:
+        parser.error('--skip-normalize and --with-normalize cannot be used together')
+    if args.skip_data_maintenance and args.with_data_maintenance:
+        parser.error('--skip-data-maintenance and --with-data-maintenance cannot be used together')
+    if args.skip_prewarm and args.with_prewarm:
+        parser.error('--skip-prewarm and --with-prewarm cannot be used together')
+
+    if not args.full:
+        args.skip_normalize = args.skip_normalize or not args.with_normalize
+        args.skip_data_maintenance = args.skip_data_maintenance or not args.with_data_maintenance
+        args.skip_prewarm = args.skip_prewarm or not args.with_prewarm
 
     config = load_config(args.config_file)
     
@@ -865,6 +929,17 @@ fi
         )
         if restart_output:
             print(restart_output)
+        if args.skip_prewarm:
+            print("=== Skipping runtime cache prewarm ===")
+        else:
+            print("=== Prewarming runtime caches ===")
+            prewarm_output = prewarm_runtime_caches(
+                config,
+                dest_dir,
+                timeout_seconds=args.prewarm_timeout_seconds,
+            )
+            if prewarm_output:
+                print(prewarm_output)
         print("=== Scraping Restart Complete ===")
         return
 

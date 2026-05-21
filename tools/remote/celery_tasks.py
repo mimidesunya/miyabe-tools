@@ -115,6 +115,14 @@ def _reiki_backfill_command() -> list[str]:
     ]
 
 
+def _metadata_reconcile_command(task_name: str) -> list[str]:
+    return _python_command() + [
+        "tools/backfill_background_tasks.py",
+        "--tasks",
+        task_name,
+    ]
+
+
 def _reiki_scrape_command() -> list[str]:
     command = _python_command() + ["tools/reiki/scrape_all_reiki.py"]
     if celery_runtime.env_bool("SCRAPER_REIKI_CHECK_UPDATES", True):
@@ -176,6 +184,12 @@ def _run_reiki_scrape_impl() -> None:
     _run_command("reiki scrape", _reiki_scrape_command())
 
 
+def _recover_stale_metadata(task_name: str) -> None:
+    if not celery_runtime.task_is_stale_running(task_name):
+        return
+    _run_command(f"{task_name} metadata reconcile", _metadata_reconcile_command(task_name))
+
+
 @app.task(name="tools.remote.celery_tasks.dispatch_gijiroku_cycle")
 def dispatch_gijiroku_cycle() -> dict[str, object]:
     schedule_seconds = celery_runtime.env_int("CELERY_GIJIROKU_SCHEDULE_SECONDS", 6 * 60 * 60, minimum=60)
@@ -204,6 +218,7 @@ def run_gijiroku_backfill() -> dict[str, object]:
 def run_gijiroku_cycle(self) -> dict[str, object]:
     try:
         celery_runtime.clear_retry_marker("gijiroku")
+        _recover_stale_metadata("gijiroku")
         _run_gijiroku_scrape_impl()
         celery_runtime.clear_retry_marker("gijiroku")
         return {"ok": True, "task": "gijiroku_cycle"}
@@ -230,6 +245,7 @@ def run_reiki_backfill() -> dict[str, object]:
 def run_reiki_cycle(self) -> dict[str, object]:
     try:
         celery_runtime.clear_retry_marker("reiki")
+        _recover_stale_metadata("reiki")
         _run_reiki_scrape_impl()
         celery_runtime.clear_retry_marker("reiki")
         return {"ok": True, "task": "reiki_cycle"}

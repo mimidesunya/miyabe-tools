@@ -13,14 +13,27 @@ ob_start();
 
 try {
     $prefectureFilter = is_string($_GET['prefecture'] ?? null) ? (string)$_GET['prefecture'] : '';
-    $payload = management_db_homepage_payload($prefectureFilter);
+    $filteredCachePath = homepage_filtered_api_cache_path($prefectureFilter);
+    $payload = read_json_cache_file($filteredCachePath, homepage_filtered_api_cache_ttl_seconds());
+    $fromFilteredCache = is_array($payload);
+    if (is_array($payload)) {
+        if (!headers_sent()) {
+            header('X-Homepage-Filtered-Cache: hit');
+        }
+    }
+    if (!is_array($payload)) {
+        $payload = management_db_homepage_payload($prefectureFilter);
+        if (is_array($payload)) {
+            homepage_store_filtered_api_payload($filteredCachePath, homepage_sanitize_api_payload_displays($payload));
+        }
+    }
     if (!is_array($payload)) {
         $payload = homepage_build_api_payload_cached();
         $payload = homepage_filter_api_payload_by_prefecture($payload, $prefectureFilter);
-    } elseif (!headers_sent()) {
+    } elseif (!$fromFilteredCache && !headers_sent()) {
         header('X-Homepage-Store: postgres');
     }
-    $payload = homepage_overlay_live_status($payload);
+    $payload = homepage_sanitize_api_payload_displays($payload);
     $bufferedOutput = (string)ob_get_clean();
     if (trim($bufferedOutput) !== '') {
         error_log('[home_api] discarded unexpected output while building payload');

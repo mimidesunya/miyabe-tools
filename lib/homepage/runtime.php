@@ -897,7 +897,30 @@ function homepage_sanitize_home_card_display(?array $display): ?array
             break;
         }
     }
-    return $display;
+
+    $clean = [];
+    foreach ([
+        'label',
+        'class',
+        'detail',
+        'count_current',
+        'count_total',
+        'progress_current',
+        'progress_total',
+        'freshness_date',
+        'freshness_basis',
+        'last_checked_at',
+    ] as $key) {
+        if (array_key_exists($key, $display)) {
+            $clean[$key] = $display[$key];
+        }
+    }
+    foreach (['warning_lines', 'log_lines'] as $key) {
+        if (is_array($display[$key] ?? null)) {
+            $clean[$key] = array_slice(array_values(array_map('strval', $display[$key])), 0, 12);
+        }
+    }
+    return $clean;
 }
 
 function homepage_task_display_warning_lines(?array $display): array
@@ -1039,9 +1062,11 @@ function homepage_feature_card_display(
     ?array $primaryDisplay,
     ?array $publishDisplay,
     ?array $snapshotDisplay,
-    bool $hasData
+    bool $hasData,
+    ?array $fallbackDisplayOverride = null
 ): ?array {
-    $fallbackDisplay = homepage_feature_fallback_display($featureKey, $feature, $snapshotDisplay);
+    $fallbackDisplay = $fallbackDisplayOverride
+        ?? homepage_feature_fallback_display($featureKey, $feature, $snapshotDisplay);
     $statusDisplay = null;
     if (!$hasData && is_array($publishDisplay)) {
         $statusDisplay = $publishDisplay;
@@ -1999,7 +2024,8 @@ function homepage_collect_visible_features(
             $primaryDisplay,
             $publishDisplay,
             is_array($displays['snapshot'] ?? null) ? $displays['snapshot'] : null,
-            $hasData
+            $hasData,
+            is_array($displays['fallback'] ?? null) ? $displays['fallback'] : null
         );
 
         $needsPublish = !$hasData && (
@@ -2232,7 +2258,10 @@ function homepage_build_context(): array
                     $taskDisplay,
                     null,
                     $snapshotDisplay,
-                    (bool)($runtimeState['has_data'] ?? false)
+                    (bool)($runtimeState['has_data'] ?? false),
+                    is_array($runtimeState['displays']['fallback'] ?? null)
+                        ? $runtimeState['displays']['fallback']
+                        : null
                 );
             if (!is_array($display) || ($display['class'] ?? '') !== 'task-running') {
                 continue;
@@ -2421,7 +2450,7 @@ function homepage_build_api_payload(): array
     ];
 }
 
-function homepage_overlay_live_status(array $payload): array
+function homepage_overlay_live_status(array $payload, bool $includeTaskStatusPayload = true): array
 {
     $statuses = [
         'gijiroku' => homepage_normalize_task_status_items(load_background_task_status_fast('gijiroku')),
@@ -2476,13 +2505,39 @@ function homepage_overlay_live_status(array $payload): array
         }
     }
 
-    $taskPayload = homepage_build_task_status_payload();
-    if (is_array($taskPayload['task_state_summaries'] ?? null)) {
-        $payload['task_state_summaries'] = $taskPayload['task_state_summaries'];
+    if ($includeTaskStatusPayload) {
+        $taskPayload = homepage_build_task_status_payload_cached();
+        if (is_array($taskPayload['task_state_summaries'] ?? null)) {
+            $payload['task_state_summaries'] = $taskPayload['task_state_summaries'];
+        }
+        if (is_array($taskPayload['running_tasks'] ?? null)) {
+            $payload['running_tasks'] = $taskPayload['running_tasks'];
+        }
     }
-    if (is_array($taskPayload['running_tasks'] ?? null)) {
-        $payload['running_tasks'] = $taskPayload['running_tasks'];
+    return $payload;
+}
+
+function homepage_sanitize_api_payload_displays(array $payload): array
+{
+    unset($payload['task_state_summaries'], $payload['running_tasks']);
+
+    if (!is_array($payload['municipalities'] ?? null)) {
+        return $payload;
     }
+
+    foreach ($payload['municipalities'] as $cardIndex => $card) {
+        if (!is_array($card) || !is_array($card['features'] ?? null)) {
+            continue;
+        }
+        foreach ($card['features'] as $featureIndex => $featureCard) {
+            if (!is_array($featureCard) || !is_array($featureCard['display'] ?? null)) {
+                continue;
+            }
+            $payload['municipalities'][$cardIndex]['features'][$featureIndex]['display'] =
+                homepage_sanitize_home_card_display($featureCard['display']);
+        }
+    }
+
     return $payload;
 }
 
@@ -2494,6 +2549,139 @@ function homepage_api_cache_path(): string
 function homepage_api_cache_refresh_lock_path(): string
 {
     return data_path('background_tasks/home_api_payload.lock');
+}
+
+function homepage_filtered_api_cache_path(?string $prefecture): string
+{
+    $key = trim((string)$prefecture);
+    if ($key === '') {
+        $key = 'all';
+    }
+    return data_path('background_tasks/home_api_filtered_v2_' . sha1($key) . '.json');
+}
+
+function homepage_filtered_api_cache_ttl_seconds(): int
+{
+    return 300;
+}
+
+function homepage_store_filtered_api_payload(string $path, array $payload): void
+{
+    write_json_cache_file($path, $payload);
+}
+
+function homepage_task_status_cache_path(): string
+{
+    return data_path('background_tasks/home_task_status_payload.json');
+}
+
+function homepage_task_status_cache_refresh_lock_path(): string
+{
+    return data_path('background_tasks/home_task_status_payload.lock');
+}
+
+function homepage_task_status_source_version(): string
+{
+    $parts = [];
+    foreach ([
+        'gijiroku',
+        'reiki',
+        'gijiroku_snapshot',
+        'reiki_snapshot',
+        'gijiroku_reflect',
+        'reiki_reflect',
+        'search_rebuild',
+    ] as $task) {
+        $path = background_task_status_path($task);
+        $parts[] = $task . ':' . (is_file($path) ? ((string)@filemtime($path) . ':' . (string)@filesize($path)) : 'missing');
+    }
+
+    $searchIndexCachePath = homepage_search_index_cache_path();
+    $parts[] = 'search_index:' . (is_file($searchIndexCachePath)
+        ? ((string)@filemtime($searchIndexCachePath) . ':' . (string)@filesize($searchIndexCachePath))
+        : 'missing');
+
+    return sha1(implode('|', $parts));
+}
+
+function homepage_build_task_status_payload_cached(int $ttlSeconds = 10): array
+{
+    if ($ttlSeconds <= 0) {
+        return homepage_build_task_status_payload();
+    }
+
+    $cachePath = homepage_task_status_cache_path();
+    $cached = read_json_cache_file($cachePath, $ttlSeconds);
+    if (is_array($cached) && is_array($cached['payload'] ?? null)) {
+        if (!headers_sent()) {
+            header('X-Homepage-Task-Status-Cache: hit');
+        }
+        return $cached['payload'];
+    }
+
+    $staleCached = read_json_cache_file($cachePath, 0);
+    if (is_array($staleCached) && is_array($staleCached['payload'] ?? null)) {
+        homepage_schedule_task_status_payload_cache_refresh();
+        if (!headers_sent()) {
+            header('X-Homepage-Task-Status-Cache: stale');
+        }
+        return $staleCached['payload'];
+    }
+
+    $payload = homepage_build_task_status_payload();
+    write_json_cache_file($cachePath, [
+        'source_version' => homepage_task_status_source_version(),
+        'payload' => $payload,
+    ]);
+    if (!headers_sent()) {
+        header('X-Homepage-Task-Status-Cache: miss');
+    }
+    return $payload;
+}
+
+function homepage_schedule_task_status_payload_cache_refresh(): void
+{
+    static $scheduled = false;
+    if ($scheduled || PHP_SAPI === 'cli') {
+        return;
+    }
+
+    $lockPath = homepage_task_status_cache_refresh_lock_path();
+    $lockDir = dirname($lockPath);
+    if (!is_dir($lockDir)) {
+        @mkdir($lockDir, 0755, true);
+    }
+
+    $lockHandle = @fopen($lockPath, 'c');
+    if ($lockHandle === false) {
+        return;
+    }
+
+    if (!@flock($lockHandle, LOCK_EX | LOCK_NB)) {
+        @fclose($lockHandle);
+        return;
+    }
+
+    $scheduled = true;
+    register_shutdown_function(static function () use ($lockHandle, $lockPath): void {
+        if (function_exists('fastcgi_finish_request')) {
+            @fastcgi_finish_request();
+        }
+
+        try {
+            $payload = homepage_build_task_status_payload();
+            write_json_cache_file(homepage_task_status_cache_path(), [
+                'source_version' => homepage_task_status_source_version(),
+                'payload' => $payload,
+            ]);
+        } catch (Throwable $error) {
+            error_log('[task_status_api] background cache refresh failed: ' . $error->getMessage());
+        } finally {
+            @flock($lockHandle, LOCK_UN);
+            @fclose($lockHandle);
+            @unlink($lockPath);
+        }
+    });
 }
 
 function homepage_store_cached_api_payload(string $path, array $payload): void
@@ -2736,7 +2924,10 @@ function homepage_task_status_index_value(
         return '';
     }
 
-    $sets = homepage_search_indexed_slug_sets();
+    $cachedSearchIndex = read_json_cache_file(homepage_search_index_cache_path(), 0);
+    $sets = is_array($cachedSearchIndex) && is_array($cachedSearchIndex['features'] ?? null)
+        ? $cachedSearchIndex['features']
+        : [];
     $indexed = is_array($sets[$featureKey] ?? null) ? $sets[$featureKey] : [];
     if ($indexed === []) {
         return '';
