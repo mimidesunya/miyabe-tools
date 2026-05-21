@@ -4,11 +4,14 @@ import gzip
 import hashlib
 import json
 import os
+import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 
 TEXT_ENCODINGS = ("utf-8", "utf-8-sig", "cp932", "shift_jis", "euc_jp")
+ARCHIVE_MARKER = "_archive"
 
 
 def gzip_path(path: Path) -> Path:
@@ -17,6 +20,40 @@ def gzip_path(path: Path) -> Path:
 
 def logical_path(path: Path) -> Path:
     return path.with_suffix("") if path.suffix.lower() == ".gz" else path
+
+
+def archive_root_for(path: Path) -> tuple[Path, Path]:
+    resolved = path.resolve()
+    parts = resolved.parts
+    for marker in ("reiki", "gijiroku"):
+        if marker not in parts:
+            continue
+        index = len(parts) - 1 - list(reversed(parts)).index(marker)
+        if index + 1 >= len(parts) - 1:
+            continue
+        base = Path(*parts[: index + 2])
+        try:
+            return base / ARCHIVE_MARKER, resolved.relative_to(base)
+        except ValueError:
+            continue
+    return resolved.parent / ARCHIVE_MARKER, Path(resolved.name)
+
+
+def archive_existing_file(path: Path, *, reason: str = "replace") -> Path | None:
+    try:
+        candidate = path.resolve()
+        if ARCHIVE_MARKER in candidate.parts or not candidate.is_file():
+            return None
+        archive_root, relative = archive_root_for(candidate)
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        safe_reason = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in reason).strip("_") or "replace"
+        destination = archive_root / f"{stamp}_{safe_reason}" / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(candidate, destination)
+        return destination
+    except Exception as exc:
+        print(f"[WARN] failed to archive old file before {reason}: {path} [{type(exc).__name__}] {exc}", flush=True)
+        return None
 
 
 def read_bytes(path: Path) -> bytes:
@@ -39,16 +76,30 @@ def read_text_auto(path: Path) -> str:
 def write_bytes(path: Path, data: bytes, *, compress: bool = False) -> Path:
     final_path = gzip_path(path) if compress else path
     final_path.parent.mkdir(parents=True, exist_ok=True)
+    existing = existing_path(path)
+    archived_existing: Path | None = None
+    if existing is not None:
+        try:
+            if read_bytes(existing) != data:
+                archive_existing_file(existing, reason="overwrite")
+                archived_existing = existing.resolve()
+        except Exception:
+            archive_existing_file(existing, reason="overwrite")
+            archived_existing = existing.resolve()
     if compress:
         with gzip.open(final_path, "wb", compresslevel=6) as handle:
             handle.write(data)
         plain_path = logical_path(final_path)
         if plain_path != final_path and plain_path.exists():
+            if archived_existing != plain_path.resolve():
+                archive_existing_file(plain_path, reason="delete")
             plain_path.unlink()
     else:
         final_path.write_bytes(data)
         gz_path = gzip_path(final_path)
         if gz_path != final_path and gz_path.exists():
+            if archived_existing != gz_path.resolve():
+                archive_existing_file(gz_path, reason="delete")
             gz_path.unlink()
     return final_path
 

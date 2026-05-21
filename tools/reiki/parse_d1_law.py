@@ -84,8 +84,7 @@ def download_image(img_filename, kno, images_dir, base_url, stats=None):
         images_dir.mkdir(parents=True, exist_ok=True)
         response = requests.get(full_url, headers={"User-Agent": USER_AGENT}, timeout=15)
         response.raise_for_status()
-        with open(local_path, "wb") as handle:
-            handle.write(response.content)
+        reiki_io.write_bytes(local_path, response.content)
 
         if stats is not None:
             stats["images_downloaded"] += 1
@@ -300,8 +299,7 @@ def process_file(
         )
 
         reiki_io.write_text(md_output_dir / f"{logical_source.stem}.md", markdown, compress=True)
-        with open(html_output_path, "w", encoding="utf-8") as handle:
-            handle.write(clean_html)
+        reiki_io.write_text(html_output_path, clean_html)
         return True
     except Exception as exc:
         print(f"Error processing {file_path}: {exc}")

@@ -1407,10 +1407,56 @@ function read_text_file_auto(string $path): string
     return ensure_utf8(read_file_bytes_auto($path));
 }
 
+function archive_existing_file(string $path, string $reason = 'replace'): ?string
+{
+    $resolved = realpath($path);
+    if (!is_string($resolved) || !is_file($resolved)) {
+        return null;
+    }
+    $normalized = str_replace('\\', '/', $resolved);
+    if (str_contains($normalized, '/_archive/')) {
+        return null;
+    }
+
+    if (preg_match('~^(.*?/(?:reiki|gijiroku)/[^/]+)/(.*)$~', $normalized, $matches) === 1) {
+        $base = $matches[1];
+        $relative = $matches[2];
+    } else {
+        $base = dirname($normalized);
+        $relative = basename($normalized);
+    }
+
+    $micro = microtime(true);
+    $stamp = date('Ymd_His', (int)$micro) . sprintf('_%06d', (int)(($micro - floor($micro)) * 1000000));
+    $safeReason = preg_replace('/[^A-Za-z0-9_-]+/', '_', $reason) ?: 'replace';
+    $destination = $base . '/_archive/' . $stamp . '_' . $safeReason . '/' . $relative;
+    ensure_dir(dirname($destination));
+    if (!@copy($resolved, $destination)) {
+        fwrite(STDERR, "[WARN] failed to archive old file before {$reason}: {$resolved}\n");
+        return null;
+    }
+    @touch($destination, (int)filemtime($resolved));
+    return $destination;
+}
+
 function write_text_file(string $path, string $content, bool $compress = false): string
 {
     $finalPath = $compress ? gzip_path($path) : $path;
     ensure_dir(dirname($finalPath));
+
+    $existingPath = existing_path($path);
+    $archivedExisting = null;
+    if ($existingPath !== null) {
+        try {
+            if (read_file_bytes_auto($existingPath) !== $content) {
+                archive_existing_file($existingPath, 'overwrite');
+                $archivedExisting = realpath($existingPath) ?: $existingPath;
+            }
+        } catch (Throwable) {
+            archive_existing_file($existingPath, 'overwrite');
+            $archivedExisting = realpath($existingPath) ?: $existingPath;
+        }
+    }
 
     if ($compress) {
         $encoded = gzencode($content, 6, ZLIB_ENCODING_GZIP);
@@ -1421,6 +1467,10 @@ function write_text_file(string $path, string $content, bool $compress = false):
 
         $plainPath = logical_path($finalPath);
         if ($plainPath !== $finalPath && is_file($plainPath)) {
+            $resolvedPlainPath = realpath($plainPath) ?: $plainPath;
+            if ($archivedExisting !== $resolvedPlainPath) {
+                archive_existing_file($plainPath, 'delete');
+            }
             unlink($plainPath);
         }
     } else {
@@ -1428,6 +1478,10 @@ function write_text_file(string $path, string $content, bool $compress = false):
 
         $gzPath = gzip_path($finalPath);
         if ($gzPath !== $finalPath && is_file($gzPath)) {
+            $resolvedGzPath = realpath($gzPath) ?: $gzPath;
+            if ($archivedExisting !== $resolvedGzPath) {
+                archive_existing_file($gzPath, 'delete');
+            }
             unlink($gzPath);
         }
     }
