@@ -687,9 +687,9 @@ def list_targets(targets: list[dict]) -> None:
 
 
 def select_runnable_targets(targets: list[dict]) -> list[dict]:
-    runnable_targets = []
     skipped_fresh = 0
     group_counts: dict[int, int] = {}
+    targets_by_group: dict[int, list[dict]] = {1: [], 2: [], 3: []}
     for target in targets:
         try:
             priority_group = int(reiki_priority.target_priority_info(target)["priority_group"])
@@ -699,12 +699,21 @@ def select_runnable_targets(targets: list[dict]) -> list[dict]:
         if priority_group >= 4:
             skipped_fresh += 1
             continue
-        runnable_targets.append(target)
+        targets_by_group.setdefault(priority_group, []).append(target)
+
+    incomplete_targets = targets_by_group.get(1, []) + targets_by_group.get(2, [])
+    if incomplete_targets:
+        runnable_targets = incomplete_targets
+        deferred_complete = len(targets_by_group.get(3, []))
+    else:
+        runnable_targets = targets_by_group.get(3, [])
+        deferred_complete = 0
 
     print(
         "[INFO] 実行対象を優先度で選定しました: "
         f"incomplete={group_counts.get(1, 0)} unknown_total={group_counts.get(2, 0)} "
-        f"due_complete={group_counts.get(3, 0)} recent_complete_skip={skipped_fresh}",
+        f"due_complete={group_counts.get(3, 0)} deferred_complete={deferred_complete} "
+        f"recent_complete_skip={skipped_fresh}",
         flush=True,
     )
     return runnable_targets
