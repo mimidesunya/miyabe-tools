@@ -3183,6 +3183,19 @@ function homepage_build_task_status_payload(): array
                 $status
             )
         );
+        $indexStatus = is_array($statuses[$taskKey . '_reflect'] ?? null) ? $statuses[$taskKey . '_reflect'] : [];
+        if ($indexStatus !== []) {
+            array_push(
+                $runningTasks,
+                ...homepage_task_status_running_tasks_from_items(
+                    $taskKey,
+                    (string)$definition['feature_key'],
+                    (string)$definition['label'],
+                    (string)$definition['icon'],
+                    $indexStatus
+                )
+            );
+        }
     }
     $searchTask = homepage_search_rebuild_running_task(
         is_array($statuses['search_rebuild'] ?? null) ? $statuses['search_rebuild'] : []

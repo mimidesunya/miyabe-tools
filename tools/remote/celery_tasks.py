@@ -4,6 +4,7 @@ import shlex
 import signal
 import subprocess
 import time
+import re
 from pathlib import Path
 
 from tools.remote.celery_app import app
@@ -15,6 +16,8 @@ from tools.reiki import reiki_targets
 
 
 ROOT = Path(__file__).resolve().parents[2]
+INDEX_BULK_RE = re.compile(r"^\[BULK\]\s+.*\btotal=(?P<total>\d+)\b")
+INDEX_DONE_RE = re.compile(r"^\[DONE\]\s+.*\bcount=(?P<count>\d+)\b")
 
 
 def _python_command_text() -> str:
@@ -195,7 +198,20 @@ def _target_by_slug(kind: str, slug: str) -> dict[str, object]:
     return {"slug": slug, "code": "", "name": slug, "full_name": slug, "system_type": "", "source_url": ""}
 
 
-def _reflect_state(task_name: str, target: dict[str, object]) -> dict[str, object]:
+def _index_document_total(kind: str, slug: str) -> int:
+    try:
+        from tools.search import build_opensearch_index as search_index
+
+        slugs = {slug}
+        if kind == "gijiroku":
+            return max(0, int(search_index.count_minutes_documents_by_slug(slugs=slugs).get(slug, 0)))
+        return max(0, int(search_index.count_reiki_documents_by_slug(slugs=slugs).get(slug, 0)))
+    except Exception as exc:
+        print(f"[CELERY] index document count failed for {kind} {slug}: {exc}", flush=True)
+        return 0
+
+
+def _reflect_state(task_name: str, target: dict[str, object], *, progress_total: int = 0) -> dict[str, object]:
     state = batch_status.read_state(task_name)
     now = batch_status.now_text()
     if not state or not isinstance(state.get("items"), dict):
@@ -237,12 +253,49 @@ def _reflect_state(task_name: str, target: dict[str, object]) -> dict[str, objec
         "progress_updated_at": "",
         "returncode": None,
         "pid": None,
-        "progress_current": None,
-        "progress_total": None,
-        "progress_unit": "",
+        "progress_current": 0 if progress_total > 0 else None,
+        "progress_total": progress_total if progress_total > 0 else None,
+        "progress_unit": "document" if progress_total > 0 else "",
     }
     batch_status.refresh_counts(state)
     return state
+
+
+def _run_index_update_command_with_status(kind: str, slug: str, state: dict[str, object], progress_total: int) -> None:
+    command = _index_update_command("minutes" if kind == "gijiroku" else "reiki", slug)
+    print(f"[CELERY] {kind} index update {slug}: {celery_runtime.command_text(command)}", flush=True)
+    process = subprocess.Popen(
+        command,
+        cwd=str(ROOT),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        **process_group_popen_kwargs(),
+    )
+    batch_status.update_item(state, slug, pid=int(process.pid))
+    batch_status.write_state(f"{kind}_reflect", state)
+    assert process.stdout is not None
+    for raw_line in process.stdout:
+        line = raw_line.rstrip("\n")
+        print(line, flush=True)
+        current = None
+        match = INDEX_BULK_RE.match(line) or INDEX_DONE_RE.match(line)
+        if match is not None:
+            current = max(0, int(match.group("total") if "total" in match.groupdict() else match.group("count")))
+        if current is not None:
+            batch_status.update_item(
+                state,
+                slug,
+                message="インデックス更新中",
+                progress_current=min(current, progress_total) if progress_total > 0 else current,
+                progress_total=progress_total if progress_total > 0 else current,
+                progress_unit="document",
+            )
+            batch_status.write_state(f"{kind}_reflect", state)
+    returncode = process.wait()
+    if returncode != 0:
+        raise RuntimeError(f"{kind} index update {slug} failed with exit code {returncode}")
 
 
 def _run_index_update_impl(kind: str, slug: str) -> None:
@@ -250,14 +303,14 @@ def _run_index_update_impl(kind: str, slug: str) -> None:
     if slug == "":
         raise ValueError("slug is required")
     task_name = f"{kind}_reflect"
-    doc_type = "minutes" if kind == "gijiroku" else "reiki"
     target = _target_by_slug(kind, slug)
-    state = _reflect_state(task_name, target)
+    progress_total = _index_document_total(kind, slug)
+    state = _reflect_state(task_name, target, progress_total=progress_total)
     batch_status.write_state(task_name, state)
     ok = False
     message = ""
     try:
-        _run_command(f"{kind} index update {slug}", _index_update_command(doc_type, slug))
+        _run_index_update_command_with_status(kind, slug, state, progress_total)
         ok = True
         message = "インデックス更新完了"
     except Exception as exc:
