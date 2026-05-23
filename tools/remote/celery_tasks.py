@@ -237,6 +237,16 @@ def _reflect_state(task_name: str, target: dict[str, object], *, progress_total:
     state["index_queue_count"] = 0
     items = state.setdefault("items", {})
     slug = str(target.get("slug") or "").strip()
+    for existing_slug, item in list(items.items()):
+        if existing_slug == slug or not isinstance(item, dict):
+            continue
+        if str(item.get("status") or "").strip() == "running":
+            item["status"] = "failed"
+            item["message"] = "新しいインデックス更新開始により終了扱い"
+            item["finished_at"] = now
+            item["updated_at"] = now
+            item["returncode"] = -signal.SIGTERM
+            item["pid"] = None
     items[slug] = {
         "slug": slug,
         "code": str(target.get("code") or "").strip(),
