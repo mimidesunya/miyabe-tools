@@ -2907,8 +2907,8 @@ function homepage_task_status_index_value(
     array $completionStatus,
     array $liveStatus = []
 ): string {
-    $dataSlugs = homepage_task_status_data_slugs($completionStatus, $liveStatus);
-    if ($dataSlugs === []) {
+    $completeSlugs = homepage_task_status_completed_slugs($completionStatus, $liveStatus);
+    if ($completeSlugs === []) {
         return '';
     }
 
@@ -2919,12 +2919,12 @@ function homepage_task_status_index_value(
     }
 
     $indexedCount = 0;
-    foreach ($dataSlugs as $slug => $_) {
+    foreach ($completeSlugs as $slug => $_) {
         if (isset($indexed[$slug]) && (int)$indexed[$slug] > 0) {
             $indexedCount += 1;
         }
     }
-    $total = count($dataSlugs);
+    $total = count($completeSlugs);
     if ($total <= 0) {
         return '';
     }

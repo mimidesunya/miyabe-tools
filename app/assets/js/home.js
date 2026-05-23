@@ -17,6 +17,7 @@
     let latestPayload = null;
     let selectedPrefecture = readSelectedPrefecture() || defaultPrefecture;
     let latestTaskStatusEtag = '';
+    let latestProcessingStatusPayload = null;
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -382,6 +383,12 @@
     function renderProcessingStatus(payload) {
         const runningTasks = Array.isArray(payload?.running_tasks) ? payload.running_tasks : [];
         const taskStateSummaries = Array.isArray(payload?.task_state_summaries) ? payload.task_state_summaries : [];
+        if (taskStateSummaries.length === 0 && runningTasks.length === 0 && latestProcessingStatusPayload) {
+            return;
+        }
+        if (taskStateSummaries.length > 0 || runningTasks.length > 0) {
+            latestProcessingStatusPayload = payload;
+        }
 
         if (runningSection && runningList) {
             const tasksByKey = new Map();
@@ -408,9 +415,13 @@
                     }
                     : null,
             }));
-            runningSection.hidden = summaryCards.length === 0;
+            const renderedCards = summaryCards.map(renderRunningSummaryCard).filter((html) => html !== '');
+            if (renderedCards.length === 0 && latestProcessingStatusPayload && latestProcessingStatusPayload !== payload) {
+                return;
+            }
+            runningSection.hidden = renderedCards.length === 0;
             if (runningSummaryList) {
-                runningSummaryList.innerHTML = summaryCards.map(renderRunningSummaryCard).join('');
+                runningSummaryList.innerHTML = renderedCards.join('');
             }
             runningList.innerHTML = '';
             runningList.hidden = true;
