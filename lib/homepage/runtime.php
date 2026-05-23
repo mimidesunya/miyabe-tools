@@ -2816,7 +2816,6 @@ function homepage_task_status_downloaded_value(
     if ($baselineValue === '') {
         $baselineValue = homepage_task_status_stat_value($baselineSummary, 'DL済');
     }
-    $baselineComplete = homepage_task_status_stat_complete_count($baselineValue);
     $targetCount = count(array_filter(
         homepage_feature_target_codes($featureKey),
         static fn(mixed $code): bool => trim((string)$code) !== ''
@@ -2828,12 +2827,6 @@ function homepage_task_status_downloaded_value(
         return min(count($completeSlugs), $targetCount) . '/' . $targetCount;
     }
 
-    $cardComplete = function_exists('management_db_homepage_feature_complete_count')
-        ? management_db_homepage_feature_complete_count($featureKey)
-        : null;
-    if ($cardComplete !== null && $targetCount > 0 && $cardComplete !== $baselineComplete) {
-        return min($cardComplete, $targetCount) . '/' . $targetCount;
-    }
     return $baselineValue;
 }
 
@@ -2886,12 +2879,6 @@ function homepage_task_status_index_summary_from_baseline(
         $completionStatus,
         $taskStatus
     );
-    if ($completed === '') {
-        $completed = homepage_task_status_stat_value($baselineIndex, '検索可');
-    }
-    if ($completed === '') {
-        $completed = homepage_task_status_stat_value($baselineIndex, '完了');
-    }
     if ($completed !== '') {
         $stats[] = ['label' => '検索可', 'value' => $completed];
     }
@@ -2924,10 +2911,7 @@ function homepage_task_status_index_value(
         return '';
     }
 
-    $cachedSearchIndex = read_json_cache_file(homepage_search_index_cache_path(), 0);
-    $sets = is_array($cachedSearchIndex) && is_array($cachedSearchIndex['features'] ?? null)
-        ? $cachedSearchIndex['features']
-        : [];
+    $sets = homepage_search_indexed_slug_sets();
     $indexed = is_array($sets[$featureKey] ?? null) ? $sets[$featureKey] : [];
     if ($indexed === []) {
         return '';
