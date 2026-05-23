@@ -2868,9 +2868,10 @@ function homepage_task_status_index_summary_from_baseline(
         return null;
     }
     $baselineIndex = is_array($baselineSummary['index_summary'] ?? null) ? $baselineSummary['index_summary'] : [];
-    [$stateLabel, $stateClass] = homepage_task_status_index_state($taskStatus);
-    $capacity = max(1, (int)($taskStatus['index_capacity'] ?? 1));
-    $active = max(0, (int)($taskStatus['index_active_count'] ?? 0));
+    $indexRuntimeStatus = $indexStatus !== [] ? $indexStatus : $taskStatus;
+    [$stateLabel, $stateClass] = homepage_task_status_index_state($indexRuntimeStatus);
+    $capacity = max(1, (int)($indexRuntimeStatus['index_capacity'] ?? 1));
+    $active = max(0, (int)($indexRuntimeStatus['index_active_count'] ?? 0));
     $stats = [];
     $stats[] = ['label' => '稼働', 'value' => $active . '/' . $capacity];
     $completed = homepage_task_status_index_value(

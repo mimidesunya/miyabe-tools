@@ -5,16 +5,18 @@ import argparse
 import json
 import sys
 
-from tools.remote.celery_app import app
+from tools.remote.celery_app import app, GIJIROKU_INDEX_QUEUE, REIKI_INDEX_QUEUE
 
 
 TASK_CHOICES = {
     "gijiroku-cycle": ("tools.remote.celery_tasks.run_gijiroku_cycle", "gijiroku"),
     "gijiroku-backfill": ("tools.remote.celery_tasks.run_gijiroku_backfill", "gijiroku"),
     "gijiroku-rebuild": ("tools.remote.celery_tasks.run_gijiroku_rebuild", "gijiroku"),
+    "gijiroku-index": ("tools.remote.celery_tasks.run_gijiroku_index_update", GIJIROKU_INDEX_QUEUE),
     "reiki-cycle": ("tools.remote.celery_tasks.run_reiki_cycle", "reiki"),
     "reiki-backfill": ("tools.remote.celery_tasks.run_reiki_backfill", "reiki"),
     "reiki-rebuild": ("tools.remote.celery_tasks.run_reiki_rebuild", "reiki"),
+    "reiki-index": ("tools.remote.celery_tasks.run_reiki_index_update", REIKI_INDEX_QUEUE),
 }
 
 
@@ -30,6 +32,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="旧互換オプション。OpenSearch rebuild では無視されます",
     )
+    parser.add_argument(
+        "--slug",
+        default="",
+        help="*-index task で更新する自治体 slug",
+    )
     return parser
 
 
@@ -39,6 +46,12 @@ def main() -> int:
     kwargs = {}
     if args.task.endswith("-rebuild"):
         kwargs["name_filter"] = args.filter.strip()
+    if args.task.endswith("-index"):
+        slug = args.slug.strip()
+        if slug == "":
+            print("--slug is required for index tasks", file=sys.stderr)
+            return 2
+        kwargs["slug"] = slug
     result = app.send_task(task_name, kwargs=kwargs, queue=queue_name)
     print(
         json.dumps(
@@ -48,6 +61,7 @@ def main() -> int:
                 "task_name": task_name,
                 "task_id": result.id,
                 "filter": kwargs.get("name_filter", ""),
+                "slug": kwargs.get("slug", ""),
             },
             ensure_ascii=False,
         )

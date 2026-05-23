@@ -424,7 +424,9 @@ def remote_stop_scraping_stack_cmd(scraper_image_name: str = DEFAULT_SCRAPER_IMA
     return f"""
 if [ -f docker-compose.scraping.yml ]; then
   docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml stop scraper-beat scraper-gijiroku scraper-reiki scraper-redis >/dev/null 2>&1 || true
+  docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml stop scraper-gijiroku-index scraper-reiki-index >/dev/null 2>&1 || true
   docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml rm -f scraper-beat scraper-gijiroku scraper-reiki scraper-redis >/dev/null 2>&1 || true
+  docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml rm -f scraper-gijiroku-index scraper-reiki-index >/dev/null 2>&1 || true
 fi
 {remote_scraper_cleanup_cmd(scraper_image_name)}
 """.strip()
@@ -495,6 +497,8 @@ printf '%s\n' "$running"
 echo "$running" | grep -qx 'scraper-redis'
 echo "$running" | grep -qx 'scraper-gijiroku'
 echo "$running" | grep -qx 'scraper-reiki'
+echo "$running" | grep -qx 'scraper-gijiroku-index'
+echo "$running" | grep -qx 'scraper-reiki-index'
 echo "$running" | grep -qx 'scraper-beat'
 """
     return ssh_exec(config, verify_cmd)
@@ -595,7 +599,7 @@ mkdir -p {dest_dir}/tools {dest_dir}/data/background_tasks {dest_dir}/data/munic
 echo '[deploy] sync municipality metadata to shared data'
 rsync -a {dest_dir}/data/municipalities/ {shared_data_dir}/municipalities/
 if [ -f {dest_dir}/docker-compose.scraping.yml ]; then
-  running_scrapers="$(docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml ps --status running --services | grep -E '^(scraper-gijiroku|scraper-reiki|scraper-beat)$' || true)"
+  running_scrapers="$(docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml ps --status running --services | grep -E '^(scraper-gijiroku|scraper-reiki|scraper-gijiroku-index|scraper-reiki-index|scraper-beat)$' || true)"
   restore_scrapers() {{
     if [ -n "$running_scrapers" ]; then
       echo '[deploy] restore scraper workers after normalization'
@@ -651,7 +655,7 @@ cd {dest_dir}
     )
     restart_cmd = f"""
 set -eu
-{remote_scraping_compose_cmd(dest_dir, 'up -d --force-recreate --remove-orphans scraper-redis scraper-gijiroku scraper-reiki scraper-beat')}
+{remote_scraping_compose_cmd(dest_dir, 'up -d --force-recreate --remove-orphans scraper-redis scraper-gijiroku scraper-reiki scraper-gijiroku-index scraper-reiki-index scraper-beat')}
 """
     restart_output = ssh_exec(config, restart_cmd)
     verify_output = verify_scraping_services_running(config, dest_dir)

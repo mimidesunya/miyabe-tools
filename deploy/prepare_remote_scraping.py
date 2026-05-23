@@ -197,7 +197,10 @@ def main() -> int:
     print(f"docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml logs -f scraper-gijiroku")
     print(f"docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml logs -f scraper-reiki")
     print(f"docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml logs -f scraper-beat")
-    print(f"docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml restart scraper-gijiroku scraper-reiki scraper-beat")
+    print(
+        f"docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml "
+        "restart scraper-gijiroku scraper-reiki scraper-gijiroku-index scraper-reiki-index scraper-beat"
+    )
     print(
         "docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml exec scraper-gijiroku "
         "python3 tools/remote/celery_enqueue.py gijiroku-cycle"

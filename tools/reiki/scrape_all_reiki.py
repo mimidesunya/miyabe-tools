@@ -12,6 +12,7 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 sys.path.append(str(Path(__file__).parent))
 sys.path.append(str(Path(__file__).resolve().parents[1] / "gijiroku"))
@@ -137,6 +138,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-build-index",
         action="store_true",
         help="スクレイプ完了後の OpenSearch 自治体別増分更新を行わない",
+    )
+    parser.add_argument(
+        "--index-dispatch",
+        choices=["inline", "celery"],
+        default="inline",
+        help="OpenSearch 増分更新の実行方法。remote では celery でスクレイピングと分離する。",
     )
     parser.add_argument(
         "--list-targets",
@@ -337,6 +344,17 @@ def build_index_command(args: argparse.Namespace, target: dict) -> list[str]:
         ]
     )
     return cmd
+
+
+def enqueue_index_update_task(target: dict) -> str:
+    from tools.remote.celery_app import app, REIKI_INDEX_QUEUE
+
+    result = app.send_task(
+        "tools.remote.celery_tasks.run_reiki_index_update",
+        kwargs={"slug": str(target["slug"])},
+        queue=REIKI_INDEX_QUEUE,
+    )
+    return str(result.id)
 
 
 def queue_index_worker(scrape_worker: dict, scrape_returncode: int) -> dict:
@@ -958,6 +976,51 @@ def main() -> int:
                 index_returncode = ""
                 index_stdout_log = ""
                 index_stderr_log = ""
+
+                if returncode == 0 and not args.no_build_index and not args.crawl_only and args.index_dispatch == "celery":
+                    progress = extract_worker_progress_for_display(worker)
+                    finished_at = batch_status.now_text()
+                    try:
+                        index_task_id = enqueue_index_update_task(target)
+                        index_status = "queued"
+                        index_message = f"{summary} / インデックス更新を別キューへ投入"
+                        index_returncode = ""
+                    except Exception as exc:
+                        index_task_id = ""
+                        index_status = "failed"
+                        index_message = f"{summary} / インデックス更新投入失敗: {exc}"
+                        index_returncode = -1
+                    record_target_result(
+                        writer,
+                        handle,
+                        status_state=status_state,
+                        task_name="reiki",
+                        target=target,
+                        host=str(worker["host"]),
+                        overall_status=overall_status,
+                        overall_returncode=overall_returncode,
+                        scrape_returncode=int(returncode),
+                        index_status=index_status,
+                        index_returncode=index_returncode,
+                        started_at=str(worker["started_at"]),
+                        finished_at=finished_at,
+                        stdout_log=str(worker["stdout_path"]),
+                        stderr_log=str(worker["stderr_path"]),
+                        index_stdout_log="",
+                        index_stderr_log="",
+                        message=index_message,
+                        progress=progress,
+                    )
+                    batch_status.invalidate_runtime_caches()
+                    completed_count += 1
+                    print(
+                        f"[DONE {completed_count}/{len(targets)}] {target['slug']} "
+                        f"[{target['system_type']}] returncode={overall_returncode} {summary} "
+                        f"/ index_task={index_task_id or index_status}",
+                        flush=True,
+                    )
+                    made_progress = True
+                    continue
 
                 if returncode == 0 and not args.no_build_index and not args.crawl_only:
                     pending_index_workers.append(queue_index_worker(worker, returncode))

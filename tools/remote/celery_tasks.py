@@ -9,6 +9,9 @@ from pathlib import Path
 from tools.remote.celery_app import app
 from tools.remote import celery_runtime
 from tools.batch_runner_common import process_group_popen_kwargs, terminate_process_group
+from tools import batch_status
+from tools.gijiroku import gijiroku_targets
+from tools.reiki import reiki_targets
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -98,6 +101,8 @@ def _gijiroku_scrape_command() -> list[str]:
             ),
             "--python-command",
             _python_command_text(),
+            "--index-dispatch",
+            "celery",
         ]
     )
     if not _scraper_build_search_index():
@@ -147,6 +152,8 @@ def _reiki_scrape_command() -> list[str]:
             _python_command_text(),
             "--php-command",
             _php_command_text(),
+            "--index-dispatch",
+            "celery",
         ]
     )
     if not _scraper_build_search_index():
@@ -166,6 +173,119 @@ def _rebuild_command(kind: str, name_filter: str) -> list[str]:
     if name_filter.strip() != "":
         print("[CELERY] name_filter is ignored by OpenSearch rebuild", flush=True)
     return command
+
+
+def _index_update_command(doc_type: str, slug: str) -> list[str]:
+    return _python_command() + [
+        "tools/search/build_opensearch_index.py",
+        "--mode",
+        "update",
+        "--doc-type",
+        doc_type,
+        "--slug",
+        slug,
+    ]
+
+
+def _target_by_slug(kind: str, slug: str) -> dict[str, object]:
+    targets = gijiroku_targets.iter_gijiroku_targets() if kind == "gijiroku" else reiki_targets.iter_reiki_targets()
+    for target in targets:
+        if str(target.get("slug") or "").strip() == slug:
+            return target
+    return {"slug": slug, "code": "", "name": slug, "full_name": slug, "system_type": "", "source_url": ""}
+
+
+def _reflect_state(task_name: str, target: dict[str, object]) -> dict[str, object]:
+    state = batch_status.read_state(task_name)
+    now = batch_status.now_text()
+    if not state or not isinstance(state.get("items"), dict):
+        state = batch_status.build_state(
+            task_name,
+            now.replace("-", "").replace(":", "").replace(" ", "_"),
+            0,
+            ROOT / "data" / "background_tasks" / f"{task_name}.csv",
+            ROOT / "data" / "background_tasks",
+        )
+    state["task"] = task_name
+    state["running"] = True
+    state["running_label"] = "インデックス更新中"
+    state["started_at"] = str(state.get("started_at") or now)
+    state["last_started_at"] = now
+    state["finished_at"] = ""
+    state["worker_capacity"] = 1
+    state["worker_active_count"] = 1
+    state["worker_idle_count"] = 0
+    state["index_capacity"] = 1
+    state["index_active_count"] = 1
+    state["index_idle_count"] = 0
+    state["index_queue_count"] = 0
+    items = state.setdefault("items", {})
+    slug = str(target.get("slug") or "").strip()
+    items[slug] = {
+        "slug": slug,
+        "code": str(target.get("code") or "").strip(),
+        "name": str(target.get("name") or "").strip(),
+        "full_name": str(target.get("full_name") or "").strip(),
+        "system_type": str(target.get("system_type") or "").strip(),
+        "host": "",
+        "source_url": str(target.get("source_url") or "").strip(),
+        "status": "running",
+        "message": "インデックス更新中",
+        "started_at": now,
+        "finished_at": "",
+        "updated_at": now,
+        "progress_updated_at": "",
+        "returncode": None,
+        "pid": None,
+        "progress_current": None,
+        "progress_total": None,
+        "progress_unit": "",
+    }
+    batch_status.refresh_counts(state)
+    return state
+
+
+def _run_index_update_impl(kind: str, slug: str) -> None:
+    slug = slug.strip()
+    if slug == "":
+        raise ValueError("slug is required")
+    task_name = f"{kind}_reflect"
+    doc_type = "minutes" if kind == "gijiroku" else "reiki"
+    target = _target_by_slug(kind, slug)
+    state = _reflect_state(task_name, target)
+    batch_status.write_state(task_name, state)
+    ok = False
+    message = ""
+    try:
+        _run_command(f"{kind} index update {slug}", _index_update_command(doc_type, slug))
+        ok = True
+        message = "インデックス更新完了"
+    except Exception as exc:
+        message = str(exc)
+        raise
+    finally:
+        finished_at = batch_status.now_text()
+        batch_status.update_item(
+            state,
+            slug,
+            status="ok" if ok else "failed",
+            message=message,
+            finished_at=finished_at,
+            returncode=0 if ok else -1,
+            progress_current=1 if ok else None,
+            progress_total=1 if ok else None,
+            progress_unit="municipality" if ok else "",
+        )
+        state["running"] = False
+        state["finished_at"] = finished_at
+        state["last_finished_at"] = finished_at
+        state["worker_active_count"] = 0
+        state["worker_idle_count"] = 1
+        state["index_active_count"] = 0
+        state["index_idle_count"] = 1
+        batch_status.refresh_counts(state)
+        batch_status.write_state(task_name, state)
+        batch_status.invalidate_runtime_caches(include_homepage_payload=True)
 
 
 def _run_gijiroku_backfill_impl() -> None:
@@ -235,6 +355,12 @@ def run_gijiroku_rebuild(name_filter: str = "") -> dict[str, object]:
     return {"ok": True, "task": "gijiroku_rebuild", "filter": name_filter}
 
 
+@app.task(name="tools.remote.celery_tasks.run_gijiroku_index_update")
+def run_gijiroku_index_update(slug: str) -> dict[str, object]:
+    _run_index_update_impl("gijiroku", slug)
+    return {"ok": True, "task": "gijiroku_index_update", "slug": slug}
+
+
 @app.task(name="tools.remote.celery_tasks.run_reiki_backfill")
 def run_reiki_backfill() -> dict[str, object]:
     _run_reiki_backfill_impl()
@@ -260,3 +386,9 @@ def run_reiki_cycle(self) -> dict[str, object]:
 def run_reiki_rebuild(name_filter: str = "") -> dict[str, object]:
     _run_command("reiki rebuild", _rebuild_command("reiki", name_filter))
     return {"ok": True, "task": "reiki_rebuild", "filter": name_filter}
+
+
+@app.task(name="tools.remote.celery_tasks.run_reiki_index_update")
+def run_reiki_index_update(slug: str) -> dict[str, object]:
+    _run_index_update_impl("reiki", slug)
+    return {"ok": True, "task": "reiki_index_update", "slug": slug}

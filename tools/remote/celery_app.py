@@ -7,6 +7,8 @@ from tools.remote import celery_runtime
 
 GIJIROKU_QUEUE = "gijiroku"
 REIKI_QUEUE = "reiki"
+GIJIROKU_INDEX_QUEUE = "gijiroku-index"
+REIKI_INDEX_QUEUE = "reiki-index"
 DISPATCH_INTERVAL_SECONDS = celery_runtime.env_int(
     "CELERY_DISPATCH_INTERVAL_SECONDS",
     60,
@@ -61,9 +63,11 @@ app.conf.update(
         "tools.remote.celery_tasks.run_gijiroku_backfill": {"queue": GIJIROKU_QUEUE},
         "tools.remote.celery_tasks.run_gijiroku_cycle": {"queue": GIJIROKU_QUEUE},
         "tools.remote.celery_tasks.run_gijiroku_rebuild": {"queue": GIJIROKU_QUEUE},
+        "tools.remote.celery_tasks.run_gijiroku_index_update": {"queue": GIJIROKU_INDEX_QUEUE},
         "tools.remote.celery_tasks.dispatch_reiki_cycle": {"queue": REIKI_QUEUE},
         "tools.remote.celery_tasks.run_reiki_backfill": {"queue": REIKI_QUEUE},
         "tools.remote.celery_tasks.run_reiki_cycle": {"queue": REIKI_QUEUE},
         "tools.remote.celery_tasks.run_reiki_rebuild": {"queue": REIKI_QUEUE},
+        "tools.remote.celery_tasks.run_reiki_index_update": {"queue": REIKI_INDEX_QUEUE},
     },
 )
