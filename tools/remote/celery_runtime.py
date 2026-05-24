@@ -2,15 +2,30 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_TIMEZONE = "Asia/Tokyo"
 DEFAULT_STALE_SECONDS = 15 * 60
 STATUS_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+GIJIROKU_SUPPORTED_SYSTEMS = {
+    "gijiroku.com",
+    "voices",
+    "kaigiroku.net",
+    "dbsr",
+    "db-search",
+    "kaigiroku-indexphp",
+    "kensakusystem",
+    "kami-city-pdf",
+    "site-gikai-pdf",
+    "static-kaigiroku-dir",
+}
+REIKI_SUPPORTED_SYSTEMS = {"d1-law", "taikei", "g-reiki"}
 
 
 def env_text(name: str, default: str) -> str:
@@ -83,6 +98,8 @@ def parse_status_timestamp(value: object) -> float | None:
     for parser in (datetime.fromisoformat, lambda raw: datetime.strptime(raw, STATUS_TIME_FORMAT)):
         try:
             parsed = parser(normalized)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=ZoneInfo(DEFAULT_TIMEZONE))
             return parsed.timestamp()
         except Exception:
             continue
@@ -159,20 +176,78 @@ def _item_progress(item: object) -> tuple[int, int]:
     return current, total
 
 
-def task_has_remaining_work(task_name: str) -> bool:
+def _ensure_tool_import_paths() -> None:
+    for path in (ROOT / "tools", ROOT / "tools" / "gijiroku", ROOT / "tools" / "reiki"):
+        text = str(path)
+        if text not in sys.path:
+            sys.path.append(text)
+
+
+def _known_status_items(task_name: str) -> dict[str, dict]:
+    known: dict[str, dict] = {}
     for status_name in (task_name, f"{task_name}_snapshot"):
         payload = load_background_task_status(status_name)
         items = payload.get("items")
         if not isinstance(items, dict):
             continue
-        for item in items.values():
-            if not isinstance(item, dict):
-                continue
+        for slug, item in items.items():
+            if isinstance(item, dict):
+                known[str(slug)] = item
+    return known
+
+
+def _iter_supported_target_slugs(task_name: str) -> list[str]:
+    _ensure_tool_import_paths()
+    try:
+        if task_name == "gijiroku":
+            from tools.gijiroku import gijiroku_targets
+
+            slugs: list[str] = []
+            for target in gijiroku_targets.iter_gijiroku_targets():
+                system_type = str(target.get("system_type") or "").strip()
+                system_family = gijiroku_targets.canonical_minutes_system_type(system_type)
+                if system_type in GIJIROKU_SUPPORTED_SYSTEMS or system_family in GIJIROKU_SUPPORTED_SYSTEMS:
+                    slug = str(target.get("slug") or "").strip()
+                    if slug:
+                        slugs.append(slug)
+            return slugs
+        if task_name == "reiki":
+            from tools.reiki import reiki_targets
+
+            slugs = []
+            for target in reiki_targets.iter_reiki_targets():
+                if str(target.get("system_type") or "").strip() not in REIKI_SUPPORTED_SYSTEMS:
+                    continue
+                slug = str(target.get("slug") or "").strip()
+                if slug:
+                    slugs.append(slug)
+            return slugs
+    except Exception:
+        return []
+    return []
+
+
+def task_has_remaining_work(task_name: str) -> bool:
+    known_items = _known_status_items(task_name)
+    target_slugs = _iter_supported_target_slugs(task_name)
+    if target_slugs:
+        for slug in target_slugs:
+            item = known_items.get(slug)
+            if item is None:
+                return True
             if str(item.get("status") or "").strip() == "failed":
                 return True
             current, total = _item_progress(item)
-            if total > 0 and current < total:
+            if total <= 0 or current < total:
                 return True
+        return False
+
+    for item in known_items.values():
+        if str(item.get("status") or "").strip() == "failed":
+            return True
+        current, total = _item_progress(item)
+        if total > 0 and current < total:
+            return True
     return False
 
 

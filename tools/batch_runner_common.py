@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import heapq
 import os
 import re
 import signal
@@ -55,6 +56,55 @@ def extract_warning_lines(*paths: Path, max_bytes: int = 32768, max_lines: int =
             seen.add(stripped)
             warnings.append(stripped)
     return warnings[-max_lines:]
+
+
+def scrape_state_warning_lines(
+    state_path: Path,
+    *,
+    downloads_dir: Path | None = None,
+    max_examples: int = 5,
+) -> list[str]:
+    if not state_path.is_file():
+        return []
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    items = state.get("items")
+    if not isinstance(items, dict):
+        return []
+
+    base_downloads_dir = downloads_dir or state_path.parent / "downloads"
+    missing: list[dict] = []
+    error_count = 0
+    for item in items.values():
+        if not isinstance(item, dict):
+            continue
+        rel_path = str(item.get("output_rel_path") or "").strip()
+        has_output = bool(rel_path and (base_downloads_dir / rel_path).is_file())
+        if has_output:
+            continue
+        missing.append(item)
+        if str(item.get("status") or "").strip() == "error":
+            error_count += 1
+
+    if not missing:
+        return []
+
+    lines = [f"取得できていない項目 {len(missing)}件（うちエラー {error_count}件）"]
+    for item in missing[:max(0, max_examples)]:
+        title = re.sub(r"\s+", " ", str(item.get("title") or "")).strip() or "名称不明"
+        status = str(item.get("status") or "").strip() or "未取得"
+        error = re.sub(r"\s+", " ", str(item.get("error") or "")).strip()
+        if len(error) > 96:
+            error = error[:95] + "..."
+        detail = f"{title}: {status}"
+        if error:
+            detail += f" - {error}"
+        lines.append(detail)
+    if len(missing) > max_examples:
+        lines.append(f"ほか {len(missing) - max_examples}件")
+    return lines
 
 
 def summarize_worker(stdout_path: Path, stderr_path: Path) -> str:
@@ -264,3 +314,42 @@ def count_active_by_host(active_workers: list[dict]) -> dict[str, int]:
         host = str(worker["host"])
         counts[host] = counts.get(host, 0) + 1
     return counts
+
+
+class PriorityTargetQueue:
+    def __init__(self, targets: list[dict], key_func) -> None:
+        self._key_func = key_func
+        self._sequence = 0
+        self._heap: list[tuple[object, int, dict]] = []
+        for target in targets:
+            self.push(target)
+
+    def __bool__(self) -> bool:
+        return bool(self._heap)
+
+    def __len__(self) -> int:
+        return len(self._heap)
+
+    def push(self, target: dict) -> None:
+        heapq.heappush(self._heap, (self._key_func(target), self._sequence, target))
+        self._sequence += 1
+
+    def clear(self) -> None:
+        self._heap.clear()
+
+    def remaining_targets(self) -> list[dict]:
+        return [entry[2] for entry in sorted(self._heap)]
+
+    def pop_runnable(self, can_launch) -> dict | None:
+        blocked: list[tuple[object, int, dict]] = []
+        try:
+            while self._heap:
+                entry = heapq.heappop(self._heap)
+                target = entry[2]
+                if can_launch(target):
+                    return target
+                blocked.append(entry)
+            return None
+        finally:
+            for entry in blocked:
+                heapq.heappush(self._heap, entry)

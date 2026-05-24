@@ -552,18 +552,33 @@ function municipality_feature_metadata_has_data(string $task, string $slug): boo
         return false;
     }
 
-    if (!array_key_exists($task, $itemsByTask)) {
-        $status = read_json_cache_file(data_path('background_tasks/' . $task . '.json'), 0);
-        $itemsByTask[$task] = is_array($status) && is_array($status['items'] ?? null)
-            ? $status['items']
-            : [];
+    $statusNames = [$task];
+    if (!str_ends_with($task, '_snapshot')) {
+        $statusNames[] = $task . '_snapshot';
     }
 
-    $item = $itemsByTask[$task][$slug] ?? null;
-    if (!is_array($item)) {
-        return false;
+    foreach ($statusNames as $statusName) {
+        if (!array_key_exists($statusName, $itemsByTask)) {
+            $status = read_json_cache_file(data_path('background_tasks/' . $statusName . '.json'), 0);
+            $itemsByTask[$statusName] = is_array($status) && is_array($status['items'] ?? null)
+                ? $status['items']
+                : [];
+        }
+
+        $item = $itemsByTask[$statusName][$slug] ?? null;
+        if (!is_array($item)) {
+            continue;
+        }
+        if (municipality_feature_metadata_item_has_data($item)) {
+            return true;
+        }
     }
 
+    return false;
+}
+
+function municipality_feature_metadata_item_has_data(array $item): bool
+{
     $current = $item['progress_current'] ?? null;
     if (is_numeric($current) && (int)$current > 0) {
         return true;

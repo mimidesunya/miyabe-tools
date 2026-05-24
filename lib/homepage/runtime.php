@@ -1256,8 +1256,10 @@ function homepage_feature_has_available_data(
 ): bool {
     $hasData = (bool)($feature['has_data'] ?? false);
     if (!$hasData && homepage_task_display_is_done_success($publishDisplay)) {
-        // 反映タスク自身が完了成功を返しているなら、その結果を公開可否の最優先根拠にする。
-        $hasData = true;
+        // 反映タスクが成功していても、0件反映では公開データとは扱わない。
+        // インデックスまたは実ファイルの存在を確認して、空の成功結果をカード化しない。
+        $hasData = homepage_feature_search_indexed($featureKey, $slug)
+            || municipality_feature_live_has_data_with_cache_heal($slug, $featureKey, $feature);
     }
     if (!$hasData && $primaryDisplay !== null && homepage_task_display_is_complete($primaryDisplay)) {
         // 反映直後に municipality_catalog cache だけ古いときは、実ファイルを見て self-heal する。
@@ -2028,10 +2030,10 @@ function homepage_collect_visible_features(
             is_array($displays['fallback'] ?? null) ? $displays['fallback'] : null
         );
 
-        $needsPublish = !$hasData && (
-            homepage_task_display_is_complete($primaryDisplay)
-            || $publishDisplay !== null
-        );
+        $needsPublish = !$hasData && homepage_task_display_is_complete($primaryDisplay);
+        if (!$hasData && !$needsPublish) {
+            continue;
+        }
         if (!$hasData && homepage_unpublished_display_should_hide($display)) {
             continue;
         }

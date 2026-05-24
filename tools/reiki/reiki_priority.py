@@ -82,6 +82,40 @@ def recently_completed_successfully(slug: str, current_count: int, total_count: 
     return age < timedelta(days=freshness_metadata.FRESHNESS_SKIP_DAYS), finished_at
 
 
+def priority_score(
+    *,
+    priority_group: int,
+    progress_ratio: float,
+    current_count: int,
+    freshness_date,
+    last_checked_at: str,
+    previously_failed: bool,
+) -> int:
+    if priority_group >= 4:
+        return 0
+
+    base_by_group = {
+        1: 3_000_000_000,
+        2: 2_000_000_000,
+        3: 1_000_000_000,
+    }
+    score = base_by_group.get(priority_group, 0)
+    if previously_failed:
+        score += 50_000_000
+
+    if priority_group == 1:
+        score += int(progress_ratio * 1_000_000)
+        score += min(current_count, 999_999)
+    elif priority_group == 3:
+        today = freshness_metadata.today_tokyo()
+        if freshness_date is not None:
+            score += max(0, min((today - freshness_date).days, 99_999))
+        if not last_checked_at:
+            score += 10_000
+
+    return score
+
+
 def priority_progress(slug: str) -> tuple[int, int]:
     candidates = [
         item_progress(task_item("reiki", slug)),
@@ -120,8 +154,18 @@ def target_priority_info(target: dict[str, Any]) -> dict[str, Any]:
         else:
             priority_label = "stale_complete_failed" if previously_failed else "stale_complete"
 
+    score = priority_score(
+        priority_group=priority_group,
+        progress_ratio=ratio,
+        current_count=current_count,
+        freshness_date=freshness_date,
+        last_checked_at=str(freshness.get("last_checked_at") or ""),
+        previously_failed=previously_failed,
+    )
+
     return {
         "priority_group": priority_group,
+        "priority_score": score,
         "priority_label": priority_label,
         "progress_ratio": ratio,
         "current_count": current_count,
@@ -138,7 +182,7 @@ def priority_sort_key(target: dict[str, Any]) -> tuple[Any, ...]:
     freshness_date = str(info.get("freshness_date") or "")
     last_checked_at = str(info.get("last_checked_at") or "")
     return (
-        int(info["priority_group"]),
+        -int(info["priority_score"]),
         freshness_date if int(info["priority_group"]) == 3 else "",
         last_checked_at if int(info["priority_group"]) == 3 else "",
         -float(info["progress_ratio"]),
@@ -150,6 +194,10 @@ def priority_sort_key(target: dict[str, Any]) -> tuple[Any, ...]:
 
 def sort_targets_by_priority(targets: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(targets, key=priority_sort_key)
+
+
+def priority_queue_key(target: dict[str, Any]) -> tuple[Any, ...]:
+    return priority_sort_key(target)
 
 
 def update_check_skip_reason(target: dict[str, Any]) -> str:

@@ -40,6 +40,10 @@ SEE_HREF_RE = re.compile(
 )
 TREE_DEPTH_RE = re.compile(r"treedepth\.value='([^']+)'")
 TITLE_RE = re.compile(r"<title>(.*?)</title>", flags=re.I | re.S)
+NON_DOCUMENT_FILE_RE = re.compile(
+    r"(?:FUGI|FUTA|GIAN|GIIN|IINK|IKEN|KAIK|KETS|MEIB|MOKU|QUES|SAKU|SANP|SEIG|SING|TUKO)(?:\.html?)?$",
+    flags=re.I,
+)
 
 
 @dataclass
@@ -247,6 +251,8 @@ def parse_result_links(page_html: str, base_url: str, current_depth: str | None)
         seen_urls.add(absolute_url)
 
         anchor_text = normalize_space(html_to_text(body))
+        if is_index_result_link(absolute_url, anchor_text):
+            continue
         year_label = current_year or normalize_year_label(anchor_text) or "不明"
         items.append(
             MeetingItem(
@@ -258,6 +264,41 @@ def parse_result_links(page_html: str, base_url: str, current_depth: str | None)
         )
 
     return items
+
+
+def is_index_result_link(url: str, anchor_text: str) -> bool:
+    file_name = str(parse_qs(urlsplit(url).query).get("fileName", [""])[0]).strip()
+    return (
+        "索引" in anchor_text
+        or "目次" in anchor_text
+        or "審議結果一覧" in anchor_text
+        or "一般質問一覧" in anchor_text
+        or "付議事件表" in anchor_text
+        or "質問通告書" in anchor_text
+        or "日程表" in anchor_text
+        or "日割表" in anchor_text
+        or "意見書" in anchor_text
+        or "請願" in anchor_text
+        or "陳情" in anchor_text
+        or "決議" in anchor_text
+        or "賛否一覧" in anchor_text
+        or "議員提出議案" in anchor_text
+        or "委員会発議案" in anchor_text
+        or "議員派遣について" in anchor_text
+        or "目録" in anchor_text
+        or "議員名簿" in anchor_text
+        or "議案質疑一覧" in anchor_text
+        or "議案付託表" in anchor_text
+        or "調査報告" in anchor_text
+        or "中間報告" in anchor_text
+        or "委員会報告" in anchor_text
+        or "報告書" in anchor_text
+        or bool(NON_DOCUMENT_FILE_RE.search(file_name))
+    )
+
+
+def saved_output_count(planned_items: list[dict]) -> int:
+    return sum(1 for plan in planned_items if plan.get("existing_output") is not None)
 
 
 def resolve_see_context(opener, target: dict, timeout_ms: int) -> SeeContext:
@@ -539,6 +580,9 @@ def main() -> int:
             print("[INFO] All expected outputs already exist; skipping download loop.", flush=True)
             emit_progress(len(meeting_items), len(meeting_items), state_path, state)
 
+        saved_count = saved_output_count(planned_items)
+        emit_progress(saved_count, len(meeting_items), state_path, state)
+
         for idx, plan in enumerate(work_items, start=1):
             item = plan["item"]
             print(f"[{idx}/{len(work_items)}] {item.year_label} {item.title}")
@@ -578,7 +622,8 @@ def main() -> int:
                     }
                 )
                 handle.flush()
-                emit_progress(len(meeting_items) - len(work_items) + idx, len(meeting_items), state_path, state)
+                saved_count += 1
+                emit_progress(saved_count, len(meeting_items), state_path, state)
                 continue
 
             try:
@@ -586,6 +631,7 @@ def main() -> int:
                 dest = gijiroku_storage.write_text(dest_base, meeting_text, compress=True)
                 output_path = str(dest)
                 status = "saved_text"
+                saved_count += 1
             except Exception as exc:
                 status = "error"
                 error_msg = str(exc)
@@ -626,7 +672,7 @@ def main() -> int:
                 }
             )
             handle.flush()
-            emit_progress(len(meeting_items) - len(work_items) + idx, len(meeting_items), state_path, state)
+            emit_progress(saved_count, len(meeting_items), state_path, state)
             if args.delay_seconds > 0 and idx < len(work_items):
                 time.sleep(args.delay_seconds)
 

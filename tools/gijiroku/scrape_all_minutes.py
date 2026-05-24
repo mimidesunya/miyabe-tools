@@ -21,10 +21,12 @@ from batch_runner_common import (
     close_worker_streams,
     count_active_by_host,
     extract_warning_lines,
+    scrape_state_warning_lines,
     extract_worker_progress_from_log as common_extract_worker_progress_from_log,
     extract_worker_progress_from_state as common_extract_worker_progress_from_state,
     install_stop_signal_handlers,
     now_ts,
+    PriorityTargetQueue,
     process_group_popen_kwargs,
     summarize_worker,
     tail_text_lines,
@@ -665,6 +667,9 @@ def record_target_result(
         Path(stdout_log),
         Path(index_stdout_log),
     )
+    for line in scrape_state_warning_lines(Path(target["work_dir"]) / "scrape_state.json"):
+        if line not in warning_lines:
+            warning_lines.append(line)
     latest_freshness = (
         freshness_metadata.gijiroku_target_freshness(target)
         if overall_status == "ok"
@@ -688,6 +693,64 @@ def record_target_result(
         **update_kwargs,
     )
     batch_status.write_state(task_name, status_state)
+    if overall_status == "ok" and progress is not None:
+        sync_success_snapshot(
+            task_name=task_name,
+            target=target,
+            host=host,
+            finished_at=finished_at,
+            message=message,
+            progress=progress,
+            extra_fields=update_kwargs["extra_fields"],
+        )
+
+
+def sync_success_snapshot(
+    *,
+    task_name: str,
+    target: dict,
+    host: str,
+    finished_at: str,
+    message: str,
+    progress: dict[str, object],
+    extra_fields: dict[str, object],
+) -> None:
+    snapshot_task = f"{task_name}_snapshot"
+    snapshot_state = batch_status.read_state(snapshot_task)
+    if not isinstance(snapshot_state.get("items"), dict):
+        snapshot_state = batch_status.build_state(
+            snapshot_task,
+            run_id=f"incremental_{now_ts()}",
+            total_count=0,
+            summary_path=Path(""),
+            log_dir=Path(""),
+        )
+        snapshot_state["running"] = False
+        snapshot_state["started_at"] = ""
+        snapshot_state["finished_at"] = ""
+        snapshot_state["last_finished_at"] = ""
+
+    slug = str(target["slug"])
+    if slug not in snapshot_state.setdefault("items", {}):
+        batch_status.register_target(snapshot_state, target, host)
+
+    batch_status.update_item(
+        snapshot_state,
+        slug,
+        status="snapshot",
+        message="前回成功結果",
+        finished_at=finished_at,
+        returncode=0,
+        progress_current=progress.get("progress_current"),
+        progress_total=progress.get("progress_total"),
+        progress_unit=str(progress.get("progress_unit") or "meeting"),
+        extra_fields=extra_fields,
+    )
+    snapshot_state["running"] = False
+    snapshot_state["active_count"] = 0
+    snapshot_state["finished_at"] = finished_at
+    snapshot_state["last_finished_at"] = finished_at
+    batch_status.write_state(snapshot_task, snapshot_state)
 
 
 def list_targets(targets: list[dict]) -> None:
@@ -695,7 +758,7 @@ def list_targets(targets: list[dict]) -> None:
     for target in targets:
         priority = gijiroku_priority.target_priority_info(target)
         print(
-            f"{target['slug']}\t{target['code']}\t{priority['priority_label']}\t"
+            f"{target['slug']}\t{target['code']}\tscore={priority['priority_score']}\t{priority['priority_label']}\t"
             f"{priority['current_count']}/{priority['total_count']}\t{target['system_type']}\t"
             f"fresh={priority.get('freshness_date', '') or '-'}\tchecked={priority.get('last_checked_at', '') or '-'}\t"
             f"{target_host(target)}\t{target['name']}\t{target['source_url']}"
@@ -703,36 +766,29 @@ def list_targets(targets: list[dict]) -> None:
 
 
 def select_runnable_targets(targets: list[dict]) -> list[dict]:
-    skipped_fresh = 0
-    group_counts: dict[int, int] = {}
-    targets_by_group: dict[int, list[dict]] = {1: [], 2: [], 3: []}
+    skipped_zero_score = 0
+    label_counts: dict[str, int] = {}
+    runnable_targets: list[dict] = []
     for target in targets:
         try:
-            priority_group = int(gijiroku_priority.target_priority_info(target)["priority_group"])
+            priority = gijiroku_priority.target_priority_info(target)
         except Exception:
-            priority_group = 2
-        group_counts[priority_group] = group_counts.get(priority_group, 0) + 1
-        if priority_group >= 4:
-            skipped_fresh += 1
+            priority = {"priority_score": 2_000_000_000, "priority_label": "unknown_total"}
+        label = str(priority.get("priority_label") or "unknown")
+        label_counts[label] = label_counts.get(label, 0) + 1
+        if int(priority.get("priority_score") or 0) <= 0:
+            skipped_zero_score += 1
             continue
-        targets_by_group.setdefault(priority_group, []).append(target)
+        runnable_targets.append(target)
 
-    incomplete_targets = targets_by_group.get(1, []) + targets_by_group.get(2, [])
-    if incomplete_targets:
-        runnable_targets = incomplete_targets
-        deferred_complete = len(targets_by_group.get(3, []))
-    else:
-        runnable_targets = targets_by_group.get(3, [])
-        deferred_complete = 0
+    priority_summary = " ".join(f"{label}={count}" for label, count in sorted(label_counts.items()))
 
     print(
-        "[INFO] 実行対象を優先度で選定しました: "
-        f"incomplete={group_counts.get(1, 0)} unknown_total={group_counts.get(2, 0)} "
-        f"due_complete={group_counts.get(3, 0)} deferred_complete={deferred_complete} "
-        f"recent_complete_skip={skipped_fresh}",
+        "[INFO] 実行対象を priority queue で選定しました: "
+        f"{priority_summary} skip_score_zero={skipped_zero_score}",
         flush=True,
     )
-    return runnable_targets
+    return gijiroku_priority.sort_targets_by_priority(runnable_targets)
 
 
 def main() -> int:
@@ -774,7 +830,7 @@ def main() -> int:
     if keyword:
         targets = [target for target in targets if target_matches(target, keyword, extra_fields=("system_type",))]
 
-    targets = select_runnable_targets(gijiroku_priority.sort_targets_by_priority(targets))
+    targets = select_runnable_targets(targets)
     if args.max_targets > 0:
         targets = targets[: args.max_targets]
 
@@ -833,7 +889,7 @@ def main() -> int:
         )
         writer.writeheader()
 
-        pending_targets = list(targets)
+        pending_targets = PriorityTargetQueue(targets, gijiroku_priority.priority_queue_key)
         active_workers: list[dict] = []
         pending_index_workers: list[dict] = []
         active_index_workers: list[dict] = []
@@ -870,7 +926,7 @@ def main() -> int:
                 shutdown_started = True
                 print("[STOP] 停止シグナルを受信しました。新規起動を止め、実行中の子プロセスを終了します。", flush=True)
                 finished_at = batch_status.now_text()
-                for target in pending_targets:
+                for target in pending_targets.remaining_targets():
                     batch_status.update_item(
                         status_state,
                         str(target["slug"]),
@@ -1074,21 +1130,19 @@ def main() -> int:
 
             host_active_counts = count_active_by_host(active_workers)
             while pending_targets and len(active_workers) < args.parallel and not shutdown_started:
-                launch_index = None
-                for index, target in enumerate(pending_targets):
+                def can_launch_target(target: dict) -> bool:
                     host = target_host(target)
                     if host_active_counts.get(host, 0) >= args.per_host_parallel:
-                        continue
+                        return False
                     last_started_at = host_last_start_at.get(host, 0.0)
                     if last_started_at and now - last_started_at < args.per_host_start_interval:
-                        continue
-                    launch_index = index
+                        return False
+                    return True
+
+                target = pending_targets.pop_runnable(can_launch_target)
+                if target is None:
                     break
 
-                if launch_index is None:
-                    break
-
-                target = pending_targets.pop(launch_index)
                 host = target_host(target)
                 launched_count += 1
                 try:

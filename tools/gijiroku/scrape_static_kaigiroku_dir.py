@@ -57,7 +57,9 @@ SKIP_EXTENSIONS = {
 MINUTES_DIR_RE = re.compile(r"(?:^|[_\-/])(kai?giroku|gijiroku|gikaikaigiroku)(?:$|[_\-/])", re.I)
 YEAR_HINT_RE = re.compile(r"(令和|平成|昭和|20\d{2}|19\d{2}|r\d{1,2}|h\d{1,2})", re.I)
 SIZE_SUFFIX_RE = re.compile(r"\s*[（(][\d,.]+\s*(?:kb|mb|kbyte|mbyte|バイト)[）)]\s*$", re.I)
-SKIP_DOCUMENT_LABEL_RE = re.compile(r"^(.*目次|表紙|扉|奥付|索引)$")
+SKIP_DOCUMENT_LABEL_RE = re.compile(
+    r"^(.*目次(?:\s*[\[［【].*[\]］】])?|表紙|扉|奥付|索引|資料(?:[①-⑳\d０-９一二三四五六七八九十]+)?(?:\s*[（(].*[）)])?)$"
+)
 HTML_MINUTES_MARKERS = (
     "出席議員",
     "欠席議員",
@@ -183,6 +185,10 @@ def clean_label(value: str, fallback: str) -> str:
 
 def is_skippable_document_label(label: str) -> bool:
     return SKIP_DOCUMENT_LABEL_RE.match(normalize_space(label)) is not None
+
+
+def saved_output_count(planned_items: list[dict]) -> int:
+    return sum(1 for plan in planned_items if plan.get("existing_output") is not None)
 
 
 def relative_page_filename(page_url: str, fallback: str = "page") -> str:
@@ -430,6 +436,9 @@ def main() -> int:
             print("[INFO] All expected outputs already exist; skipping download loop.", flush=True)
             emit_progress(len(meeting_items), len(meeting_items), state_path, state)
 
+        saved_count = saved_output_count(planned_items)
+        emit_progress(saved_count, len(meeting_items), state_path, state)
+
         for idx, plan in enumerate(work_items, start=1):
             item = plan["item"]
             print(f"[{idx}/{len(work_items)}] {item.year_label} {item.title}")
@@ -461,6 +470,7 @@ def main() -> int:
                         dest = gijiroku_storage.write_text(text_base, composed_minutes_text(item, extracted), compress=True)
                         output_path = str(dest)
                         status = "saved_text"
+                        saved_count += 1
                 except Exception as exc:
                     status = "error"
                     error_msg = str(exc)
@@ -492,7 +502,7 @@ def main() -> int:
                 }
             )
             handle.flush()
-            emit_progress(len(meeting_items) - len(work_items) + idx, len(meeting_items), state_path, state)
+            emit_progress(saved_count, len(meeting_items), state_path, state)
             if args.delay_seconds > 0 and idx < len(work_items):
                 time.sleep(args.delay_seconds)
 

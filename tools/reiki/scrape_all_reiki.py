@@ -26,6 +26,7 @@ from batch_runner_common import (
     extract_worker_progress_from_state as common_extract_worker_progress_from_state,
     install_stop_signal_handlers,
     now_ts,
+    PriorityTargetQueue,
     process_group_popen_kwargs,
     run_logged_subprocess,
     summarize_worker,
@@ -679,7 +680,7 @@ def list_targets(targets: list[dict]) -> None:
     for target in targets:
         priority = reiki_priority.target_priority_info(target)
         print(
-            f"{target['slug']}\t{target['code']}\t{priority['priority_label']}\t"
+            f"{target['slug']}\t{target['code']}\tscore={priority['priority_score']}\t{priority['priority_label']}\t"
             f"{priority['current_count']}/{priority['total_count']}\t{target['system_type']}\t"
             f"fresh={priority.get('freshness_date', '') or '-'}\tchecked={priority.get('last_checked_at', '') or '-'}\t"
             f"{target_host(target)}\t{target['name']}\t{target['source_url']}"
@@ -687,36 +688,29 @@ def list_targets(targets: list[dict]) -> None:
 
 
 def select_runnable_targets(targets: list[dict]) -> list[dict]:
-    skipped_fresh = 0
-    group_counts: dict[int, int] = {}
-    targets_by_group: dict[int, list[dict]] = {1: [], 2: [], 3: []}
+    skipped_zero_score = 0
+    label_counts: dict[str, int] = {}
+    runnable_targets: list[dict] = []
     for target in targets:
         try:
-            priority_group = int(reiki_priority.target_priority_info(target)["priority_group"])
+            priority = reiki_priority.target_priority_info(target)
         except Exception:
-            priority_group = 2
-        group_counts[priority_group] = group_counts.get(priority_group, 0) + 1
-        if priority_group >= 4:
-            skipped_fresh += 1
+            priority = {"priority_score": 2_000_000_000, "priority_label": "unknown_total"}
+        label = str(priority.get("priority_label") or "unknown")
+        label_counts[label] = label_counts.get(label, 0) + 1
+        if int(priority.get("priority_score") or 0) <= 0:
+            skipped_zero_score += 1
             continue
-        targets_by_group.setdefault(priority_group, []).append(target)
+        runnable_targets.append(target)
 
-    incomplete_targets = targets_by_group.get(1, []) + targets_by_group.get(2, [])
-    if incomplete_targets:
-        runnable_targets = incomplete_targets
-        deferred_complete = len(targets_by_group.get(3, []))
-    else:
-        runnable_targets = targets_by_group.get(3, [])
-        deferred_complete = 0
+    priority_summary = " ".join(f"{label}={count}" for label, count in sorted(label_counts.items()))
 
     print(
-        "[INFO] 実行対象を優先度で選定しました: "
-        f"incomplete={group_counts.get(1, 0)} unknown_total={group_counts.get(2, 0)} "
-        f"due_complete={group_counts.get(3, 0)} deferred_complete={deferred_complete} "
-        f"recent_complete_skip={skipped_fresh}",
+        "[INFO] 実行対象を priority queue で選定しました: "
+        f"{priority_summary} skip_score_zero={skipped_zero_score}",
         flush=True,
     )
-    return runnable_targets
+    return reiki_priority.sort_targets_by_priority(runnable_targets)
 
 
 def main() -> int:
@@ -748,7 +742,7 @@ def main() -> int:
     if keyword:
         targets = [target for target in targets if target_matches(target, keyword, extra_fields=("system_type",))]
 
-    targets = select_runnable_targets(reiki_priority.sort_targets_by_priority(targets))
+    targets = select_runnable_targets(targets)
     if args.max_targets > 0:
         targets = targets[: args.max_targets]
 
@@ -807,7 +801,7 @@ def main() -> int:
         )
         writer.writeheader()
 
-        pending_targets = list(targets)
+        pending_targets = PriorityTargetQueue(targets, reiki_priority.priority_queue_key)
         active_workers: list[dict] = []
         pending_index_workers: list[dict] = []
         active_index_workers: list[dict] = []
@@ -844,7 +838,7 @@ def main() -> int:
                 shutdown_started = True
                 print("[STOP] 停止シグナルを受信しました。新規起動を止め、実行中の子プロセスを終了します。", flush=True)
                 finished_at = batch_status.now_text()
-                for target in pending_targets:
+                for target in pending_targets.remaining_targets():
                     batch_status.update_item(
                         status_state,
                         str(target["slug"]),
@@ -898,21 +892,19 @@ def main() -> int:
 
             host_active_counts = count_active_by_host(active_workers)
             while pending_targets and len(active_workers) < args.parallel and not shutdown_started:
-                launch_index = None
-                for index, target in enumerate(pending_targets):
+                def can_launch_target(target: dict) -> bool:
                     host = target_host(target)
                     if host_active_counts.get(host, 0) >= args.per_host_parallel:
-                        continue
+                        return False
                     last_started_at = host_last_start_at.get(host, 0.0)
                     if last_started_at and now - last_started_at < args.per_host_start_interval:
-                        continue
-                    launch_index = index
+                        return False
+                    return True
+
+                target = pending_targets.pop_runnable(can_launch_target)
+                if target is None:
                     break
 
-                if launch_index is None:
-                    break
-
-                target = pending_targets.pop(launch_index)
                 host = target_host(target)
                 launched_count += 1
                 try:
