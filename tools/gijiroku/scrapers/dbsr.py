@@ -36,6 +36,7 @@ import gijiroku_targets
 
 
 DEFAULT_WAIT_MS = 10_000
+DEFAULT_DISCOVERY_TIMEOUT_SECONDS = 900
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
@@ -78,6 +79,10 @@ class DocumentRow:
     title: str
     url: str
     held_on: str
+
+
+class DiscoveryTimeoutError(RuntimeError):
+    pass
 
 
 def now_ts() -> str:
@@ -147,6 +152,19 @@ def safe_href(locator) -> str:
         return locator.get_attribute("href") or ""
     except Exception:
         return ""
+
+
+def discovery_deadline(timeout_seconds: int) -> float | None:
+    if timeout_seconds <= 0:
+        return None
+    return time.monotonic() + max(1, int(timeout_seconds))
+
+
+def ensure_discovery_time(deadline: float | None, detail: str) -> None:
+    if deadline is None:
+        return
+    if time.monotonic() > deadline:
+        raise DiscoveryTimeoutError(f"会議一覧の収集が制限時間を超えました: {detail}")
 
 
 def cleaned_query_pairs(url: str) -> list[tuple[str, str]]:
@@ -304,13 +322,15 @@ def collect_list_page_entries(page, entries, year_label: str, items: dict[str, L
         )
 
 
-def discover_list_pages(page, target: dict, timeout_ms: int) -> list[ListPage]:
+def discover_list_pages(page, target: dict, timeout_ms: int, deadline: float | None = None) -> list[ListPage]:
+    ensure_discovery_time(deadline, "開始ページ")
     page.goto(str(target["source_url"]), wait_until="domcontentloaded", timeout=timeout_ms)
     try:
         page.wait_for_load_state("networkidle", timeout=3_000)
     except Exception:
         pass
 
+    ensure_discovery_time(deadline, "検索ページ")
     search_library_url = find_search_library_url(page, str(target["source_url"]))
     page.goto(search_library_url, wait_until="domcontentloaded", timeout=timeout_ms)
     try:
@@ -322,6 +342,7 @@ def discover_list_pages(page, target: dict, timeout_ms: int) -> list[ListPage]:
     cells = page.locator("div.LibraryTable dl.cell")
     if cells.count() > 0:
         for cell_index in range(cells.count()):
+            ensure_discovery_time(deadline, f"年度一覧 {cell_index + 1}/{cells.count()}")
             cell = cells.nth(cell_index)
             year_label = safe_inner_text(cell.locator("dt.cell__title").first) or "不明"
             collect_list_page_entries(page, cell.locator("dd.cell__item"), year_label, items)
@@ -330,6 +351,7 @@ def discover_list_pages(page, target: dict, timeout_ms: int) -> list[ListPage]:
     cells = page.locator("div.LibraryTable dl")
     if cells.count() > 0:
         for cell_index in range(cells.count()):
+            ensure_discovery_time(deadline, f"年度一覧 {cell_index + 1}/{cells.count()}")
             cell = cells.nth(cell_index)
             year_label = safe_inner_text(cell.locator("dt").first) or "不明"
             collect_list_page_entries(page, cell.locator("dd"), year_label, items)
@@ -337,6 +359,7 @@ def discover_list_pages(page, target: dict, timeout_ms: int) -> list[ListPage]:
 
     cells = page.locator("ul.table.table--all > li.table__cell")
     for cell_index in range(cells.count()):
+        ensure_discovery_time(deadline, f"年度一覧 {cell_index + 1}/{cells.count()}")
         cell = cells.nth(cell_index)
         year_label = safe_inner_text(cell.locator("dt.table__header:not(.visually-hidden)").first)
         if not year_label:
@@ -434,7 +457,9 @@ def collect_list_page_documents(
     *,
     known_urls: set[str] | None = None,
     stop_after_known_page: bool = False,
+    deadline: float | None = None,
 ) -> list[DocumentRow]:
+    ensure_discovery_time(deadline, list_url)
     page.goto(list_url, wait_until="domcontentloaded", timeout=timeout_ms)
     try:
         page.wait_for_load_state("networkidle", timeout=3_000)
@@ -446,6 +471,7 @@ def collect_list_page_documents(
     seen_page_signatures: set[tuple[str, int]] = set()
 
     while True:
+        ensure_discovery_time(deadline, page.url)
         page_rows = extract_document_rows_from_page(page)
         signature = (page_rows[0].url if page_rows else page.url, len(page_rows))
         if signature in seen_page_signatures:
@@ -636,15 +662,23 @@ def discover_meeting_items(
     *,
     previous_items: list[MeetingItem] | None = None,
     quick_update: bool = False,
+    discovery_timeout_seconds: int = DEFAULT_DISCOVERY_TIMEOUT_SECONDS,
 ) -> list[MeetingItem]:
+    deadline = discovery_deadline(discovery_timeout_seconds)
     base_url = str(target["base_url"])
-    list_pages = discover_list_pages(page, target, timeout_ms)
+    list_pages = discover_list_pages(page, target, timeout_ms, deadline)
+    print(f"[INFO] 会議一覧ページ {len(list_pages)} 件", flush=True)
 
     meetings: list[MeetingItem] = []
     seen_titles: set[tuple[str, str, str]] = set()
     known_urls_by_list_url = previous_doc_urls_by_list_url(previous_items or []) if quick_update else {}
 
-    for list_page in list_pages:
+    for list_index, list_page in enumerate(list_pages, start=1):
+        ensure_discovery_time(deadline, f"{list_index}/{len(list_pages)} {list_page.title}")
+        print(
+            f"[INFO] 会議一覧を確認中 {list_index}/{len(list_pages)} {list_page.year_label} {list_page.meeting_group}",
+            flush=True,
+        )
         try:
             list_url = list_url_with_origin(list_page.url, base_url)
             rows = collect_list_page_documents(
@@ -653,8 +687,12 @@ def discover_meeting_items(
                 timeout_ms,
                 known_urls=known_urls_by_list_url.get(list_url),
                 stop_after_known_page=quick_update,
+                deadline=deadline,
             )
-        except Exception:
+        except DiscoveryTimeoutError:
+            raise
+        except Exception as exc:
+            print(f"[WARN] 会議一覧の確認に失敗: {list_page.title} ({exc})", flush=True)
             continue
 
         for group in build_day_groups(list_page, list_url, rows):
@@ -837,6 +875,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Playwright / HTTP 操作タイムアウト（ミリ秒）",
     )
     parser.add_argument(
+        "--discovery-timeout-seconds",
+        type=int,
+        default=DEFAULT_DISCOVERY_TIMEOUT_SECONDS,
+        help="会議一覧収集の最大秒数（0 は無制限）",
+    )
+    parser.add_argument(
         "--ack-robots",
         action="store_true",
         help="robots.txt・利用規約・許諾確認済みとして実行する",
@@ -910,6 +954,7 @@ def main() -> int:
             args.max_meetings,
             previous_items=previous_items,
             quick_update=quick_update,
+            discovery_timeout_seconds=args.discovery_timeout_seconds,
         )
         print(f"[INFO] 会議候補 {len(meeting_items)} 件")
 

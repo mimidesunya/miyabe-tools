@@ -119,6 +119,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="各スクレイパの操作タイムアウト（ミリ秒）",
     )
     parser.add_argument(
+        "--dbsr-discovery-timeout-seconds",
+        type=int,
+        default=900,
+        help="DBSR 系の会議一覧収集に使う最大秒数（0 は無制限）",
+    )
+    parser.add_argument(
         "--save-html",
         action="store_true",
         help="HTML 保存に対応する system_type で調査用 HTML を保存する",
@@ -256,6 +262,8 @@ def build_child_command(args: argparse.Namespace, target: dict) -> list[str]:
     )
     if args.per_target_max_meetings > 0:
         cmd.extend(["--max-meetings", str(args.per_target_max_meetings)])
+    if system_family == "dbsr":
+        cmd.extend(["--discovery-timeout-seconds", str(args.dbsr_discovery_timeout_seconds)])
     if system_family == "kaigiroku.net" and args.per_target_max_years > 0:
         cmd.extend(["--max-years", str(args.per_target_max_years)])
     if args.save_html and system_family in {
