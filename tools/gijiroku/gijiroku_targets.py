@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Load and normalize assembly minutes scrape targets.
+"""会議録スクレイピング対象を読み込み、実行しやすい形へ正規化する。
 
-The canonical input is data/municipalities/assembly_minutes_system_urls.tsv.
-This module joins it with the municipality master, derives slugs and data/work
-paths, and hides system_type aliases from the batch scheduler.
+正本は data/municipalities/assembly_minutes_system_urls.tsv。
+自治体マスタと結合して slug や data/work パスを導出し、system_type の別名差分を
+バッチスケジューラから隠す。
 """
 
 from __future__ import annotations
@@ -23,8 +23,8 @@ WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
 DATA_ROOT = WORKSPACE_ROOT / "data"
 WORK_ROOT = WORKSPACE_ROOT / "work"
 SYSTEM_FAMILY_ALIASES = {
-    # Several public providers expose the same underlying shape under different
-    # labels in the survey TSV.  The batch scheduler maps them to one scraper.
+    # 同じ内部構造の公開システムが、調査 TSV では別名で記録されることがある。
+    # バッチ側では provider の実体ごとに 1 つのスクレイパへ寄せる。
     "gijiroku.com": {"gijiroku.com", "voices"},
     "kaigiroku.net": {"kaigiroku.net"},
     "dbsr": {"dbsr", "db-search", "kaigiroku-indexphp"},

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Parse D1-Law source HTML into normalized ordinance artifacts.
+"""D1-Law の source HTML を正規化された例規成果物へ変換する。
 
-The downloader stores raw source pages first; this parser turns a single source
-file into clean HTML, Markdown, JSON metadata, and copied image references.
+downloader はまず生の source ページを保存する。この parser は source 1 件を
+clean HTML、Markdown、JSON メタデータ、コピー済み画像参照へ展開する。
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ from bs4 import BeautifulSoup
 
 SCRAPER_DIR = Path(__file__).resolve().parent
 MODULE_DIR = SCRAPER_DIR.parent
-# Allow both standalone parsing and calls from d1_law.py without installing the
-# tools tree as a package.
+# 単体 parser と d1_law.py からの呼び出しの両方で使う。
+# tools ツリーを package install しなくても import できるようにする。
 sys.path.append(str(MODULE_DIR))
 sys.path.append(str(SCRAPER_DIR))
 import reiki_io
@@ -266,7 +266,7 @@ def parse_html(file_path, *, base_url, images_dir, image_public_url, stats=None)
     if content_div:
         for img in content_div.find_all("img"):
             src = img.get("src", "")
-            # Keep supporting old municipality-specific image folders while normalizing new output.
+            # 新しい出力を正規化しつつ、旧自治体別 image フォルダへの参照も読み続ける。
             if src.startswith("../images/") or src.startswith("../kawasaki_images/"):
                 img["src"] = f"{image_public_url.rstrip('/')}/{Path(src).name}"
 
@@ -291,8 +291,8 @@ def process_file(
     stats=None,
     force=False,
 ):
-    # One source page fans out into several public artifacts.  Keep the stem
-    # shared across HTML/Markdown so the index builder can pair them later.
+    # source 1 ページから複数の公開成果物が生まれる。
+    # 後段の index builder が対応づけられるよう、HTML/Markdown で stem を共有する。
     try:
         md_output_dir.mkdir(parents=True, exist_ok=True)
         html_output_dir.mkdir(parents=True, exist_ok=True)

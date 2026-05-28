@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""OpenSearch index settings and mappings for Miyabe document search."""
+"""Miyabe 文書検索用 OpenSearch index の settings と mappings。"""
 
 from __future__ import annotations
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Batch runner for all supported reiki scrapers.
+"""対応する全例規集スクレイパを束ねる batch runner。
 
-This is the runtime entry point used both locally and by the Docker scraper
-workers.  It reads the reiki URL survey, launches Python/PHP child scrapers,
-records background task status, and updates OpenSearch per municipality.
+ローカル実行と Docker scraper worker の両方で使う実行時入口。
+例規集 URL 調査 TSV を読み、Python/PHP の子スクレイパを起動し、
+background task status を記録し、自治体ごとに OpenSearch を更新する。
 """
 
 from __future__ import annotations
@@ -21,10 +21,12 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 sys.path.append(str(Path(__file__).parent))
 sys.path.append(str(Path(__file__).resolve().parents[1] / "gijiroku"))
-# The reiki batch runner shares task/build-lock helpers with the minutes side
-# and is executed by file path, so keep the relevant tools directories importable.
+# 例規集 batch runner は会議録側の task/build-lock ヘルパも共有する。
+# ファイルパス指定で実行されるため、関係する tools ディレクトリを明示的に import 対象へ入れる。
 import freshness_metadata
 from tools.tasks import status as batch_status
+from tools.tasks import backfill as task_backfill
+from tools.tasks import priority as scraping_priority
 from tools.tasks.runner import (
     close_worker_streams,
     count_active_by_host,
@@ -43,8 +45,13 @@ from tools.tasks.runner import (
     terminate_process_group,
 )
 import build_locks
-import reiki_priority
 import reiki_targets
+
+
+reiki_priority = scraping_priority.PriorityCalculator(
+    "reiki",
+    count_field="clean_html_count",
+)
 
 
 SUPPORTED_SYSTEMS = {
@@ -245,11 +252,70 @@ def extract_worker_progress_for_display(worker: dict) -> dict[str, object] | Non
     return extract_worker_progress(worker["stdout_path"])
 
 
+def actual_scrape_progress(target: dict[str, object]) -> tuple[int, int]:
+    """保存済み成果物を数え、終了判定に使う実取得件数を返す。"""
+    work_root = Path(str(target.get("work_root") or ""))
+    manifest_path = work_root / "source_manifest.json"
+    source_dir = Path(str(target.get("source_dir") or ""))
+    html_dir = Path(str(target.get("html_dir") or ""))
+    manifest_count = task_backfill.load_json_array_count(manifest_path)
+    source_count = task_backfill.count_reiki_html_files(source_dir)
+    clean_html_count = task_backfill.count_reiki_html_files(html_dir)
+    current_count = max(source_count, clean_html_count)
+    total_count = manifest_count if manifest_count > 0 else current_count
+    return max(0, current_count), max(0, max(total_count, current_count))
+
+
+# 子スクレイパが returncode=0 でも、取得件数が完了していなければ成功扱いしない。
+def scrape_completion_error(target: dict[str, object], progress: dict[str, object] | None) -> str:
+    current, total = actual_scrape_progress(target)
+    if total <= 0 and isinstance(progress, dict):
+        try:
+            current = max(0, int(progress.get("progress_current") or 0))
+            total = max(0, int(progress.get("progress_total") or 0))
+        except Exception:
+            return "取得件数を確認できません"
+    elif total <= 0:
+        return "取得件数を確認できません"
+
+    if total <= 0:
+        return "取得対象件数が0件です"
+    if current < total:
+        return f"取得未完了: {current}/{total}"
+    return ""
+
+
+def remove_stale_scrape_state(state_path: Path) -> None:
+    """前回実行の scrape_state.json が今回の進捗として読まれないようにする。"""
+    try:
+        state_path.unlink()
+    except FileNotFoundError:
+        return
+    except Exception:
+        return
+
+
+def preserve_previous_failed_items(status_state: dict[str, object], task_name: str) -> None:
+    """今回の実行対象から外した失敗済み item を main state に残す。"""
+    items = status_state.setdefault("items", {})
+    if not isinstance(items, dict):
+        return
+    for slug, item in task_backfill.previous_failed_items(task_name).items():
+        if slug not in items:
+            items[slug] = item
+    batch_status.refresh_counts(status_state)
+
+
 # index 更新の進捗母数として、直前のスクレイピング総件数を返す。
 def index_worker_total(index_worker: dict) -> int:
     scrape_worker = index_worker.get("scrape_worker")
     if not isinstance(scrape_worker, dict):
         return 0
+    target = scrape_worker.get("target")
+    if isinstance(target, dict):
+        _, actual_total = actual_scrape_progress(target)
+        if actual_total > 0:
+            return actual_total
     progress = extract_worker_progress_for_display(scrape_worker)
     if not isinstance(progress, dict):
         return 0
@@ -326,6 +392,8 @@ def launch_worker(
     slug = str(target["slug"])
     stdout_path = run_logs_dir / f"{slug}.log"
     stderr_path = run_logs_dir / f"{slug}.err.log"
+    state_path = Path(target["work_root"]) / "scrape_state.json"
+    remove_stale_scrape_state(state_path)
     stdout_handle = stdout_path.open("w", encoding="utf-8", newline="")
     stderr_handle = stderr_path.open("w", encoding="utf-8", newline="")
 
@@ -347,7 +415,7 @@ def launch_worker(
         "stdout_handle": stdout_handle,
         "stderr_handle": stderr_handle,
         "started_at": batch_status.now_text(),
-        "state_path": Path(target["work_root"]) / "scrape_state.json",
+        "state_path": state_path,
     }
 
 
@@ -692,6 +760,9 @@ def record_target_result(
         "stderr_log": stderr_log,
         "index_stdout_log": index_stdout_log,
         "index_stderr_log": index_stderr_log,
+        "scrape_returncode": int(scrape_returncode),
+        "index_status": str(index_status),
+        "index_returncode": index_returncode,
         "warning_count": len(warning_lines),
         "warning_lines": warning_lines,
         "freshness_date": latest_freshness["freshness_date"],
@@ -810,6 +881,7 @@ def main() -> int:
     status_state = batch_status.build_state("reiki", run_id, len(targets), summary_path, run_logs_dir)
     for target in targets:
         batch_status.register_target(status_state, target, target_host(target))
+    preserve_previous_failed_items(status_state, "reiki")
 
     with summary_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
@@ -1008,17 +1080,20 @@ def main() -> int:
 
             for worker, returncode in completed_workers:
                 target = worker["target"]
-                scrape_status = "ok" if returncode == 0 else "failed"
                 summary = summarize_worker(worker["stdout_path"], worker["stderr_path"])
+                progress = extract_worker_progress_for_display(worker)
+                validation_error = scrape_completion_error(target, progress) if returncode == 0 else ""
+                scrape_status = "ok" if returncode == 0 and validation_error == "" else "failed"
                 overall_status = scrape_status
-                overall_returncode = int(returncode)
+                overall_returncode = int(returncode if validation_error == "" else -1)
+                if validation_error:
+                    summary = f"{summary} / {validation_error}"
                 index_status = "skipped"
                 index_returncode = ""
                 index_stdout_log = ""
                 index_stderr_log = ""
 
-                if returncode == 0 and not args.no_build_index and not args.crawl_only and args.index_dispatch == "celery":
-                    progress = extract_worker_progress_for_display(worker)
+                if scrape_status == "ok" and not args.no_build_index and not args.crawl_only and args.index_dispatch == "celery":
                     finished_at = batch_status.now_text()
                     try:
                         index_task_id = enqueue_index_update_task(target)
@@ -1062,7 +1137,7 @@ def main() -> int:
                     made_progress = True
                     continue
 
-                if returncode == 0 and not args.no_build_index and not args.crawl_only:
+                if scrape_status == "ok" and not args.no_build_index and not args.crawl_only:
                     pending_index_workers.append(queue_index_worker(worker, returncode))
                     batch_status.update_item(
                         status_state,
@@ -1080,7 +1155,6 @@ def main() -> int:
                     made_progress = True
                     continue
 
-                progress = extract_worker_progress_for_display(worker)
                 finished_at = batch_status.now_text()
                 record_target_result(
                     writer,

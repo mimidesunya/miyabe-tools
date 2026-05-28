@@ -57,6 +57,7 @@ def configure_roots(
 JSON_TASKS = {"gijiroku", "reiki"}
 HTML_SUFFIXES = {".html", ".htm"}
 MINUTES_SUFFIXES = {".txt", ".html", ".htm"}
+STOP_RETURN_CODES = {-15, -2, 130, 143}
 
 
 def now_run_id() -> str:
@@ -235,6 +236,36 @@ def build_snapshot_state(task_name: str, items: dict[str, dict[str, Any]]) -> di
     }
 
 
+def failed_item_should_persist(item: dict[str, Any]) -> bool:
+    """再起動後も自動再実行しないために残すべき実エラーかを判定する。"""
+    if str(item.get("status") or "").strip() != "failed":
+        return False
+    if str(item.get("message") or "").strip().startswith("停止"):
+        return False
+    try:
+        returncode = int(item.get("returncode"))
+    except Exception:
+        return True
+    return returncode not in STOP_RETURN_CODES
+
+
+def previous_failed_items(task_name: str) -> dict[str, dict[str, Any]]:
+    """既存 main state から、停止ではない失敗 item だけを引き継ぐ。"""
+    state = batch_status.read_state(task_name)
+    raw_items = state.get("items") if isinstance(state, dict) else {}
+    if not isinstance(raw_items, dict):
+        return {}
+
+    failures: dict[str, dict[str, Any]] = {}
+    for raw_slug, item in raw_items.items():
+        if not isinstance(item, dict) or not failed_item_should_persist(item):
+            continue
+        slug = str(item.get("slug") or raw_slug).strip()
+        if slug:
+            failures[slug] = dict(item)
+    return failures
+
+
 # 会議録は index JSON / ダウンロード済み本文から snapshot を復元する。
 def gijiroku_snapshot_items(*, fast: bool = False) -> dict[str, dict[str, Any]]:
     items: dict[str, dict[str, Any]] = {}
@@ -334,7 +365,7 @@ def reiki_snapshot_items(*, fast: bool = False) -> dict[str, dict[str, Any]]:
     return items
 
 
-def write_snapshot(task_name: str, *, fast: bool = False) -> tuple[Path, Path, int]:
+def write_snapshot(task_name: str, *, fast: bool = False) -> tuple[Path, Path, int, int]:
     if task_name == "gijiroku":
         items = gijiroku_snapshot_items(fast=fast)
     elif task_name == "reiki":
@@ -342,10 +373,13 @@ def write_snapshot(task_name: str, *, fast: bool = False) -> tuple[Path, Path, i
     else:
         raise ValueError(f"Unsupported task: {task_name}")
 
-    state = build_snapshot_state(task_name, items)
-    main_path = batch_status.write_state(task_name, state)
-    snapshot_path = batch_status.write_state(f"{task_name}_snapshot", state)
-    return main_path, snapshot_path, len(items)
+    snapshot_state = build_snapshot_state(task_name, items)
+    main_items = dict(items)
+    main_items.update(previous_failed_items(task_name))
+    main_state = build_snapshot_state(task_name, main_items)
+    main_path = batch_status.write_state(task_name, main_state)
+    snapshot_path = batch_status.write_state(f"{task_name}_snapshot", snapshot_state)
+    return main_path, snapshot_path, len(main_items), len(items)
 
 
 def parse_status_timestamp(value: object) -> float | None:
@@ -453,9 +487,9 @@ def main() -> int:
             )
             return 3
 
-        main_path, snapshot_path, count = write_snapshot(task_name, fast=args.fast)
-        print(f"[DONE] {task_name}: {count} items -> {main_path}", flush=True)
-        print(f"[DONE] {task_name}_snapshot: {count} items -> {snapshot_path}", flush=True)
+        main_path, snapshot_path, main_count, snapshot_count = write_snapshot(task_name, fast=args.fast)
+        print(f"[DONE] {task_name}: {main_count} items -> {main_path}", flush=True)
+        print(f"[DONE] {task_name}_snapshot: {snapshot_count} items -> {snapshot_path}", flush=True)
     batch_status.invalidate_runtime_caches(include_homepage_payload=True)
     return 0
 

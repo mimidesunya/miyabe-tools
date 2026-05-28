@@ -2,12 +2,11 @@
 <?php
 declare(strict_types=1);
 
-// Scraper for taikei / g-reiki ordinance systems.
+// taikei / g-reiki 系の例規集システム向けスクレイパ。
 //
-// These providers publish a taxonomy tree plus per-ordinance HTML pages.  The
-// script first keeps a crawl manifest for resume/update checks, then normalizes
-// each ordinance into the same source/html/markdown/json directories used by the
-// other reiki scrapers.
+// これらの provider は分類ツリーと例規ごとの HTML ページを公開している。
+// まず再開・更新確認用の crawl manifest を保持し、その後、各例規を他の
+// 例規集スクレイパと同じ source/html/markdown/json ディレクトリ構成へ正規化する。
 const TAIKEI_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36';
 const TAIKEI_SLEEP_USEC = 120000;
 const TAIKEI_FETCH_MAX_ATTEMPTS = 4;

@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Batch runner for all supported assembly minutes scrapers.
+"""対応する全会議録スクレイパを束ねる batch runner。
 
-This is the runtime entry point used both locally and by the Docker scraper
-workers.  It selects municipalities from the TSV survey, launches the
-system-specific scraper subprocesses, records background task status, and queues
-per-municipality OpenSearch updates.
+ローカル実行と Docker scraper worker の両方で使う実行時入口。
+調査 TSV から対象自治体を選び、system_type ごとの子スクレイパを起動し、
+background task status を記録し、自治体ごとの OpenSearch 更新をキューへ積む。
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
+import json
 import re
 import shlex
 import subprocess
@@ -21,11 +21,12 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 sys.path.append(str(Path(__file__).parent))
-# The batch runner is executed as a file path in Docker.  These path entries keep
-# shared tools, gijiroku modules, and sibling imports available without a package
-# install step.
+# Docker ではこの batch runner をファイルパス指定で実行する。
+# package install なしでも共通 tools、会議録モジュール、隣接モジュールを import できるようにする。
 import freshness_metadata
 from tools.tasks import status as batch_status
+from tools.tasks import backfill as task_backfill
+from tools.tasks import priority as scraping_priority
 from tools.tasks.runner import (
     close_worker_streams,
     count_active_by_host,
@@ -44,8 +45,14 @@ from tools.tasks.runner import (
     terminate_process_group,
 )
 import build_locks
-import gijiroku_priority
 import gijiroku_targets
+
+
+gijiroku_priority = scraping_priority.PriorityCalculator(
+    "gijiroku",
+    count_field="downloaded_count",
+    extra_progress_reader=scraping_priority.scrape_state_progress,
+)
 
 
 SUPPORTED_SYSTEMS = {
@@ -294,11 +301,113 @@ def extract_worker_progress_for_display(worker: dict) -> dict[str, object] | Non
     return extract_worker_progress_from_log(worker["stdout_path"])
 
 
+def classified_scrape_validation(target: dict[str, object]) -> dict[str, object] | None:
+    """子スクレイパが残した分類済み完了判定を読む。"""
+    state_path = Path(str(target.get("work_dir") or "")) / "scrape_state.json"
+    try:
+        payload = json.loads(state_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    validation = payload.get("validation")
+    if not isinstance(validation, dict):
+        return None
+    if str(validation.get("mode") or "") != "classified_scrape_result":
+        return None
+    return validation
+
+
+def validation_int(validation: dict[str, object], key: str) -> int:
+    try:
+        return max(0, int(validation.get(key) or 0))
+    except Exception:
+        return 0
+
+
+def actual_scrape_progress(target: dict[str, object]) -> tuple[int, int]:
+    """保存済み成果物を数え、終了判定に使う実取得件数を返す。"""
+    validation = classified_scrape_validation(target)
+    if validation is not None:
+        return (
+            validation_int(validation, "progress_current"),
+            validation_int(validation, "progress_total"),
+        )
+
+    downloads_dir = Path(str(target.get("downloads_dir") or ""))
+    index_json_path = Path(str(target.get("index_json_path") or ""))
+    indexed_total_count = task_backfill.load_gijiroku_index_unique_count(index_json_path)
+    if indexed_total_count > 0:
+        downloaded_count = task_backfill.count_gijiroku_indexed_downloads(index_json_path, downloads_dir)
+    else:
+        downloaded_count = task_backfill.count_gijiroku_downloads(downloads_dir)
+    total_count = max(indexed_total_count, downloaded_count)
+    return max(0, downloaded_count), max(0, total_count)
+
+
+# 子スクレイパが returncode=0 でも、取得件数が完了していなければ成功扱いしない。
+def scrape_completion_error(target: dict[str, object], progress: dict[str, object] | None) -> str:
+    validation = classified_scrape_validation(target)
+    if validation is not None:
+        discovered_count = validation_int(validation, "discovered_count")
+        failed_count = validation_int(validation, "failed_count")
+        unknown_missing_count = validation_int(validation, "unknown_missing_count")
+        if discovered_count <= 0:
+            return "取得対象件数が0件です"
+        if failed_count > 0:
+            return f"取得失敗: {failed_count}件"
+        if unknown_missing_count > 0:
+            return f"取得未確認: {unknown_missing_count}件"
+        return ""
+
+    current, total = actual_scrape_progress(target)
+    if total <= 0 and isinstance(progress, dict):
+        try:
+            current = max(0, int(progress.get("progress_current") or 0))
+            total = max(0, int(progress.get("progress_total") or 0))
+        except Exception:
+            return "取得件数を確認できません"
+    elif total <= 0:
+        return "取得件数を確認できません"
+
+    if total <= 0:
+        return "取得対象件数が0件です"
+    if current < total:
+        return f"取得未完了: {current}/{total}"
+    return ""
+
+
+def remove_stale_scrape_state(state_path: Path) -> None:
+    """前回実行の scrape_state.json が今回の進捗として読まれないようにする。"""
+    try:
+        state_path.unlink()
+    except FileNotFoundError:
+        return
+    except Exception:
+        return
+
+
+def preserve_previous_failed_items(status_state: dict[str, object], task_name: str) -> None:
+    """今回の実行対象から外した失敗済み item を main state に残す。"""
+    items = status_state.setdefault("items", {})
+    if not isinstance(items, dict):
+        return
+    for slug, item in task_backfill.previous_failed_items(task_name).items():
+        if slug not in items:
+            items[slug] = item
+    batch_status.refresh_counts(status_state)
+
+
 # index 更新の進捗母数として、直前のスクレイピング総件数を返す。
 def index_worker_total(index_worker: dict) -> int:
     scrape_worker = index_worker.get("scrape_worker")
     if not isinstance(scrape_worker, dict):
         return 0
+    target = scrape_worker.get("target")
+    if isinstance(target, dict):
+        _, actual_total = actual_scrape_progress(target)
+        if actual_total > 0:
+            return actual_total
     progress = extract_worker_progress_for_display(scrape_worker)
     if not isinstance(progress, dict):
         return 0
@@ -375,6 +484,8 @@ def launch_worker(
     slug = str(target["slug"])
     stdout_path = run_logs_dir / f"{slug}.log"
     stderr_path = run_logs_dir / f"{slug}.err.log"
+    state_path = Path(target["work_dir"]) / "scrape_state.json"
+    remove_stale_scrape_state(state_path)
     stdout_handle = stdout_path.open("w", encoding="utf-8", newline="")
     stderr_handle = stderr_path.open("w", encoding="utf-8", newline="")
 
@@ -396,7 +507,7 @@ def launch_worker(
         "stdout_handle": stdout_handle,
         "stderr_handle": stderr_handle,
         "started_at": batch_status.now_text(),
-        "state_path": Path(target["work_dir"]) / "scrape_state.json",
+        "state_path": state_path,
     }
 
 
@@ -715,6 +826,9 @@ def record_target_result(
         "stderr_log": stderr_log,
         "index_stdout_log": index_stdout_log,
         "index_stderr_log": index_stderr_log,
+        "scrape_returncode": int(scrape_returncode),
+        "index_status": str(index_status),
+        "index_returncode": index_returncode,
         "warning_count": len(warning_lines),
         "warning_lines": warning_lines,
         "freshness_date": latest_freshness["freshness_date"],
@@ -904,6 +1018,7 @@ def main() -> int:
     status_state = batch_status.build_state("gijiroku", run_id, len(targets), summary_path, run_logs_dir)
     for target in targets:
         batch_status.register_target(status_state, target, target_host(target))
+    preserve_previous_failed_items(status_state, "gijiroku")
 
     with summary_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
@@ -1023,17 +1138,20 @@ def main() -> int:
 
             for worker, returncode in completed_workers:
                 target = worker["target"]
-                scrape_status = "ok" if returncode == 0 else "failed"
                 summary = summarize_worker(worker["stdout_path"], worker["stderr_path"])
+                progress = extract_worker_progress_for_display(worker)
+                validation_error = scrape_completion_error(target, progress) if returncode == 0 else ""
+                scrape_status = "ok" if returncode == 0 and validation_error == "" else "failed"
                 overall_status = scrape_status
-                overall_returncode = int(returncode)
+                overall_returncode = int(returncode if validation_error == "" else -1)
+                if validation_error:
+                    summary = f"{summary} / {validation_error}"
                 index_status = "skipped"
                 index_returncode = ""
                 index_stdout_log = ""
                 index_stderr_log = ""
 
-                if returncode == 0 and not args.no_build_index and args.index_dispatch == "celery":
-                    progress = extract_worker_progress_for_display(worker)
+                if scrape_status == "ok" and not args.no_build_index and args.index_dispatch == "celery":
                     finished_at = batch_status.now_text()
                     try:
                         index_task_id = enqueue_index_update_task(target)
@@ -1077,7 +1195,7 @@ def main() -> int:
                     made_progress = True
                     continue
 
-                if returncode == 0 and not args.no_build_index:
+                if scrape_status == "ok" and not args.no_build_index:
                     pending_index_workers.append(queue_index_worker(worker, returncode))
                     batch_status.update_item(
                         status_state,
@@ -1095,7 +1213,6 @@ def main() -> int:
                     made_progress = True
                     continue
 
-                progress = extract_worker_progress_for_display(worker)
                 finished_at = batch_status.now_text()
                 record_target_result(
                     writer,

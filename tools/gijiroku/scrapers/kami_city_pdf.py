@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""HTTP/PDF scraper for official-site minutes pages.
+"""公式サイト上の PDF/テキスト会議録ページ向け HTTP スクレイパ。
 
-This started with Kami City, but the helpers are shared by other static PDF
-scrapers.  It collects PDF links, extracts text, and lets gijiroku_planning
-decide stable output names.
+香美市向けから始まったが、補助関数は他の静的 PDF スクレイパでも共有している。
+PDF link を集めて本文を抽出し、安定した出力名の決定は gijiroku_planning に任せる。
 """
 
 from __future__ import annotations
@@ -25,8 +24,8 @@ from bs4 import BeautifulSoup
 
 SCRAPER_DIR = Path(__file__).resolve().parent
 MODULE_DIR = SCRAPER_DIR.parent
-# Keep both the scraper package directory and its parent importable for direct
-# execution from subprocess-based batch runners.
+# 子プロセス型 batch runner から直接実行されるため、
+# scraper ディレクトリとその親の両方を import 対象にする。
 sys.path.append(str(MODULE_DIR))
 sys.path.append(str(SCRAPER_DIR))
 import gijiroku_planning
@@ -471,6 +470,12 @@ def main() -> int:
             print("[INFO] All expected outputs already exist; skipping download loop.", flush=True)
             emit_progress(len(meeting_items), len(meeting_items), state_path, state)
 
+        # PDF 候補数には、本文抽出できない添付や会議録本体ではない PDF が混ざることがある。
+        # 保存済み本文・除外・実エラーを分けて、親バッチの完了判定が候補数だけに引っ張られないようにする。
+        saved_count = 0 if args.no_resume else sum(1 for plan in planned_items if plan.get("existing_output") is not None)
+        status_counts: dict[str, int] = {}
+        emit_progress(saved_count, len(meeting_items), state_path, state)
+
         for idx, plan in enumerate(work_items, start=1):
             item = plan["item"]
             print(f"[{idx}/{len(work_items)}] {item.year_label} {item.title}")
@@ -500,6 +505,8 @@ def main() -> int:
                     status = "error"
                     error_msg = str(exc)
 
+            if status:
+                status_counts[status] = status_counts.get(status, 0) + 1
             state["items"][resume_key] = {
                 "title": item.title,
                 "year_label": item.year_label,
@@ -525,10 +532,25 @@ def main() -> int:
                 }
             )
             handle.flush()
-            emit_progress(len(meeting_items) - len(work_items) + idx, len(meeting_items), state_path, state)
+            if status == "saved_text":
+                saved_count += 1
+            emit_progress(saved_count, len(meeting_items), state_path, state)
             if args.delay_seconds > 0 and idx < len(work_items):
                 time.sleep(args.delay_seconds)
 
+    validation = gijiroku_storage.apply_classified_scrape_validation(
+        state_path,
+        state,
+        discovered_count=len(meeting_items),
+        downloaded_count=saved_count,
+        status_counts=status_counts,
+    )
+    emit_progress(
+        int(validation["progress_current"]),
+        int(validation["progress_total"]),
+        state_path,
+        state,
+    )
     print(f"[DONE] Saved index: {index_json}")
     print(f"[DONE] Result log : {result_csv}")
     return 0

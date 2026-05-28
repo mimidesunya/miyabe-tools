@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Entry point for generic official-site gikai PDF scraping.
+"""汎用の公式サイト議会 PDF 取得用 entry point。
 
-The implementation is currently shared with kami_city_pdf.py; keeping this
-separate entry point lets scrape_all_minutes route a distinct system_type while
-the shared logic evolves in one place.
+実装は現在 kami_city_pdf.py と共有している。この入口を分けておくことで、
+scrape_all_minutes は別 system_type として routing しつつ、共通ロジックを一箇所で育てられる。
 """
 
 from __future__ import annotations

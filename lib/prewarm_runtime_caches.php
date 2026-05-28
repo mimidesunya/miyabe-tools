@@ -27,6 +27,7 @@ prewarm_forget_runtime_cache(homepage_api_cache_path());
 prewarm_forget_runtime_cache(homepage_task_status_cache_path());
 prewarm_forget_runtime_cache(homepage_search_index_cache_path());
 prewarm_forget_runtime_cache_pattern(data_path('background_tasks/home_api_filtered_v2_*.json'));
+prewarm_forget_runtime_cache_pattern(data_path('background_tasks/home_api_filtered_v3_*.json'));
 
 function prewarm_step(string $label, callable $builder): void
 {

@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Scraper for kaigiroku.net API-backed minutes systems.
+"""kaigiroku.net の API 連携型会議録システム向けスクレイパ。
 
-The UI is browser-based, but the useful data is available through structured
-API endpoints.  This scraper preserves API response debug files only when asked
-and otherwise stores normalized text through the shared minutes pipeline.
+UI はブラウザベースだが、必要なデータは構造化 API から取得できる。
+debug 指定時だけ API 応答を保存し、通常は共通の会議録 pipeline へ正規化本文を渡す。
 """
 
 from __future__ import annotations
@@ -26,8 +25,8 @@ from playwright.sync_api import sync_playwright
 
 SCRAPER_DIR = Path(__file__).resolve().parent
 MODULE_DIR = SCRAPER_DIR.parent
-# Direct script execution is the normal path in Docker workers, so imports stay
-# relative to the tools tree instead of requiring package installation.
+# Docker worker では script を直接実行するのが通常経路。
+# package install ではなく tools ツリー相対で import できるようにする。
 sys.path.append(str(MODULE_DIR))
 sys.path.append(str(SCRAPER_DIR))
 import gijiroku_planning

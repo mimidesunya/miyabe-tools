@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Downloader for D1-Law ordinance systems.
+"""D1-Law 形式の例規集を取得する downloader。
 
-D1-Law has both taxonomy-style pages and OpenSearch-backed entry points.  This
-module resolves the configured target, crawls source HTML, and hands parsing of
-individual ordinance pages to d1_parser.
+D1-Law には目次ツリー型のページと OpenSearch 連携型の入口がある。
+このモジュールは設定された対象 URL を判定して source HTML を巡回し、
+個別例規ページの解析は d1_parser へ渡す。
 """
 
 from __future__ import annotations
@@ -20,8 +20,8 @@ import requests
 
 SCRAPER_DIR = Path(__file__).resolve().parent
 MODULE_DIR = SCRAPER_DIR.parent
-# The batch runner calls this file directly, so imports are rooted at the reiki
-# module directory rather than requiring package installation.
+# batch runner はこのファイルを直接実行する。
+# package install を前提にせず、reiki モジュールディレクトリ基準で import できるようにする。
 sys.path.append(str(MODULE_DIR))
 sys.path.append(str(SCRAPER_DIR))
 import d1_parser
@@ -328,9 +328,8 @@ def fetch_opensearch_pages(
 
 
 def collect_opensearch_entries(source_url: str) -> tuple[requests.Session, list[dict[str, str]]]:
-    # OpenSearch D1-Law entries are discovered through paged results, not a
-    # static taxonomy page.  Return the session so detail requests keep cookies
-    # established during discovery.
+    # OpenSearch 型 D1-Law は静的な目次ページではなく、ページングされた検索結果から例規を拾う。
+    # 詳細取得でも探索時の cookie を使えるよう、確立済み session も返す。
     normalized_source_url = normalize_source_url(source_url)
     parts = urlsplit(normalized_source_url)
     site_root = urlunsplit((parts.scheme or "https", parts.netloc, "", "", "")).rstrip("/")
@@ -340,8 +339,8 @@ def collect_opensearch_entries(source_url: str) -> tuple[requests.Session, list[
 
     top_level_codes = []
     seen_codes = set()
-    # top-level tree categories partition the current ordinances, so we can avoid
-    # walking every nested node while still covering the full catalog.
+    # 最上位カテゴリだけで現行例規の範囲を分割できるため、
+    # 全ての入れ子 node を歩かなくても catalog 全体を覆える。
     for mokujicd in OPENSEARCH_TOP_LEVEL_RE.findall(init_response.text):
         if mokujicd in seen_codes:
             continue
@@ -397,9 +396,8 @@ def build_source_plan(
     opensearch_session: requests.Session | None,
     previous_manifest_by_source: dict[str, dict],
 ) -> tuple[list[dict], int]:
-    # Source filenames use stable D1-Law identifiers rather than titles.  Titles
-    # may change, but these identifiers are what the provider uses for detail
-    # page addressing and resume checks.
+    # source ファイル名にはタイトルではなく、D1-Law 側の安定識別子を使う。
+    # タイトルは変わることがあるが、この識別子は詳細ページ参照と再開判定に使われる。
     plans = []
     incomplete_count = 0
     for source_item in source_items:

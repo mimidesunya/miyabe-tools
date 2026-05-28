@@ -1,9 +1,8 @@
-"""Best-effort PostgreSQL mirror for runtime task status.
+"""実行時タスク状態を PostgreSQL へ補助的にミラーする。
 
-The JSON files under data/background_tasks remain the source of truth for the
-scraper processes.  This module mirrors them into PostgreSQL so the web UI can
-serve task status and homepage summaries without repeatedly reading many JSON
-files.  All callers treat database failures as non-fatal.
+スクレイパにとっての正本は data/background_tasks 配下の JSON のままにする。
+このモジュールはそれを PostgreSQL に写し、Web UI が多数の JSON を何度も読まずに
+タスク状況やトップページ概要を返せるようにする。DB 失敗はすべて非致命扱い。
 """
 
 from __future__ import annotations
@@ -33,7 +32,7 @@ def psycopg_url(url: str) -> str:
         parsed = parsed._replace(scheme="postgresql")
     if parsed.scheme == "":
         return url
-    # Drop PHP-only DSN query options if they ever appear in the shared env var.
+    # 共通 env に PHP 専用の DSN オプションが混ざっても、psycopg が読める形だけ残す。
     query = parse_qs(parsed.query)
     kept = []
     for key, values in query.items():
@@ -44,8 +43,8 @@ def psycopg_url(url: str) -> str:
 
 
 def _connect():
-    # PostgreSQL is optional for local scraper runs; returning None keeps the
-    # filesystem-backed status path usable without special setup.
+    # ローカルのスクレイパ実行では PostgreSQL は任意。
+    # None を返すことで、特別な準備なしにファイル保存の status 経路を使える。
     try:
         import psycopg
     except Exception:

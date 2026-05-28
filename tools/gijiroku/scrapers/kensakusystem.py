@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Scraper for KensakuSystem-style CGI minutes trees.
+"""KensakuSystem 系 CGI 会議録ツリー向けスクレイパ。
 
-These systems expose nested See.exe/ResultFrame.exe pages rather than a simple
-index.  The scraper walks the tree, requests printable full text, and feeds the
-common planning/storage layer.
+この形式は単純な一覧ではなく、See.exe / ResultFrame.exe の入れ子ページとして公開される。
+ツリーをたどって印刷用全文を取得し、共通の planning/storage 層へ渡す。
 """
 
 from __future__ import annotations
@@ -26,8 +25,8 @@ from urllib.request import HTTPCookieProcessor, Request, build_opener
 
 SCRAPER_DIR = Path(__file__).resolve().parent
 MODULE_DIR = SCRAPER_DIR.parent
-# The batch runner executes this file by path, so add the shared gijiroku module
-# directory explicitly instead of relying on an installed package.
+# batch runner はこのファイルをパス指定で実行する。
+# package install に頼らず、共有の会議録モジュールディレクトリを明示的に追加する。
 sys.path.append(str(MODULE_DIR))
 sys.path.append(str(SCRAPER_DIR))
 import gijiroku_planning

@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Scraper for gijiroku.com and voices-style minutes systems.
+"""gijiroku.com / voices 系の会議録システム向けスクレイパ。
 
-The provider relies on browser navigation and download links, so this module
-uses Playwright for discovery while still writing outputs through the common
-planning/storage helpers.
+この provider はブラウザ操作と download link に依存するため、探索には Playwright を使う。
+保存は共通の planning/storage ヘルパへ通し、他の会議録スクレイパと同じ形式に揃える。
 """
 
 from __future__ import annotations
@@ -27,8 +26,8 @@ from playwright.sync_api import sync_playwright
 
 SCRAPER_DIR = Path(__file__).resolve().parent
 MODULE_DIR = SCRAPER_DIR.parent
-# Allow direct execution from the repository root without installing tools as a
-# package inside the scraper container.
+# scraper container 内で tools を package install しなくても、
+# repository root から直接実行できるように import path を補う。
 sys.path.append(str(MODULE_DIR))
 sys.path.append(str(SCRAPER_DIR))
 import gijiroku_planning

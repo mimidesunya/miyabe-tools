@@ -8,6 +8,7 @@
     const loadingPanel = document.querySelector('[data-home-loading]');
     const filterSection = document.querySelector('[data-home-filter-section]');
     const filterSelect = document.querySelector('[data-home-prefecture-filter]');
+    const issueFilterSelect = document.querySelector('[data-home-issue-filter]');
     const filterHint = document.querySelector('[data-home-filter-hint]');
     const displayCountElement = document.querySelector('[data-home-display-count]');
     const municipalityCountElement = document.querySelector('[data-home-municipality-count]');
@@ -16,6 +17,7 @@
     const defaultPrefecture = '神奈川県';
     let latestPayload = null;
     let selectedPrefecture = readSelectedPrefecture() || defaultPrefecture;
+    let selectedIssueFilter = normalizeIssueFilter(readSelectedIssueFilter());
     let latestTaskStatusEtag = '';
     let latestProcessingStatusPayload = null;
 
@@ -213,10 +215,62 @@
         `.trim();
     }
 
+    function featureHasError(feature) {
+        if (feature?.has_error === true) {
+            return true;
+        }
+        return String(feature?.display?.class || '') === 'task-failed';
+    }
+
+    function featureHasWarning(feature) {
+        if (feature?.has_warning === true) {
+            return true;
+        }
+        const warningLines = feature?.display?.warning_lines;
+        if (Array.isArray(warningLines) && warningLines.length > 0) {
+            return true;
+        }
+        return String(feature?.display?.class || '') === 'task-stale';
+    }
+
+    function cardHasError(card) {
+        if (card?.has_error === true) {
+            return true;
+        }
+        const features = Array.isArray(card?.features) ? card.features : [];
+        return features.some(featureHasError);
+    }
+
+    function cardHasWarning(card) {
+        if (card?.has_warning === true) {
+            return true;
+        }
+        const features = Array.isArray(card?.features) ? card.features : [];
+        return features.some(featureHasWarning);
+    }
+
+    function cardMatchesIssueFilter(card) {
+        const hasError = cardHasError(card);
+        const hasWarning = cardHasWarning(card);
+        switch (selectedIssueFilter) {
+            case 'issues':
+                return hasError || hasWarning;
+            case 'errors':
+                return hasError;
+            case 'warnings':
+                return hasWarning && !hasError;
+            default:
+                return true;
+        }
+    }
+
     function renderMunicipalityCard(card) {
         const features = Array.isArray(card.features) ? card.features : [];
+        const issueClass = cardHasError(card)
+            ? ' municipality-card-error'
+            : (cardHasWarning(card) ? ' municipality-card-warning' : '');
         return `
-            <article class="municipality-card ${features.some((feature) => String(feature?.display?.class || '') === 'task-running') ? 'municipality-card-live' : ''}">
+            <article class="municipality-card${issueClass} ${features.some((feature) => String(feature?.display?.class || '') === 'task-running') ? 'municipality-card-live' : ''}">
                 <div class="municipality-head">
                     <h2 class="municipality-name">${escapeHtml(card.name || '')}</h2>
                     <div class="municipality-meta">
@@ -279,6 +333,20 @@
         }
     }
 
+    function normalizeIssueFilter(value) {
+        const normalized = String(value || '').trim();
+        return ['all', 'issues', 'errors', 'warnings'].includes(normalized) ? normalized : 'all';
+    }
+
+    function readSelectedIssueFilter() {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            return normalizeIssueFilter(params.get('issues') || '');
+        } catch (error) {
+            return 'all';
+        }
+    }
+
     function writeSelectedPrefecture(prefectureLabel) {
         try {
             const url = new URL(window.location.href);
@@ -290,6 +358,21 @@
             window.history.replaceState(null, '', url.toString());
         } catch (error) {
             console.warn('failed to update prefecture filter state', error);
+        }
+    }
+
+    function writeSelectedIssueFilter(issueFilter) {
+        try {
+            const url = new URL(window.location.href);
+            const normalized = normalizeIssueFilter(issueFilter);
+            if (normalized === 'all') {
+                url.searchParams.delete('issues');
+            } else {
+                url.searchParams.set('issues', normalized);
+            }
+            window.history.replaceState(null, '', url.toString());
+        } catch (error) {
+            console.warn('failed to update issue filter state', error);
         }
     }
 
@@ -342,6 +425,26 @@
         return options;
     }
 
+    function syncIssueFilter() {
+        selectedIssueFilter = normalizeIssueFilter(selectedIssueFilter);
+        if (issueFilterSelect) {
+            issueFilterSelect.value = selectedIssueFilter;
+        }
+    }
+
+    function issueFilterLabel() {
+        switch (selectedIssueFilter) {
+            case 'issues':
+                return 'エラー・警告がある';
+            case 'errors':
+                return 'エラーがある';
+            case 'warnings':
+                return '警告だけがある';
+            default:
+                return '';
+        }
+    }
+
     function countCards(groups) {
         return groups.reduce((sum, group) => sum + (Array.isArray(group?.cards) ? group.cards.length : 0), 0);
     }
@@ -350,30 +453,44 @@
         const municipalities = Array.isArray(payload?.municipalities) ? payload.municipalities : [];
         const groups = groupMunicipalitiesByPrefecture(municipalities);
         const options = syncPrefectureFilter(payload);
-        const visibleGroups = groups;
+        syncIssueFilter();
+        const visibleGroups = groups
+            .map((group) => ({
+                ...group,
+                cards: (Array.isArray(group?.cards) ? group.cards : []).filter(cardMatchesIssueFilter),
+            }))
+            .filter((group) => group.cards.length > 0);
         const visibleCount = countCards(visibleGroups);
         const totalCount = Number(payload?.display_municipality_count || municipalities.length || 0);
         const allCount = Number(payload?.municipality_count || totalCount);
         const selectedName = selectedPrefectureName(options);
+        const issueLabel = issueFilterLabel();
+        const issueFiltered = selectedIssueFilter !== 'all';
 
         if (displayCountElement) {
-            displayCountElement.textContent = selectedPrefecture === 'all'
+            displayCountElement.textContent = issueFiltered
+                ? `表示自治体: ${visibleCount} / ${totalCount}`
+                : selectedPrefecture === 'all'
                 ? `表示自治体: ${visibleCount}`
                 : `表示自治体: ${visibleCount} / ${allCount}`;
         }
         if (filterHint) {
-            filterHint.textContent = selectedPrefecture === 'all'
-                ? `全 ${allCount} 自治体を都道府県ごとに表示しています。`
-                : `${selectedName || selectedPrefecture} の ${visibleCount} 自治体を表示しています。`;
+            const baseText = selectedPrefecture === 'all'
+                ? `全 ${allCount} 自治体`
+                : `${selectedName || selectedPrefecture} の ${totalCount} 自治体`;
+            filterHint.textContent = issueLabel === ''
+                ? `${baseText}を表示しています。`
+                : `${baseText}のうち、${issueLabel}自治体を ${visibleCount} 件表示しています。`;
         }
         writeSelectedPrefecture(selectedPrefecture === 'all' ? 'all' : selectedName);
+        writeSelectedIssueFilter(selectedIssueFilter);
 
         if (!grid) {
             return;
         }
 
         if (visibleCount === 0) {
-            grid.innerHTML = '<div class="loading-panel">選択中の都道府県で表示できる自治体はありません。</div>';
+            grid.innerHTML = '<div class="loading-panel">選択中の条件で表示できる自治体はありません。</div>';
             return;
         }
 
@@ -550,6 +667,16 @@
                 ? 'all'
                 : String(filterSelect.options[filterSelect.selectedIndex]?.textContent || ''));
             refresh();
+        });
+    }
+
+    if (issueFilterSelect) {
+        issueFilterSelect.addEventListener('change', () => {
+            selectedIssueFilter = normalizeIssueFilter(issueFilterSelect.value);
+            writeSelectedIssueFilter(selectedIssueFilter);
+            if (latestPayload) {
+                renderGrid(latestPayload);
+            }
         });
     }
 

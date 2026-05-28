@@ -1,8 +1,8 @@
-"""Read and write background task state for scraper/index workflows.
+"""スクレイパ・index 更新の background task state を読み書きする。
 
-The state files under data/background_tasks are the operational contract between
-batch runners, recovery tools, and the web UI.  This module owns the shape of
-those JSON files and mirrors updates into the optional management database.
+data/background_tasks 配下の state ファイルは、batch runner、復旧ツール、
+Web UI の間の運用上の契約になる。このモジュールが JSON の形を管理し、
+利用可能な場合は任意の管理 DB にも同じ更新をミラーする。
 """
 
 from __future__ import annotations
@@ -405,10 +405,11 @@ def invalidate_runtime_caches(*, include_homepage_payload: bool = False) -> None
             pass
     if include_homepage_payload:
         try:
-            for path in status_root().glob("home_api_filtered_v2_*.json"):
-                try:
-                    path.unlink(missing_ok=True)
-                except Exception:
-                    pass
+            for pattern in ("home_api_filtered_v2_*.json", "home_api_filtered_v3_*.json"):
+                for path in status_root().glob(pattern):
+                    try:
+                        path.unlink(missing_ok=True)
+                    except Exception:
+                        pass
         except Exception:
             pass

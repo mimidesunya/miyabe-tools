@@ -1,1 +1,1 @@
-"""Task management helpers for scraper and index workflows."""
+"""スクレイパと index 更新ワークフローのタスク管理ヘルパ。"""

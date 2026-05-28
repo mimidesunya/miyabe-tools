@@ -1,8 +1,7 @@
-"""Storage primitives for scraper outputs.
+"""スクレイパ成果物の保存プリミティブ。
 
-Scrapers write compressed text/JSON through this module so replacement,
-archiving, encoding fallback, and digest calculation stay consistent across
-different source systems.
+圧縮テキスト・JSON の書き込み、置換前アーカイブ、文字コード fallback、
+digest 計算をここへまとめ、source system が違っても保存の振る舞いを揃える。
 """
 
 from __future__ import annotations
@@ -20,6 +19,9 @@ from typing import Any
 
 TEXT_ENCODINGS = ("utf-8", "cp932", "shift_jis", "euc_jp")
 ARCHIVE_MARKER = "_archive"
+SCRAPE_VALIDATION_MODE = "classified_scrape_result"
+SCRAPE_EXCLUDED_STATUSES = frozenset({"empty_text", "empty_pdf_text"})
+SCRAPE_FAILED_STATUSES = frozenset({"error", "timeout", "not_found"})
 
 
 def gzip_path(path: Path) -> Path:
@@ -76,8 +78,8 @@ def archive_root_for(path: Path) -> tuple[Path, Path]:
 
 
 def archive_existing_file(path: Path, *, reason: str = "replace") -> Path | None:
-    # Keep replaced files near the municipality data they came from.  This makes
-    # remote debugging possible without requiring a separate backup location.
+    # 置換前ファイルは元の自治体データの近くに残す。
+    # 別のバックアップ置き場を探さなくても、リモート上で差分調査できるようにする。
     try:
         candidate = path.resolve()
         if ARCHIVE_MARKER in candidate.parts or not candidate.is_file():
@@ -183,7 +185,7 @@ def item_signature(payload: Any) -> str:
 
 
 def disambiguated_stem(stem: str, discriminator: str, occurrence_index: int) -> str:
-    """Keep the first output path stable and suffix later same-name collisions."""
+    """最初の保存名は固定し、同名衝突した 2 件目以降だけ suffix を付ける。"""
     stem = str(stem).strip() or "meeting"
     if occurrence_index <= 0:
         return stem
@@ -215,3 +217,87 @@ def update_progress_state(path: Path, *, current: int, total: int, unit: str = "
     state["progress_total"] = max(0, int(total))
     state["progress_unit"] = str(unit).strip() or "meeting"
     save_state(path, state)
+
+
+def normalized_status_counts(status_counts: dict[str, int] | None) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for raw_status, raw_count in (status_counts or {}).items():
+        status = str(raw_status or "").strip()
+        if not status:
+            continue
+        try:
+            count = max(0, int(raw_count))
+        except Exception:
+            continue
+        if count > 0:
+            counts[status] = counts.get(status, 0) + count
+    return counts
+
+
+def count_statuses(status_counts: dict[str, int], statuses: frozenset[str]) -> int:
+    return sum(max(0, int(status_counts.get(status, 0))) for status in statuses)
+
+
+def classified_scrape_summary(
+    *,
+    discovered_count: int,
+    downloaded_count: int,
+    status_counts: dict[str, int] | None = None,
+) -> dict[str, Any]:
+    """会議録候補を「成功・除外・失敗・未確認」に分けた完了判定用 summary を作る。"""
+    counts = normalized_status_counts(status_counts)
+    discovered = max(0, int(discovered_count))
+    downloaded = max(0, int(downloaded_count))
+    excluded = count_statuses(counts, SCRAPE_EXCLUDED_STATUSES)
+    failed = count_statuses(counts, SCRAPE_FAILED_STATUSES)
+
+    # discovered は最初に見つかった候補数なので、目次・一覧・空 PDF が混ざることがある。
+    # ただし「成功でも除外でも失敗でもない候補」は取りこぼしなので、明示的に失敗扱いへ回す。
+    accounted = downloaded + excluded + failed
+    unknown_missing = max(0, discovered - accounted)
+    eligible = downloaded + failed + unknown_missing
+
+    warning_lines: list[str] = []
+    if excluded > 0:
+        warning_lines.append(f"会議録本体ではない候補を除外 {excluded}件")
+    if failed > 0:
+        warning_lines.append(f"取得エラー {failed}件")
+    if unknown_missing > 0:
+        warning_lines.append(f"取得結果が確認できない候補 {unknown_missing}件")
+
+    return {
+        "mode": SCRAPE_VALIDATION_MODE,
+        "discovered_count": discovered,
+        "downloaded_count": downloaded,
+        "excluded_count": excluded,
+        "failed_count": failed,
+        "unknown_missing_count": unknown_missing,
+        "eligible_count": eligible,
+        "progress_current": downloaded,
+        "progress_total": eligible,
+        "progress_unit": "meeting",
+        "status_counts": counts,
+        "warning_lines": warning_lines,
+    }
+
+
+def apply_classified_scrape_validation(
+    state_path: Path,
+    state: dict[str, Any],
+    *,
+    discovered_count: int,
+    downloaded_count: int,
+    status_counts: dict[str, int] | None = None,
+) -> dict[str, Any]:
+    """分類済みの完了判定を scrape_state.json へ保存し、親バッチの母数を揃える。"""
+    summary = classified_scrape_summary(
+        discovered_count=discovered_count,
+        downloaded_count=downloaded_count,
+        status_counts=status_counts,
+    )
+    state["validation"] = summary
+    state["progress_current"] = summary["progress_current"]
+    state["progress_total"] = summary["progress_total"]
+    state["progress_unit"] = summary["progress_unit"]
+    save_state(state_path, state)
+    return summary

@@ -290,7 +290,7 @@ def _reflect_state(task_name: str, target: dict[str, object], *, progress_total:
 
 
 # index 更新コマンドを実行し、ログから進捗を読み取って *_reflect state を更新する。
-def _run_index_update_command_with_status(kind: str, slug: str, state: dict[str, object], progress_total: int) -> None:
+def _run_index_update_command_with_status(kind: str, slug: str, state: dict[str, object], progress_total: int) -> int:
     # build_opensearch_index.py の [BULK]/[DONE] ログから投入済み件数を拾い、
     # 画面の「追加済 n/m 件」に反映する。
     command = _index_update_command("minutes" if kind == "gijiroku" else "reiki", slug)
@@ -307,6 +307,7 @@ def _run_index_update_command_with_status(kind: str, slug: str, state: dict[str,
     batch_status.update_item(state, slug, pid=int(process.pid))
     batch_status.write_state(f"{kind}_reflect", state)
     assert process.stdout is not None
+    last_count = 0
     for raw_line in process.stdout:
         line = raw_line.rstrip("\n")
         print(line, flush=True)
@@ -315,6 +316,7 @@ def _run_index_update_command_with_status(kind: str, slug: str, state: dict[str,
         if match is not None:
             current = max(0, int(match.group("total") if "total" in match.groupdict() else match.group("count")))
         if current is not None:
+            last_count = current
             batch_status.update_item(
                 state,
                 slug,
@@ -327,6 +329,7 @@ def _run_index_update_command_with_status(kind: str, slug: str, state: dict[str,
     returncode = process.wait()
     if returncode != 0:
         raise RuntimeError(f"{kind} index update {slug} failed with exit code {returncode}")
+    return last_count
 
 
 # Celery の自治体別 index 更新タスク本体。開始・終了 state を必ず書く。
@@ -341,8 +344,13 @@ def _run_index_update_impl(kind: str, slug: str) -> None:
     batch_status.write_state(task_name, state)
     ok = False
     message = ""
+    indexed_count = 0
     try:
-        _run_index_update_command_with_status(kind, slug, state, progress_total)
+        if progress_total <= 0:
+            raise RuntimeError(f"{kind} index update {slug} has no source documents")
+        indexed_count = _run_index_update_command_with_status(kind, slug, state, progress_total)
+        if indexed_count <= 0:
+            raise RuntimeError(f"{kind} index update {slug} produced no index documents")
         ok = True
         message = "インデックス更新完了"
     except Exception as exc:
@@ -357,9 +365,9 @@ def _run_index_update_impl(kind: str, slug: str) -> None:
             message=message,
             finished_at=finished_at,
             returncode=0 if ok else -1,
-            progress_current=1 if ok else None,
-            progress_total=1 if ok else None,
-            progress_unit="municipality" if ok else "",
+            progress_current=indexed_count if ok else None,
+            progress_total=indexed_count if ok else None,
+            progress_unit="document" if ok else "",
         )
         state["running"] = False
         state["finished_at"] = finished_at

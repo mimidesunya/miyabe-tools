@@ -1,8 +1,8 @@
-"""Convert scraper artifacts into OpenSearch-ready records.
+"""スクレイパ成果物を OpenSearch 登録用レコードへ変換する。
 
-The index builder should not know the quirks of every storage layout.  This
-module reads minutes/reiki source files, normalizes titles and dates, and
-prepares the tokenized fields that are indexed by build_opensearch_index.py.
+index builder が保存レイアウトごとの癖を直接知らなくて済むようにする層。
+会議録・例規集の source ファイルを読み、タイトルや日付を正規化し、
+build_opensearch_index.py が投入する tokenizer 用フィールドを準備する。
 """
 
 from __future__ import annotations

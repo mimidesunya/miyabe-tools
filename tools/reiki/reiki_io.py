@@ -1,8 +1,8 @@
-"""Storage and encoding helpers for reiki scraper outputs.
+"""例規集スクレイパ成果物の保存・文字コード処理ヘルパ。
 
-The reiki scrapers produce source HTML, normalized HTML, Markdown, manifest
-files, and JSON metadata.  Centralizing IO here keeps compression and archive
-behavior aligned with the minutes side while allowing reiki-specific paths.
+例規集スクレイパは source HTML、正規化 HTML、Markdown、manifest、JSON メタデータを
+生成する。IO をここへ集約し、例規集固有のパスを扱いつつ、圧縮とアーカイブの
+振る舞いを会議録側と揃える。
 """
 
 from __future__ import annotations
@@ -47,8 +47,8 @@ def archive_root_for(path: Path) -> tuple[Path, Path]:
 
 
 def archive_existing_file(path: Path, *, reason: str = "replace") -> Path | None:
-    # Replacement is common during update checks.  Archive the old artifact next
-    # to the municipality tree so a bad scrape can be inspected after the fact.
+    # 更新確認では既存成果物の置換がよく起きる。
+    # 失敗した取得を後から調査できるよう、古い成果物は自治体ツリーの近くへ退避する。
     try:
         candidate = path.resolve()
         if ARCHIVE_MARKER in candidate.parts or not candidate.is_file():

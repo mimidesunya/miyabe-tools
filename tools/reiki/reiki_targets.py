@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Load and normalize ordinance scrape targets.
+"""例規集スクレイピング対象を読み込み、実行しやすい形へ正規化する。
 
-The canonical input is data/municipalities/reiki_system_urls.tsv.  This module
-joins it with municipality metadata, derives runtime paths, and normalizes
-provider details for the batch scheduler and child scrapers.
+正本は data/municipalities/reiki_system_urls.tsv。
+自治体メタデータと結合して実行時パスを導出し、provider ごとの差分を
+batch scheduler と子スクレイパから扱いやすい形へ整える。
 """
 
 from __future__ import annotations

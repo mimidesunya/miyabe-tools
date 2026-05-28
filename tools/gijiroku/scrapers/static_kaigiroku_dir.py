@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Scraper for static kaigiroku/gijiroku directory layouts.
+"""静的な kaigiroku/gijiroku ディレクトリ構成向けスクレイパ。
 
-Some municipalities publish minutes as plain HTML/PDF files under predictable
-directories.  This module crawls those directories conservatively and reuses
-the PDF/text normalization helpers from kami_city_pdf.py.
+一部自治体は、予測可能な directory の下に HTML/PDF の会議録を静的公開している。
+このモジュールはそれらを控えめに巡回し、PDF/text 正規化は kami_city_pdf.py の
+補助関数を再利用する。
 """
 
 from __future__ import annotations
@@ -23,8 +23,8 @@ from bs4 import BeautifulSoup
 
 SCRAPER_DIR = Path(__file__).resolve().parent
 MODULE_DIR = SCRAPER_DIR.parent
-# Direct execution by scrape_all_minutes means sibling imports need an explicit
-# path entry in the scraper container.
+# scrape_all_minutes から直接実行されるため、
+# scraper container 内で隣接モジュールを import できるよう path を追加する。
 sys.path.append(str(MODULE_DIR))
 sys.path.append(str(SCRAPER_DIR))
 import gijiroku_planning
@@ -448,7 +448,10 @@ def main() -> int:
             print("[INFO] All expected outputs already exist; skipping download loop.", flush=True)
             emit_progress(len(meeting_items), len(meeting_items), state_path, state)
 
-        saved_count = saved_output_count(planned_items)
+        # saved_count は実際に本文ファイルとして保存できている件数だけを数える。
+        # --no-resume では既存ファイルを取り直すため、開始時点の既存件数は進捗へ足さない。
+        saved_count = 0 if args.no_resume else saved_output_count(planned_items)
+        status_counts: dict[str, int] = {}
         emit_progress(saved_count, len(meeting_items), state_path, state)
 
         for idx, plan in enumerate(work_items, start=1):
@@ -487,6 +490,8 @@ def main() -> int:
                     status = "error"
                     error_msg = str(exc)
 
+            if status:
+                status_counts[status] = status_counts.get(status, 0) + 1
             state["items"][resume_key] = {
                 "title": item.title,
                 "year_label": item.year_label,
@@ -518,6 +523,19 @@ def main() -> int:
             if args.delay_seconds > 0 and idx < len(work_items):
                 time.sleep(args.delay_seconds)
 
+    validation = gijiroku_storage.apply_classified_scrape_validation(
+        state_path,
+        state,
+        discovered_count=len(meeting_items),
+        downloaded_count=saved_count,
+        status_counts=status_counts,
+    )
+    emit_progress(
+        int(validation["progress_current"]),
+        int(validation["progress_total"]),
+        state_path,
+        state,
+    )
     print(f"[DONE] Saved index: {index_json}")
     print(f"[DONE] Result log : {result_csv}")
     return 0

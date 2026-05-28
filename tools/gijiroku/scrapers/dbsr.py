@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Scraper for DBSR-style assembly minutes systems.
+"""DBSR 系の会議録システム向けスクレイパ。
 
-These sites expose year/list/detail pages behind CGI parameters.  The scraper
-enumerates dated document rows, downloads the printable text, then delegates
-file naming and resume decisions to gijiroku_planning.
+この形式では CGI parameter の奥に年度・一覧・詳細ページがある。
+日付付きの文書行を列挙して印刷用本文を取得し、ファイル名や再開判断は
+gijiroku_planning へ任せる。
 """
 
 from __future__ import annotations
@@ -26,8 +26,8 @@ from playwright.sync_api import sync_playwright
 
 SCRAPER_DIR = Path(__file__).resolve().parent
 MODULE_DIR = SCRAPER_DIR.parent
-# The scraper must work both as ``python tools/.../dbsr.py`` and when imported
-# by small integration checks, so keep sibling modules on sys.path explicitly.
+# `python tools/.../dbsr.py` の直接実行と、小さな結合確認からの import の両方で動かす。
+# そのため、隣接モジュールを sys.path に明示的に入れる。
 sys.path.append(str(MODULE_DIR))
 sys.path.append(str(SCRAPER_DIR))
 import gijiroku_planning

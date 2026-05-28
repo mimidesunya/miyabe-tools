@@ -1,1 +1,1 @@
-"""Individual reiki scraper implementations."""
+"""個別の例規集スクレイパ実装。"""

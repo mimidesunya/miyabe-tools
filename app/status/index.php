@@ -68,12 +68,23 @@ function status_asset_url(string $relativePath): string
                 <div class="prefecture-filter-title">都道府県ごとに自治体を切り替え</div>
                 <p data-home-filter-hint>都道府県一覧を読み込んでいます。</p>
             </div>
-            <label class="prefecture-filter-control">
-                <span>表示する都道府県</span>
-                <select data-home-prefecture-filter>
-                    <option value="all">すべての都道府県</option>
-                </select>
-            </label>
+            <div class="prefecture-filter-controls">
+                <label class="prefecture-filter-control">
+                    <span>表示する都道府県</span>
+                    <select data-home-prefecture-filter>
+                        <option value="all">すべての都道府県</option>
+                    </select>
+                </label>
+                <label class="prefecture-filter-control">
+                    <span>状態</span>
+                    <select data-home-issue-filter>
+                        <option value="all">すべて</option>
+                        <option value="issues">エラー・警告あり</option>
+                        <option value="errors">エラーのみ</option>
+                        <option value="warnings">警告のみ</option>
+                    </select>
+                </label>
+            </div>
         </section>
 
         <section class="municipality-grid" data-home-grid>

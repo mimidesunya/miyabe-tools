@@ -1,8 +1,8 @@
-"""Slug normalization helpers shared by scrapers and maintenance tools.
+"""スクレイパと保守コマンドで共有する slug 正規化ヘルパ。
 
-Slugs are persisted in data paths, background task JSON, and OpenSearch
-documents, so this file centralizes the romanization and sanitizing rules instead
-of letting each scraper invent its own.
+slug は保存パス、background_tasks JSON、OpenSearch 文書に永続化される。
+各スクレイパが別々の規則を持つと同じ自治体を別物として扱ってしまうため、
+ローマ字化と安全な文字列化の規則はここへ集約する。
 """
 
 from __future__ import annotations

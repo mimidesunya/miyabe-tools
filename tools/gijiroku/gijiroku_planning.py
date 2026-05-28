@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Build stable save plans for assembly minutes candidates.
+"""会議録候補から安定した保存計画を作る。
 
-Individual scrapers only need to discover candidate meetings.  This module turns
-those candidates into deterministic directories, filenames, resume keys, and
-existing-file decisions so every minutes scraper follows the same storage rules.
+個別スクレイパは会議録候補の発見に集中し、このモジュールが保存ディレクトリ、
+ファイル名、再開キー、既存ファイルの扱いを決める。すべての会議録スクレイパが
+同じ保存規則を使えるようにするための層。
 """
 
 from __future__ import annotations
@@ -105,7 +105,7 @@ def _iso_date(year: int, month: int, day: int) -> str:
 
 
 def infer_sort_date(item: Any) -> str:
-    """Return an ISO-ish date string usable for stable ordering, or empty if unknown."""
+    """安定ソートに使える ISO 風の日付文字列を返す。不明なら空文字。"""
     held_on = str(item_value(item, "held_on", "") or "").strip()
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", held_on):
         return held_on
@@ -148,9 +148,9 @@ def build_base_plans(
     fallback_stem: str = "meeting",
     mkdir: bool = True,
 ) -> list[dict[str, Any]]:
-    # Keep planning pure: callers inspect these plans, decide what still needs
-    # network work, then persist a compact summary for resume/priority logic.
-    # No output files are written here.
+    # 計画作成は副作用なしに保つ。
+    # 呼び出し側が plan を見て通信が必要な項目を判断し、再開・優先度計算用の要約だけ保存する。
+    # ここでは成果物ファイルを書き込まない。
     plans: list[dict[str, Any]] = []
     seen_output_stems: dict[tuple[str, str], int] = {}
 
@@ -300,9 +300,8 @@ def save_plan_summary(
     missing_count: int,
     previous_missing: int | None = None,
 ) -> None:
-    # scrape_state.json is the bridge between the child scraper and the parent
-    # batch runner.  Store compact planning facts so the parent can show progress
-    # without parsing provider-specific files.
+    # scrape_state.json は子スクレイパと親バッチ runner の橋渡し。
+    # 親が provider 固有ファイルを読まずに進捗を出せるよう、計画の要点だけを保存する。
     state["plan_summary"] = summarize_plans(planned_items, missing_count)
     state["plan_summary"]["work_mode"] = work_mode_label(missing_count, previous_missing)
     gijiroku_storage.save_state(state_path, state)

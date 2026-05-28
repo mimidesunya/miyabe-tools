@@ -1,8 +1,8 @@
-"""Shared process-control helpers for long-running scraper batches.
+"""長時間動くスクレイピングバッチ向けの共通プロセス制御。
 
-Both gijiroku and reiki batch runners need the same host throttling, subprocess
-logging, signal handling, and progress extraction behavior.  Keeping those
-pieces here prevents the two batch loops from drifting apart.
+会議録と例規集の batch runner はどちらも、ホスト単位の間引き、
+子プロセスログ、シグナル処理、進捗抽出を必要とする。ここへまとめることで、
+2 つのバッチループの細部が少しずつずれるのを防ぐ。
 """
 
 from __future__ import annotations
@@ -85,6 +85,17 @@ def scrape_state_warning_lines(
         state = json.loads(state_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return []
+    validation = state.get("validation")
+    if isinstance(validation, dict) and str(validation.get("mode") or "") == "classified_scrape_result":
+        raw_lines = validation.get("warning_lines")
+        if isinstance(raw_lines, list):
+            lines: list[str] = []
+            for line in raw_lines:
+                stripped = re.sub(r"\s+", " ", str(line or "")).strip()
+                if stripped and stripped not in lines:
+                    lines.append(stripped)
+            if lines:
+                return lines[-max(0, max_examples + 3):]
     items = state.get("items")
     if not isinstance(items, dict):
         return []
@@ -252,8 +263,13 @@ def extract_worker_progress_from_state(state_path: Path, *, default_unit: str) -
     if not isinstance(payload, dict):
         return None
 
-    current = payload.get("progress_current")
-    total = payload.get("progress_total")
+    progress_source = payload
+    validation = payload.get("validation")
+    if isinstance(validation, dict) and str(validation.get("mode") or "") == "classified_scrape_result":
+        progress_source = validation
+
+    current = progress_source.get("progress_current")
+    total = progress_source.get("progress_total")
     if current is None or total is None:
         return None
     try:
@@ -267,7 +283,7 @@ def extract_worker_progress_from_state(state_path: Path, *, default_unit: str) -
     return {
         "progress_current": max(0, progress_current),
         "progress_total": max(0, progress_total),
-        "progress_unit": str(payload.get("progress_unit", default_unit)).strip() or default_unit,
+        "progress_unit": str(progress_source.get("progress_unit", default_unit)).strip() or default_unit,
     }
 
 

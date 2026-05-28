@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Build Miyabe OpenSearch indexes from scraper-produced files.
+"""スクレイパ成果物から Miyabe の OpenSearch index を構築する。
 
-The public search API reads only OpenSearch, so this command is the bridge from
-saved scraper artifacts to the live searchable aliases.  Rebuild mode creates a
-fresh versioned index; update mode replaces documents for one municipality in
-the current alias-backed index.
+公開検索 API は OpenSearch だけを読むため、このコマンドが保存済み成果物と
+公開 alias の橋渡しになる。rebuild は新しい versioned index を作り、
+update は現在の alias 配下で指定自治体の文書だけを差し替える。
 """
 
 from __future__ import annotations
@@ -31,8 +30,8 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 sys.path.append(str(Path(__file__).resolve().parents[1] / "gijiroku"))
 sys.path.append(str(Path(__file__).resolve().parents[1] / "reiki"))
 sys.path.append(str(Path(__file__).resolve().parents[2] / "lib" / "python"))
-# This command is run directly by subprocesses in both local and Docker flows.
-# Keep all scraper support modules importable without relying on PYTHONPATH.
+# このコマンドはローカルでも Docker でも子プロセスからファイルパス指定で実行される。
+# PYTHONPATH の事前設定に頼らず、必要な scraper 補助モジュールを import できるようにする。
 
 import gijiroku_targets  # type: ignore
 import reiki_targets  # type: ignore
@@ -51,12 +50,12 @@ from scraped_source_records import (  # type: ignore
 
 try:
     import japanese_search_tokenizer  # type: ignore
-except Exception:  # pragma: no cover - optional fallback for minimal machines
+except Exception:  # pragma: no cover - 最小構成の環境では tokenizer なしでも動かす
     japanese_search_tokenizer = None
 
 try:
     from tools.tasks import status as batch_status  # type: ignore
-except Exception:  # pragma: no cover - progress UI is best-effort
+except Exception:  # pragma: no cover - 進捗 UI は補助機能なので失敗しても続行する
     batch_status = None
 
 
@@ -329,7 +328,12 @@ def preferred_reiki_sidecar(files: dict[str, Path], key: str) -> Path | None:
     return files.get(key) or files.get(Path(key).name)
 
 
-def iter_minutes_documents(limit: int = 0, slugs: set[str] | None = None) -> Iterator[tuple[str, dict[str, Any]]]:
+def iter_minutes_documents(
+    limit: int = 0,
+    slugs: set[str] | None = None,
+    *,
+    strict: bool = False,
+) -> Iterator[tuple[str, dict[str, Any]]]:
     indexed_at = utc_now_iso()
     emitted = 0
     slug_filter = slugs or set()
@@ -346,6 +350,8 @@ def iter_minutes_documents(limit: int = 0, slugs: set[str] | None = None) -> Ite
             source_files = choose_minutes_source_files(downloads_dir)
             meta_map = parse_minutes_source_meta(Path(target["index_json_path"]))
         except Exception as exc:
+            if strict:
+                raise RuntimeError(f"failed to enumerate minutes files dir={downloads_dir}: {exc}") from exc
             print(f"[WARN] failed to enumerate minutes files dir={downloads_dir}: {exc}", file=sys.stderr)
             continue
 
@@ -353,9 +359,13 @@ def iter_minutes_documents(limit: int = 0, slugs: set[str] | None = None) -> Ite
             try:
                 record = build_minutes_record(file_path, downloads_dir, meta_map, indexed_at)
             except Exception as exc:
+                if strict:
+                    raise RuntimeError(f"failed to parse minutes file={file_path}: {exc}") from exc
                 print(f"[WARN] failed to parse minutes file={file_path}: {exc}", file=sys.stderr)
                 continue
             if record is None or record.doc_type != "minutes":
+                if strict and record is None:
+                    raise RuntimeError(f"minutes file did not produce an indexable record: {file_path}")
                 continue
 
             local_id = stable_local_id(meta["slug"], record.rel_path)
@@ -394,7 +404,12 @@ def iter_minutes_documents(limit: int = 0, slugs: set[str] | None = None) -> Ite
                 return
 
 
-def iter_reiki_documents(limit: int = 0, slugs: set[str] | None = None) -> Iterator[tuple[str, dict[str, Any]]]:
+def iter_reiki_documents(
+    limit: int = 0,
+    slugs: set[str] | None = None,
+    *,
+    strict: bool = False,
+) -> Iterator[tuple[str, dict[str, Any]]]:
     indexed_at = utc_now_iso()
     emitted = 0
     slug_filter = slugs or set()
@@ -420,6 +435,8 @@ def iter_reiki_documents(limit: int = 0, slugs: set[str] | None = None) -> Itera
             manifest_index = load_reiki_manifest_index(Path(target["work_root"]) / "source_manifest.json.gz")
             prefixes = reiki_sortable_prefixes(target)
         except Exception as exc:
+            if strict:
+                raise RuntimeError(f"failed to enumerate reiki files dir={html_root}: {exc}") from exc
             print(f"[WARN] failed to enumerate reiki files dir={html_root}: {exc}", file=sys.stderr)
             continue
 
@@ -434,9 +451,13 @@ def iter_reiki_documents(limit: int = 0, slugs: set[str] | None = None) -> Itera
                     prefixes,
                 )
             except Exception as exc:
+                if strict:
+                    raise RuntimeError(f"failed to parse reiki file={html_path}: {exc}") from exc
                 print(f"[WARN] failed to parse reiki file={html_path}: {exc}", file=sys.stderr)
                 continue
             if not isinstance(record, dict):
+                if strict:
+                    raise RuntimeError(f"reiki file did not produce an indexable record: {html_path}")
                 continue
 
             filename = clean_text(record.get("filename")) or key
@@ -768,9 +789,9 @@ def switch_aliases(
     reiki_alias: str,
     documents_alias: str,
 ) -> None:
-    # Alias switching is the public release step.  Build into versioned indexes
-    # first, then atomically repoint the minutes/reiki aliases and the combined
-    # documents alias so readers never see a half-built index.
+    # alias 切り替えが公開反映の境界になる。
+    # 先に versioned index へ構築し、会議録・例規集 alias と統合 documents alias を
+    # 原子的に差し替えることで、読み手に構築途中の index を見せない。
     target_minutes = [minutes_index] if minutes_index else indices_for_alias(client, minutes_alias)
     target_reiki = [reiki_index] if reiki_index else indices_for_alias(client, reiki_alias)
 
@@ -819,9 +840,9 @@ def publish_partial_aliases(
     reiki_alias: str,
     documents_alias: str,
 ) -> None:
-    # During a long rebuild, publish completed slugs from the new index while
-    # leaving the rest of the public alias on the previous index.  Alias filters
-    # make this safe without copying old documents into the new index.
+    # 長い rebuild 中は、完了済み slug だけを新 index から公開し、
+    # 未完了分は旧 index の alias に残す。alias filter を使うことで、
+    # 旧文書を新 index へコピーしなくても安全に混在公開できる。
     actions: list[dict[str, Any]] = []
     for alias in [minutes_alias, reiki_alias, documents_alias]:
         for index in indices_for_alias(client, alias):
@@ -1092,12 +1113,15 @@ def update_one(
 ) -> int:
     if not slugs:
         raise ValueError("Incremental update requires --slug.")
+    documents_list = list(documents)
+    if not documents_list:
+        raise RuntimeError(f"Incremental update for {doc_type} has no source documents: {','.join(sorted(slugs))}")
 
     current_index = single_index_for_alias(client, alias)
     if current_index is None:
-        # Incremental update cannot delete+bulk into an alias that does not yet
-        # point anywhere.  Bootstrap once under a file lock so concurrent slug
-        # updates do not create competing first indexes.
+        # まだどの index も指していない alias には、差分更新の delete+bulk ができない。
+        # 初回だけ file lock の下で bootstrap し、同時実行された slug 更新同士が
+        # 競合する初期 index を作らないようにする。
         lock_path = build_locks.acquire_build_lock(
             f"opensearch-{doc_type}-bootstrap",
             owner="build_opensearch_index",
@@ -1113,7 +1137,7 @@ def update_one(
                 count = build_one(
                     client,
                     index_name=index_name,
-                    documents=documents,
+                    documents=documents_list,
                     shards=shards,
                     replicas=replicas,
                     bulk_size=bulk_size,
@@ -1133,10 +1157,10 @@ def update_one(
             build_locks.release_build_lock(lock_path)
 
     print(f"[UPDATE] alias={alias} index={current_index} slugs={','.join(sorted(slugs))}", flush=True)
-    # Update mode intentionally rewrites only the requested municipalities.  The
-    # rest of the alias-backed index stays live and untouched.
+    # update mode は指定自治体だけを意図的に書き換える。
+    # alias 配下の他自治体 index は公開したまま触らない。
     delete_documents_for_slugs(client, index_or_alias=alias, doc_type=doc_type, slugs=slugs)
-    count = index_documents(client, alias, documents, bulk_size=bulk_size)
+    count = index_documents(client, alias, documents_list, bulk_size=bulk_size)
     refresh_search_target(client, alias)
     print(f"[DONE] alias={alias} doc_type={doc_type} count={count}", flush=True)
     return count
@@ -1172,7 +1196,7 @@ def main() -> int:
                 minutes_alias=args.minutes_alias,
                 reiki_alias=args.reiki_alias,
                 build_id=build_id,
-                documents=iter_minutes_documents(limit=args.limit, slugs=slugs),
+                documents=iter_minutes_documents(limit=args.limit, slugs=slugs, strict=True),
                 slugs=slugs,
                 shards=args.shards,
                 replicas=args.replicas,
@@ -1189,7 +1213,7 @@ def main() -> int:
                 minutes_alias=args.minutes_alias,
                 reiki_alias=args.reiki_alias,
                 build_id=build_id,
-                documents=iter_reiki_documents(limit=args.limit, slugs=slugs),
+                documents=iter_reiki_documents(limit=args.limit, slugs=slugs, strict=True),
                 slugs=slugs,
                 shards=args.shards,
                 replicas=args.replicas,

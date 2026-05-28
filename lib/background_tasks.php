@@ -567,7 +567,10 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
         ] + background_task_display_freshness_fields($item);
     }
     if ($status === 'failed') {
-        if (background_task_item_is_complete($item)) {
+        $returncode = $item['returncode'] ?? null;
+        $indexStatus = trim((string)($item['index_status'] ?? ''));
+        $returncodeIsOk = $returncode === null || $returncode === '' || (int)$returncode === 0;
+        if (background_task_item_is_complete($item) && $indexStatus !== 'failed' && $returncodeIsOk) {
             $completeDetailLines = preg_split('/\R/u', $detail, -1, PREG_SPLIT_NO_EMPTY) ?: [];
             $completeDetailLines = array_values(array_filter(
                 $completeDetailLines,
@@ -584,7 +587,6 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
                 'warning_lines' => $warningLines,
             ] + background_task_display_freshness_fields($item);
         }
-        $returncode = $item['returncode'] ?? null;
         if ($returncode !== null && $returncode !== '') {
             if ($detail === '') {
                 $detail = '終了コード ' . (string)$returncode;

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""File locks for per-municipality OpenSearch updates.
+"""自治体ごとの OpenSearch 更新を守る file lock。
 
-Scraping workers can finish at the same time, but only one index update for a
-slug should rewrite the alias-backed documents.  These locks coordinate that
-without requiring a database or Celery result backend.
+複数の scrape worker が同時に完了しても、同じ slug の alias 配下文書を書き換える
+index 更新は 1 つだけでよい。DB や Celery result backend に頼らず、この lock で
+自治体単位の更新競合を防ぐ。
 """
 
 from __future__ import annotations
@@ -53,8 +53,8 @@ def acquire_build_lock(
         try:
             fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except FileExistsError:
-            # A stale lock usually means the previous builder died.  Removing it
-            # here prevents one bad process from blocking that slug forever.
+            # 古い lock は、前回の builder が途中終了した可能性が高い。
+            # ここで取り除き、1 つの失敗プロセスがその slug を永久に塞がないようにする。
             try:
                 age = time.time() - path.stat().st_mtime
             except FileNotFoundError:

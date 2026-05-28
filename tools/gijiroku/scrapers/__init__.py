@@ -1,1 +1,1 @@
-"""Individual assembly minutes scraper implementations."""
+"""個別の会議録スクレイパ実装。"""

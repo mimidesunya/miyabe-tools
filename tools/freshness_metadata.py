@@ -1,9 +1,8 @@
-"""Scraper freshness metadata shared by minutes and reiki batches.
+"""会議録・例規集バッチで共有する鮮度メタデータ処理。
 
-The batch schedulers use this module to decide whether a municipality can be
-skipped for a while after a successful scrape.  Dates are derived from already
-saved local artifacts; fetching remote pages just to decide freshness would make
-the scheduling pass slow and noisy.
+バッチスケジューラは、直近で正常取得できた自治体をしばらくスキップできるか
+判断するためにこの情報を使う。鮮度日は保存済み成果物から推定し、判定だけの
+ためにリモートページを取りに行かないことで、対象選定を軽く静かに保つ。
 """
 
 from __future__ import annotations
@@ -152,8 +151,8 @@ def status_item(task_name: str, slug: str) -> dict[str, Any]:
 
 
 def existing_last_checked_at(task_name: str, slug: str) -> str:
-    # Prefer the live task state over the snapshot because it records the most
-    # recent contact attempt, even if that attempt did not finish successfully.
+    # 成功 snapshot より実行中 state を優先する。
+    # 失敗で終わった試行でも、最後に相手へ接続した時刻としては live state の方が新しい。
     for candidate_task in (task_name, f"{task_name}_snapshot"):
         item = status_item(candidate_task, slug)
         value = str(item.get("last_checked_at") or "").strip()

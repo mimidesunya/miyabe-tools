@@ -529,7 +529,7 @@ def reconcile_scraping_metadata(
     reconcile_cmd = f"""
 set -eu
 cd {dest_dir}
-rm -f data/background_tasks/home_api_payload.json data/background_tasks/home_task_status_payload.json data/background_tasks/municipality_catalog_cache.json data/background_tasks/search_indexed_slug_cache.json data/background_tasks/home_api_filtered_v2_*.json
+rm -f data/background_tasks/home_api_payload.json data/background_tasks/home_task_status_payload.json data/background_tasks/municipality_catalog_cache.json data/background_tasks/search_indexed_slug_cache.json data/background_tasks/home_api_filtered_v2_*.json data/background_tasks/home_api_filtered_v3_*.json
 reconcile_container="{SCRAPING_COMPOSE_PROJECT}-metadata-reconcile"
 docker rm -f "$reconcile_container" >/dev/null 2>&1 || true
 cleanup_reconcile() {{
