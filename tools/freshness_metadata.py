@@ -1,3 +1,11 @@
+"""Scraper freshness metadata shared by minutes and reiki batches.
+
+The batch schedulers use this module to decide whether a municipality can be
+skipped for a while after a successful scrape.  Dates are derived from already
+saved local artifacts; fetching remote pages just to decide freshness would make
+the scheduling pass slow and noisy.
+"""
+
 from __future__ import annotations
 
 import gzip
@@ -144,6 +152,8 @@ def status_item(task_name: str, slug: str) -> dict[str, Any]:
 
 
 def existing_last_checked_at(task_name: str, slug: str) -> str:
+    # Prefer the live task state over the snapshot because it records the most
+    # recent contact attempt, even if that attempt did not finish successfully.
     for candidate_task in (task_name, f"{task_name}_snapshot"):
         item = status_item(candidate_task, slug)
         value = str(item.get("last_checked_at") or "").strip()

@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
-from __future__ import annotations
+"""Batch runner for all supported reiki scrapers.
 
-# 例規集スクレイパを束ね、全国一括実行と進捗記録を担当する。
+This is the runtime entry point used both locally and by the Docker scraper
+workers.  It reads the reiki URL survey, launches Python/PHP child scrapers,
+records background task status, and updates OpenSearch per municipality.
+"""
+
+from __future__ import annotations
 
 import argparse
 import csv
@@ -16,9 +21,11 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 sys.path.append(str(Path(__file__).parent))
 sys.path.append(str(Path(__file__).resolve().parents[1] / "gijiroku"))
-import batch_status
+# The reiki batch runner shares task/build-lock helpers with the minutes side
+# and is executed by file path, so keep the relevant tools directories importable.
 import freshness_metadata
-from batch_runner_common import (
+from tools.tasks import status as batch_status
+from tools.tasks.runner import (
     close_worker_streams,
     count_active_by_host,
     extract_warning_lines,
@@ -41,9 +48,9 @@ import reiki_targets
 
 
 SUPPORTED_SYSTEMS = {
-    "d1-law": ("python", "download_d1_law.py"),
-    "taikei": ("php", "download_taikei.php"),
-    "g-reiki": ("php", "download_taikei.php"),
+    "d1-law": ("python", "scrapers/d1_law.py"),
+    "taikei": ("php", "scrapers/taikei.php"),
+    "g-reiki": ("php", "scrapers/taikei.php"),
 }
 TAIKEI_LIKE_SYSTEMS = {"taikei", "g-reiki"}
 # 子スクレイパ標準出力の [PROGRESS] 行だけを拾い、自治体単位の current/total へ反映する。
@@ -54,6 +61,7 @@ INDEX_BULK_RE = re.compile(r"^\[BULK\]\s+.*\btotal=(?P<total>\d+)\b")
 INDEX_DONE_RE = re.compile(r"^\[DONE\]\s+.*\bcount=(?P<count>\d+)\b")
 
 
+# 一括例規集スクレイパの CLI オプションを定義する。
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="reiki_system_urls.tsv の対応済み system_type をまとめてスクレイピングします。"
@@ -154,18 +162,22 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# 例規集バッチの CSV とログを置く作業ディレクトリを返す。
 def batch_dir() -> Path:
     return reiki_targets.project_root() / "work" / "reiki" / "_reiki_batch"
 
 
+# run_id に対応する集計 CSV の保存先を返す。
 def summary_output_path(run_id: str) -> Path:
     return batch_dir() / f"run_{run_id}.csv"
 
 
+# run_id に対応する子プロセスログディレクトリを返す。
 def logs_dir(run_id: str) -> Path:
     return batch_dir() / f"logs_{run_id}"
 
 
+# --systems の指定を検証し、実行対象 system_type の一覧へ変換する。
 def parse_requested_systems(value: str) -> list[str]:
     systems = [item.strip() for item in str(value).split(",") if item.strip()]
     if not systems:
@@ -176,6 +188,7 @@ def parse_requested_systems(value: str) -> list[str]:
     return systems
 
 
+# 自治体 1 件を取得するための Python/PHP 子スクレイパ起動コマンドを作る。
 def build_child_command(args: argparse.Namespace, target: dict) -> list[str]:
     system_type = str(target["system_type"])
     runner_kind, script_name = SUPPORTED_SYSTEMS[system_type]
@@ -213,14 +226,17 @@ def build_child_command(args: argparse.Namespace, target: dict) -> list[str]:
     return cmd
 
 
+# 子スクレイパの [PROGRESS] ログから例規集取得の進捗を取り出す。
 def extract_worker_progress(stdout_path: Path) -> dict[str, object] | None:
     return common_extract_worker_progress_from_log(stdout_path, PROGRESS_RE)
 
 
+# scrape_state.json から例規集取得の進捗を取り出す。
 def extract_worker_progress_from_state(state_path: Path) -> dict[str, object] | None:
     return common_extract_worker_progress_from_state(state_path, default_unit="ordinance")
 
 
+# 画面表示用に、state 優先・ログ補助で worker の進捗を取り出す。
 def extract_worker_progress_for_display(worker: dict) -> dict[str, object] | None:
     # 子プロセスが逐次更新する state を優先し、古い実装との互換としてログ tail も残す。
     progress = extract_worker_progress_from_state(worker["state_path"])
@@ -229,6 +245,7 @@ def extract_worker_progress_for_display(worker: dict) -> dict[str, object] | Non
     return extract_worker_progress(worker["stdout_path"])
 
 
+# index 更新の進捗母数として、直前のスクレイピング総件数を返す。
 def index_worker_total(index_worker: dict) -> int:
     scrape_worker = index_worker.get("scrape_worker")
     if not isinstance(scrape_worker, dict):
@@ -239,6 +256,7 @@ def index_worker_total(index_worker: dict) -> int:
     return max(0, int(progress.get("progress_total") or progress.get("progress_current") or 0))
 
 
+# OpenSearch 更新ログから、document 追加済み件数を表示用進捗に変換する。
 def extract_index_progress_for_display(index_worker: dict) -> dict[str, object] | None:
     current: int | None = None
     for line in reversed(tail_text_lines(index_worker["stdout_path"], max_bytes=16_384)):
@@ -265,6 +283,7 @@ def extract_index_progress_for_display(index_worker: dict) -> dict[str, object] 
     }
 
 
+# index worker のログから、画面に出す短い作業メッセージを作る。
 def summarize_index_worker(index_worker: dict) -> str:
     stderr_path = index_worker["stderr_path"]
     if stderr_path.exists() and stderr_path.stat().st_size > 0:
@@ -296,6 +315,7 @@ def summarize_index_worker(index_worker: dict) -> str:
     return "インデックス更新を起動中"
 
 
+# 自治体 1 件の例規集スクレイピング子プロセスを起動し、worker 辞書を返す。
 def launch_worker(
     target: dict,
     seq: int,
@@ -331,6 +351,7 @@ def launch_worker(
     }
 
 
+# 自治体 1 件分の例規集 OpenSearch index 更新コマンドを作る。
 def build_index_command(args: argparse.Namespace, target: dict) -> list[str]:
     cmd = shlex.split(str(args.python_command))
     cmd.extend(
@@ -347,17 +368,19 @@ def build_index_command(args: argparse.Namespace, target: dict) -> list[str]:
     return cmd
 
 
+# Celery の例規集 index キューへ自治体別更新タスクを投入する。
 def enqueue_index_update_task(target: dict) -> str:
-    from tools.remote.celery_app import app, REIKI_INDEX_QUEUE
+    from deploy.scraper_runtime.celery.app import app, REIKI_INDEX_QUEUE
 
     result = app.send_task(
-        "tools.remote.celery_tasks.run_reiki_index_update",
+        "deploy.scraper_runtime.celery.tasks.run_reiki_index_update",
         kwargs={"slug": str(target["slug"])},
         queue=REIKI_INDEX_QUEUE,
     )
     return str(result.id)
 
 
+# inline index 更新待ちにするため、完了済み scrape worker を index キュー項目へ包む。
 def queue_index_worker(scrape_worker: dict, scrape_returncode: int) -> dict:
     return {
         "target": scrape_worker["target"],
@@ -369,6 +392,7 @@ def queue_index_worker(scrape_worker: dict, scrape_returncode: int) -> dict:
     }
 
 
+# inline 実行用の index worker を起動する。ロック取得できなければ None を返す。
 def launch_index_worker(
     queued_worker: dict,
     *,
@@ -423,6 +447,7 @@ def launch_index_worker(
         raise
 
 
+# index worker のログを閉じ、取得していた build lock を解放する。
 def close_index_worker(index_worker: dict) -> None:
     close_worker_streams(index_worker)
     lock_path = index_worker.get("lock_path")
@@ -431,6 +456,7 @@ def close_index_worker(index_worker: dict) -> None:
         index_worker["lock_path"] = None
 
 
+# 他プロセスが index 更新中でスキップした場合も、scrape 成功として結果に記録する。
 def record_busy_index_result(
     writer,
     handle,
@@ -479,6 +505,7 @@ def record_busy_index_result(
     batch_status.invalidate_runtime_caches()
 
 
+# crawl-only などの補助経路から index builder をログ付きで同期実行する。
 def run_index_builder(
     target: dict,
     *,
@@ -507,6 +534,7 @@ def run_index_builder(
         "summary": summarize_worker(stdout_path, stderr_path),
     }
 
+# コンソール向けに、現在稼働中の scrape/index worker 一覧を出力する。
 def print_status(
     active_workers: list[dict],
     active_index_workers: list[dict],
@@ -538,6 +566,7 @@ def print_status(
             flush=True,
         )
 
+# 稼働中 worker の進捗を state に反映し、heartbeat を更新する。
 def refresh_active_worker_heartbeats(
     status_state: dict,
     task_name: str,
@@ -590,6 +619,7 @@ def refresh_active_worker_heartbeats(
     batch_status.write_state(task_name, status_state)
 
 
+# 自治体 1 件の最終結果を CSV と task state に書き込む。
 def record_target_result(
     writer,
     handle,
@@ -612,6 +642,8 @@ def record_target_result(
     message: str,
     progress: dict[str, object] | None = None,
 ) -> None:
+    # 1 自治体の終了結果を CSV と background_tasks JSON の両方へ反映する。
+    # ここで警告・取得件数・鮮度メタデータをまとめ、画面表示の元データを確定する。
     writer.writerow(
         {
             "slug": str(target["slug"]),
@@ -675,6 +707,7 @@ def record_target_result(
     batch_status.write_state(task_name, status_state)
 
 
+# 実行せず、対象自治体と優先度情報だけを標準出力へ一覧表示する。
 def list_targets(targets: list[dict]) -> None:
     print(f"[INFO] 対象自治体数: {len(targets)}")
     for target in targets:
@@ -687,6 +720,7 @@ def list_targets(targets: list[dict]) -> None:
         )
 
 
+# score が 0 より大きい自治体だけを抽出し、優先度順に並べる。
 def select_runnable_targets(targets: list[dict]) -> list[dict]:
     skipped_zero_score = 0
     label_counts: dict[str, int] = {}
@@ -713,6 +747,7 @@ def select_runnable_targets(targets: list[dict]) -> list[dict]:
     return reiki_priority.sort_targets_by_priority(runnable_targets)
 
 
+# 例規集一括スクレイピング全体の制御ループ。
 def main() -> int:
     args = build_parser().parse_args()
     stop_controller = install_stop_signal_handlers()
@@ -801,6 +836,7 @@ def main() -> int:
         )
         writer.writeheader()
 
+        # 実行順はここで一度だけ priority queue に載せ、以後は先頭から取り出す。
         pending_targets = PriorityTargetQueue(targets, reiki_priority.priority_queue_key)
         active_workers: list[dict] = []
         pending_index_workers: list[dict] = []
@@ -811,6 +847,7 @@ def main() -> int:
         host_last_start_at: dict[str, float] = {}
         shutdown_started = False
 
+        # スクレイピング枠と index 枠を分けて state に書き、画面でも別々に見せる。
         def write_status_state() -> None:
             batch_status.update_runtime_metrics(
                 status_state,
@@ -892,6 +929,8 @@ def main() -> int:
 
             host_active_counts = count_active_by_host(active_workers)
             while pending_targets and len(active_workers) < args.parallel and not shutdown_started:
+                # 同一ホストへの同時接続数と起動間隔だけを実行直前に判定する。
+                # 優先度そのものはキュー内で維持される。
                 def can_launch_target(target: dict) -> bool:
                     host = target_host(target)
                     if host_active_counts.get(host, 0) >= args.per_host_parallel:

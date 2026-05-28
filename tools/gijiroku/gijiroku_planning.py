@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+"""Build stable save plans for assembly minutes candidates.
+
+Individual scrapers only need to discover candidate meetings.  This module turns
+those candidates into deterministic directories, filenames, resume keys, and
+existing-file decisions so every minutes scraper follows the same storage rules.
+"""
+
 from __future__ import annotations
 
 import re
@@ -141,6 +148,9 @@ def build_base_plans(
     fallback_stem: str = "meeting",
     mkdir: bool = True,
 ) -> list[dict[str, Any]]:
+    # Keep planning pure: callers inspect these plans, decide what still needs
+    # network work, then persist a compact summary for resume/priority logic.
+    # No output files are written here.
     plans: list[dict[str, Any]] = []
     seen_output_stems: dict[tuple[str, str], int] = {}
 
@@ -290,6 +300,9 @@ def save_plan_summary(
     missing_count: int,
     previous_missing: int | None = None,
 ) -> None:
+    # scrape_state.json is the bridge between the child scraper and the parent
+    # batch runner.  Store compact planning facts so the parent can show progress
+    # without parsing provider-specific files.
     state["plan_summary"] = summarize_plans(planned_items, missing_count)
     state["plan_summary"]["work_mode"] = work_mode_label(missing_count, previous_missing)
     gijiroku_storage.save_state(state_path, state)

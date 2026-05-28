@@ -1,3 +1,11 @@
+"""Best-effort PostgreSQL mirror for runtime task status.
+
+The JSON files under data/background_tasks remain the source of truth for the
+scraper processes.  This module mirrors them into PostgreSQL so the web UI can
+serve task status and homepage summaries without repeatedly reading many JSON
+files.  All callers treat database failures as non-fatal.
+"""
+
 from __future__ import annotations
 
 import json
@@ -36,6 +44,8 @@ def psycopg_url(url: str) -> str:
 
 
 def _connect():
+    # PostgreSQL is optional for local scraper runs; returning None keeps the
+    # filesystem-backed status path usable without special setup.
     try:
         import psycopg
     except Exception:

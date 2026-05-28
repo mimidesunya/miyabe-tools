@@ -18,7 +18,7 @@ python deploy/prepare_remote_scraping.py deploy.json --sync-gijiroku-work --sync
 
 このコマンドは既定で `docker-compose.scraping.yml` をリモートに配置し、Redis・Celery beat・会議録 worker・例規集 worker を `up -d --force-recreate` します。`tools/` と `lib/python/` もまとめて同期するので、fresh remote でも Celery task から必要な補助モジュールまで揃います。コードだけ同期して自動再起動したくない場合は `--no-restart-services` を付けます。
 
-既定では、スクレイパ image が未作成か、`docker/scraper/Dockerfile` / `tools/requirements-scraping.txt` の内容が前回 build 時から変わっている場合だけ自動で rebuild します。`--build-image` を付けると差分有無に関係なく強制 rebuild します。
+既定では、スクレイパ image が未作成か、`docker/scraper/Dockerfile` / `docker/scraper/requirements.txt` の内容が前回 build 時から変わっている場合だけ自動で rebuild します。`--build-image` を付けると差分有無に関係なく強制 rebuild します。
 
 ## 実行状態の保存先
 
@@ -81,14 +81,14 @@ python3 deploy/remote_exec.py deploy.json -- "cd ~/services/miyabe-tools && dock
 
 ```bash
 docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml exec -T scraper-gijiroku \
-  sh -lc 'cd /workspace && PYTHONPATH=/workspace python3 tools/remote/celery_enqueue.py gijiroku-cycle'
+  sh -lc 'cd /workspace && PYTHONPATH=/workspace python3 deploy/scraper_runtime/celery/enqueue.py gijiroku-cycle'
 ```
 
 会議録の OpenSearch index を明示的に再構築したい場合:
 
 ```bash
 docker compose -f docker-compose.scraping.yml exec scraper-gijiroku \
-  python3 tools/remote/celery_enqueue.py gijiroku-rebuild
+  python3 deploy/scraper_runtime/celery/enqueue.py gijiroku-rebuild
 ```
 
 対象確認だけしたい場合:
@@ -121,14 +121,14 @@ docker compose -f docker-compose.scraping.yml restart scraper-reiki scraper-beat
 
 ```bash
 docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml exec -T scraper-reiki \
-  sh -lc 'cd /workspace && PYTHONPATH=/workspace python3 tools/remote/celery_enqueue.py reiki-cycle'
+  sh -lc 'cd /workspace && PYTHONPATH=/workspace python3 deploy/scraper_runtime/celery/enqueue.py reiki-cycle'
 ```
 
 例規集の OpenSearch index を明示的に再構築したい場合:
 
 ```bash
 docker compose -f docker-compose.scraping.yml exec scraper-reiki \
-  python3 tools/remote/celery_enqueue.py reiki-rebuild
+  python3 deploy/scraper_runtime/celery/enqueue.py reiki-rebuild
 ```
 
 対象確認だけしたい場合:

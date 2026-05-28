@@ -7,7 +7,7 @@ from pathlib import Path
 SCRAPING_COMPOSE_PROJECT = "miyabe-tools-scraping"
 SCRAPER_IMAGE_INPUTS = (
     "docker/scraper/Dockerfile",
-    "tools/requirements-scraping.txt",
+    "docker/scraper/requirements.txt",
 )
 
 
@@ -125,7 +125,7 @@ def build_scraping_compose(
                 "command": [
                     "celery",
                     "-A",
-                    "tools.remote.celery_app:app",
+                    "deploy.scraper_runtime.celery.app:app",
                     "worker",
                     "--loglevel=INFO",
                     "--pool=solo",
@@ -163,7 +163,7 @@ def build_scraping_compose(
                 "command": [
                     "celery",
                     "-A",
-                    "tools.remote.celery_app:app",
+                    "deploy.scraper_runtime.celery.app:app",
                     "worker",
                     "--loglevel=INFO",
                     "--pool=solo",
@@ -194,7 +194,7 @@ def build_scraping_compose(
                 "command": [
                     "celery",
                     "-A",
-                    "tools.remote.celery_app:app",
+                    "deploy.scraper_runtime.celery.app:app",
                     "worker",
                     "--loglevel=INFO",
                     "--pool=solo",
@@ -225,7 +225,7 @@ def build_scraping_compose(
                 "command": [
                     "celery",
                     "-A",
-                    "tools.remote.celery_app:app",
+                    "deploy.scraper_runtime.celery.app:app",
                     "worker",
                     "--loglevel=INFO",
                     "--pool=solo",
@@ -253,7 +253,7 @@ def build_scraping_compose(
                 "command": [
                     "celery",
                     "-A",
-                    "tools.remote.celery_app:app",
+                    "deploy.scraper_runtime.celery.app:app",
                     "beat",
                     "--loglevel=INFO",
                     "-s",

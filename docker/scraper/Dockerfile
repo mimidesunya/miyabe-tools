@@ -11,7 +11,7 @@ RUN apt-get update \
         php-sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY tools/requirements-scraping.txt /tmp/requirements-scraping.txt
-RUN pip install --no-cache-dir -r /tmp/requirements-scraping.txt
+COPY docker/scraper/requirements.txt /tmp/scraper-requirements.txt
+RUN pip install --no-cache-dir -r /tmp/scraper-requirements.txt
 
 WORKDIR /workspace

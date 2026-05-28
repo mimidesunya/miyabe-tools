@@ -33,8 +33,8 @@ python tools/reiki/scrape_all_reiki.py --parallel 8 --per-host-parallel 1 --per-
 単独実行例:
 
 ```bash
-php tools/reiki/download_taikei.php --slug kyoto-fu --check-updates
-python tools/reiki/download_d1_law.py --slug 14130-kawasaki-shi --check-updates
+php tools/reiki/scrapers/taikei.php --slug kyoto-fu --check-updates
+python tools/reiki/scrapers/d1_law.py --slug 14130-kawasaki-shi --check-updates
 ```
 
 ## OpenSearch 反映

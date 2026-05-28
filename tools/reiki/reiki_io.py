@@ -1,3 +1,10 @@
+"""Storage and encoding helpers for reiki scraper outputs.
+
+The reiki scrapers produce source HTML, normalized HTML, Markdown, manifest
+files, and JSON metadata.  Centralizing IO here keeps compression and archive
+behavior aligned with the minutes side while allowing reiki-specific paths.
+"""
+
 from __future__ import annotations
 
 import gzip
@@ -40,6 +47,8 @@ def archive_root_for(path: Path) -> tuple[Path, Path]:
 
 
 def archive_existing_file(path: Path, *, reason: str = "replace") -> Path | None:
+    # Replacement is common during update checks.  Archive the old artifact next
+    # to the municipality tree so a bad scrape can be inspected after the fact.
     try:
         candidate = path.resolve()
         if ARCHIVE_MARKER in candidate.parts or not candidate.is_file():

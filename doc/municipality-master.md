@@ -33,13 +33,13 @@
 ## 再生成
 
 ```powershell
-pwsh -File tools/municipalities/build_municipality_master_tsv.ps1
+pwsh -File dev/municipalities/build_municipality_master_tsv.ps1
 ```
 
 続けて読み仮名とローマ字列を付ける場合:
 
 ```bash
-python tools/municipalities/enrich_municipality_master_tsv.py
+python dev/municipalities/enrich_municipality_master_tsv.py
 ```
 
 `name_kana` は `localgovjp` / `prefjp` のかな列から補完し、`name_romaji` は `municipality_homepages.csv` と既存 `config.json` の slug を使って補完します。

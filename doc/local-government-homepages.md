@@ -27,7 +27,7 @@
 ## 再生成
 
 ```powershell
-pwsh -File tools/municipalities/build_municipality_homepages_csv.ps1
+pwsh -File dev/municipalities/build_municipality_homepages_csv.ps1
 ```
 
 ローカルに取得済みの CSV を使う場合は `-MunicipalitySourceCsvPath` と `-PrefectureSourceCsvPath` を渡します。

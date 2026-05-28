@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Build Miyabe OpenSearch indexes from scraper-produced files."""
+"""Build Miyabe OpenSearch indexes from scraper-produced files.
+
+The public search API reads only OpenSearch, so this command is the bridge from
+saved scraper artifacts to the live searchable aliases.  Rebuild mode creates a
+fresh versioned index; update mode replaces documents for one municipality in
+the current alias-backed index.
+"""
 
 from __future__ import annotations
 
@@ -20,10 +26,13 @@ from urllib.parse import quote, urlencode, urljoin
 from urllib.request import Request, urlopen
 
 sys.path.append(str(Path(__file__).resolve().parent))
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 sys.path.append(str(Path(__file__).resolve().parents[1] / "gijiroku"))
 sys.path.append(str(Path(__file__).resolve().parents[1] / "reiki"))
 sys.path.append(str(Path(__file__).resolve().parents[2] / "lib" / "python"))
+# This command is run directly by subprocesses in both local and Docker flows.
+# Keep all scraper support modules importable without relying on PYTHONPATH.
 
 import gijiroku_targets  # type: ignore
 import reiki_targets  # type: ignore
@@ -46,7 +55,7 @@ except Exception:  # pragma: no cover - optional fallback for minimal machines
     japanese_search_tokenizer = None
 
 try:
-    import batch_status  # type: ignore
+    from tools.tasks import status as batch_status  # type: ignore
 except Exception:  # pragma: no cover - progress UI is best-effort
     batch_status = None
 
@@ -759,6 +768,9 @@ def switch_aliases(
     reiki_alias: str,
     documents_alias: str,
 ) -> None:
+    # Alias switching is the public release step.  Build into versioned indexes
+    # first, then atomically repoint the minutes/reiki aliases and the combined
+    # documents alias so readers never see a half-built index.
     target_minutes = [minutes_index] if minutes_index else indices_for_alias(client, minutes_alias)
     target_reiki = [reiki_index] if reiki_index else indices_for_alias(client, reiki_alias)
 
@@ -807,6 +819,9 @@ def publish_partial_aliases(
     reiki_alias: str,
     documents_alias: str,
 ) -> None:
+    # During a long rebuild, publish completed slugs from the new index while
+    # leaving the rest of the public alias on the previous index.  Alias filters
+    # make this safe without copying old documents into the new index.
     actions: list[dict[str, Any]] = []
     for alias in [minutes_alias, reiki_alias, documents_alias]:
         for index in indices_for_alias(client, alias):
@@ -1080,6 +1095,9 @@ def update_one(
 
     current_index = single_index_for_alias(client, alias)
     if current_index is None:
+        # Incremental update cannot delete+bulk into an alias that does not yet
+        # point anywhere.  Bootstrap once under a file lock so concurrent slug
+        # updates do not create competing first indexes.
         lock_path = build_locks.acquire_build_lock(
             f"opensearch-{doc_type}-bootstrap",
             owner="build_opensearch_index",
@@ -1115,6 +1133,8 @@ def update_one(
             build_locks.release_build_lock(lock_path)
 
     print(f"[UPDATE] alias={alias} index={current_index} slugs={','.join(sorted(slugs))}", flush=True)
+    # Update mode intentionally rewrites only the requested municipalities.  The
+    # rest of the alias-backed index stays live and untouched.
     delete_documents_for_slugs(client, index_or_alias=alias, doc_type=doc_type, slugs=slugs)
     count = index_documents(client, alias, documents, bulk_size=bulk_size)
     refresh_search_target(client, alias)

@@ -13,7 +13,7 @@ JavaScript 前提サイト向けに `Playwright` を利用します。`kensakusy
 ## セットアップ
 
 ```bash
-pip install -r tools/gijiroku/requirements.txt
+pip install -r dev/requirements/gijiroku.txt
 playwright install chromium
 ```
 
@@ -24,7 +24,7 @@ playwright install chromium
 最初は件数制限付きで動作確認するのを推奨します。
 
 ```bash
-python tools/gijiroku/scrape_gijiroku_com.py \
+python tools/gijiroku/scrapers/gijiroku_com.py \
   --slug 14130-kawasaki-shi \
   --ack-robots \
   --max-meetings 20 \
@@ -32,7 +32,7 @@ python tools/gijiroku/scrape_gijiroku_com.py \
 ```
 
 ```bash
-python tools/gijiroku/scrape_kaigiroku_net.py \
+python tools/gijiroku/scrapers/kaigiroku_net.py \
   --slug 01202-hakodate-shi \
   --ack-robots \
   --max-years 1 \
@@ -40,14 +40,14 @@ python tools/gijiroku/scrape_kaigiroku_net.py \
 ```
 
 ```bash
-python tools/gijiroku/scrape_dbsr.py \
+python tools/gijiroku/scrapers/dbsr.py \
   --slug 13212-hino-shi \
   --ack-robots \
   --max-meetings 10
 ```
 
 ```bash
-python tools/gijiroku/scrape_kensakusystem.py \
+python tools/gijiroku/scrapers/kensakusystem.py \
   --slug 02202-hirosaki-shi \
   --ack-robots \
   --max-meetings 10
@@ -56,7 +56,7 @@ python tools/gijiroku/scrape_kensakusystem.py \
 香美市公式サイトの PDF 一覧型:
 
 ```bash
-python tools/gijiroku/scrape_kami_city_pdf.py \
+python tools/gijiroku/scrapers/kami_city_pdf.py \
   --slug 39212-kami-shi \
   --ack-robots \
   --max-meetings 3
@@ -65,7 +65,7 @@ python tools/gijiroku/scrape_kami_city_pdf.py \
 自治体公式サイトの `site/gikai` 系 PDF 一覧型:
 
 ```bash
-python tools/gijiroku/scrape_site_gikai_pdf.py \
+python tools/gijiroku/scrapers/site_gikai_pdf.py \
   --slug 23425-kanie-cho \
   --ack-robots \
   --max-meetings 3
@@ -74,7 +74,7 @@ python tools/gijiroku/scrape_site_gikai_pdf.py \
 静的な `kaigiroku/gijiroku` ディレクトリ型:
 
 ```bash
-python tools/gijiroku/scrape_static_kaigiroku_dir.py \
+python tools/gijiroku/scrapers/static_kaigiroku_dir.py \
   --slug 01226-sunagawa-shi \
   --ack-robots \
   --max-meetings 3
@@ -83,7 +83,7 @@ python tools/gijiroku/scrape_static_kaigiroku_dir.py \
 `gijiroku.com` を全件取得（時間がかかります）:
 
 ```bash
-python tools/gijiroku/scrape_gijiroku_com.py --slug 14130-kawasaki-shi --ack-robots
+python tools/gijiroku/scrapers/gijiroku_com.py --slug 14130-kawasaki-shi --ack-robots
 ```
 
 全国の `gijiroku.com` / `voices` 対象を既定設定（6 並列・同一ホスト起動間隔 2 秒）で取得する場合:
@@ -146,7 +146,7 @@ Web画面:
 既存データの整理:
 
 ```bash
-php tools/gijiroku/organize_minutes_data.php --slug 14130-kawasaki-shi
+php dev/gijiroku/organize_minutes_data.php --slug 14130-kawasaki-shi
 ```
 
 ## オプション
@@ -196,7 +196,7 @@ php tools/gijiroku/organize_minutes_data.php --slug 14130-kawasaki-shi
 ## 補足
 
 `gijiroku.com` / `voices` 系はサイト側のUI変更により、クリック対象ラベルやダウンロード導線が変わる場合があります。  
-その場合は `--headful --save-html` で挙動確認し、`scrape_gijiroku_com.py` 内のセレクタを調整してください。
+その場合は `--headful --save-html` で挙動確認し、`scrapers/gijiroku_com.py` 内のセレクタを調整してください。
 
 `kaigiroku.net` 系は一覧・本文とも `/dnp/search/` API を使っています。UI 変更よりも API 仕様変更の影響を受けやすいので、異常時は `--save-debug-json` 付きでレスポンスを確認してください。
 

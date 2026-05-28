@@ -1,3 +1,10 @@
+"""Slug normalization helpers shared by scrapers and maintenance tools.
+
+Slugs are persisted in data paths, background task JSON, and OpenSearch
+documents, so this file centralizes the romanization and sanitizing rules instead
+of letting each scraper invent its own.
+"""
+
 from __future__ import annotations
 
 import re

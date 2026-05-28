@@ -37,17 +37,6 @@ $featureNotice = $featureAvailable ? '' : ($municipality['name'] . 'の例規集
 // クエリ文字列を正規化し、複数選択フィルタも配列へ揃える
 // ─────────────────────────────────────
 $q = trim((string)($_GET['q'] ?? ''));
-if ($q !== '') {
-    $query = [
-        'doc_type' => 'reiki',
-        'q' => $q,
-    ];
-    if ($requestSlug !== '') {
-        $query['slug'] = $requestSlug;
-    }
-    header('Location: /search/?' . http_build_query($query), true, 302);
-    exit;
-}
 $preparedQuery = japanese_search_prepare_query($q);
 $file = $featureAvailable ? trim((string)($_GET['file'] ?? '')) : '';
 $sort = trim((string)($_GET['sort'] ?? 'date'));
@@ -124,10 +113,32 @@ if ($featureAvailable && is_dir($cleanHtmlDir)) {
         ];
     }
 }
+
+if ($q !== '') {
+    $titleIndex = reiki_load_title_index($requestSlug, $records, $titleCache);
+    $needle = mb_strtolower($q, 'UTF-8');
+    $records = array_values(array_filter($records, static function (array $record) use ($titleIndex, $needle): bool {
+        $name = (string)($record['name'] ?? '');
+        $title = (string)($titleIndex[$name] ?? '');
+        $haystack = mb_strtolower($title, 'UTF-8');
+        return $needle !== '' && mb_strpos($haystack, $needle, 0, 'UTF-8') !== false;
+    }));
+    foreach ($records as &$record) {
+        $name = (string)($record['name'] ?? '');
+        if ($name !== '' && isset($titleCache[$name])) {
+            $record['title'] = $titleCache[$name];
+        }
+    }
+    unset($record);
+}
+
 $total = count($records);
+$totalPages = max(1, (int)ceil($total / $perPage));
+if ($page > $totalPages) {
+    $page = $totalPages;
+}
 $records = array_slice($records, ($page - 1) * $perPage, $perPage);
 
-$totalPages = max(1, (int)ceil($total / $perPage));
 $pagedRecords = $records;
 
 // ─────────────────────────────────────

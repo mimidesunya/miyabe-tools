@@ -19,7 +19,7 @@
 - 掲示場マスタ: `data/boards/{slug}/boards.sqlite`
 - タスク状態: `data/boards/{slug}/tasks.sqlite` (リモートでのみ作成)
 - 共通ユーザーDB: `data/users.sqlite`
-- 初期TSV: `tools/boards/data/{slug}/data.tsv`
+- 初期TSV: `dev/boards/data/{slug}/data.tsv`
 
 `users.sqlite` は全自治体で共有、`boards.sqlite` / `tasks.sqlite` は自治体ごとに分離されます。  
 `tasks.sqlite` はリモートサーバー上でのみ生成され、デプロイ時に転送・削除されません（rsync exclude）。  
@@ -39,14 +39,14 @@
 ## 初期化
 
 ```bash
-python tools/boards/init_db.py 14130-kawasaki-shi
-python tools/boards/init_users_db.py
+python dev/boards/init_db.py 14130-kawasaki-shi
+python dev/boards/init_users_db.py
 ```
 
 TSV だけ更新したい場合:
 
 ```bash
-python tools/boards/import_tsv.py 14130-kawasaki-shi
+python dev/boards/import_tsv.py 14130-kawasaki-shi
 ```
 
 ## メモ

@@ -121,6 +121,23 @@ function read_text_auto(string $path): string
     return (string)$raw;
 }
 
+function read_text_head_auto(string $path, int $maxBytes = 65536): string
+{
+    $raw = @file_get_contents($path, false, null, 0, max(1024, $maxBytes));
+    if ($raw === false) {
+        return '';
+    }
+
+    foreach (['UTF-8', 'SJIS-win', 'CP932', 'EUC-JP', 'ISO-2022-JP'] as $enc) {
+        $converted = @mb_convert_encoding($raw, 'UTF-8', $enc);
+        if ($converted !== false && $converted !== '') {
+            return $converted;
+        }
+    }
+
+    return (string)$raw;
+}
+
 function extract_title(string $html, string $fallback): string
 {
     if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $html, $m)) {
@@ -176,12 +193,78 @@ function resolve_record_title(array $record, array &$cache): string {
         return $cache[$name];
     }
     
-    $html = read_text_auto((string)$record['path']);
+    $html = read_text_head_auto((string)$record['path']);
     $title = extract_title($html, $name !== '' ? $name : '無題');
     if ($name !== '') {
         $cache[$name] = $title;
     }
     return $title;
+}
+
+function reiki_title_index_cache_path(string $slug): string
+{
+    $key = preg_replace('/[^a-zA-Z0-9_-]/', '_', $slug);
+    if (!is_string($key) || $key === '') {
+        $key = sha1($slug);
+    }
+    return data_path('background_tasks/reiki_title_index_' . $key . '.json');
+}
+
+function reiki_records_signature(array $records): array
+{
+    $maxMtime = 0;
+    foreach ($records as $record) {
+        $maxMtime = max($maxMtime, (int)($record['mtime'] ?? 0));
+    }
+    return [
+        'count' => count($records),
+        'max_mtime' => $maxMtime,
+    ];
+}
+
+function reiki_build_title_index(array $records, array &$titleCache): array
+{
+    $titles = [];
+    foreach ($records as $record) {
+        $name = (string)($record['name'] ?? '');
+        if ($name === '') {
+            continue;
+        }
+        $title = resolve_record_title($record, $titleCache);
+        $titles[$name] = $title;
+        $titleCache[$name] = $title;
+    }
+    return $titles;
+}
+
+function reiki_load_title_index(string $slug, array $records, array &$titleCache): array
+{
+    $signature = reiki_records_signature($records);
+    $cachePath = reiki_title_index_cache_path($slug);
+    $cached = read_json_cache_file($cachePath, 0);
+    if (
+        is_array($cached)
+        && ($cached['signature'] ?? null) === $signature
+        && is_array($cached['titles'] ?? null)
+    ) {
+        foreach ($cached['titles'] as $name => $title) {
+            if (is_scalar($name) && is_scalar($title)) {
+                $titleCache[(string)$name] = (string)$title;
+            }
+        }
+        return $titleCache;
+    }
+
+    $titles = reiki_build_title_index($records, $titleCache);
+    if (is_writable(dirname($cachePath))) {
+        write_json_cache_file($cachePath, [
+            'schema' => 'reiki-title-index-v1',
+            'slug' => $slug,
+            'signature' => $signature,
+            'titles' => $titles,
+        ]);
+    }
+    return $titles;
 }
 
 // 配信前に危険な属性を落とし、画像パスだけ自治体ごとの公開 URL へ寄せる。

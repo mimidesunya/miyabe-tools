@@ -1,3 +1,10 @@
+"""Convert scraper artifacts into OpenSearch-ready records.
+
+The index builder should not know the quirks of every storage layout.  This
+module reads minutes/reiki source files, normalizes titles and dates, and
+prepares the tokenized fields that are indexed by build_opensearch_index.py.
+"""
+
 from __future__ import annotations
 
 import gzip

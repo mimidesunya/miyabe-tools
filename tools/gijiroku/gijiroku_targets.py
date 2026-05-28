@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+"""Load and normalize assembly minutes scrape targets.
+
+The canonical input is data/municipalities/assembly_minutes_system_urls.tsv.
+This module joins it with the municipality master, derives slugs and data/work
+paths, and hides system_type aliases from the batch scheduler.
+"""
+
 from __future__ import annotations
 
 import csv
@@ -16,6 +23,8 @@ WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
 DATA_ROOT = WORKSPACE_ROOT / "data"
 WORK_ROOT = WORKSPACE_ROOT / "work"
 SYSTEM_FAMILY_ALIASES = {
+    # Several public providers expose the same underlying shape under different
+    # labels in the survey TSV.  The batch scheduler maps them to one scraper.
     "gijiroku.com": {"gijiroku.com", "voices"},
     "kaigiroku.net": {"kaigiroku.net"},
     "dbsr": {"dbsr", "db-search", "kaigiroku-indexphp"},

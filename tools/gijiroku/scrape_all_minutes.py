@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
-from __future__ import annotations
+"""Batch runner for all supported assembly minutes scrapers.
 
-# system_type ごとの子スクレイパを束ね、全国一括実行と進捗記録を担当する。
+This is the runtime entry point used both locally and by the Docker scraper
+workers.  It selects municipalities from the TSV survey, launches the
+system-specific scraper subprocesses, records background task status, and queues
+per-municipality OpenSearch updates.
+"""
+
+from __future__ import annotations
 
 import argparse
 import csv
@@ -15,9 +21,12 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 sys.path.append(str(Path(__file__).parent))
-import batch_status
+# The batch runner is executed as a file path in Docker.  These path entries keep
+# shared tools, gijiroku modules, and sibling imports available without a package
+# install step.
 import freshness_metadata
-from batch_runner_common import (
+from tools.tasks import status as batch_status
+from tools.tasks.runner import (
     close_worker_streams,
     count_active_by_host,
     extract_warning_lines,
@@ -40,13 +49,13 @@ import gijiroku_targets
 
 
 SUPPORTED_SYSTEMS = {
-    "gijiroku.com": "scrape_gijiroku_com.py",
-    "kaigiroku.net": "scrape_kaigiroku_net.py",
-    "dbsr": "scrape_dbsr.py",
-    "kensakusystem": "scrape_kensakusystem.py",
-    "kami-city-pdf": "scrape_kami_city_pdf.py",
-    "site-gikai-pdf": "scrape_site_gikai_pdf.py",
-    "static-kaigiroku-dir": "scrape_static_kaigiroku_dir.py",
+    "gijiroku.com": "scrapers/gijiroku_com.py",
+    "kaigiroku.net": "scrapers/kaigiroku_net.py",
+    "dbsr": "scrapers/dbsr.py",
+    "kensakusystem": "scrapers/kensakusystem.py",
+    "kami-city-pdf": "scrapers/kami_city_pdf.py",
+    "site-gikai-pdf": "scrapers/site_gikai_pdf.py",
+    "static-kaigiroku-dir": "scrapers/static_kaigiroku_dir.py",
 }
 SUPPORTED_INPUT_SYSTEMS = set(SUPPORTED_SYSTEMS.keys()) | {"voices", "db-search", "kaigiroku-indexphp"}
 # 子スクレイパ標準出力の [PROGRESS] 行だけを拾い、自治体単位の current/total へ反映する。
@@ -57,6 +66,7 @@ INDEX_BULK_RE = re.compile(r"^\[BULK\]\s+.*\btotal=(?P<total>\d+)\b")
 INDEX_DONE_RE = re.compile(r"^\[DONE\]\s+.*\bcount=(?P<count>\d+)\b")
 
 
+# 一括会議録スクレイパの CLI オプションを定義する。
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="assembly_minutes_system_urls.tsv の対応済み system_type をまとめてスクレイピングします。"
@@ -180,18 +190,22 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# 会議録バッチの CSV とログを置く作業ディレクトリを返す。
 def batch_dir() -> Path:
     return gijiroku_targets.project_root() / "work" / "gijiroku" / "_minutes_batch"
 
 
+# run_id に対応する集計 CSV の保存先を返す。
 def summary_output_path(run_id: str) -> Path:
     return batch_dir() / f"run_{run_id}.csv"
 
 
+# run_id に対応する子プロセスログディレクトリを返す。
 def logs_dir(run_id: str) -> Path:
     return batch_dir() / f"logs_{run_id}"
 
 
+# --systems の指定を検証し、実行対象 system_type の一覧へ変換する。
 def parse_requested_systems(value: str) -> list[str]:
     systems = [item.strip() for item in str(value).split(",") if item.strip()]
     if not systems:
@@ -208,12 +222,14 @@ def parse_requested_systems(value: str) -> list[str]:
         raise ValueError(f"Unsupported system_type: {', '.join(unsupported)}")
     return requested_systems
 
+# system_type に対応する個別会議録スクレイパのスクリプトパスを返す。
 def child_script_path(system_type: str) -> str:
     system_family = gijiroku_targets.canonical_minutes_system_type(system_type)
     script_name = SUPPORTED_SYSTEMS[system_family]
     return str(Path("tools") / "gijiroku" / script_name)
 
 
+# 自治体 1 件を取得するための子スクレイパ起動コマンドを作る。
 def build_child_command(args: argparse.Namespace, target: dict) -> list[str]:
     system_type = str(target["system_type"])
     system_family = str(target.get("system_family", "")).strip() or gijiroku_targets.canonical_minutes_system_type(system_type)
@@ -253,18 +269,22 @@ def build_child_command(args: argparse.Namespace, target: dict) -> list[str]:
     return cmd
 
 
+# 旧互換名。ログから子スクレイパの進捗を取り出す。
 def extract_worker_progress(stdout_path: Path) -> dict[str, object] | None:
     return extract_worker_progress_from_log(stdout_path)
 
 
+# scrape_state.json から会議録取得の進捗を取り出す。
 def extract_worker_progress_from_state(state_path: Path) -> dict[str, object] | None:
     return common_extract_worker_progress_from_state(state_path, default_unit="meeting")
 
 
+# 子スクレイパの [PROGRESS] ログから会議録取得の進捗を取り出す。
 def extract_worker_progress_from_log(stdout_path: Path) -> dict[str, object] | None:
     return common_extract_worker_progress_from_log(stdout_path, PROGRESS_RE)
 
 
+# 画面表示用に、state 優先・ログ補助で worker の進捗を取り出す。
 def extract_worker_progress_for_display(worker: dict) -> dict[str, object] | None:
     state_path = worker.get("state_path")
     if isinstance(state_path, Path):
@@ -274,6 +294,7 @@ def extract_worker_progress_for_display(worker: dict) -> dict[str, object] | Non
     return extract_worker_progress_from_log(worker["stdout_path"])
 
 
+# index 更新の進捗母数として、直前のスクレイピング総件数を返す。
 def index_worker_total(index_worker: dict) -> int:
     scrape_worker = index_worker.get("scrape_worker")
     if not isinstance(scrape_worker, dict):
@@ -284,6 +305,7 @@ def index_worker_total(index_worker: dict) -> int:
     return max(0, int(progress.get("progress_total") or progress.get("progress_current") or 0))
 
 
+# OpenSearch 更新ログから、document 追加済み件数を表示用進捗に変換する。
 def extract_index_progress_for_display(index_worker: dict) -> dict[str, object] | None:
     current: int | None = None
     for line in reversed(tail_text_lines(index_worker["stdout_path"], max_bytes=16_384)):
@@ -310,6 +332,7 @@ def extract_index_progress_for_display(index_worker: dict) -> dict[str, object] 
     }
 
 
+# index worker のログから、画面に出す短い作業メッセージを作る。
 def summarize_index_worker(index_worker: dict) -> str:
     stderr_path = index_worker["stderr_path"]
     if stderr_path.exists() and stderr_path.stat().st_size > 0:
@@ -341,6 +364,7 @@ def summarize_index_worker(index_worker: dict) -> str:
     return "インデックス更新を起動中"
 
 
+# 自治体 1 件の会議録スクレイピング子プロセスを起動し、worker 辞書を返す。
 def launch_worker(
     target: dict,
     seq: int,
@@ -376,6 +400,7 @@ def launch_worker(
     }
 
 
+# 自治体 1 件分の会議録 OpenSearch index 更新コマンドを作る。
 def build_index_command(args: argparse.Namespace, target: dict) -> list[str]:
     cmd = shlex.split(str(args.python_command))
     cmd.extend(
@@ -392,17 +417,19 @@ def build_index_command(args: argparse.Namespace, target: dict) -> list[str]:
     return cmd
 
 
+# Celery の会議録 index キューへ自治体別更新タスクを投入する。
 def enqueue_index_update_task(target: dict) -> str:
-    from tools.remote.celery_app import app, GIJIROKU_INDEX_QUEUE
+    from deploy.scraper_runtime.celery.app import app, GIJIROKU_INDEX_QUEUE
 
     result = app.send_task(
-        "tools.remote.celery_tasks.run_gijiroku_index_update",
+        "deploy.scraper_runtime.celery.tasks.run_gijiroku_index_update",
         kwargs={"slug": str(target["slug"])},
         queue=GIJIROKU_INDEX_QUEUE,
     )
     return str(result.id)
 
 
+# inline index 更新待ちにするため、完了済み scrape worker を index キュー項目へ包む。
 def queue_index_worker(scrape_worker: dict, scrape_returncode: int) -> dict:
     return {
         "target": scrape_worker["target"],
@@ -414,6 +441,7 @@ def queue_index_worker(scrape_worker: dict, scrape_returncode: int) -> dict:
     }
 
 
+# inline 実行用の index worker を起動する。ロック取得できなければ None を返す。
 def launch_index_worker(
     queued_worker: dict,
     *,
@@ -468,6 +496,7 @@ def launch_index_worker(
         raise
  
 
+# index worker のログを閉じ、取得していた build lock を解放する。
 def close_index_worker(index_worker: dict) -> None:
     close_worker_streams(index_worker)
     lock_path = index_worker.get("lock_path")
@@ -476,6 +505,7 @@ def close_index_worker(index_worker: dict) -> None:
         index_worker["lock_path"] = None
 
 
+# 他プロセスが index 更新中でスキップした場合も、scrape 成功として結果に記録する。
 def record_busy_index_result(
     writer,
     handle,
@@ -524,6 +554,7 @@ def record_busy_index_result(
     batch_status.invalidate_runtime_caches()
 
 
+# コンソール向けに、現在稼働中の scrape/index worker 一覧を出力する。
 def print_status(
     active_workers: list[dict],
     active_index_workers: list[dict],
@@ -555,6 +586,7 @@ def print_status(
             flush=True,
         )
 
+# 稼働中 worker の進捗を state に反映し、heartbeat を更新する。
 def refresh_active_worker_heartbeats(
     status_state: dict,
     task_name: str,
@@ -607,6 +639,7 @@ def refresh_active_worker_heartbeats(
     batch_status.write_state(task_name, status_state)
 
 
+# 自治体 1 件の最終結果を CSV と task state に書き込む。
 def record_target_result(
     writer,
     handle,
@@ -629,6 +662,8 @@ def record_target_result(
     message: str,
     progress: dict[str, object] | None = None,
 ) -> None:
+    # 1 自治体の終了結果を CSV と background_tasks JSON の両方へ反映する。
+    # ここで警告・取得件数・鮮度メタデータをまとめ、画面表示の元データを確定する。
     writer.writerow(
         {
             "slug": str(target["slug"]),
@@ -705,6 +740,7 @@ def record_target_result(
         )
 
 
+# 成功結果を snapshot state に保存し、次回の優先度計算で参照できるようにする。
 def sync_success_snapshot(
     *,
     task_name: str,
@@ -715,6 +751,8 @@ def sync_success_snapshot(
     progress: dict[str, object],
     extra_fields: dict[str, object],
 ) -> None:
+    # 成功した自治体だけを snapshot に残す。
+    # 次回バッチが途中で止まっても、前回成功した取得件数を優先度計算に使えるようにする。
     snapshot_task = f"{task_name}_snapshot"
     snapshot_state = batch_status.read_state(snapshot_task)
     if not isinstance(snapshot_state.get("items"), dict):
@@ -753,6 +791,7 @@ def sync_success_snapshot(
     batch_status.write_state(snapshot_task, snapshot_state)
 
 
+# 実行せず、対象自治体と優先度情報だけを標準出力へ一覧表示する。
 def list_targets(targets: list[dict]) -> None:
     print(f"[INFO] 対象自治体数: {len(targets)}")
     for target in targets:
@@ -765,6 +804,7 @@ def list_targets(targets: list[dict]) -> None:
         )
 
 
+# score が 0 より大きい自治体だけを抽出し、優先度順に並べる。
 def select_runnable_targets(targets: list[dict]) -> list[dict]:
     skipped_zero_score = 0
     label_counts: dict[str, int] = {}
@@ -791,6 +831,7 @@ def select_runnable_targets(targets: list[dict]) -> list[dict]:
     return gijiroku_priority.sort_targets_by_priority(runnable_targets)
 
 
+# 会議録一括スクレイピング全体の制御ループ。
 def main() -> int:
     args = build_parser().parse_args()
     stop_controller = install_stop_signal_handlers()
@@ -889,6 +930,7 @@ def main() -> int:
         )
         writer.writeheader()
 
+        # 実行順はここで一度だけ priority queue に載せ、以後は先頭から取り出す。
         pending_targets = PriorityTargetQueue(targets, gijiroku_priority.priority_queue_key)
         active_workers: list[dict] = []
         pending_index_workers: list[dict] = []
@@ -899,6 +941,7 @@ def main() -> int:
         host_last_start_at: dict[str, float] = {}
         shutdown_started = False
 
+        # スクレイピング枠と index 枠を分けて state に書き、画面でも別々に見せる。
         def write_status_state() -> None:
             batch_status.update_runtime_metrics(
                 status_state,
@@ -1130,6 +1173,8 @@ def main() -> int:
 
             host_active_counts = count_active_by_host(active_workers)
             while pending_targets and len(active_workers) < args.parallel and not shutdown_started:
+                # 同一ホストへの同時接続数と起動間隔だけを実行直前に判定する。
+                # 優先度そのものはキュー内で維持される。
                 def can_launch_target(target: dict) -> bool:
                     host = target_host(target)
                     if host_active_counts.get(host, 0) >= args.per_host_parallel:

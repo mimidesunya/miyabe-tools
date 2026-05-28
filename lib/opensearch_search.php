@@ -133,6 +133,12 @@ function miyabe_search_request_int(string $key, int $default, int $min, int $max
     return max($min, min($max, (int)$value));
 }
 
+function miyabe_search_truthy(mixed $value): bool
+{
+    return is_scalar($value)
+        && in_array(strtolower(trim((string)$value)), ['1', 'true', 'yes', 'on'], true);
+}
+
 function miyabe_search_normalize_doc_type(string $value): string
 {
     $value = strtolower(trim($value));
@@ -244,9 +250,12 @@ function miyabe_search_build_request(array $params): array
     $page = max(1, (int)($params['page'] ?? 1));
     $perPage = max(1, min(100, (int)($params['per_page'] ?? 20)));
     $sort = trim((string)($params['sort'] ?? 'date'));
+    $includeFacets = miyabe_search_truthy($params['include_facets'] ?? '');
     $requestedSlug = trim((string)($params['slug'] ?? ''));
     $resolvedSlug = $requestedSlug !== '' ? resolve_municipality_slug($requestedSlug) : '';
     $slug = $resolvedSlug !== '' ? municipality_public_slug($resolvedSlug) : $requestedSlug;
+    $includeBodyHighlight = miyabe_search_truthy($params['include_body_highlight'] ?? '');
+    $trackTotalHits = max(1, min(100000, (int)($params['track_total_hits_limit'] ?? 10000)));
     $municipalityCode = trim((string)($params['municipality_code'] ?? ($params['code'] ?? '')));
     $prefCode = miyabe_search_normalize_pref_code((string)($params['pref_code'] ?? ($params['pref'] ?? '')));
     $yearFilter = miyabe_search_year_range_filter(
@@ -292,64 +301,72 @@ function miyabe_search_build_request(array $params): array
         ];
     }
 
+    $highlightFields = [
+        'title' => ['number_of_fragments' => 0],
+        'meeting_name' => ['number_of_fragments' => 0],
+    ];
+    if ($includeBodyHighlight) {
+        $highlightFields['body'] = [
+            'fragment_size' => 160,
+            'number_of_fragments' => 3,
+            'no_match_size' => 160,
+        ];
+    }
+
+    $body = [
+        'from' => ($page - 1) * $perPage,
+        'size' => $perPage,
+        'track_total_hits' => $trackTotalHits,
+        'query' => $bodyQuery,
+        'sort' => $sortSpec,
+        '_source' => [
+            'doc_type',
+            'slug',
+            'municipality_code',
+            'pref_code',
+            'pref_name',
+            'municipality_name',
+            'title',
+            'body_length',
+            'source_url',
+            'detail_url',
+            'source_file',
+            'source_system',
+            'updated_at',
+            'sort_date',
+            'assembly_name',
+            'meeting_name',
+            'year_label',
+            'held_on',
+            'local_id',
+            'filename',
+            'ordinance_no',
+            'category',
+            'promulgated_on',
+            'enforced_on',
+            'amended_on',
+        ],
+        'highlight' => [
+            'pre_tags' => ['[[['],
+            'post_tags' => [']]]'],
+            'fields' => $highlightFields,
+        ],
+    ];
+    if ($includeFacets) {
+        $body['aggs'] = [
+            'doc_types' => ['terms' => ['field' => 'doc_type', 'size' => 5]],
+            'prefectures' => ['terms' => ['field' => 'pref_code', 'size' => 50]],
+            'municipalities' => ['terms' => ['field' => 'slug', 'size' => 50]],
+        ];
+    }
+
     return [
         'index' => miyabe_search_alias_for_type($docType),
         'doc_type' => $docType,
         'query' => $query,
         'page' => $page,
         'per_page' => $perPage,
-        'body' => [
-            'from' => ($page - 1) * $perPage,
-            'size' => $perPage,
-            'track_total_hits' => true,
-            'query' => $bodyQuery,
-            'sort' => $sortSpec,
-            '_source' => [
-                'doc_type',
-                'slug',
-                'municipality_code',
-                'pref_code',
-                'pref_name',
-                'municipality_name',
-                'title',
-                'body_length',
-                'source_url',
-                'detail_url',
-                'source_file',
-                'source_system',
-                'updated_at',
-                'sort_date',
-                'assembly_name',
-                'meeting_name',
-                'year_label',
-                'held_on',
-                'local_id',
-                'filename',
-                'ordinance_no',
-                'category',
-                'promulgated_on',
-                'enforced_on',
-                'amended_on',
-            ],
-            'highlight' => [
-                'pre_tags' => ['[[['],
-                'post_tags' => [']]]'],
-                'fields' => [
-                    'title' => ['number_of_fragments' => 0],
-                    'meeting_name' => ['number_of_fragments' => 0],
-                    'body' => [
-                        'fragment_size' => 160,
-                        'number_of_fragments' => 3,
-                        'no_match_size' => 160,
-                    ],
-                ],
-            ],
-            'aggs' => [
-                'doc_types' => ['terms' => ['field' => 'doc_type', 'size' => 5]],
-                'prefectures' => ['terms' => ['field' => 'pref_code', 'size' => 50]],
-                'municipalities' => ['terms' => ['field' => 'slug', 'size' => 50]],
-            ],
-        ],
+        'body' => $body,
     ];
 }
 
@@ -566,7 +583,7 @@ function miyabe_search_execute_request(array $params): array
         'per_page' => $perPage,
         'total' => $total,
         'total_relation' => $relation,
-        'has_more' => ($page * $perPage) < $total || $relation !== 'eq',
+        'has_more' => $relation === 'eq' ? ($page * $perPage) < $total : count($hits) >= $perPage,
         'took_ms' => (int)($response['took'] ?? 0),
         'items' => array_values(array_map(
             static fn($hit): array => is_array($hit) ? miyabe_search_hit_to_item($hit, $query) : [],

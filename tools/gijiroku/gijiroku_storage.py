@@ -1,3 +1,10 @@
+"""Storage primitives for scraper outputs.
+
+Scrapers write compressed text/JSON through this module so replacement,
+archiving, encoding fallback, and digest calculation stay consistent across
+different source systems.
+"""
+
 from __future__ import annotations
 
 import gzip
@@ -69,6 +76,8 @@ def archive_root_for(path: Path) -> tuple[Path, Path]:
 
 
 def archive_existing_file(path: Path, *, reason: str = "replace") -> Path | None:
+    # Keep replaced files near the municipality data they came from.  This makes
+    # remote debugging possible without requiring a separate backup location.
     try:
         candidate = path.resolve()
         if ARCHIVE_MARKER in candidate.parts or not candidate.is_file():

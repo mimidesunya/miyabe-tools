@@ -15,6 +15,9 @@ try {
         'page' => miyabe_search_request_int('page', 1, 1, 100000),
         'per_page' => miyabe_search_request_int('per_page', 20, 1, 100),
         'sort' => miyabe_search_request_string('sort', 'date'),
+        'include_facets' => miyabe_search_request_string('include_facets'),
+        'include_body_highlight' => miyabe_search_request_string('include_body_highlight'),
+        'track_total_hits_limit' => miyabe_search_request_int('track_total_hits_limit', 10000, 1, 100000),
     ]);
     $status = ($payload['status'] ?? '') === 'query_error' ? 422 : 200;
     miyabe_search_respond_json($payload, $status);

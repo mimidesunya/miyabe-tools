@@ -404,8 +404,6 @@ def remote_scraper_cleanup_cmd(scraper_image_name: str = DEFAULT_SCRAPER_IMAGE_N
     # その単発コンテナが scrape_state.json を上書きして live progress を壊す。
     # さらに host 側に残った legacy wrapper / 直実行プロセスも random 名 container を増やすので、先に止める。
     return f"""
-pkill -f 'tools/remote/run_gijiroku_remote.sh' >/dev/null 2>&1 || true
-pkill -f 'tools/remote/run_reiki_remote.sh' >/dev/null 2>&1 || true
 pkill -f 'tools/gijiroku/scrape_all_minutes.py' >/dev/null 2>&1 || true
 pkill -f 'tools/reiki/scrape_all_reiki.py' >/dev/null 2>&1 || true
 docker ps -a --filter ancestor={shlex.quote(scraper_image_name)} --format '{{{{.Names}}}}' | while IFS= read -r name; do
@@ -483,7 +481,7 @@ def ensure_scraper_image(config, dest_dir: str, image_name: str = DEFAULT_SCRAPE
     if image_present == "present" and current_hash == expected_hash:
         return
     print(f"=== Building scraper image ({image_name}) ===")
-    ssh_exec(config, f"cd {dest_dir} && SCRAPER_IMAGE_NAME={image_name} sh ./tools/remote/build_scraper_image.sh")
+    ssh_exec(config, f"cd {dest_dir} && SCRAPER_IMAGE_NAME={image_name} sh ./docker/scraper/build_image.sh")
     ssh_exec(config, f"mkdir -p {dest_dir}/work/celery")
     ssh_copy_content(config, expected_hash + "\n", stamp_path)
 
@@ -512,8 +510,8 @@ def enqueue_scraping_cycles(config, dest_dir: str) -> str:
     enqueue_cmd = f"""
 set -eu
 cd {dest_dir}
-docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml exec -T scraper-gijiroku sh -lc 'cd /workspace && PYTHONPATH=/workspace python3 tools/remote/celery_enqueue.py gijiroku-cycle'
-docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml exec -T scraper-reiki sh -lc 'cd /workspace && PYTHONPATH=/workspace python3 tools/remote/celery_enqueue.py reiki-cycle'
+docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml exec -T scraper-gijiroku sh -lc 'cd /workspace && PYTHONPATH=/workspace python3 deploy/scraper_runtime/celery/enqueue.py gijiroku-cycle'
+docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml exec -T scraper-reiki sh -lc 'cd /workspace && PYTHONPATH=/workspace python3 deploy/scraper_runtime/celery/enqueue.py reiki-cycle'
 """
     return ssh_exec(config, enqueue_cmd)
 
@@ -538,7 +536,7 @@ cleanup_reconcile() {{
   docker rm -f "$reconcile_container" >/dev/null 2>&1 || true
 }}
 trap cleanup_reconcile INT TERM HUP EXIT
-docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml run --name "$reconcile_container" --rm -T --no-deps --entrypoint sh -v {shared_data_dir}/reiki:/workspace/data/reiki -v {shared_data_dir}/work/reiki:/workspace/work/reiki scraper-gijiroku -lc 'cd /workspace && if command -v timeout >/dev/null 2>&1; then PYTHONPATH=/workspace timeout -k 30s {max(60, int(timeout_seconds))}s python3 tools/backfill_background_tasks.py --force-running --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work; else PYTHONPATH=/workspace python3 tools/backfill_background_tasks.py --force-running --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work; fi'
+docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml run --name "$reconcile_container" --rm -T --no-deps --entrypoint sh -v {shared_data_dir}/reiki:/workspace/data/reiki -v {shared_data_dir}/work/reiki:/workspace/work/reiki scraper-gijiroku -lc 'cd /workspace && if command -v timeout >/dev/null 2>&1; then PYTHONPATH=/workspace timeout -k 30s {max(60, int(timeout_seconds))}s python3 tools/tasks/backfill.py --force-running --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work; else PYTHONPATH=/workspace python3 tools/tasks/backfill.py --force-running --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work; fi'
 trap - INT TERM HUP EXIT
 cleanup_reconcile
 """
@@ -616,7 +614,7 @@ if [ -f {dest_dir}/docker-compose.scraping.yml ]; then
   docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml run --rm -T --no-deps -v {shared_data_dir}/reiki:/workspace/data/reiki --entrypoint sh scraper-gijiroku -lc '
 set -eu
 python3 /workspace/tools/normalize_municipality_storage.py --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work --background-task-dir /workspace/data/background_tasks
-python3 /workspace/tools/backfill_background_tasks.py --force-running --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work
+python3 /workspace/tools/tasks/backfill.py --force-running --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work
 '
   trap - EXIT
   restore_scrapers
@@ -721,7 +719,7 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
     # Ensure remote directories exist
     ssh_exec(
         config,
-        f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/src {dest_dir}/nginx {dest_dir}/docker/php {dest_dir}/tools {dest_dir}/data {dest_dir}/data/boards {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {dest_dir}/work {dest_dir}/work/celery {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery"
+        f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/src {dest_dir}/nginx {dest_dir}/docker/php {dest_dir}/deploy/scraper_runtime {dest_dir}/tools {dest_dir}/data {dest_dir}/data/boards {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {dest_dir}/work {dest_dir}/work/celery {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery"
     )
 
     # Use rsync for better handling of large number of files
@@ -731,6 +729,14 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
         rsync_key_path = f"/cygdrive/{rsync_key_path[0].lower()}/{rsync_key_path[3:]}"
     ssh_binary = "/usr/bin/ssh" if os.name == "nt" else "ssh"
     ssh_base = f"{ssh_binary} -i {rsync_key_path} -p {config.get('port', 22)} -o StrictHostKeyChecking=no"
+
+    if not dry_run:
+        # __pycache__ は転送対象外だが、残っていると空になった旧ディレクトリを
+        # rsync --delete が消し切れないため、コード同期前に remote 側だけ掃除する。
+        ssh_exec(
+            config,
+            f"find {dest_dir}/tools {dest_dir}/deploy/scraper_runtime -type d -name __pycache__ -prune -exec rm -rf {{}} + 2>/dev/null || true",
+        )
     
     # Sync each directory separately for better error handling and progress tracking.
     # Scraped gijiroku/reiki data lives in shared_data_dir and is populated on the remote host,
@@ -742,6 +748,7 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
         ("lib/", f"{dest_dir}/lib/"),
         ("nginx/", f"{dest_dir}/nginx/"),
         ("docker/", f"{dest_dir}/docker/"),
+        ("deploy/scraper_runtime/", f"{dest_dir}/deploy/scraper_runtime/"),
         ("tools/", f"{dest_dir}/tools/"),
         ("data/municipalities/", f"{dest_dir}/data/municipalities/"),
         ("data/boards/", f"{dest_dir}/data/boards/"),

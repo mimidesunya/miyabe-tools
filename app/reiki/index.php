@@ -45,12 +45,9 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
         <a href="<?php echo h(query_with(['file' => null])); ?>">← 一覧に戻る</a>
     </nav>
     <aside class="sidebar">
-        <form class="search" method="get">
+        <form class="search" method="get" action="/reiki/">
             <input type="hidden" name="slug" value="<?php echo h($requestSlug); ?>">
-            <input type="text" name="q" value="<?php echo h($q); ?>" placeholder="タイトル・ファイル名で検索">
-            <?php if ($selectedRecord): ?>
-                <input type="hidden" name="file" value="<?php echo h($selectedRecord['name']); ?>">
-            <?php endif; ?>
+            <input type="text" name="q" value="<?php echo h($q); ?>" placeholder="タイトルで検索">
             
             <div style="margin-top:8px;">
                 <div style="display:flex; gap:4px; margin-bottom:4px;">

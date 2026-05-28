@@ -10,5 +10,6 @@ work
 worktrees
 kmzs
 doc
+dev
 tmp_*
 *.sqlite

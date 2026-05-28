@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 # 自治体コードを軸に、保存ディレクトリ名と background_tasks の slug を現行形へ揃える。
+# リモート移行や slug 生成規則の変更後に一度走らせる保守コマンドで、通常の
+# スクレイピング処理からは呼ばない。
 
 import argparse
 from collections import Counter

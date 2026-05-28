@@ -121,7 +121,7 @@ def ensure_scraper_image(config: dict, dest_dir: str, image_name: str, *, build_
     ).strip()
     current_hash = remote_file_text(config, stamp_path).strip()
     if build_image or image_present != "present" or current_hash != expected_hash:
-        ssh_exec(config, f"cd {dest_dir} && SCRAPER_IMAGE_NAME={image_name} sh ./tools/remote/build_scraper_image.sh")
+        ssh_exec(config, f"cd {dest_dir} && SCRAPER_IMAGE_NAME={image_name} sh ./docker/scraper/build_image.sh")
         ssh_exec(config, f"mkdir -p {dest_dir}/work/celery")
         ssh_copy_content(config, expected_hash + "\n", stamp_path)
 
@@ -192,7 +192,7 @@ def main() -> int:
 
     print("\n=== Remote Commands ===")
     print(f"cd {dest_dir}")
-    print(f"SCRAPER_IMAGE_NAME={args.image_name} sh ./tools/remote/build_scraper_image.sh")
+    print(f"SCRAPER_IMAGE_NAME={args.image_name} sh ./docker/scraper/build_image.sh")
     print(f"docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml ps")
     print(f"docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml logs -f scraper-gijiroku")
     print(f"docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml logs -f scraper-reiki")
@@ -203,11 +203,11 @@ def main() -> int:
     )
     print(
         "docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml exec scraper-gijiroku "
-        "python3 tools/remote/celery_enqueue.py gijiroku-cycle"
+        "python3 deploy/scraper_runtime/celery/enqueue.py gijiroku-cycle"
     )
     print(
         "docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml exec scraper-reiki "
-        "python3 tools/remote/celery_enqueue.py reiki-cycle"
+        "python3 deploy/scraper_runtime/celery/enqueue.py reiki-cycle"
     )
     return 0
 

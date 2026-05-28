@@ -42,7 +42,7 @@
 ## 再生成
 
 ```powershell
-pwsh -File tools/municipalities/build_reiki_system_urls_tsv.ps1
+pwsh -File dev/municipalities/build_reiki_system_urls_tsv.ps1
 ```
 
 必要に応じて `-HomepageCsv data/municipalities/municipality_homepages.csv` を明示できます。
