@@ -41,13 +41,17 @@ def target_host(target: dict) -> str:
 
 # 大きなログでも末尾だけ読む。進捗表示やエラー要約で使う。
 def tail_text_lines(path: Path, max_bytes: int = 8192) -> list[str]:
-    if not path.is_file() or path.stat().st_size == 0:
+    # 子プロセスのログは並行して書かれ消されるので、消失や権限エラーは空扱いにする。
+    try:
+        with path.open("rb") as handle:
+            size = handle.seek(0, os.SEEK_END)
+            if size == 0:
+                return []
+            read_size = min(size, max_bytes)
+            handle.seek(-read_size, os.SEEK_END)
+            chunk = handle.read(read_size)
+    except OSError:
         return []
-    with path.open("rb") as handle:
-        size = handle.seek(0, os.SEEK_END)
-        read_size = min(size, max_bytes)
-        handle.seek(-read_size, os.SEEK_END)
-        chunk = handle.read(read_size)
     text = chunk.decode("utf-8", errors="replace")
     return [line.rstrip() for line in text.splitlines() if line.strip()]
 

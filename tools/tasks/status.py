@@ -367,7 +367,8 @@ def write_state(task_name: str, state: dict[str, Any]) -> Path:
     path = status_path(task_name)
     temp_path = path.with_suffix(".json.tmp")
     touch_heartbeat(state)
-    payload = json.dumps(state, ensure_ascii=False, indent=2) + "\n"
+    # 自治体数ぶんの items を数秒おきに書くため、整形なしの compact JSON にする。
+    payload = json.dumps(state, ensure_ascii=False, separators=(",", ":")) + "\n"
     try:
         temp_path.write_text(payload, encoding="utf-8")
         os.replace(temp_path, path)

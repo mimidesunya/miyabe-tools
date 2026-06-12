@@ -126,7 +126,6 @@ def priority_score(
     current_count: int,
     freshness_date,
     last_checked_at: str,
-    previously_failed: bool,
 ) -> int:
     # group 1: 取得未完了、group 2: 総数不明、group 3: 完了済みだが再確認対象。
     # group 4 は 30 日以内に正常完了しているため、score=0 でスキップする。
@@ -139,8 +138,6 @@ def priority_score(
         3: 1_000_000_000,
     }
     score = base_by_group.get(priority_group, 0)
-    if previously_failed:
-        score += 50_000_000
 
     if priority_group == 1:
         score += int(progress_ratio * 1_000_000)
@@ -185,6 +182,10 @@ class PriorityCalculator:
         self.reflect_task_name = f"{self.task_name}_reflect"
         self.count_field = str(count_field).strip()
         self.extra_progress_reader = extra_progress_reader
+        # 同一プロセス内では slug ごとに 1 回だけ計算する。
+        # バッチ起動時は選定・ソート・キュー投入の 3 箇所から呼ばれるが、
+        # 実行順は起動時点の状態で固定する仕様なのでキャッシュしてよい。
+        self._info_cache: dict[str, dict[str, Any]] = {}
 
     # 優先度計算に使う進捗を、実行中 state・成功 snapshot・任意の補助 state から選ぶ。
     def priority_progress(self, slug: str, target: dict[str, Any] | None = None) -> tuple[int, int]:
@@ -199,20 +200,29 @@ class PriorityCalculator:
 
     # target に対して、優先度ラベル・スコア・進捗・鮮度情報をまとめる。
     def target_priority_info(self, target: dict[str, Any]) -> dict[str, Any]:
-        # 自治体 1 件を、優先度グループ・数値スコア・表示用ラベルへ変換する。
         slug = str(target.get("slug", "")).strip()
+        cached = self._info_cache.get(slug)
+        if cached is not None:
+            return cached
+        info = self._compute_priority_info(slug, target)
+        if slug:
+            self._info_cache[slug] = info
+        return info
+
+    def _compute_priority_info(self, slug: str, target: dict[str, Any]) -> dict[str, Any]:
+        # 自治体 1 件を、優先度グループ・数値スコア・表示用ラベルへ変換する。
         current_count, total_count = self.priority_progress(slug, target)
         ratio = (current_count / total_count) if total_count > 0 else 0.0
 
+        # 実エラーで失敗した自治体は自動再実行せず、手動の対処を待つ。
         failed_task_name = ""
         if previous_item_failed_with_error(self.task_name, slug):
             failed_task_name = self.task_name
         elif previous_item_failed_with_error(self.reflect_task_name, slug):
             failed_task_name = self.reflect_task_name
 
-        previously_failed = failed_task_name != ""
-        if previously_failed:
-            freshness = freshness_metadata.item_freshness(self.task_name, target)
+        freshness = freshness_metadata.item_freshness(self.task_name, target)
+        if failed_task_name:
             failed_item = task_item(failed_task_name, slug)
             return {
                 "priority_group": 5,
@@ -227,7 +237,6 @@ class PriorityCalculator:
                 **freshness,
             }
 
-        freshness = freshness_metadata.item_freshness(self.task_name, target)
         freshness_date = freshness_metadata.parse_date(freshness.get("freshness_date"))
         is_fresh = (
             freshness_date is not None
@@ -242,19 +251,16 @@ class PriorityCalculator:
 
         if total_count > 0 and current_count < total_count:
             priority_group = 1
-            priority_label = "incomplete_failed" if previously_failed else "incomplete"
+            priority_label = "incomplete"
         elif total_count <= 0:
             priority_group = 2
-            priority_label = "unknown_total_failed" if previously_failed else "unknown_total"
+            priority_label = "unknown_total"
         elif recently_complete:
             priority_group = 4
-            priority_label = "recent_complete_failed" if previously_failed else "recent_complete"
+            priority_label = "recent_complete"
         else:
             priority_group = 3
-            if is_fresh:
-                priority_label = "fresh_but_due_failed" if previously_failed else "fresh_but_due"
-            else:
-                priority_label = "stale_complete_failed" if previously_failed else "stale_complete"
+            priority_label = "fresh_but_due" if is_fresh else "stale_complete"
 
         score = priority_score(
             priority_group=priority_group,
@@ -262,7 +268,6 @@ class PriorityCalculator:
             current_count=current_count,
             freshness_date=freshness_date,
             last_checked_at=str(freshness.get("last_checked_at") or ""),
-            previously_failed=previously_failed,
         )
 
         return {
@@ -274,7 +279,7 @@ class PriorityCalculator:
             "total_count": total_count,
             self.count_field: current_count,
             "finished_at": finished_at,
-            "previously_failed": previously_failed,
+            "previously_failed": False,
             **freshness,
         }
 

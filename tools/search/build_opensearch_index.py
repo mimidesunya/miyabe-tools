@@ -16,6 +16,7 @@ import os
 import re
 import ssl
 import sys
+import time
 from collections.abc import Callable, Iterable, Iterator
 from datetime import datetime, timezone
 from pathlib import Path
@@ -156,7 +157,7 @@ class OpenSearchClient:
         data: bytes | None = None
         headers = {"Accept": "application/json"}
         if ndjson is not None:
-            data = ndjson.encode("utf-8")
+            data = ndjson if isinstance(ndjson, bytes) else ndjson.encode("utf-8")
             headers["Content-Type"] = "application/x-ndjson"
         elif body is not None:
             data = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
@@ -168,7 +169,9 @@ class OpenSearchClient:
 
         context = None
         if self.insecure_dev and url.lower().startswith("https://"):
-            context = ssl._create_unverified_context()
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
 
         request = Request(url, data=data, headers=headers, method=method.upper())
         try:
@@ -183,16 +186,11 @@ class OpenSearchClient:
         except URLError as exc:
             raise RuntimeError(f"OpenSearch is unreachable: {exc}") from exc
 
-    def bulk(self, actions: list[dict[str, Any]]) -> int:
-        if not actions:
+    def bulk_lines(self, lines: list[bytes], count: int) -> int:
+        """事前に NDJSON 化された行群を 1 回の _bulk リクエストで送る。"""
+        if not lines:
             return 0
-        lines: list[str] = []
-        for action in actions:
-            meta = action["meta"]
-            source = action["source"]
-            lines.append(json.dumps(meta, ensure_ascii=False, separators=(",", ":")))
-            lines.append(json.dumps(source, ensure_ascii=False, separators=(",", ":")))
-        payload = "\n".join(lines) + "\n"
+        payload = b"\n".join(lines) + b"\n"
         response = self.request("POST", "/_bulk", ndjson=payload)
         if bool(response.get("errors")):
             errors = []
@@ -205,7 +203,7 @@ class OpenSearchClient:
                 if len(errors) >= 3:
                     break
             raise RuntimeError(f"OpenSearch bulk request had item errors: {errors!r}")
-        return len(actions)
+        return count
 
 
 def parse_args() -> argparse.Namespace:
@@ -243,7 +241,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--reiki-alias", default=os.environ.get("MIYABE_REIKI_ALIAS", "miyabe-reiki-current"))
     parser.add_argument("--shards", type=int, default=int(os.environ.get("MIYABE_OPENSEARCH_SHARDS", "1")))
     parser.add_argument("--replicas", type=int, default=int(os.environ.get("MIYABE_OPENSEARCH_REPLICAS", "0")))
-    parser.add_argument("--bulk-size", type=int, default=int(os.environ.get("MIYABE_OPENSEARCH_BULK_SIZE", "10")))
+    parser.add_argument(
+        "--bulk-size",
+        type=int,
+        default=int(os.environ.get("MIYABE_OPENSEARCH_BULK_SIZE", "200")),
+        help="1 回の _bulk に載せる最大 document 数",
+    )
+    parser.add_argument(
+        "--bulk-bytes",
+        type=int,
+        default=int(os.environ.get("MIYABE_OPENSEARCH_BULK_BYTES", str(8 * 1024 * 1024))),
+        help="1 回の _bulk に載せる最大ペイロードバイト数（本文が大きい文書での上限）",
+    )
     parser.add_argument("--limit", type=int, default=0, help="Development limit per document type.")
     parser.add_argument("--no-switch-alias", action="store_true")
     return parser.parse_args()
@@ -532,111 +541,61 @@ def iter_reiki_documents(
                 return
 
 
-def limited_total_count(total: int, limit: int) -> int:
-    return min(total, max(0, int(limit))) if limit > 0 else total
-
-
-def count_minutes_documents(limit: int = 0, slugs: set[str] | None = None) -> int:
+def _count_documents_by_slug(
+    targets: Iterable[dict[str, Any]],
+    count_one: Callable[[dict[str, Any]], int],
+    *,
+    limit: int,
+    slugs: set[str] | None,
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
     total = 0
     slug_filter = slugs or set()
-    for target in gijiroku_targets.iter_gijiroku_targets():
-        if slug_filter and str(target.get("slug") or "").strip() not in slug_filter:
-            continue
-        downloads_dir = Path(target["downloads_dir"])
-        if not downloads_dir.is_dir():
+    for target in targets:
+        slug = str(target.get("slug") or "").strip()
+        if slug == "" or (slug_filter and slug not in slug_filter):
             continue
         try:
-            total += len(choose_minutes_source_files(downloads_dir))
+            count = count_one(target)
         except Exception as exc:
-            print(f"[WARN] failed to count minutes files dir={downloads_dir}: {exc}", file=sys.stderr)
+            print(f"[WARN] failed to count documents slug={slug}: {exc}", file=sys.stderr)
+            count = 0
+        if count <= 0:
             continue
+        if limit > 0 and total + count > limit:
+            count = max(0, limit - total)
+        counts[slug] = count
+        total += count
         if limit > 0 and total >= limit:
-            return limit
-    return limited_total_count(total, limit)
+            break
+    return counts
+
+
+def _count_minutes_target(target: dict[str, Any]) -> int:
+    downloads_dir = Path(target["downloads_dir"])
+    if not downloads_dir.is_dir():
+        return 0
+    return len(choose_minutes_source_files(downloads_dir))
+
+
+def _count_reiki_target(target: dict[str, Any]) -> int:
+    clean_html_dir = Path(target["html_dir"])
+    html_root = clean_html_dir if clean_html_dir.is_dir() else Path(target["source_dir"])
+    if not html_root.is_dir():
+        return 0
+    return len(collect_reiki_preferred_files(html_root, {".html", ".htm"}))
 
 
 def count_minutes_documents_by_slug(limit: int = 0, slugs: set[str] | None = None) -> dict[str, int]:
-    counts: dict[str, int] = {}
-    total = 0
-    slug_filter = slugs or set()
-    for target in gijiroku_targets.iter_gijiroku_targets():
-        slug = str(target.get("slug") or "").strip()
-        if slug == "" or (slug_filter and slug not in slug_filter):
-            continue
-        downloads_dir = Path(target["downloads_dir"])
-        if not downloads_dir.is_dir():
-            continue
-        try:
-            count = len(choose_minutes_source_files(downloads_dir))
-        except Exception:
-            count = 0
-        if count <= 0:
-            continue
-        if limit > 0 and total + count > limit:
-            count = max(0, limit - total)
-        counts[slug] = count
-        total += count
-        if limit > 0 and total >= limit:
-            break
-    return counts
-
-
-def count_reiki_documents(limit: int = 0, slugs: set[str] | None = None) -> int:
-    total = 0
-    slug_filter = slugs or set()
-    for target in reiki_targets.iter_reiki_targets():
-        if slug_filter and str(target.get("slug") or "").strip() not in slug_filter:
-            continue
-        clean_html_dir = Path(target["html_dir"])
-        source_html_dir = Path(target["source_dir"])
-        html_root = clean_html_dir if clean_html_dir.is_dir() else source_html_dir
-        if not html_root.is_dir():
-            continue
-        try:
-            total += len(collect_reiki_preferred_files(html_root, {".html", ".htm"}))
-        except Exception as exc:
-            print(f"[WARN] failed to count reiki files dir={html_root}: {exc}", file=sys.stderr)
-            continue
-        if limit > 0 and total >= limit:
-            return limit
-    return limited_total_count(total, limit)
+    return _count_documents_by_slug(
+        gijiroku_targets.iter_gijiroku_targets(), _count_minutes_target, limit=limit, slugs=slugs
+    )
 
 
 def count_reiki_documents_by_slug(limit: int = 0, slugs: set[str] | None = None) -> dict[str, int]:
-    counts: dict[str, int] = {}
-    total = 0
-    slug_filter = slugs or set()
-    for target in reiki_targets.iter_reiki_targets():
-        slug = str(target.get("slug") or "").strip()
-        if slug == "" or (slug_filter and slug not in slug_filter):
-            continue
-        clean_html_dir = Path(target["html_dir"])
-        source_html_dir = Path(target["source_dir"])
-        html_root = clean_html_dir if clean_html_dir.is_dir() else source_html_dir
-        if not html_root.is_dir():
-            continue
-        try:
-            count = len(collect_reiki_preferred_files(html_root, {".html", ".htm"}))
-        except Exception:
-            count = 0
-        if count <= 0:
-            continue
-        if limit > 0 and total + count > limit:
-            count = max(0, limit - total)
-        counts[slug] = count
-        total += count
-        if limit > 0 and total >= limit:
-            break
-    return counts
-
-
-def count_rebuild_documents(doc_type: str, limit: int = 0, slugs: set[str] | None = None) -> int:
-    total = 0
-    if doc_type in {"all", "minutes"}:
-        total += count_minutes_documents(limit=limit, slugs=slugs)
-    if doc_type in {"all", "reiki"}:
-        total += count_reiki_documents(limit=limit, slugs=slugs)
-    return total
+    return _count_documents_by_slug(
+        reiki_targets.iter_reiki_targets(), _count_reiki_target, limit=limit, slugs=slugs
+    )
 
 
 def compact_document(document: dict[str, Any]) -> dict[str, Any]:
@@ -678,29 +637,32 @@ def index_documents(
     documents: Iterable[tuple[str, dict[str, Any]]],
     *,
     bulk_size: int,
+    bulk_bytes: int = 8 * 1024 * 1024,
     progress_callback: Callable[[int, dict[str, Any], int], None] | None = None,
     slug_complete_callback: Callable[[str, dict[str, Any], int], None] | None = None,
 ) -> int:
-    actions: list[dict[str, Any]] = []
+    # NDJSON 行はここで一度だけ bytes 化し、件数とペイロードサイズの両方で flush する。
+    # 会議録の本文は 1 件で数百 KB になることがあるため、件数だけだと過大 bulk になりうる。
+    pending_lines: list[bytes] = []
+    pending_count = 0
+    pending_bytes = 0
+    last_source: dict[str, Any] = {}
     total = 0
     current_slug = ""
     current_slug_start_total = 0
     current_slug_last_source: dict[str, Any] = {}
 
     def flush_actions() -> None:
-        nonlocal actions, total
-        if not actions:
+        nonlocal pending_lines, pending_count, pending_bytes, total
+        if not pending_lines:
             return
-        last_source = actions[-1]["source"]
-        total += client.bulk(actions)
+        total += client.bulk_lines(pending_lines, pending_count)
         print(f"[BULK] index={index_name} total={total}", flush=True)
         if progress_callback is not None:
-            progress_callback(
-                total,
-                last_source if isinstance(last_source, dict) else {},
-                max(0, total - current_slug_start_total),
-            )
-        actions = []
+            progress_callback(total, last_source, max(0, total - current_slug_start_total))
+        pending_lines = []
+        pending_count = 0
+        pending_bytes = 0
 
     for doc_id, source in documents:
         slug = str(source.get("slug") or "").strip()
@@ -714,13 +676,16 @@ def index_documents(
                 current_slug_start_total = total
             current_slug = slug
             current_slug_last_source = source
-        actions.append(
-            {
-                "meta": {"index": {"_index": index_name, "_id": doc_id}},
-                "source": source,
-            }
-        )
-        if len(actions) >= bulk_size:
+        meta_line = json.dumps(
+            {"index": {"_index": index_name, "_id": doc_id}}, ensure_ascii=False, separators=(",", ":")
+        ).encode("utf-8")
+        source_line = json.dumps(source, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        pending_lines.append(meta_line)
+        pending_lines.append(source_line)
+        pending_count += 1
+        pending_bytes += len(meta_line) + len(source_line) + 2
+        last_source = source
+        if pending_count >= bulk_size or pending_bytes >= max(1, bulk_bytes):
             flush_actions()
     flush_actions()
     if current_slug and slug_complete_callback is not None:
@@ -753,23 +718,22 @@ def delete_documents_for_slugs(
     index_or_alias: str,
     doc_type: str,
     slugs: set[str],
+    indexed_before: str | None = None,
 ) -> int:
     if not slugs:
         raise ValueError("Incremental update requires at least one slug.")
+    filters: list[dict[str, Any]] = [
+        {"term": {"doc_type": doc_type}},
+        {"terms": {"slug": sorted(slugs)}},
+    ]
+    if indexed_before:
+        # 今回投入分（indexed_at が新しい）を残し、前回までの世代だけを消す。
+        filters.append({"range": {"indexed_at": {"lt": indexed_before}}})
     response = client.request(
         "POST",
         f"/{quote(index_or_alias)}/_delete_by_query",
         query={"conflicts": "proceed", "refresh": "false"},
-        body={
-            "query": {
-                "bool": {
-                    "filter": [
-                        {"term": {"doc_type": doc_type}},
-                        {"terms": {"slug": sorted(slugs)}},
-                    ]
-                }
-            }
-        },
+        body={"query": {"bool": {"filter": filters}}},
     )
     deleted = int(response.get("deleted") or 0) if isinstance(response, dict) else 0
     print(f"[DELETE] target={index_or_alias} doc_type={doc_type} slugs={len(slugs)} deleted={deleted}", flush=True)
@@ -962,6 +926,7 @@ def build_one(
     shards: int,
     replicas: int,
     bulk_size: int,
+    bulk_bytes: int = 8 * 1024 * 1024,
     progress_callback: Callable[[int, dict[str, Any], int], None] | None = None,
     slug_complete_callback: Callable[[str, dict[str, Any], int], None] | None = None,
 ) -> int:
@@ -972,6 +937,7 @@ def build_one(
         index_name,
         documents,
         bulk_size=bulk_size,
+        bulk_bytes=bulk_bytes,
         progress_callback=progress_callback,
         slug_complete_callback=slug_complete_callback,
     )
@@ -1028,6 +994,10 @@ def search_rebuild_status_start(*, build_id: str, doc_type: str, total_count: in
     return state
 
 
+_LAST_PROGRESS_WRITE_MONOTONIC = 0.0
+PROGRESS_WRITE_INTERVAL_SECONDS = 2.0
+
+
 def search_rebuild_status_progress(
     state: dict[str, Any] | None,
     *,
@@ -1040,6 +1010,12 @@ def search_rebuild_status_progress(
 ) -> None:
     if batch_status is None or state is None:
         return
+    # 進捗 state は UI 補助なので、bulk flush のたびではなく一定間隔でだけ書く。
+    global _LAST_PROGRESS_WRITE_MONOTONIC
+    now = time.monotonic()
+    if now - _LAST_PROGRESS_WRITE_MONOTONIC < PROGRESS_WRITE_INTERVAL_SECONDS:
+        return
+    _LAST_PROGRESS_WRITE_MONOTONIC = now
     next_processed = max(0, int(processed_count))
     previous_processed = max(0, int(state.get("processed_count") or 0))
     state["current_stage"] = stage
@@ -1109,10 +1085,14 @@ def update_one(
     shards: int,
     replicas: int,
     bulk_size: int,
+    bulk_bytes: int,
     switch_alias: bool,
 ) -> int:
     if not slugs:
         raise ValueError("Incremental update requires --slug.")
+    # documents の各 indexed_at は iterator 評価時に採番されるため、
+    # 先に cutoff を取れば「今回投入分 >= cutoff > 前回まで」の関係が保証される。
+    update_cutoff = utc_now_iso()
     documents_list = list(documents)
     if not documents_list:
         raise RuntimeError(f"Incremental update for {doc_type} has no source documents: {','.join(sorted(slugs))}")
@@ -1141,6 +1121,7 @@ def update_one(
                     shards=shards,
                     replicas=replicas,
                     bulk_size=bulk_size,
+                    bulk_bytes=bulk_bytes,
                 )
                 if switch_alias:
                     switch_aliases(
@@ -1159,8 +1140,18 @@ def update_one(
     print(f"[UPDATE] alias={alias} index={current_index} slugs={','.join(sorted(slugs))}", flush=True)
     # update mode は指定自治体だけを意図的に書き換える。
     # alias 配下の他自治体 index は公開したまま触らない。
-    delete_documents_for_slugs(client, index_or_alias=alias, doc_type=doc_type, slugs=slugs)
-    count = index_documents(client, alias, documents_list, bulk_size=bulk_size)
+    # document ID は slug+ファイルパス由来で安定しているため、まず bulk で上書き投入し、
+    # そのあとで前回世代（indexed_at が cutoff より古い文書）だけを削除する。
+    # 削除を先にすると、途中で落ちた場合にその自治体が次の成功まで検索から消えてしまう。
+    count = index_documents(client, alias, documents_list, bulk_size=bulk_size, bulk_bytes=bulk_bytes)
+    refresh_search_target(client, alias)
+    delete_documents_for_slugs(
+        client,
+        index_or_alias=alias,
+        doc_type=doc_type,
+        slugs=slugs,
+        indexed_before=update_cutoff,
+    )
     refresh_search_target(client, alias)
     print(f"[DONE] alias={alias} doc_type={doc_type} count={count}", flush=True)
     return count
@@ -1184,6 +1175,7 @@ def main() -> int:
         insecure_dev=bool(args.insecure_dev),
     )
     bulk_size = max(1, args.bulk_size)
+    bulk_bytes = max(1, args.bulk_bytes)
 
     if mode == "update":
         if args.doc_type in {"all", "minutes"}:
@@ -1201,6 +1193,7 @@ def main() -> int:
                 shards=args.shards,
                 replicas=args.replicas,
                 bulk_size=bulk_size,
+                bulk_bytes=bulk_bytes,
                 switch_alias=not args.no_switch_alias,
             )
         if args.doc_type in {"all", "reiki"}:
@@ -1218,6 +1211,7 @@ def main() -> int:
                 shards=args.shards,
                 replicas=args.replicas,
                 bulk_size=bulk_size,
+                bulk_bytes=bulk_bytes,
                 switch_alias=not args.no_switch_alias,
             )
         return 0
@@ -1230,7 +1224,8 @@ def main() -> int:
     completed_reiki_slugs: set[str] = set()
     minutes_counts_by_slug = count_minutes_documents_by_slug(limit=args.limit, slugs=slugs) if args.doc_type in {"all", "minutes"} else {}
     reiki_counts_by_slug = count_reiki_documents_by_slug(limit=args.limit, slugs=slugs) if args.doc_type in {"all", "reiki"} else {}
-    total_document_count = count_rebuild_documents(args.doc_type, limit=args.limit, slugs=slugs)
+    # 進捗表示用の総数は、上の slug 別集計をそのまま合算する（全ファイル走査を二度しない）。
+    total_document_count = sum(minutes_counts_by_slug.values()) + sum(reiki_counts_by_slug.values())
     print(f"[COUNT] doc_type={args.doc_type} total={total_document_count}", flush=True)
     status_state = search_rebuild_status_start(
         build_id=build_id,
@@ -1248,6 +1243,7 @@ def main() -> int:
                 shards=args.shards,
                 replicas=args.replicas,
                 bulk_size=bulk_size,
+                bulk_bytes=bulk_bytes,
                 progress_callback=lambda total, source, slug_current: search_rebuild_status_progress(
                     status_state,
                     stage="minutes",
@@ -1295,6 +1291,7 @@ def main() -> int:
                 shards=args.shards,
                 replicas=args.replicas,
                 bulk_size=bulk_size,
+                bulk_bytes=bulk_bytes,
                 progress_callback=lambda total, source, slug_current: search_rebuild_status_progress(
                     status_state,
                     stage="reiki",

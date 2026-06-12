@@ -15,6 +15,10 @@ from urllib.parse import parse_qs, quote, unquote, urlparse, urlunparse
 
 
 _AVAILABLE: bool | None = None
+_MIGRATED = False
+_CONN = None
+# (task_key -> slug -> item の JSON 文字列)。前回書き込みと同一の行は UPSERT を省く。
+_ITEM_CACHE: dict[str, dict[str, str]] = {}
 
 
 def database_url() -> str:
@@ -55,6 +59,31 @@ def _connect():
         return None
 
 
+def _get_connection():
+    # state 書き込みは数秒おきに走るため、接続はプロセス内で使い回す。
+    global _CONN
+    if _CONN is not None:
+        try:
+            if not _CONN.closed:
+                return _CONN
+        except Exception:
+            pass
+    _CONN = _connect()
+    return _CONN
+
+
+def _reset_connection() -> None:
+    global _CONN, _MIGRATED
+    if _CONN is not None:
+        try:
+            _CONN.close()
+        except Exception:
+            pass
+    _CONN = None
+    _MIGRATED = False
+    _ITEM_CACHE.clear()
+
+
 def available() -> bool:
     global _AVAILABLE
     if _AVAILABLE is not None:
@@ -72,6 +101,10 @@ def available() -> bool:
 
 
 def migrate(conn) -> None:
+    # state 書き込みは数秒おきに走るので、DDL はプロセスごとに 1 回だけ流す。
+    global _MIGRATED
+    if _MIGRATED:
+        return
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS management_task_statuses (
@@ -135,6 +168,7 @@ def migrate(conn) -> None:
         "CREATE INDEX IF NOT EXISTS idx_processing_task_items_freshness "
         "ON processing_task_items (task_key, freshness_date, last_checked_at_text)"
     )
+    _MIGRATED = True
 
 
 def _optional_int(value: Any) -> int | None:
@@ -164,11 +198,33 @@ def store_task_status(task_key: str, status: dict[str, Any], source_path: Path |
     task_key = str(task_key).strip()
     if task_key == "" or not isinstance(status, dict):
         return
-    conn = _connect()
+    conn = _get_connection()
     if conn is None:
         return
+
+    items = status.get("items")
+    if not isinstance(items, dict):
+        items = {}
+    # item 行は内容が変わったときだけ書く。heartbeat のたびに全自治体を
+    # UPSERT すると、数千行 × 数秒間隔で DB 側が支配的なコストになる。
+    normalized_items: dict[str, dict[str, Any]] = {}
+    serialized_items: dict[str, str] = {}
+    for raw_slug, raw_item in items.items():
+        if not isinstance(raw_item, dict):
+            continue
+        item = dict(raw_item)
+        slug = str(item.get("slug") or raw_slug).strip()
+        if slug == "":
+            continue
+        item["slug"] = slug
+        normalized_items[slug] = item
+        serialized_items[slug] = json.dumps(item, ensure_ascii=False)
+
+    previous_items = _ITEM_CACHE.get(task_key)
+    full_sync = previous_items is None
+
     try:
-        with conn:
+        with conn.transaction():
             migrate(conn)
             source_mtime = 0.0
             if source_path is not None:
@@ -199,19 +255,9 @@ def store_task_status(task_key: str, status: dict[str, Any], source_path: Path |
                     json.dumps(status, ensure_ascii=False),
                 ),
             )
-            items = status.get("items")
-            if not isinstance(items, dict):
-                items = {}
-            seen_slugs: list[str] = []
-            for raw_slug, raw_item in items.items():
-                if not isinstance(raw_item, dict):
+            for slug, item in normalized_items.items():
+                if not full_sync and previous_items.get(slug) == serialized_items[slug]:
                     continue
-                item = dict(raw_item)
-                slug = str(item.get("slug") or raw_slug).strip()
-                if slug == "":
-                    continue
-                item["slug"] = slug
-                seen_slugs.append(slug)
                 warning_lines = item.get("warning_lines")
                 if not isinstance(warning_lines, list):
                     warning_lines = []
@@ -290,15 +336,27 @@ def store_task_status(task_key: str, status: dict[str, Any], source_path: Path |
                         str(item.get("freshness_date", "")),
                         str(item.get("freshness_basis", "")),
                         str(item.get("last_checked_at", "")),
-                        json.dumps(item, ensure_ascii=False),
+                        serialized_items[slug],
                     ),
                 )
-            if seen_slugs:
-                conn.execute(
-                    "DELETE FROM processing_task_items WHERE task_key = %s AND NOT (slug = ANY(%s))",
-                    (task_key, seen_slugs),
-                )
+            if full_sync:
+                # プロセス初回は DB 側の残骸も同期し直す。
+                if serialized_items:
+                    conn.execute(
+                        "DELETE FROM processing_task_items WHERE task_key = %s AND NOT (slug = ANY(%s))",
+                        (task_key, list(serialized_items)),
+                    )
+                else:
+                    conn.execute("DELETE FROM processing_task_items WHERE task_key = %s", (task_key,))
             else:
-                conn.execute("DELETE FROM processing_task_items WHERE task_key = %s", (task_key,))
-    finally:
-        conn.close()
+                removed = [slug for slug in previous_items if slug not in serialized_items]
+                if removed:
+                    conn.execute(
+                        "DELETE FROM processing_task_items WHERE task_key = %s AND slug = ANY(%s)",
+                        (task_key, removed),
+                    )
+    except Exception:
+        # 接続が壊れた可能性があるので作り直し、差分キャッシュも破棄して次回フル同期する。
+        _reset_connection()
+        raise
+    _ITEM_CACHE[task_key] = serialized_items
