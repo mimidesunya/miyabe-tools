@@ -1,5 +1,11 @@
 {
   "dynamic": false,
+  "_source": {
+    "excludes": [
+      "title_terms",
+      "body_terms"
+    ]
+  },
   "properties": {
     "doc_type": {
       "type": "keyword"

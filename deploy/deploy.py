@@ -998,6 +998,9 @@ fi
     # Generate docker-compose.prod.yml
     # Keep the service's data directory mounted as before,
     # then overlay only large non-boards datasets from external storage.
+    # OpenSearch のデータ置き場は deploy.json の opensearch_data_dir で差し替えられる
+    # （HDD の shared_data_dir から NVMe へ移すときは設定 1 行で切り替える）。
+    opensearch_data_dir = str(config.get('opensearch_data_dir') or f"{shared_data_dir}/opensearch-data")
     docker_compose_prod = f"""version: '3'
 services:
   web:
@@ -1063,15 +1066,15 @@ services:
   opensearch:
     image: opensearchproject/opensearch:2.15.0
     restart: "no"
-    cpus: "1.0"
+    cpus: "4.0"
     environment:
       discovery.type: single-node
       DISABLE_SECURITY_PLUGIN: "true"
-      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+      OPENSEARCH_JAVA_OPTS: "-Xms4g -Xmx4g"
     ports:
       - "{config.get('opensearch_port', 9200)}:9200"
     volumes:
-      - {shared_data_dir}/opensearch-data:/usr/share/opensearch/data
+      - {opensearch_data_dir}:/usr/share/opensearch/data
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null || exit 1"]
       interval: 10s

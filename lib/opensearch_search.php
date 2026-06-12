@@ -254,7 +254,12 @@ function miyabe_search_build_request(array $params): array
     $requestedSlug = trim((string)($params['slug'] ?? ''));
     $resolvedSlug = $requestedSlug !== '' ? resolve_municipality_slug($requestedSlug) : '';
     $slug = $resolvedSlug !== '' ? municipality_public_slug($resolvedSlug) : $requestedSlug;
-    $includeBodyHighlight = miyabe_search_truthy($params['include_body_highlight'] ?? '');
+    // 本文スニペットは既定で返す。body は CJK bigram 解析なのでハイライト追加コストは
+    // 1 ページ 20 件あたり 200ms 弱（実測）。不要なら include_body_highlight=0 で外せる。
+    $includeBodyHighlightRaw = trim((string)($params['include_body_highlight'] ?? ''));
+    $includeBodyHighlight = $includeBodyHighlightRaw === ''
+        ? true
+        : miyabe_search_truthy($includeBodyHighlightRaw);
     $trackTotalHits = max(1, min(100000, (int)($params['track_total_hits_limit'] ?? 10000)));
     $municipalityCode = trim((string)($params['municipality_code'] ?? ($params['code'] ?? '')));
     $prefCode = miyabe_search_normalize_pref_code((string)($params['pref_code'] ?? ($params['pref'] ?? '')));
@@ -308,8 +313,11 @@ function miyabe_search_build_request(array $params): array
     if ($includeBodyHighlight) {
         $highlightFields['body'] = [
             'fragment_size' => 160,
-            'number_of_fragments' => 3,
+            'number_of_fragments' => 2,
             'no_match_size' => 160,
+            // 会議録 1 件の本文は数百 KB に達することがある。クエリ時解析を先頭 256K 文字で
+            // 打ち切り、1MB 超の文書での highlight エラーも防ぐ（OpenSearch 2.2+）。
+            'max_analyzer_offset' => 262144,
         ];
     }
 
