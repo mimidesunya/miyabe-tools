@@ -38,6 +38,10 @@ app.conf.update(
     task_default_queue="maintenance",
     worker_prefetch_multiplier=1,
     broker_connection_retry_on_startup=True,
+    # OpenSearch の全量 rebuild は半日以上かかる。Redis broker の visibility timeout
+    # （既定 1 時間）を超えると未 ACK メッセージがキューへ再配達され、完了直後に
+    # 同じ rebuild がもう一度走る。最長タスクより十分長い 48 時間にする。
+    broker_transport_options={"visibility_timeout": 48 * 60 * 60},
     task_track_started=True,
     result_expires=24 * 60 * 60,
     beat_schedule={
