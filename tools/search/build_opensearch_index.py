@@ -214,11 +214,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--mode",
-        choices=["auto", "rebuild", "update"],
+        choices=["auto", "rebuild", "update", "resume"],
         default="auto",
         help=(
             "auto は --slug 指定時だけ増分更新し、それ以外は versioned rebuild します。"
             " update は current alias に slug 単位で delete+bulk します。"
+            " resume は中断した rebuild を --resume-index の途中状態から再開します。"
         ),
     )
     parser.add_argument("--doc-type", choices=["all", "minutes", "reiki"], default="all")
@@ -229,6 +230,11 @@ def parse_args() -> argparse.Namespace:
         help="増分更新または部分 rebuild 対象の自治体 slug。カンマ区切り・複数指定可。",
     )
     parser.add_argument("--build-id", default="", help="Index build id. Defaults to a UTC timestamp.")
+    parser.add_argument(
+        "--resume-index",
+        default="",
+        help="--mode resume で続きを書き込む構築途中の index 名。部分公開 alias の filter から完了済み自治体を読み取って飛ばす。",
+    )
     parser.add_argument("--opensearch-url", default=os.environ.get("OPENSEARCH_URL", "http://localhost:9200"))
     parser.add_argument("--opensearch-user", default=os.environ.get("OPENSEARCH_USER", ""))
     parser.add_argument("--opensearch-password", default=os.environ.get("OPENSEARCH_PASSWORD", ""))
@@ -350,12 +356,17 @@ def iter_minutes_documents(
     slugs: set[str] | None = None,
     *,
     strict: bool = False,
+    exclude_slugs: set[str] | None = None,
 ) -> Iterator[tuple[str, dict[str, Any]]]:
     indexed_at = utc_now_iso()
     emitted = 0
     slug_filter = slugs or set()
+    skip_slugs = exclude_slugs or set()
     for target in gijiroku_targets.iter_gijiroku_targets():
-        if slug_filter and str(target.get("slug") or "").strip() not in slug_filter:
+        target_slug = str(target.get("slug") or "").strip()
+        if slug_filter and target_slug not in slug_filter:
+            continue
+        if target_slug in skip_slugs:
             continue
         downloads_dir = Path(target["downloads_dir"])
         if not downloads_dir.is_dir():
@@ -426,12 +437,17 @@ def iter_reiki_documents(
     slugs: set[str] | None = None,
     *,
     strict: bool = False,
+    exclude_slugs: set[str] | None = None,
 ) -> Iterator[tuple[str, dict[str, Any]]]:
     indexed_at = utc_now_iso()
     emitted = 0
     slug_filter = slugs or set()
+    skip_slugs = exclude_slugs or set()
     for target in reiki_targets.iter_reiki_targets():
-        if slug_filter and str(target.get("slug") or "").strip() not in slug_filter:
+        target_slug = str(target.get("slug") or "").strip()
+        if slug_filter and target_slug not in slug_filter:
+            continue
+        if target_slug in skip_slugs:
             continue
         clean_html_dir = Path(target["html_dir"])
         source_html_dir = Path(target["source_dir"])
@@ -555,13 +571,15 @@ def _count_documents_by_slug(
     *,
     limit: int,
     slugs: set[str] | None,
+    exclude_slugs: set[str] | None = None,
 ) -> dict[str, int]:
     counts: dict[str, int] = {}
     total = 0
     slug_filter = slugs or set()
+    skip_slugs = exclude_slugs or set()
     for target in targets:
         slug = str(target.get("slug") or "").strip()
-        if slug == "" or (slug_filter and slug not in slug_filter):
+        if slug == "" or (slug_filter and slug not in slug_filter) or slug in skip_slugs:
             continue
         try:
             count = count_one(target)
@@ -594,15 +612,19 @@ def _count_reiki_target(target: dict[str, Any]) -> int:
     return len(collect_reiki_preferred_files(html_root, {".html", ".htm"}))
 
 
-def count_minutes_documents_by_slug(limit: int = 0, slugs: set[str] | None = None) -> dict[str, int]:
+def count_minutes_documents_by_slug(
+    limit: int = 0, slugs: set[str] | None = None, exclude_slugs: set[str] | None = None
+) -> dict[str, int]:
     return _count_documents_by_slug(
-        gijiroku_targets.iter_gijiroku_targets(), _count_minutes_target, limit=limit, slugs=slugs
+        gijiroku_targets.iter_gijiroku_targets(), _count_minutes_target, limit=limit, slugs=slugs, exclude_slugs=exclude_slugs
     )
 
 
-def count_reiki_documents_by_slug(limit: int = 0, slugs: set[str] | None = None) -> dict[str, int]:
+def count_reiki_documents_by_slug(
+    limit: int = 0, slugs: set[str] | None = None, exclude_slugs: set[str] | None = None
+) -> dict[str, int]:
     return _count_documents_by_slug(
-        reiki_targets.iter_reiki_targets(), _count_reiki_target, limit=limit, slugs=slugs
+        reiki_targets.iter_reiki_targets(), _count_reiki_target, limit=limit, slugs=slugs, exclude_slugs=exclude_slugs
     )
 
 
@@ -745,6 +767,30 @@ def indices_for_alias(client: OpenSearchClient, alias: str) -> list[str]:
     if not isinstance(response, dict):
         return []
     return sorted(response.keys())
+
+
+def alias_partial_completed_slugs(client: OpenSearchClient, alias: str, index_name: str) -> set[str]:
+    """部分公開 alias の terms filter から、構築完了済み slug 一覧を読み取る。
+
+    rebuild は自治体が終わるたびに「新 index は完了 slug だけを公開する」filter を
+    張り替えるので、この filter がそのまま resume 時のスキップリストになる。"""
+    try:
+        response = client.request("GET", f"/_alias/{quote(alias)}")
+    except OpenSearchRequestError as exc:
+        if exc.status == 404:
+            return set()
+        raise
+    if not isinstance(response, dict):
+        return set()
+    entry = response.get(index_name)
+    aliases = entry.get("aliases") if isinstance(entry, dict) else None
+    info = aliases.get(alias) if isinstance(aliases, dict) else None
+    filter_body = info.get("filter") if isinstance(info, dict) else None
+    terms = filter_body.get("terms") if isinstance(filter_body, dict) else None
+    slugs = terms.get("slug") if isinstance(terms, dict) else None
+    if not isinstance(slugs, list):
+        return set()
+    return {str(slug).strip() for slug in slugs if str(slug).strip()}
 
 
 def single_index_for_alias(client: OpenSearchClient, alias: str) -> str | None:
@@ -970,11 +1016,21 @@ def build_one(
     bulk_size: int,
     bulk_bytes: int = 8 * 1024 * 1024,
     bulk_concurrency: int = 2,
+    create_index: bool = True,
     progress_callback: Callable[[int, dict[str, Any], int], None] | None = None,
     slug_complete_callback: Callable[[str, dict[str, Any], int], None] | None = None,
 ) -> int:
-    print(f"[CREATE] {index_name}", flush=True)
-    create_versioned_index(client, index_name, shards=shards, replicas=replicas)
+    if create_index:
+        print(f"[CREATE] {index_name}", flush=True)
+        create_versioned_index(client, index_name, shards=shards, replicas=replicas)
+    else:
+        # resume: 既存 index へ追記する。中断時点の設定に関わらず bulk 向けに戻す。
+        print(f"[RESUME] {index_name}", flush=True)
+        client.request(
+            "PUT",
+            f"/{quote(index_name)}/_settings",
+            body={"index": {"refresh_interval": "-1", "number_of_replicas": 0}},
+        )
     count = index_documents(
         client,
         index_name,
@@ -1215,6 +1271,14 @@ def main() -> int:
     if mode == "update" and not slugs:
         print("[ERROR] --mode update requires --slug.", file=sys.stderr, flush=True)
         return 2
+    resume_index = str(args.resume_index or "").strip()
+    if mode == "resume":
+        if resume_index == "":
+            print("[ERROR] --mode resume requires --resume-index.", file=sys.stderr, flush=True)
+            return 2
+        if args.doc_type not in {"minutes", "reiki"}:
+            print("[ERROR] --mode resume requires --doc-type minutes or reiki.", file=sys.stderr, flush=True)
+            return 2
 
     client = OpenSearchClient(
         args.opensearch_url,
@@ -1273,8 +1337,34 @@ def main() -> int:
     initial_reiki_indices = indices_for_alias(client, args.reiki_alias)
     completed_minutes_slugs: set[str] = set()
     completed_reiki_slugs: set[str] = set()
-    minutes_counts_by_slug = count_minutes_documents_by_slug(limit=args.limit, slugs=slugs) if args.doc_type in {"all", "minutes"} else {}
-    reiki_counts_by_slug = count_reiki_documents_by_slug(limit=args.limit, slugs=slugs) if args.doc_type in {"all", "reiki"} else {}
+    resume_done_slugs: set[str] = set()
+    if mode == "resume":
+        # 構築途中の index が実在することを確かめてから、部分公開 filter の
+        # 完了済み slug をそのまま再開時のスキップリストにする。
+        client.request("GET", f"/{quote(resume_index)}")
+        resume_alias = args.minutes_alias if args.doc_type == "minutes" else args.reiki_alias
+        resume_done_slugs = alias_partial_completed_slugs(client, resume_alias, resume_index)
+        if args.doc_type == "minutes":
+            completed_minutes_slugs = set(resume_done_slugs)
+            initial_minutes_indices = [name for name in initial_minutes_indices if name != resume_index]
+        else:
+            completed_reiki_slugs = set(resume_done_slugs)
+            initial_reiki_indices = [name for name in initial_reiki_indices if name != resume_index]
+        print(
+            f"[RESUME] index={resume_index} completed_slugs={len(resume_done_slugs)} "
+            f"initial_minutes={initial_minutes_indices} initial_reiki={initial_reiki_indices}",
+            flush=True,
+        )
+    minutes_counts_by_slug = (
+        count_minutes_documents_by_slug(limit=args.limit, slugs=slugs, exclude_slugs=resume_done_slugs)
+        if args.doc_type in {"all", "minutes"}
+        else {}
+    )
+    reiki_counts_by_slug = (
+        count_reiki_documents_by_slug(limit=args.limit, slugs=slugs, exclude_slugs=resume_done_slugs)
+        if args.doc_type in {"all", "reiki"}
+        else {}
+    )
     # 進捗表示用の総数は、上の slug 別集計をそのまま合算する（全ファイル走査を二度しない）。
     total_document_count = sum(minutes_counts_by_slug.values()) + sum(reiki_counts_by_slug.values())
     print(f"[COUNT] doc_type={args.doc_type} total={total_document_count}", flush=True)
@@ -1286,16 +1376,17 @@ def main() -> int:
     processed_offset = 0
     try:
         if args.doc_type in {"all", "minutes"}:
-            built_minutes_index = f"miyabe-minutes-v{build_id}"
+            built_minutes_index = resume_index if mode == "resume" else f"miyabe-minutes-v{build_id}"
             minutes_count = build_one(
                 client,
                 index_name=built_minutes_index,
-                documents=iter_minutes_documents(limit=args.limit, slugs=slugs),
+                documents=iter_minutes_documents(limit=args.limit, slugs=slugs, exclude_slugs=resume_done_slugs),
                 shards=args.shards,
                 replicas=args.replicas,
                 bulk_size=bulk_size,
                 bulk_bytes=bulk_bytes,
                 bulk_concurrency=bulk_concurrency,
+                create_index=mode != "resume",
                 progress_callback=lambda total, source, slug_current: search_rebuild_status_progress(
                     status_state,
                     stage="minutes",
@@ -1335,16 +1426,17 @@ def main() -> int:
             )
             processed_offset += minutes_count
         if args.doc_type in {"all", "reiki"}:
-            built_reiki_index = f"miyabe-reiki-v{build_id}"
+            built_reiki_index = resume_index if mode == "resume" else f"miyabe-reiki-v{build_id}"
             reiki_count = build_one(
                 client,
                 index_name=built_reiki_index,
-                documents=iter_reiki_documents(limit=args.limit, slugs=slugs),
+                documents=iter_reiki_documents(limit=args.limit, slugs=slugs, exclude_slugs=resume_done_slugs),
                 shards=args.shards,
                 replicas=args.replicas,
                 bulk_size=bulk_size,
                 bulk_bytes=bulk_bytes,
                 bulk_concurrency=bulk_concurrency,
+                create_index=mode != "resume",
                 progress_callback=lambda total, source, slug_current: search_rebuild_status_progress(
                     status_state,
                     stage="reiki",
