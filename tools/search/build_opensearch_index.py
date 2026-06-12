@@ -17,7 +17,9 @@ import re
 import ssl
 import sys
 import time
+from collections import deque
 from collections.abc import Callable, Iterable, Iterator
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -252,6 +254,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=int(os.environ.get("MIYABE_OPENSEARCH_BULK_BYTES", str(8 * 1024 * 1024))),
         help="1 回の _bulk に載せる最大ペイロードバイト数（本文が大きい文書での上限）",
+    )
+    parser.add_argument(
+        "--bulk-concurrency",
+        type=int,
+        default=int(os.environ.get("MIYABE_OPENSEARCH_BULK_CONCURRENCY", "2")),
+        help="同時にインフライトさせる _bulk リクエスト数。文書の解析と索引付けを重ねる。",
     )
     parser.add_argument("--limit", type=int, default=0, help="Development limit per document type.")
     parser.add_argument("--no-switch-alias", action="store_true")
@@ -638,56 +646,90 @@ def index_documents(
     *,
     bulk_size: int,
     bulk_bytes: int = 8 * 1024 * 1024,
+    bulk_concurrency: int = 2,
     progress_callback: Callable[[int, dict[str, Any], int], None] | None = None,
     slug_complete_callback: Callable[[str, dict[str, Any], int], None] | None = None,
 ) -> int:
     # NDJSON 行はここで一度だけ bytes 化し、件数とペイロードサイズの両方で flush する。
     # 会議録の本文は 1 件で数百 KB になることがあるため、件数だけだと過大 bulk になりうる。
+    #
+    # bulk 送信は ThreadPoolExecutor で多重インフライト化する。読み込み・解析と
+    # OpenSearch 側の索引付けが交互待ちで直列化すると、双方が半分遊んだまま
+    # スループットが頭打ちになる（全量 rebuild の実測でどちらも 50% 未満だった）。
+    # slug 境界では全 bulk の完了を待ってから slug_complete_callback（部分公開）を呼ぶ。
     pending_lines: list[bytes] = []
     pending_count = 0
     pending_bytes = 0
-    last_source: dict[str, Any] = {}
     total = 0
     current_slug = ""
     current_slug_start_total = 0
     current_slug_last_source: dict[str, Any] = {}
+    in_flight: deque[tuple[Future, int, dict[str, Any]]] = deque()
+    max_in_flight = max(1, int(bulk_concurrency))
 
-    def flush_actions() -> None:
-        nonlocal pending_lines, pending_count, pending_bytes, total
-        if not pending_lines:
-            return
-        total += client.bulk_lines(pending_lines, pending_count)
-        print(f"[BULK] index={index_name} total={total}", flush=True)
-        if progress_callback is not None:
-            progress_callback(total, last_source, max(0, total - current_slug_start_total))
-        pending_lines = []
-        pending_count = 0
-        pending_bytes = 0
+    with ThreadPoolExecutor(max_workers=max_in_flight) as pool:
 
-    for doc_id, source in documents:
-        slug = str(source.get("slug") or "").strip()
-        if current_slug and slug != "" and slug != current_slug:
+        def reap_oldest() -> None:
+            nonlocal total
+            future, count, batch_last_source = in_flight.popleft()
+            future.result()  # bulk 失敗はここで送出され、rebuild/update 全体を失敗させる
+            total += count
+            print(f"[BULK] index={index_name} total={total}", flush=True)
+            if progress_callback is not None:
+                progress_callback(total, batch_last_source, max(0, total - current_slug_start_total))
+
+        def reap_all() -> None:
+            while in_flight:
+                reap_oldest()
+
+        def flush_actions() -> None:
+            nonlocal pending_lines, pending_count, pending_bytes
+            if not pending_lines:
+                return
+            while len(in_flight) >= max_in_flight:
+                reap_oldest()
+            in_flight.append(
+                (
+                    pool.submit(client.bulk_lines, pending_lines, pending_count),
+                    pending_count,
+                    current_slug_last_source,
+                )
+            )
+            pending_lines = []
+            pending_count = 0
+            pending_bytes = 0
+
+        try:
+            for doc_id, source in documents:
+                slug = str(source.get("slug") or "").strip()
+                if current_slug and slug != "" and slug != current_slug:
+                    flush_actions()
+                    reap_all()
+                    if slug_complete_callback is not None:
+                        slug_complete_callback(current_slug, current_slug_last_source, total)
+                    current_slug_start_total = total
+                if slug != "":
+                    if current_slug == "":
+                        current_slug_start_total = total
+                    current_slug = slug
+                    current_slug_last_source = source
+                meta_line = json.dumps(
+                    {"index": {"_index": index_name, "_id": doc_id}}, ensure_ascii=False, separators=(",", ":")
+                ).encode("utf-8")
+                source_line = json.dumps(source, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+                pending_lines.append(meta_line)
+                pending_lines.append(source_line)
+                pending_count += 1
+                pending_bytes += len(meta_line) + len(source_line) + 2
+                if pending_count >= bulk_size or pending_bytes >= max(1, bulk_bytes):
+                    flush_actions()
             flush_actions()
-            if slug_complete_callback is not None:
-                slug_complete_callback(current_slug, current_slug_last_source, total)
-            current_slug_start_total = total
-        if slug != "":
-            if current_slug == "":
-                current_slug_start_total = total
-            current_slug = slug
-            current_slug_last_source = source
-        meta_line = json.dumps(
-            {"index": {"_index": index_name, "_id": doc_id}}, ensure_ascii=False, separators=(",", ":")
-        ).encode("utf-8")
-        source_line = json.dumps(source, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        pending_lines.append(meta_line)
-        pending_lines.append(source_line)
-        pending_count += 1
-        pending_bytes += len(meta_line) + len(source_line) + 2
-        last_source = source
-        if pending_count >= bulk_size or pending_bytes >= max(1, bulk_bytes):
-            flush_actions()
-    flush_actions()
+            reap_all()
+        except BaseException:
+            # 失敗時は未開始の bulk を捨てて早く抜ける（実行中のものは完了を待つ）。
+            for future, _count, _source in in_flight:
+                future.cancel()
+            raise
     if current_slug and slug_complete_callback is not None:
         slug_complete_callback(current_slug, current_slug_last_source, total)
     return total
@@ -927,6 +969,7 @@ def build_one(
     replicas: int,
     bulk_size: int,
     bulk_bytes: int = 8 * 1024 * 1024,
+    bulk_concurrency: int = 2,
     progress_callback: Callable[[int, dict[str, Any], int], None] | None = None,
     slug_complete_callback: Callable[[str, dict[str, Any], int], None] | None = None,
 ) -> int:
@@ -938,6 +981,7 @@ def build_one(
         documents,
         bulk_size=bulk_size,
         bulk_bytes=bulk_bytes,
+        bulk_concurrency=bulk_concurrency,
         progress_callback=progress_callback,
         slug_complete_callback=slug_complete_callback,
     )
@@ -1086,6 +1130,7 @@ def update_one(
     replicas: int,
     bulk_size: int,
     bulk_bytes: int,
+    bulk_concurrency: int,
     switch_alias: bool,
 ) -> int:
     if not slugs:
@@ -1122,6 +1167,7 @@ def update_one(
                     replicas=replicas,
                     bulk_size=bulk_size,
                     bulk_bytes=bulk_bytes,
+                    bulk_concurrency=bulk_concurrency,
                 )
                 if switch_alias:
                     switch_aliases(
@@ -1143,7 +1189,9 @@ def update_one(
     # document ID は slug+ファイルパス由来で安定しているため、まず bulk で上書き投入し、
     # そのあとで前回世代（indexed_at が cutoff より古い文書）だけを削除する。
     # 削除を先にすると、途中で落ちた場合にその自治体が次の成功まで検索から消えてしまう。
-    count = index_documents(client, alias, documents_list, bulk_size=bulk_size, bulk_bytes=bulk_bytes)
+    count = index_documents(
+        client, alias, documents_list, bulk_size=bulk_size, bulk_bytes=bulk_bytes, bulk_concurrency=bulk_concurrency
+    )
     refresh_search_target(client, alias)
     delete_documents_for_slugs(
         client,
@@ -1176,6 +1224,7 @@ def main() -> int:
     )
     bulk_size = max(1, args.bulk_size)
     bulk_bytes = max(1, args.bulk_bytes)
+    bulk_concurrency = max(1, args.bulk_concurrency)
 
     if mode == "update":
         if args.doc_type in {"all", "minutes"}:
@@ -1194,6 +1243,7 @@ def main() -> int:
                 replicas=args.replicas,
                 bulk_size=bulk_size,
                 bulk_bytes=bulk_bytes,
+                bulk_concurrency=bulk_concurrency,
                 switch_alias=not args.no_switch_alias,
             )
         if args.doc_type in {"all", "reiki"}:
@@ -1212,6 +1262,7 @@ def main() -> int:
                 replicas=args.replicas,
                 bulk_size=bulk_size,
                 bulk_bytes=bulk_bytes,
+                bulk_concurrency=bulk_concurrency,
                 switch_alias=not args.no_switch_alias,
             )
         return 0
@@ -1244,6 +1295,7 @@ def main() -> int:
                 replicas=args.replicas,
                 bulk_size=bulk_size,
                 bulk_bytes=bulk_bytes,
+                bulk_concurrency=bulk_concurrency,
                 progress_callback=lambda total, source, slug_current: search_rebuild_status_progress(
                     status_state,
                     stage="minutes",
@@ -1292,6 +1344,7 @@ def main() -> int:
                 replicas=args.replicas,
                 bulk_size=bulk_size,
                 bulk_bytes=bulk_bytes,
+                bulk_concurrency=bulk_concurrency,
                 progress_callback=lambda total, source, slug_current: search_rebuild_status_progress(
                     status_state,
                     stage="reiki",
