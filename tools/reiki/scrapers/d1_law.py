@@ -465,15 +465,28 @@ def assign_work_mode(
     }
 
 
+# d1_law.py が扱える system_type。reiki.html は D1-Law の静的書き出し版で、
+# 目次（OpenResDataWin/bunya_*.html）も本文（{hno}/{hno}_j.html）も同一構造のため
+# 同じ downloader/parser で処理できる。
+SUPPORTED_D1_SYSTEMS = {"d1-law", "reiki.html", "reiki_menu", "h-chosonkai"}
+
+
 def main():
     default_slug = reiki_targets.default_slug_for_system("d1-law")
-    parser = argparse.ArgumentParser(description="Download ordinances from D1-Law systems.")
+    parser = argparse.ArgumentParser(description="Download ordinances from D1-Law (and reiki.html static) systems.")
     parser.add_argument("--slug", default=default_slug, help="Municipality slug resolved from data/municipalities")
+    parser.add_argument("--system-type", default="", help="d1-law または reiki.html（未指定なら slug から判定）")
     parser.add_argument("--force", action="store_true", help="Redownload source HTML and rebuild outputs")
     parser.add_argument("--check-updates", action="store_true", help="既存条例も再取得して更新を確認する")
     args = parser.parse_args()
 
-    target = reiki_targets.load_reiki_target(args.slug, expected_system="d1-law")
+    expected = args.system_type.strip() or None
+    target = reiki_targets.load_reiki_target(args.slug, expected_system=expected)
+    if str(target.get("system_type")) not in SUPPORTED_D1_SYSTEMS:
+        raise ValueError(
+            f"d1_law.py は system_type={target.get('system_type')!r} を扱えません "
+            f"(対応: {sorted(SUPPORTED_D1_SYSTEMS)})"
+        )
     base_url = d1_parser.derive_d1_law_base_url(target["source_url"])
     source_dir = target["source_dir"]
     markdown_dir = target["markdown_dir"]

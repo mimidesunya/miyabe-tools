@@ -71,7 +71,9 @@ def derive_d1_law_base_url(source_url):
         base_path = path[: marker_index + len(marker)]
     elif is_opensearch_mokuji_source_url(source_url):
         base_path = "/opensearch/"
-    elif lower_path.endswith(("/reiki.html", "/reiki.htm", "/index.html", "/index.htm")):
+    elif lower_path.endswith(
+        ("/reiki.html", "/reiki.htm", "/reiki_menu.html", "/reiki_menu.htm", "/index.html", "/index.htm")
+    ):
         base_path = path.rsplit("/", 1)[0] + "/"
     else:
         raise ValueError(f"Unsupported d1-law URL for this scraper: {source_url}")
