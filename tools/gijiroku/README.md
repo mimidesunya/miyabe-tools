@@ -80,6 +80,15 @@ python tools/gijiroku/scrapers/static_kaigiroku_dir.py \
   --max-meetings 3
 ```
 
+`独自`（自治体サイト上の PDF 会議録・共通システム無し）を汎用クロールで取得:
+
+```bash
+python tools/gijiroku/scrapers/gikai_pdf.py \
+  --slug 01333-shiriuchi-cho \
+  --ack-robots \
+  --max-meetings 3
+```
+
 `gijiroku.com` を全件取得（時間がかかります）:
 
 ```bash
@@ -98,7 +107,7 @@ python tools/gijiroku/scrape_all_minutes.py --ack-robots --systems gijiroku.com 
 python tools/gijiroku/scrape_all_minutes.py --ack-robots --systems gijiroku.com --max-targets 5 --parallel 5 --per-host-start-interval 2
 ```
 
-実装済みの `gijiroku.com` / `voices` / `kaigiroku.net` / `dbsr` / `db-search` / `kaigiroku-indexphp` / `kensakusystem` / `kami-city-pdf` / `site-gikai-pdf` / `static-kaigiroku-dir` をまとめて回す場合:
+実装済みの `gijiroku.com` / `voices` / `kaigiroku.net` / `dbsr` / `db-search` / `kaigiroku-indexphp` / `kensakusystem` / `kami-city-pdf` / `site-gikai-pdf` / `static-kaigiroku-dir` / `独自`(汎用PDF) をまとめて回す場合:
 
 ```bash
 python tools/gijiroku/scrape_all_minutes.py --ack-robots --parallel 8 --per-host-parallel 1 --per-host-start-interval 2

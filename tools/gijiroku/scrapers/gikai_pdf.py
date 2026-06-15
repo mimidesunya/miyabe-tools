@@ -8,6 +8,15 @@
 ダウンロード・本文抽出(pypdf)・出力命名・resume・state は kami_city_pdf と
 gijiroku_planning/gijiroku_storage の実装を再利用する。ここでの新規部分は
 「汎用クロール＋任意 .pdf 収集」だけ。
+
+知見/落とし穴:
+- index builder(choose_minutes_source_files)は downloads_dir の .txt/.html/.htm
+  しか読まない。**PDF は必ずテキスト抽出して .txt(.gz) で保存する**こと
+  （PDF をそのまま置いても検索インデックスに入らない）。composed_minutes_text +
+  gijiroku_storage.write_text がこれを担う。
+- 汎用クロールは会議録以外の PDF（視察報告書・各種様式等）も拾うことがある。
+  会議録らしいリンクだけを辿る looks_like_generic_minutes_page で範囲を絞っているが、
+  完全な選別はしていない（精度向上は今後の課題）。
 """
 
 from __future__ import annotations
@@ -33,7 +42,9 @@ sys.path.append(str(SCRAPER_DIR))
 import gijiroku_planning  # noqa: E402
 import gijiroku_storage  # noqa: E402
 import gijiroku_targets  # noqa: E402
-import kami_city_pdf as kp  # noqa: E402
+
+# 取得・本文抽出・出力命名・state は kami_city_pdf の実装をそのまま再利用する
+# （site-gikai-pdf でも共有しているロジック。重複実装を避ける）。
 from kami_city_pdf import (  # noqa: E402
     DEFAULT_USER_AGENT,
     PdfMeetingItem,
@@ -44,7 +55,6 @@ from kami_city_pdf import (  # noqa: E402
     extract_pdf_text,
     extract_year_info,
     looks_like_generic_minutes_page,
-    normalize_space,
     now_ts,
     page_title,
     request_bytes,
