@@ -42,6 +42,7 @@ SUPPORTED_SYSTEMS = {
     "reiki_menu": ("python", "scrapers/d1_law.py"),
     "h-chosonkai": ("python", "scrapers/d1_law.py"),
     "jourei-v5": ("python", "scrapers/jourei_v5.py"),
+    "legal-square": ("python", "scrapers/legal_square.py"),
 }
 TAIKEI_LIKE_SYSTEMS = {"taikei", "g-reiki"}
 
