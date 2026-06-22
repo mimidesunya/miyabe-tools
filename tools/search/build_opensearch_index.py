@@ -394,6 +394,7 @@ def iter_reiki_documents(
                     preferred_reiki_sidecar(classification_files, key),
                     manifest_index.get(key) or manifest_index.get(Path(key).name),
                     prefixes,
+                    target,
                 )
             except Exception as exc:
                 if strict:

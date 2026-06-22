@@ -9,6 +9,8 @@
         form: document.getElementById('search-form'),
         query: document.getElementById('search-query'),
         slug: document.getElementById('search-slug'),
+        municipalityFilter: document.getElementById('search-municipality-filter'),
+        municipalityFilterStatus: document.getElementById('search-municipality-filter-status'),
         pref: document.getElementById('search-pref'),
         startYear: document.getElementById('search-start-year'),
         endYear: document.getElementById('search-end-year'),
@@ -30,7 +32,10 @@
     function normalizeMunicipalityList(items) {
         return (Array.isArray(items) ? items : []).map((item) => ({
             slug: String(item.slug || '').trim(),
+            code: String(item.code || '').trim(),
             name: String(item.name || '').trim(),
+            nameKana: String(item.nameKana || '').trim(),
+            fullName: String(item.fullName || '').trim(),
             prefCode: normalizePrefCode(item.prefCode),
             prefName: String(item.prefName || '').trim(),
             label: String(item.label || item.name || '').trim(),
@@ -52,6 +57,7 @@
         startYear: normalizeYear(boot.startYear),
         endYear: normalizeYear(boot.endYear),
         sort: normalizeSort(boot.sort),
+        municipalityFilter: '',
         page: 1,
         perPage: 20,
         loading: false,
@@ -94,6 +100,14 @@
         return String(value || '') === 'relevance' ? 'relevance' : 'date';
     }
 
+    function normalizeFilterText(value) {
+        return String(value || '')
+            .normalize('NFKC')
+            .toLowerCase()
+            .replace(/\s+/g, '')
+            .trim();
+    }
+
     function docTypeLabel(value) {
         switch (value) {
             case 'minutes':
@@ -110,10 +124,25 @@
     }
 
     function filteredMunicipalities() {
-        if (!state.prefCode) {
-            return municipalities;
-        }
-        return municipalities.filter((municipality) => municipality.prefCode === state.prefCode);
+        const query = normalizeFilterText(state.municipalityFilter);
+        return municipalities.filter((municipality) => {
+            if (state.prefCode && municipality.prefCode !== state.prefCode) {
+                return false;
+            }
+            if (!query) {
+                return true;
+            }
+            const haystack = normalizeFilterText([
+                municipality.name,
+                municipality.nameKana,
+                municipality.fullName,
+                municipality.prefName,
+                municipality.code,
+                municipality.label,
+                municipality.slug,
+            ].filter(Boolean).join(' '));
+            return haystack.includes(query);
+        });
     }
 
     function municipalityOptionLabel(municipality) {
@@ -125,9 +154,15 @@
 
     function renderMunicipalityOptions() {
         const visibleMunicipalities = filteredMunicipalities();
-        if (!municipalitiesLoading && state.slug && !visibleMunicipalities.some((municipality) => municipality.slug === state.slug)) {
+        const selectedMunicipality = state.slug ? municipalityBySlug.get(state.slug) : null;
+        const selectedIsInPrefecture = !selectedMunicipality || !state.prefCode || selectedMunicipality.prefCode === state.prefCode;
+        if (!municipalitiesLoading && state.slug && !selectedIsInPrefecture) {
             state.slug = '';
         }
+        const selectedIsVisible = Boolean(state.slug && visibleMunicipalities.some((municipality) => municipality.slug === state.slug));
+        const selectedFallback = state.slug && selectedMunicipality && selectedIsInPrefecture && !selectedIsVisible
+            ? [selectedMunicipality]
+            : [];
 
         const allLabel = state.prefCode
             ? `${prefNames.get(state.prefCode) || '選択中の都道府県'}すべて`
@@ -138,13 +173,32 @@
                 ? ['<option value="">自治体一覧を取得できません</option>']
                 : [`<option value="">${escapeHtml(allLabel)}</option>`];
         refs.slug.disabled = municipalitiesLoading || municipalitiesLoadFailed;
+        const visibleSlugs = new Set(visibleMunicipalities.map((municipality) => municipality.slug));
         refs.slug.innerHTML = [
             ...fallbackOptions,
+            ...selectedFallback.map((municipality) => (
+                `<option value="${escapeHtml(municipality.slug)}" data-pref-code="${escapeHtml(municipality.prefCode)}">${escapeHtml(`選択中: ${municipalityOptionLabel(municipality)}`)}</option>`
+            )),
             ...visibleMunicipalities.map((municipality) => (
                 `<option value="${escapeHtml(municipality.slug)}" data-pref-code="${escapeHtml(municipality.prefCode)}">${escapeHtml(municipalityOptionLabel(municipality))}</option>`
             )),
         ].join('');
         refs.slug.value = state.slug;
+        if (refs.municipalityFilter) {
+            refs.municipalityFilter.value = state.municipalityFilter;
+            refs.municipalityFilter.disabled = municipalitiesLoading || municipalitiesLoadFailed;
+        }
+        if (refs.municipalityFilterStatus) {
+            if (municipalitiesLoading) {
+                refs.municipalityFilterStatus.textContent = '自治体一覧を読み込み中';
+            } else if (municipalitiesLoadFailed) {
+                refs.municipalityFilterStatus.textContent = '自治体一覧を取得できません';
+            } else if (state.municipalityFilter) {
+                refs.municipalityFilterStatus.textContent = `${visibleSlugs.size}件に絞り込み`;
+            } else {
+                refs.municipalityFilterStatus.textContent = '';
+            }
+        }
     }
 
     function setMunicipalities(items) {
@@ -457,6 +511,11 @@
 
     refs.pref.addEventListener('change', () => {
         state.prefCode = normalizePrefCode(refs.pref.value);
+        renderMunicipalityOptions();
+    });
+
+    refs.municipalityFilter?.addEventListener('input', () => {
+        state.municipalityFilter = refs.municipalityFilter.value.trim();
         renderMunicipalityOptions();
     });
 

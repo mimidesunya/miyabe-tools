@@ -38,7 +38,10 @@ try {
         }
         $municipalities[] = [
             'slug' => $publicSlug,
+            'code' => trim((string)($entry['code'] ?? '')),
             'name' => $name,
+            'nameKana' => trim((string)($entry['name_kana'] ?? '')),
+            'fullName' => trim((string)($entry['full_name'] ?? '')),
             'prefCode' => $prefCode,
             'prefName' => $prefName,
             'label' => $prefName !== '' ? "{$name}（{$prefName}）" : $name,
@@ -52,7 +55,10 @@ try {
         'prefectures' => $prefectures,
         'municipalities' => array_map(static fn(array $municipality): array => [
             'slug' => (string)$municipality['slug'],
+            'code' => (string)$municipality['code'],
             'name' => (string)$municipality['name'],
+            'nameKana' => (string)$municipality['nameKana'],
+            'fullName' => (string)$municipality['fullName'],
             'prefCode' => (string)$municipality['prefCode'],
             'prefName' => (string)$municipality['prefName'],
             'label' => (string)$municipality['label'],

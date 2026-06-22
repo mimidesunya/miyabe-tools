@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, unquote_to_bytes, urlsplit
+from urllib.parse import parse_qs, unquote_to_bytes, urlsplit, urlunsplit
 
 try:
     import japanese_search_tokenizer  # type: ignore
@@ -27,6 +27,7 @@ except Exception:  # pragma: no cover
 TEXT_ENCODINGS = ("utf-8", "utf-8-sig", "cp932", "shift_jis", "euc_jp")
 FULLWIDTH_DIGITS = str.maketrans("０１２３４５６７８９", "0123456789")
 ERA_BASE_YEAR = {"昭和": 1925, "平成": 1988, "令和": 2018}
+ERA_MAX_YEAR = {"昭和": 64, "平成": 31, "令和": 99}
 MINUTES_DATE_PATTERN = re.compile(
     r"(昭和|平成|令和)\s*([元\d０-９]+)年(?:・(昭和|平成|令和)元年)?\s*([\d０-９]{1,2})月\s*([\d０-９]{1,2})日"
 )
@@ -38,6 +39,13 @@ REIKI_NUMBER_PATTERN = re.compile(r'<div class="law-number">([^<]+)</div>', re.I
 TAG_PATTERN = re.compile(r"<[^>]+>")
 SPACE_PATTERN = re.compile(r"[ \t\u3000]+")
 LINEBREAK_PATTERN = re.compile(r"\n{3,}")
+SOURCE_URL_HEADER_PATTERN = re.compile(
+    r"^\s*(?:Source URL|出典|原典URL?|原サイト|URL)\s*[:：]\s*(https?://\S+)",
+    re.IGNORECASE,
+)
+TRAILING_SOURCE_URL_CHARS = " \t\r\n、。)]）>\"'"
+D1_OPENSEARCH_INIT_PATH_RE = re.compile(r"/opensearch/sr[a-z0-9]+/init$", re.IGNORECASE)
+TAIKEI_LIKE_SYSTEMS = {"taikei", "g-reiki"}
 
 
 @dataclass(frozen=True)
@@ -121,6 +129,28 @@ def existing_path(path: Path) -> Path | None:
 
 def normalize_space(value: str) -> str:
     return SPACE_PATTERN.sub(" ", value).strip()
+
+
+def clean_source_url(value: object) -> str:
+    text = html.unescape(str(value or "")).strip().strip(TRAILING_SOURCE_URL_CHARS)
+    if text == "":
+        return ""
+    parts = urlsplit(text)
+    if parts.scheme.lower() not in {"http", "https"} or parts.netloc == "":
+        return ""
+    return text
+
+
+def extract_source_url_from_text(text: str, *, line_limit: int = 50) -> str:
+    head = "\n".join(text.splitlines()[:line_limit])
+    for line in head.splitlines():
+        match = SOURCE_URL_HEADER_PATTERN.search(line)
+        if not match:
+            continue
+        source_url = clean_source_url(match.group(1))
+        if source_url:
+            return source_url
+    return ""
 
 
 def terms_text(value: str) -> str:
@@ -220,12 +250,30 @@ def japanese_year_to_int(value: str) -> int | None:
     return int(raw) if raw.isdigit() else None
 
 
+def collapse_repeated_era_year(value: str) -> str:
+    if len(value) <= 2:
+        return value
+    for width in range(len(value) // 2, 0, -1):
+        if len(value) % width != 0:
+            continue
+        unit = value[:width]
+        if unit * (len(value) // width) == value and unit.isdigit():
+            return unit
+    return value
+
+
 def era_to_gregorian(era: str, year_text: str) -> int | None:
-    era_year = japanese_year_to_int(year_text)
+    max_year = ERA_MAX_YEAR.get(era)
+    normalized_year_text = to_ascii_digits(year_text.strip())
+    if max_year is not None and normalized_year_text.isdigit():
+        normalized_year_text = collapse_repeated_era_year(normalized_year_text)
+    era_year = japanese_year_to_int(normalized_year_text)
     if era_year is None:
         return None
     base_year = ERA_BASE_YEAR.get(era)
-    return None if base_year is None else base_year + era_year
+    if base_year is None or (max_year is not None and era_year > max_year):
+        return None
+    return base_year + era_year
 
 
 def parse_optional_int(value: object) -> int | None:
@@ -367,6 +415,13 @@ def extract_meta_meeting_name(source_url: str, title: str) -> str | None:
     return None
 
 
+def minutes_source_numbers_from_url(source_url: str) -> tuple[int | None, int | None]:
+    query = parse_qs(urlsplit(source_url).query)
+    source_year = parse_optional_int((query.get("YEAR") or query.get("year") or [None])[0])
+    source_fino = parse_optional_int((query.get("FINO") or query.get("fino") or [None])[0])
+    return source_year, source_fino
+
+
 def classify_doc_type(title: str, text: str, *, ext: str = "") -> str:
     if normalize_space(title).endswith("目次"):
         return "toc"
@@ -435,10 +490,17 @@ def build_minutes_record(
     meta = meta_map.get((extracted_year_label, title, normalize_space(meeting_name or "")))
     if meta is None:
         meta = meta_map.get((extracted_year_label, title, ""))
+    source_url = clean_source_url(meta.source_url if meta else "") or extract_source_url_from_text(content)
+    source_year = meta.source_year if meta else None
+    source_fino = meta.source_fino if meta else None
+    if source_url:
+        url_source_year, url_source_fino = minutes_source_numbers_from_url(source_url)
+        source_year = source_year or url_source_year
+        source_fino = source_fino or url_source_fino
     held_on, gregorian_year, month, day = extract_held_on(
         content,
         title,
-        meta.source_year if meta else None,
+        source_year,
         source_hint=file_path.relative_to(downloads_dir).as_posix(),
     )
     return MinuteRecord(
@@ -452,9 +514,9 @@ def build_minutes_record(
         day=day,
         doc_type=classify_doc_type(title, content, ext=ext),
         ext=ext,
-        source_fino=meta.source_fino if meta else None,
-        source_year=meta.source_year if meta else gregorian_year,
-        source_url=meta.source_url if meta else None,
+        source_fino=source_fino,
+        source_year=source_year if source_year is not None else gregorian_year,
+        source_url=source_url or None,
         content=content,
         title_terms=terms_text(title),
         meeting_name_terms=terms_text(meeting_name or ""),
@@ -591,6 +653,110 @@ def reiki_sortable_prefixes(target: dict[str, Any]) -> list[str]:
     return [name_kana] if name_kana else []
 
 
+def normalize_source_file_value(value: object) -> str:
+    normalized = str(value or "").replace("\\", "/").strip("/")
+    if normalized.lower().endswith(".gz"):
+        normalized = normalized[:-3]
+    return normalized
+
+
+def reiki_source_file_from_key(key: str) -> str:
+    normalized = normalize_source_file_value(key)
+    if normalized == "":
+        return ""
+    if normalized.lower().endswith((".html", ".htm")):
+        return normalized
+    return normalized + ".html"
+
+
+def reiki_source_file_name(source_file: str) -> str:
+    normalized = normalize_source_file_value(source_file)
+    return normalized.rsplit("/", 1)[-1]
+
+
+def reiki_source_file_stem(source_file: str) -> str:
+    name = reiki_source_file_name(source_file)
+    lower = name.lower()
+    for suffix in (".html", ".htm"):
+        if lower.endswith(suffix):
+            name = name[: -len(suffix)]
+            break
+    return name[:-2] if name.endswith("_j") else name
+
+
+def reiki_honbun_filename(source_file: str) -> str:
+    stem = reiki_source_file_stem(source_file)
+    return f"{stem}.html" if stem else ""
+
+
+def derive_reiki_honbun_source_url(source_url: str, source_file: str) -> str:
+    filename = reiki_honbun_filename(source_file)
+    source_url = clean_source_url(source_url)
+    if source_url == "" or filename == "":
+        return ""
+    parts = urlsplit(source_url)
+    path = parts.path or "/"
+    lower_path = path.lower()
+    if "/reiki_honbun/" in lower_path:
+        base_path = path[: lower_path.find("/reiki_honbun/") + 1]
+    elif "/reiki_taikei/" in lower_path:
+        base_path = path[: lower_path.find("/reiki_taikei/") + 1]
+    elif lower_path.endswith(("/reiki_menu.html", "/reiki_menu.htm", "/index.html", "/index.htm")):
+        base_path = path.rsplit("/", 1)[0] + "/"
+    elif path.endswith("/"):
+        base_path = path
+    else:
+        base_path = path.rsplit("/", 1)[0] + "/"
+    return clean_source_url(urlunsplit((parts.scheme or "https", parts.netloc, base_path + "reiki_honbun/" + filename, "", "")))
+
+
+def d1_law_base_url(source_url: str) -> str:
+    source_url = clean_source_url(source_url)
+    if source_url == "":
+        return ""
+    parts = urlsplit(source_url)
+    path = parts.path or "/"
+    lower_path = path.lower()
+    marker = "/d1w_reiki/"
+    marker_index = lower_path.find(marker)
+    if marker_index >= 0:
+        base_path = path[: marker_index + len(marker)]
+    elif D1_OPENSEARCH_INIT_PATH_RE.search(path or "") is not None:
+        return ""
+    elif lower_path.endswith(("/reiki.html", "/reiki.htm", "/reiki_menu.html", "/reiki_menu.htm", "/index.html", "/index.htm")):
+        base_path = path.rsplit("/", 1)[0] + "/"
+    else:
+        return ""
+    return clean_source_url(urlunsplit((parts.scheme or "https", parts.netloc, base_path, "", "")))
+
+
+def derive_d1_law_source_url(source_url: str, source_file: str) -> str:
+    base_url = d1_law_base_url(source_url)
+    code = reiki_source_file_stem(source_file)
+    filename = reiki_source_file_name(source_file)
+    if base_url == "" or code == "":
+        return ""
+    if filename == "" or not filename.lower().endswith((".html", ".htm")):
+        filename = f"{code}_j.html"
+    return clean_source_url(base_url.rstrip("/") + f"/{code}/{filename}")
+
+
+def derive_reiki_source_url(target: dict[str, Any] | None, source_file: str) -> str:
+    target = target if isinstance(target, dict) else {}
+    source_file = str(source_file or "").strip()
+    if source_file == "":
+        return ""
+    system_type = normalize_space(str(target.get("system_type", "")).strip())
+    target_source_url = clean_source_url(target.get("source_url")) or clean_source_url(target.get("entry_url"))
+    if target_source_url == "":
+        return ""
+    if system_type in TAIKEI_LIKE_SYSTEMS:
+        return derive_reiki_honbun_source_url(target_source_url, source_file)
+    if system_type == "d1-law":
+        return derive_d1_law_source_url(target_source_url, source_file)
+    return ""
+
+
 def build_reiki_record(
     key: str,
     html_path: Path,
@@ -598,6 +764,7 @@ def build_reiki_record(
     classification_path: Path | None,
     manifest: dict[str, Any] | None,
     prefixes: list[str],
+    target: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     html_content = read_text_auto(html_path)
     content_text = html_to_text(html_content)
@@ -634,6 +801,14 @@ def build_reiki_record(
     combined_reason = normalize_space(str(combined.get("reason", "")).strip())
     reason = normalize_space(str(classification.get("reason", "")).strip())
     taxonomy_path = normalize_space(str(manifest.get("taxonomy_path", "")).strip())
+    source_file = normalize_source_file_value(manifest.get("source_file") or manifest.get("stored_source_file") or "")
+    if source_file == "":
+        source_file = reiki_source_file_from_key(key)
+    source_url = (
+        clean_source_url(manifest.get("detail_url"))
+        or clean_source_url(manifest.get("source_url"))
+        or derive_reiki_source_url(target, source_file)
+    )
     return {
         "filename": key,
         "title": title,
@@ -657,8 +832,8 @@ def build_reiki_record(
         "enactment_date": normalize_space(extract_date_from_html(html_content) or str(manifest.get("enactment_date", "")).strip()),
         "analyzed_at": normalize_space(str(classification.get("analyzedAt", "")).strip()),
         "updated_at": record_updated_at(html_path, markdown_path, classification_path),
-        "source_url": normalize_space(str(manifest.get("detail_url") or manifest.get("source_url") or "").strip()),
-        "source_file": normalize_space(str(manifest.get("source_file", "")).strip()),
+        "source_url": source_url,
+        "source_file": source_file,
         "taxonomy_path": taxonomy_path,
         "taxonomy_paths": join_strings(manifest.get("taxonomy_paths", [])),
         "content_text": content_text,

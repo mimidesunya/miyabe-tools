@@ -84,9 +84,11 @@ $boot = [
                 </label>
                 <label class="field" for="search-slug">
                     <span>自治体</span>
+                    <input id="search-municipality-filter" class="municipality-filter-input" type="search" placeholder="自治体名で絞り込み" autocomplete="off">
                     <select id="search-slug" name="slug">
                         <option value="">読み込み中</option>
                     </select>
+                    <span id="search-municipality-filter-status" class="field-status" aria-live="polite"></span>
                 </label>
                 <div class="split-fields">
                     <label class="field" for="search-start-year">
@@ -119,6 +121,11 @@ $boot = [
                 <div>
                     <p class="kicker">全国自治体</p>
                     <h1>全国自治体 横断検索</h1>
+                    <div class="page-links">
+                        <a href="/status/">処理状況</a>
+                        <a href="/api-guide/">API解説</a>
+                        <a href="/privacy/">プライバシー</a>
+                    </div>
                 </div>
                 <div id="search-stats" class="stats"></div>
             </div>
