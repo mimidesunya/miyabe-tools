@@ -16,7 +16,7 @@
       "get": {
         "operationId": "searchMunicipalDocuments",
         "summary": "会議録または例規集を検索する",
-        "description": "検索語、文書種別、都道府県、自治体、年範囲で絞り込み、該当箇所の抜粋と原典URLを返します。",
+        "description": "検索語、文書種別、都道府県、自治体、日付範囲で絞り込み、該当箇所の抜粋と原典URLを返します。",
         "parameters": [
           {
             "name": "q",
@@ -72,10 +72,32 @@
             "example": "142166"
           },
           {
+            "name": "start_date",
+            "in": "query",
+            "required": false,
+            "description": "検索対象期間の開始日。YYYY-MM-DD形式です。",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2020-01-01"
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "required": false,
+            "description": "検索対象期間の終了日。YYYY-MM-DD形式です。",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2024-12-31"
+          },
+          {
             "name": "start_year",
             "in": "query",
             "required": false,
-            "description": "検索対象期間の開始年。",
+            "description": "検索対象期間の開始年。start_date が未指定の場合に使われます。",
             "schema": {
               "type": "integer",
               "minimum": 1,
@@ -87,7 +109,7 @@
             "name": "end_year",
             "in": "query",
             "required": false,
-            "description": "検索対象期間の終了年。",
+            "description": "検索対象期間の終了年。end_date が未指定の場合に使われます。",
             "schema": {
               "type": "integer",
               "minimum": 1,

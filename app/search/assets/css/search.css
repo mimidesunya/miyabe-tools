@@ -105,7 +105,7 @@ a {
 
 .search-layout {
   display: grid;
-  grid-template-columns: 310px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 310px) minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
@@ -117,6 +117,7 @@ a {
   background: var(--panel);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
+  min-width: 0;
 }
 
 .filters {
@@ -124,6 +125,7 @@ a {
   top: 18px;
   display: grid;
   gap: 14px;
+  min-width: 0;
   padding: 16px;
 }
 
@@ -133,6 +135,7 @@ a {
 .results {
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
 .field > span {
@@ -175,6 +178,8 @@ a {
 .field input,
 .field select {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 40px;
   padding: 8px 10px;
   border: 1px solid var(--line);
@@ -206,8 +211,113 @@ a {
 
 .split-fields {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
+}
+
+.date-fields {
+  grid-template-columns: 1fr;
+}
+
+.date-filter-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  gap: 8px;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.calendar-picker {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 42px;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.calendar-picker:hover,
+.calendar-picker:focus-within {
+  border-color: var(--accent);
+  background: var(--accent-weak);
+}
+
+.calendar-picker input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.calendar-icon {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border: 2px solid currentColor;
+  border-radius: 3px;
+}
+
+.calendar-icon::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: -2px;
+  right: -2px;
+  border-top: 2px solid currentColor;
+}
+
+.calendar-icon::after {
+  content: "";
+  position: absolute;
+  top: 8px;
+  left: 4px;
+  width: 3px;
+  height: 3px;
+  background: currentColor;
+  box-shadow: 5px 0 0 currentColor, 0 5px 0 currentColor, 5px 5px 0 currentColor;
+}
+
+.date-detail-status {
+  min-height: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.date-detail-status:empty {
+  display: none;
+}
+
+.date-detail-status button {
+  margin-left: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.date-detail-status button:hover {
+  text-decoration: underline;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .primary-button {

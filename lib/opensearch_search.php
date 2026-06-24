@@ -157,21 +157,63 @@ function miyabe_search_normalize_pref_code(string $value): string
     return preg_match('/^\d{2}$/', $value) === 1 ? $value : '';
 }
 
-function miyabe_search_year_range_filter(string $startYear, string $endYear): ?array
+function miyabe_search_normalize_date(string $value): string
 {
-    $start = preg_match('/^\d{1,4}$/', $startYear) === 1 ? max(1, min(9999, (int)$startYear)) : 0;
-    $end = preg_match('/^\d{1,4}$/', $endYear) === 1 ? max(1, min(9999, (int)$endYear)) : 0;
-    if ($start > 0 && $end > 0 && $start > $end) {
+    $value = trim($value);
+    if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $matches) !== 1) {
+        return '';
+    }
+    $year = (int)$matches[1];
+    $month = (int)$matches[2];
+    $day = (int)$matches[3];
+    if ($year < 1 || $year > 9999 || !checkdate($month, $day, $year)) {
+        return '';
+    }
+    return sprintf('%04d-%02d-%02d', $year, $month, $day);
+}
+
+function miyabe_search_date_from_year(string $year, string $edge): string
+{
+    $year = trim($year);
+    if (preg_match('/^\d{1,4}$/', $year) !== 1) {
+        return '';
+    }
+    $normalizedYear = max(1, min(9999, (int)$year));
+    return $edge === 'end'
+        ? sprintf('%04d-12-31', $normalizedYear)
+        : sprintf('%04d-01-01', $normalizedYear);
+}
+
+function miyabe_search_sort_date_range_filter(
+    string $startDate,
+    string $endDate,
+    string $startYear = '',
+    string $endYear = ''
+): ?array {
+    $start = miyabe_search_normalize_date($startDate);
+    $end = miyabe_search_normalize_date($endDate);
+    if ($start === '') {
+        $start = miyabe_search_date_from_year($startYear, 'start');
+    }
+    if ($end === '') {
+        $end = miyabe_search_date_from_year($endYear, 'end');
+    }
+    if ($start !== '' && $end !== '' && $start > $end) {
         [$start, $end] = [$end, $start];
     }
     $range = [];
-    if ($start > 0) {
-        $range['gte'] = sprintf('%04d-01-01', $start);
+    if ($start !== '') {
+        $range['gte'] = $start;
     }
-    if ($end > 0) {
-        $range['lte'] = sprintf('%04d-12-31', $end);
+    if ($end !== '') {
+        $range['lte'] = $end;
     }
     return $range === [] ? null : ['range' => ['sort_date' => $range]];
+}
+
+function miyabe_search_year_range_filter(string $startYear, string $endYear): ?array
+{
+    return miyabe_search_sort_date_range_filter('', '', $startYear, $endYear);
 }
 
 function miyabe_search_build_query_clause(string $query): array
@@ -263,7 +305,9 @@ function miyabe_search_build_request(array $params): array
     $trackTotalHits = max(1, min(100000, (int)($params['track_total_hits_limit'] ?? 10000)));
     $municipalityCode = trim((string)($params['municipality_code'] ?? ($params['code'] ?? '')));
     $prefCode = miyabe_search_normalize_pref_code((string)($params['pref_code'] ?? ($params['pref'] ?? '')));
-    $yearFilter = miyabe_search_year_range_filter(
+    $yearFilter = miyabe_search_sort_date_range_filter(
+        trim((string)($params['start_date'] ?? '')),
+        trim((string)($params['end_date'] ?? '')),
         trim((string)($params['start_year'] ?? '')),
         trim((string)($params['end_year'] ?? ''))
     );

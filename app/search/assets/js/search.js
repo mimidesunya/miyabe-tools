@@ -14,6 +14,10 @@
         pref: document.getElementById('search-pref'),
         startYear: document.getElementById('search-start-year'),
         endYear: document.getElementById('search-end-year'),
+        startDate: document.getElementById('search-start-date'),
+        endDate: document.getElementById('search-end-date'),
+        startDateStatus: document.getElementById('search-start-date-status'),
+        endDateStatus: document.getElementById('search-end-date-status'),
         sort: document.getElementById('search-sort'),
         tabs: Array.from(document.querySelectorAll('[data-doc-type]')),
         stats: document.getElementById('search-stats'),
@@ -47,6 +51,8 @@
     let municipalityBySlug = new Map(municipalities.map((item) => [item.slug, item]));
     let municipalitiesLoading = municipalities.length === 0;
     let municipalitiesLoadFailed = false;
+    const initialStartDate = normalizeDate(boot.startDate);
+    const initialEndDate = normalizeDate(boot.endDate);
 
     const state = {
         apiUrl: String(boot.apiUrl || '/api/search'),
@@ -54,8 +60,10 @@
         query: String(boot.query || '').trim(),
         slug: String(boot.slug || '').trim(),
         prefCode: normalizePrefCode(boot.prefCode) || normalizePrefCode(municipalityBySlug.get(String(boot.slug || '').trim())?.prefCode),
-        startYear: normalizeYear(boot.startYear),
-        endYear: normalizeYear(boot.endYear),
+        startYear: initialStartDate ? initialStartDate.slice(0, 4) : normalizeYear(boot.startYear),
+        endYear: initialEndDate ? initialEndDate.slice(0, 4) : normalizeYear(boot.endYear),
+        startDate: initialStartDate,
+        endDate: initialEndDate,
         sort: normalizeSort(boot.sort),
         municipalityFilter: '',
         page: 1,
@@ -94,6 +102,33 @@
         }
         const year = Number(text);
         return Number.isInteger(year) && year > 0 && year <= 9999 ? String(year) : '';
+    }
+
+    function normalizeDate(value) {
+        const text = String(value || '').trim();
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+        if (!match) {
+            return '';
+        }
+        const year = Number(match[1]);
+        const month = Number(match[2]);
+        const day = Number(match[3]);
+        const maxDays = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        if (
+            year < 1
+            || year > 9999
+            || month < 1
+            || month > 12
+            || day < 1
+            || day > maxDays[month - 1]
+        ) {
+            return '';
+        }
+        return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+
+    function isLeapYear(year) {
+        return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
     }
 
     function normalizeSort(value) {
@@ -240,7 +275,11 @@
         renderMunicipalityOptions();
         refs.startYear.value = state.startYear;
         refs.endYear.value = state.endYear;
+        refs.startDate.value = state.startDate;
+        refs.endDate.value = state.endDate;
         refs.sort.value = state.sort;
+        renderDateStatus(refs.startDateStatus, state.startDate, 'start');
+        renderDateStatus(refs.endDateStatus, state.endDate, 'end');
         refs.tabs.forEach((button) => {
             const active = button.getAttribute('data-doc-type') === state.docType;
             button.classList.toggle('is-active', active);
@@ -254,8 +293,16 @@
         if (state.docType !== 'minutes') params.set('doc_type', state.docType);
         if (state.slug) params.set('slug', state.slug);
         if (state.prefCode) params.set('pref_code', state.prefCode);
-        if (state.startYear) params.set('start_year', state.startYear);
-        if (state.endYear) params.set('end_year', state.endYear);
+        if (state.startDate) {
+            params.set('start_date', state.startDate);
+        } else if (state.startYear) {
+            params.set('start_year', state.startYear);
+        }
+        if (state.endDate) {
+            params.set('end_date', state.endDate);
+        } else if (state.endYear) {
+            params.set('end_year', state.endYear);
+        }
         if (state.sort !== 'date') params.set('sort', state.sort);
         const url = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
         window.history.replaceState({}, '', url);
@@ -271,9 +318,26 @@
         });
         if (state.slug) params.set('slug', state.slug);
         if (state.prefCode) params.set('pref_code', state.prefCode);
-        if (state.startYear) params.set('start_year', state.startYear);
-        if (state.endYear) params.set('end_year', state.endYear);
+        if (state.startDate) {
+            params.set('start_date', state.startDate);
+        } else if (state.startYear) {
+            params.set('start_year', state.startYear);
+        }
+        if (state.endDate) {
+            params.set('end_date', state.endDate);
+        } else if (state.endYear) {
+            params.set('end_year', state.endYear);
+        }
         return params;
+    }
+
+    function renderDateStatus(element, date, edge) {
+        if (!element) {
+            return;
+        }
+        element.innerHTML = date
+            ? `<span>日指定: ${escapeHtml(date)}</span><button type="button" data-clear-date="${escapeHtml(edge)}">解除</button>`
+            : '';
     }
 
     function renderMessage(text, tone = '') {
@@ -445,6 +509,20 @@
         state.slug = refs.slug.value.trim();
         state.startYear = normalizeYear(refs.startYear.value);
         state.endYear = normalizeYear(refs.endYear.value);
+        state.startDate = normalizeDate(refs.startDate.value);
+        state.endDate = normalizeDate(refs.endDate.value);
+        if (state.startDate && state.endDate && state.startDate > state.endDate) {
+            [state.startDate, state.endDate] = [state.endDate, state.startDate];
+        }
+        if (state.startDate) {
+            state.startYear = state.startDate.slice(0, 4);
+        }
+        if (state.endDate) {
+            state.endYear = state.endDate.slice(0, 4);
+        }
+        if (!state.startDate && !state.endDate && state.startYear && state.endYear && Number(state.startYear) > Number(state.endYear)) {
+            [state.startYear, state.endYear] = [state.endYear, state.startYear];
+        }
         state.sort = normalizeSort(refs.sort.value);
         state.page = Math.max(1, Number(page || 1));
         updateUrl();
@@ -521,6 +599,55 @@
 
     refs.slug.addEventListener('change', () => {
         state.slug = refs.slug.value.trim();
+    });
+
+    refs.startYear.addEventListener('change', () => {
+        refs.startDate.value = '';
+        state.startYear = normalizeYear(refs.startYear.value);
+        state.startDate = '';
+        renderDateStatus(refs.startDateStatus, '', 'start');
+    });
+
+    refs.endYear.addEventListener('change', () => {
+        refs.endDate.value = '';
+        state.endYear = normalizeYear(refs.endYear.value);
+        state.endDate = '';
+        renderDateStatus(refs.endDateStatus, '', 'end');
+    });
+
+    refs.startDate.addEventListener('change', () => {
+        state.startDate = normalizeDate(refs.startDate.value);
+        if (state.startDate) {
+            state.startYear = state.startDate.slice(0, 4);
+            refs.startYear.value = state.startYear;
+        }
+        renderDateStatus(refs.startDateStatus, state.startDate, 'start');
+    });
+
+    refs.endDate.addEventListener('change', () => {
+        state.endDate = normalizeDate(refs.endDate.value);
+        if (state.endDate) {
+            state.endYear = state.endDate.slice(0, 4);
+            refs.endYear.value = state.endYear;
+        }
+        renderDateStatus(refs.endDateStatus, state.endDate, 'end');
+    });
+
+    refs.form.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-clear-date]');
+        if (!button) {
+            return;
+        }
+        const edge = button.getAttribute('data-clear-date');
+        if (edge === 'start') {
+            refs.startDate.value = '';
+            state.startDate = '';
+            renderDateStatus(refs.startDateStatus, '', 'start');
+        } else if (edge === 'end') {
+            refs.endDate.value = '';
+            state.endDate = '';
+            renderDateStatus(refs.endDateStatus, '', 'end');
+        }
     });
 
     refs.pager.addEventListener('click', (event) => {

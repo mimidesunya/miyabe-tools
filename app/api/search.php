@@ -10,6 +10,8 @@ try {
         'slug' => miyabe_search_request_string('slug'),
         'municipality_code' => miyabe_search_request_string('municipality_code', miyabe_search_request_string('code')),
         'pref_code' => miyabe_search_request_string('pref_code', miyabe_search_request_string('pref')),
+        'start_date' => miyabe_search_request_string('start_date'),
+        'end_date' => miyabe_search_request_string('end_date'),
         'start_year' => miyabe_search_request_string('start_year'),
         'end_year' => miyabe_search_request_string('end_year'),
         'page' => miyabe_search_request_int('page', 1, 1, 100000),

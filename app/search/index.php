@@ -19,6 +19,89 @@ function search_asset_url(string $relativePath): string
     return $version !== '' ? $publicPath . '?v=' . rawurlencode($version) : $publicPath;
 }
 
+function search_normalize_date_input(string $value): string
+{
+    $value = trim($value);
+    if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $matches) !== 1) {
+        return '';
+    }
+    $year = (int)$matches[1];
+    $month = (int)$matches[2];
+    $day = (int)$matches[3];
+    if ($year < 1 || $year > 9999 || !checkdate($month, $day, $year)) {
+        return '';
+    }
+    return sprintf('%04d-%02d-%02d', $year, $month, $day);
+}
+
+function search_normalize_year_input(string $value): string
+{
+    $value = trim($value);
+    if (preg_match('/^\d{1,4}$/', $value) !== 1) {
+        return '';
+    }
+    return (string)max(1, min(9999, (int)$value));
+}
+
+function search_era_year_label(string $eraName, int $yearInEra): string
+{
+    return $eraName . ($yearInEra === 1 ? '元' : (string)$yearInEra) . '年';
+}
+
+function search_japanese_era_labels(int $year): array
+{
+    if ($year === 2019) {
+        return [search_era_year_label('平成', 31), search_era_year_label('令和', 1)];
+    }
+    if ($year >= 2020) {
+        return [search_era_year_label('令和', $year - 2018)];
+    }
+    if ($year === 1989) {
+        return [search_era_year_label('昭和', 64), search_era_year_label('平成', 1)];
+    }
+    if ($year >= 1990) {
+        return [search_era_year_label('平成', $year - 1988)];
+    }
+    if ($year === 1926) {
+        return [search_era_year_label('大正', 15), search_era_year_label('昭和', 1)];
+    }
+    if ($year >= 1927) {
+        return [search_era_year_label('昭和', $year - 1925)];
+    }
+    if ($year === 1912) {
+        return [search_era_year_label('明治', 45), search_era_year_label('大正', 1)];
+    }
+    if ($year >= 1913) {
+        return [search_era_year_label('大正', $year - 1911)];
+    }
+    if ($year >= 1868) {
+        return [search_era_year_label('明治', $year - 1867)];
+    }
+    return [];
+}
+
+function search_year_option_label(int $year): string
+{
+    $eraLabels = search_japanese_era_labels($year);
+    return (string)$year . '年' . ($eraLabels !== [] ? '（' . implode('/', $eraLabels) . '）' : '');
+}
+
+function search_year_options(array $selectedYears): array
+{
+    $tokyo = new DateTimeZone('Asia/Tokyo');
+    $currentYear = (int)(new DateTimeImmutable('now', $tokyo))->format('Y');
+    $years = range($currentYear, 1947);
+    foreach ($selectedYears as $selectedYear) {
+        $normalized = search_normalize_year_input((string)$selectedYear);
+        if ($normalized !== '') {
+            $years[] = (int)$normalized;
+        }
+    }
+    $years = array_values(array_unique(array_filter($years, static fn($year): bool => $year >= 1 && $year <= 9999)));
+    rsort($years, SORT_NUMERIC);
+    return $years;
+}
+
 $prefectures = [];
 foreach (municipality_prefecture_names() as $code => $name) {
     $prefectures[] = ['code' => (string)$code, 'name' => (string)$name];
@@ -28,6 +111,15 @@ $requestedSlug = trim((string)($_GET['slug'] ?? ''));
 
 $requestedDocType = strtolower(trim((string)($_GET['doc_type'] ?? ($_GET['type'] ?? 'minutes'))));
 $selectedDocType = $requestedDocType === 'reiki' ? 'reiki' : 'minutes';
+$requestedStartDate = search_normalize_date_input((string)($_GET['start_date'] ?? ''));
+$requestedEndDate = search_normalize_date_input((string)($_GET['end_date'] ?? ''));
+$requestedStartYear = $requestedStartDate !== ''
+    ? substr($requestedStartDate, 0, 4)
+    : search_normalize_year_input((string)($_GET['start_year'] ?? ''));
+$requestedEndYear = $requestedEndDate !== ''
+    ? substr($requestedEndDate, 0, 4)
+    : search_normalize_year_input((string)($_GET['end_year'] ?? ''));
+$yearOptions = search_year_options([$requestedStartYear, $requestedEndYear]);
 
 $boot = [
     'apiUrl' => '/api/search',
@@ -36,8 +128,10 @@ $boot = [
     'docType' => $selectedDocType,
     'slug' => $requestedSlug,
     'prefCode' => trim((string)($_GET['pref_code'] ?? ($_GET['pref'] ?? ''))),
-    'startYear' => trim((string)($_GET['start_year'] ?? '')),
-    'endYear' => trim((string)($_GET['end_year'] ?? '')),
+    'startDate' => $requestedStartDate,
+    'endDate' => $requestedEndDate,
+    'startYear' => $requestedStartYear,
+    'endYear' => $requestedEndYear,
     'sort' => trim((string)($_GET['sort'] ?? 'date')),
     'prefectures' => $prefectures,
     'municipalities' => [],
@@ -90,15 +184,45 @@ $boot = [
                     </select>
                     <span id="search-municipality-filter-status" class="field-status" aria-live="polite"></span>
                 </label>
-                <div class="split-fields">
-                    <label class="field" for="search-start-year">
-                        <span>開始年</span>
-                        <input id="search-start-year" name="start_year" type="number" min="1" max="9999" step="1" value="<?php echo search_h((string)$boot['startYear']); ?>">
-                    </label>
-                    <label class="field" for="search-end-year">
-                        <span>終了年</span>
-                        <input id="search-end-year" name="end_year" type="number" min="1" max="9999" step="1" value="<?php echo search_h((string)$boot['endYear']); ?>">
-                    </label>
+                <div class="split-fields date-fields">
+                    <div class="field date-field">
+                        <span>開始日</span>
+                        <div class="date-filter-control">
+                            <select id="search-start-year" name="start_year" aria-label="開始年">
+                                <option value="">指定なし</option>
+                                <?php foreach ($yearOptions as $year): ?>
+                                    <option value="<?php echo search_h((string)$year); ?>" <?php echo (string)$year === (string)$boot['startYear'] ? 'selected' : ''; ?>>
+                                        <?php echo search_h(search_year_option_label((int)$year)); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <label class="calendar-picker" for="search-start-date" title="日単位で指定">
+                                <span class="calendar-icon" aria-hidden="true"></span>
+                                <span class="sr-only">開始日を日単位で指定</span>
+                                <input id="search-start-date" name="start_date" type="date" min="0001-01-01" max="9999-12-31" value="<?php echo search_h((string)$boot['startDate']); ?>">
+                            </label>
+                        </div>
+                        <div id="search-start-date-status" class="date-detail-status" aria-live="polite"></div>
+                    </div>
+                    <div class="field date-field">
+                        <span>終了日</span>
+                        <div class="date-filter-control">
+                            <select id="search-end-year" name="end_year" aria-label="終了年">
+                                <option value="">指定なし</option>
+                                <?php foreach ($yearOptions as $year): ?>
+                                    <option value="<?php echo search_h((string)$year); ?>" <?php echo (string)$year === (string)$boot['endYear'] ? 'selected' : ''; ?>>
+                                        <?php echo search_h(search_year_option_label((int)$year)); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <label class="calendar-picker" for="search-end-date" title="日単位で指定">
+                                <span class="calendar-icon" aria-hidden="true"></span>
+                                <span class="sr-only">終了日を日単位で指定</span>
+                                <input id="search-end-date" name="end_date" type="date" min="0001-01-01" max="9999-12-31" value="<?php echo search_h((string)$boot['endDate']); ?>">
+                            </label>
+                        </div>
+                        <div id="search-end-date-status" class="date-detail-status" aria-live="polite"></div>
+                    </div>
                 </div>
                 <label class="field" for="search-sort">
                     <span>並び順</span>

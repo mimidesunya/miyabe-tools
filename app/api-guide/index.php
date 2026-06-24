@@ -122,8 +122,10 @@ excerpt は抜粋なので、必要なら api_document_url で全文を取得し
                 <dd>都道府県コードです。例: 神奈川県は <code>14</code>。</dd>
                 <dt><code>slug</code></dt>
                 <dd>自治体を1つに絞るIDです。検索結果や検索画面のURLに含まれます。</dd>
+                <dt><code>start_date</code> / <code>end_date</code></dt>
+                <dd>対象日を絞ります。例: <code>start_date=2020-01-01&amp;end_date=2024-12-31</code>。</dd>
                 <dt><code>start_year</code> / <code>end_year</code></dt>
-                <dd>対象年を絞ります。例: <code>start_year=2020&amp;end_year=2024</code>。</dd>
+                <dd>対象年で絞る互換パラメータです。例: <code>start_year=2020&amp;end_year=2024</code>。</dd>
                 <dt><code>sort</code></dt>
                 <dd><code>date</code> は新しい順、<code>relevance</code> は関連度順です。</dd>
                 <dt><code>page</code> / <code>per_page</code></dt>

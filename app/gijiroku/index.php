@@ -13,7 +13,7 @@ if ($q !== '') {
     $query['q'] = $q;
 }
 
-foreach (['pref_code', 'start_year', 'end_year', 'sort'] as $key) {
+foreach (['pref_code', 'start_date', 'end_date', 'start_year', 'end_year', 'sort'] as $key) {
     if (isset($_GET[$key]) && is_scalar($_GET[$key]) && trim((string)$_GET[$key]) !== '') {
         $query[$key] = trim((string)$_GET[$key]);
     }
