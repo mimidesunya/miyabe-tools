@@ -1005,7 +1005,7 @@ fi
 services:
   web:
     image: {img_web}
-    restart: "no"
+    restart: unless-stopped
     ports:
       - "{config.get('app_port', 8301)}:80"
     volumes:
@@ -1021,7 +1021,7 @@ services:
 
   php:
     image: {img_php}
-    restart: "no"
+    restart: unless-stopped
     environment:
       OPENSEARCH_URL: ${{OPENSEARCH_URL:-http://opensearch:9200}}
       OPENSEARCH_USER: ${{OPENSEARCH_USER:-}}
@@ -1047,7 +1047,7 @@ services:
 
   postgres:
     image: postgres:16-alpine
-    restart: "no"
+    restart: unless-stopped
     cpus: "0.5"
     environment:
       POSTGRES_DB: ${{POSTGRES_DB:-miyabe_management}}
@@ -1065,7 +1065,7 @@ services:
 
   opensearch:
     image: opensearchproject/opensearch:2.15.0
-    restart: "no"
+    restart: unless-stopped
     cpus: "4.0"
     environment:
       discovery.type: single-node
