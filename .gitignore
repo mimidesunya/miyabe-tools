@@ -19,6 +19,11 @@ deploy.json
 /.claude/
 __pycache__/
 *.py[cod]
+node_modules/
+docker/mcp/dist/
 
 # Temporary files
 tmp_*.html
+# AIエージェント用ローカルガイド（git管理外）
+AGENTS.md
+CLAUDE.md

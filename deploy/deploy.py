@@ -265,6 +265,24 @@ def run_command(cmd, capture_output=True, ignore_error=False):
         print(f"Stderr: {e.stderr}")
         sys.exit(1)
 
+def docker_login(registry, username, password):
+    """Logs in to a Docker registry without echoing the password into process logs."""
+    print(f"Running: docker login {registry} -u {username} --password-stdin")
+    try:
+        subprocess.run(
+            ["docker", "login", registry, "-u", username, "--password-stdin"],
+            input=str(password),
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"Error logging in to Docker registry: {registry}")
+        print(f"Stdout: {e.stdout}")
+        print(f"Stderr: {e.stderr}")
+        sys.exit(1)
+
 def terminate_local_process(process: subprocess.Popen) -> None:
     try:
         process.terminate()
@@ -367,6 +385,42 @@ def ssh_exec(config, command, *, stream=False, timeout_seconds=None):
     except subprocess.CalledProcessError as e:
         print(f"Error executing remote command via SSH: {debug_cmd}")
         print(f"Remote script:\n{command}")
+        print(f"Stdout: {e.stdout.decode('utf-8', errors='replace') if isinstance(e.stdout, bytes) else e.stdout}")
+        print(f"Stderr: {e.stderr.decode('utf-8', errors='replace') if isinstance(e.stderr, bytes) else e.stderr}")
+        sys.exit(1)
+
+def ssh_exec_sensitive(config, command, *, timeout_seconds=None):
+    """Executes a sensitive remote shell script without printing its body on failure."""
+    command_bytes = command.replace('\r\n', '\n').replace('\r', '\n').encode('utf-8')
+    ssh_args = [
+        "ssh",
+        "-i",
+        config['key_path'],
+        "-p",
+        str(config.get('port', 22)),
+        "-o",
+        "StrictHostKeyChecking=no",
+        f"{config['user']}@{config['host']}",
+        "sh",
+        "-s",
+    ]
+    debug_cmd = " ".join(shlex.quote(part) for part in ssh_args)
+    print(f"Running: {debug_cmd} [sensitive script redacted]")
+    try:
+        result = subprocess.run(
+            ssh_args,
+            input=command_bytes,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout_seconds,
+        )
+        return result.stdout.decode('utf-8', errors='replace').strip()
+    except subprocess.TimeoutExpired:
+        print(f"Error executing sensitive remote command via SSH: timed out after {timeout_seconds}s")
+        sys.exit(124)
+    except subprocess.CalledProcessError as e:
+        print(f"Error executing sensitive remote command via SSH: {debug_cmd}")
         print(f"Stdout: {e.stdout.decode('utf-8', errors='replace') if isinstance(e.stdout, bytes) else e.stdout}")
         print(f"Stderr: {e.stderr.decode('utf-8', errors='replace') if isinstance(e.stderr, bytes) else e.stderr}")
         sys.exit(1)
@@ -758,10 +812,17 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
     # - "protect:<pattern>": protect from --delete on remote
     # - "exclude:<pattern>": never transfer, never delete
     rsync_filters = {
+        "docker/": [
+            "exclude:mcp/node_modules/",
+            "exclude:mcp/dist/",
+        ],
         "data/boards/": [
             "exclude:tasks.sqlite",      # server-created: task progress
             "protect:boards.sqlite",     # prevent --delete; normal transfer/overwrite OK
         ],
+    }
+    rsync_delete_excluded = {
+        "docker/": True,
     }
 
     # Sync root data files separately (rsync only handles directories above)
@@ -792,8 +853,9 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
                 # Never transfer, never delete (dev-only files)
                 filter_opts += f" --exclude='{pattern}'"
         dry_flag = " --dry-run" if dry_run else ""
+        delete_excluded_flag = " --delete-excluded" if rsync_delete_excluded.get(local_path, False) else ""
         rsync_cmd = (
-            f"rsync -avz --delete --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r{dry_flag}{filter_opts} "
+            f"rsync -avz --delete{delete_excluded_flag} --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r{dry_flag}{filter_opts} "
             f"-e \"{ssh_base}\" {local_path} {config['user']}@{config['host']}:{remote_path}"
         )
         run_command(rsync_cmd, capture_output=False)
@@ -956,8 +1018,7 @@ fi
 
     if args.full:
         print("=== 1. Docker Login ===")
-        login_cmd = f"echo {config['registry_pass']} | docker login {registry} -u {config['registry_user']} --password-stdin"
-        run_command(login_cmd)
+        docker_login(registry, config['registry_user'], config['registry_pass'])
 
         print("=== 2. Build & Push Images ===")
         run_command(f"docker build -t {img_web} -f docker/nginx/Dockerfile .", capture_output=False)
@@ -1018,6 +1079,21 @@ services:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - php
+      - mcp
+
+  mcp:
+    build:
+      context: .
+      dockerfile: docker/mcp/Dockerfile
+    restart: unless-stopped
+    environment:
+      MIYABE_API_BASE_URL: ${{MIYABE_API_BASE_URL:-http://web}}
+      MCP_API_TIMEOUT_MS: ${{MCP_API_TIMEOUT_MS:-20000}}
+      MCP_ALLOWED_HOSTS: ${{MCP_ALLOWED_HOSTS:-}}
+      MCP_ALLOWED_ORIGINS: ${{MCP_ALLOWED_ORIGINS:-}}
+      PORT: 3000
+    volumes:
+      - ./docker/mcp/src:/app/src:ro
 
   php:
     image: {img_php}
@@ -1090,9 +1166,14 @@ volumes:
     
     if args.full:
         # Remote login and pull only if we pushed new images
-        remote_login = f"echo {config['registry_pass']} | docker login {registry} -u {config['registry_user']} --password-stdin"
-        ssh_exec(config, remote_login)
-        ssh_exec(config, f"cd {dest_dir} && docker compose pull && docker compose up -d")
+        remote_login = (
+            f"cat <<'EOF' | docker login {shlex.quote(registry)} "
+            f"-u {shlex.quote(config['registry_user'])} --password-stdin\n"
+            f"{config['registry_pass']}\n"
+            "EOF"
+        )
+        ssh_exec_sensitive(config, remote_login)
+        ssh_exec(config, f"cd {dest_dir} && docker compose pull web php postgres opensearch && docker compose up -d --build")
     else:
         print("=== Restarting services to pick up code changes ===")
         # Restart PHP first, then start/restart Nginx after the php service name
@@ -1101,7 +1182,8 @@ volumes:
         ssh_exec(
             config,
             f"cd {dest_dir} && docker compose up -d php opensearch && "
-            "docker compose restart php && sleep 2 && "
+            "docker compose up -d --build mcp && "
+            "docker compose restart php mcp && sleep 2 && "
             "docker compose up -d web && docker compose restart web"
         )
 

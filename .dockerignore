@@ -12,4 +12,6 @@ kmzs
 doc
 dev
 tmp_*
+node_modules
+docker/mcp/dist
 *.sqlite

@@ -48,7 +48,8 @@ function api_guide_asset_url(string $relativePath): string
                 AIエージェントやカスタムGPTに渡しやすいよう、OpenAPI定義を用意しています。
             </p>
             <pre><code>OpenAPI JSON: https://tools.miya.be/openapi.json
-OpenAPI YAML: https://tools.miya.be/openapi.yaml</code></pre>
+OpenAPI YAML: https://tools.miya.be/openapi.yaml
+MCP: https://tools.miya.be/mcp</code></pre>
         </section>
 
         <section class="docs-section">
@@ -81,7 +82,8 @@ OpenAPI YAML: https://tools.miya.be/openapi.yaml</code></pre>
                 <dt>Claude</dt>
                 <dd>
                     ClaudeのコネクタはMCPが中心です。Claudeに常設ツールとして持たせるなら、
-                    このOpenAPI定義をそのまま登録するより、<code>/api/search</code> を呼ぶ小さなMCPサーバーを用意するのが自然です。
+                    <code>https://tools.miya.be/mcp</code> を登録してください。
+                    <code>search_minutes</code>、<code>search_reiki</code>、<code>get_municipal_document</code> を読み取り専用ツールとして公開しています。
                     <a href="https://claude.com/docs/connectors/overview" target="_blank" rel="noopener">Claude Connectors</a>
                 </dd>
                 <dt>Gemini / Vertex AI</dt>
@@ -174,6 +176,7 @@ excerpt は抜粋なので、必要なら api_document_url で全文を取得し
             <p>
                 このAPIは調査の入口です。AIの回答では、検索結果の抜粋だけで断定せず、
                 重要な内容は <code>api_document_url</code> で全文を確認してください。
+                MCPから使う場合は <code>get_municipal_document</code> で全文を確認してください。
                 必要に応じて <code>source_url</code> の原サイトも確認してください。
                 会議録と例規集は性格が違うため、原則として別々に検索します。
             </p>

@@ -12,6 +12,7 @@
 - [ポスター支援ツール](doc/poster-tool.md)
 - [例規集ツール](doc/reiki.md)
 - [会議録ツール](doc/gijiroku.md)
+- [MCP連携](doc/mcp.md)
 - [実行状態管理の設計](doc/status-architecture.md)
 - [リモートスクレイピング](doc/remote-scraping.md)
 
@@ -67,6 +68,7 @@ OpenSearch の index はスクレイピング済みファイルから再構築�
 
 - 公開検索 API は `/api/search` です
 - `/api/search` は OpenSearch alias だけを検索します
+- MCP エンドポイントは `/mcp` です。会議録検索、例規集検索、検索結果IDからの本文取得を読み取り専用ツールとして公開します
 - OpenSearch が利用できない場合、検索 API は 503 を返します
 - SQLite FTS5 への検索フォールバックはありません
 - `minutes.sqlite` / `ordinances.sqlite` は公開検索には不要です。削除されていても、スクレイピング済みファイルから OpenSearch index を作れます
