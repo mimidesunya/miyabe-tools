@@ -13,6 +13,7 @@
 - [例規集ツール](doc/reiki.md)
 - [会議録ツール](doc/gijiroku.md)
 - [MCP連携](doc/mcp.md)
+- [仮想開発チーム](doc/virtual-development-team.md)
 - [実行状態管理の設計](doc/status-architecture.md)
 - [リモートスクレイピング](doc/remote-scraping.md)
 
@@ -51,11 +52,13 @@ OpenSearch の index はスクレイピング済みファイルから再構築�
 
 ## トップページ更新方式
 
-- トップページ本体は `/api/home.php` を 5 秒ごとに `fetch` して再描画します
+- トップページ本体は `/api/home.php` を `fetch` して、自治体対応状況の地図を描画します
 - `/api/home.php` は、ポスター掲示場・会議録・例規集の三つがすべて非表示の自治体を返しません
-- トップページの自治体カードは都道府県ごとにグループ化して表示します
+- トップページでは Leaflet と国土地理院タイルを使い、都道府県集約マーカーと市区町村マーカーで会議録・例規集・掲示板の対応状況を確認できます
+- 市区町村マーカーの代表点は `F:\home\person-geo\geo\yahoomap-2019\cities.txt` から生成した `app/assets/js/municipality-coordinates.js` を使います
+- 全文検索 UI は `/search/` に分離します
 - トップページの時刻表示は `Asia/Tokyo` に揃えます
-- トップページでは `🪧 掲示板` `📝 会議録` `📚 例規集` のアイコンで機能を見分けやすくしています
+- トップページでは会議録・例規集・掲示板を色分けし、自治体ごとの対応状況を地図と一覧で確認できます
 - 実行状態の正本は PostgreSQL の管理テーブルです
 - `/api/home.php` は PostgreSQL の自治体カードを読み、会議録・例規集の live 状態を重ねて返します
 - 自治体カタログや公開件数の重い再計算結果は派生ビューとして PostgreSQL に保存します
