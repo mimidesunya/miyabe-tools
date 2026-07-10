@@ -8,14 +8,25 @@
 
 ## ドキュメント
 
-- [複数自治体対応](doc/multi-municipality.md)
-- [ポスター支援ツール](doc/poster-tool.md)
-- [例規集ツール](doc/reiki.md)
-- [会議録ツール](doc/gijiroku.md)
-- [MCP連携](doc/mcp.md)
-- [仮想開発チーム](doc/virtual-development-team.md)
-- [実行状態管理の設計](doc/status-architecture.md)
-- [リモートスクレイピング](doc/remote-scraping.md)
+一覧と各文書の概要は [doc/README.md](doc/README.md) を参照してください。
+
+- ツール別: [ポスター支援ツール](doc/poster-tool.md) / [例規集ツール](doc/reiki.md) / [会議録ツール](doc/gijiroku.md) / [MCP連携](doc/mcp.md)
+- 設計・運用: [複数自治体対応](doc/multi-municipality.md) / [トップページ](doc/home-page.md) / [実行状態管理の設計](doc/status-architecture.md) / [リモートスクレイピング](doc/remote-scraping.md) / [仮想開発チーム](doc/virtual-development-team.md)
+- 自治体マスタ・URL調査: [自治体マスタ](doc/municipality-master.md) / [公式ホームページ一覧](doc/local-government-homepages.md) / [会議録URL調査](doc/assembly-minutes-url-survey.md) / [例規集URL調査](doc/reiki-url-survey.md)
+
+## ディレクトリ構成
+
+- `app/` — 公開 Web 画面と API（PHP）。`app/api/` が公開 API、`app/boards/`・`app/reiki/`・`app/gijiroku/`・`app/search/`・`app/status/` が各画面
+- `lib/` — PHP 共通ライブラリ（自治体レジストリ、OpenSearch 検索、実行状態管理など）。`lib/python/` は PHP から呼ぶ補助 Python
+- `tools/` — 本番系 Python パイプライン。`tools/gijiroku/`・`tools/reiki/` がスクレイパ、`tools/search/` が OpenSearch index 構築、`tools/tasks/` がバッチ実行基盤。直下の `municipality_slugs.py` などは各パイプライン共通のモジュール
+- `dev/` — 開発・単発作業用スクリプト（掲示場データ取込、自治体マスタ生成、保守作業など）。本番デプロイには含めない
+- `deploy/` — デプロイとリモートスクレイピング環境の構築。`deploy/scraper_runtime/` は Celery ランタイム
+- `docker/` — 各サービスの Dockerfile（php / nginx / mcp / scraper）
+- `nginx/` — 公開側 nginx 設定
+- `data/` — 公開データと自治体マスタ。`data/municipalities/` のみ git 管理
+- `work/` — スクレイピング途中成果物などのローカル作業領域（git 管理外）
+- `kmzs/` — ポスター掲示場の KMZ 地図原本（git 管理外）
+- `doc/` — ドキュメント
 
 ## ツール一覧
 
@@ -50,22 +61,9 @@ OpenSearch の index はスクレイピング済みファイルから再構築�
 - 会議録・例規集 統合検索: https://tools.miya.be/search/
 - 川崎市議会 会議録 全文検索: https://tools.miya.be/gijiroku/?slug=14130-kawasaki-shi
 
-## トップページ更新方式
+## トップページ
 
-- トップページ本体は `/api/home.php` を `fetch` して、自治体対応状況の地図を描画します
-- `/api/home.php` は、ポスター掲示場・会議録・例規集の三つがすべて非表示の自治体を返しません
-- トップページでは Leaflet と国土地理院タイルを使い、都道府県集約マーカーと市区町村マーカーで会議録・例規集・掲示板の対応状況を確認できます
-- 市区町村マーカーの代表点は `F:\home\person-geo\geo\yahoomap-2019\cities.txt` から生成した `app/assets/js/municipality-coordinates.js` を使います
-- 全文検索 UI は `/search/` に分離します
-- トップページの時刻表示は `Asia/Tokyo` に揃えます
-- トップページでは会議録・例規集・掲示板を色分けし、自治体ごとの対応状況を地図と一覧で確認できます
-- 実行状態の正本は PostgreSQL の管理テーブルです
-- `/api/home.php` は PostgreSQL の自治体カードを読み、会議録・例規集の live 状態を重ねて返します
-- 自治体カタログや公開件数の重い再計算結果は派生ビューとして PostgreSQL に保存します
-- 旧 `data/background_tasks/*.json` は移行期間の取り込み元・監査用であり、表示の正本ではありません
-- 実行中タスクの時刻は `開始`、待機中タスクの時刻は `最終完了` として表示します
-- 会議録・例規集の公開検索への反映は、通常はスクレイプ完了自治体だけを OpenSearch alias 上で差し替えます
-- 全量再構築が必要なときは versioned index を作って alias を切り替える方式です
+トップページは `/api/home.php` の結果から Leaflet で自治体対応マップを描画します。実行状態の正本は PostgreSQL の管理テーブルです。描画方式・API・表示ルールの詳細は [doc/home-page.md](doc/home-page.md) を参照してください。
 
 ## 検索基盤
 

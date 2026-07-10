@@ -86,9 +86,11 @@
         && typeof window.MIYABE_MUNICIPALITY_COORDINATES === 'object'
     ) ? window.MIYABE_MUNICIPALITY_COORDINATES : {};
 
+    const defaultFeature = 'gijiroku';
+
     const state = {
         payload: null,
-        feature: normalizeFeature(readQueryParam('feature') || 'all'),
+        feature: normalizeFeature(readQueryParam('feature')),
         prefecture: normalizePrefecture(readQueryParam('prefecture') || 'all'),
         issue: normalizeIssue(readQueryParam('status') || 'all'),
         query: readQueryParam('q') || '',
@@ -104,6 +106,10 @@
     let selectedMarker = null;
     let searchDebounceTimer = 0;
     let renderedMarkerMode = '';
+    let markersBySlug = new Map();
+    let moveRenderTimer = 0;
+    let lastPayloadRaw = '';
+    let hasFitOnce = false;
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -125,7 +131,7 @@
     function writeQueryState() {
         try {
             const url = new URL(window.location.href);
-            state.feature === 'all' ? url.searchParams.delete('feature') : url.searchParams.set('feature', state.feature);
+            state.feature === defaultFeature ? url.searchParams.delete('feature') : url.searchParams.set('feature', state.feature);
             state.prefecture === 'all' ? url.searchParams.delete('prefecture') : url.searchParams.set('prefecture', state.prefecture);
             state.issue === 'all' ? url.searchParams.delete('status') : url.searchParams.set('status', state.issue);
             state.query === '' ? url.searchParams.delete('q') : url.searchParams.set('q', state.query);
@@ -138,7 +144,7 @@
     function normalizeFeature(value) {
         if (value === 'minutes') return 'gijiroku';
         if (value === 'poster' || value === 'posters') return 'boards';
-        return ['all', 'gijiroku', 'reiki', 'boards'].includes(value) ? value : 'all';
+        return ['gijiroku', 'reiki', 'boards'].includes(value) ? value : defaultFeature;
     }
 
     function normalizeIssue(value) {
@@ -202,7 +208,7 @@
     function cardMatchesFilters(card) {
         const prefCode = prefCodeFromCard(card);
         if (state.prefecture !== 'all' && prefCode !== state.prefecture) return false;
-        if (state.feature !== 'all' && !hasFeature(card, state.feature)) return false;
+        if (!hasFeature(card, state.feature)) return false;
         if (state.issue === 'ready' && cardReadyCount(card) <= 0) return false;
         if (state.issue === 'issues' && !cardHasIssue(card)) return false;
         if (state.issue === 'pending' && !cardIsPending(card)) return false;
@@ -252,63 +258,80 @@
         return Array.isArray(municipalityCoordinates[municipalityCodeFromCard(card)]);
     }
 
+    // マーカー表示は選択中の機能だけに絞る。他機能の対応状況は詳細パネルと一覧で確認する。
     function markerTitle(card) {
-        const features = featureKeys
-            .filter((key) => hasFeature(card, key))
-            .map((key) => `${featureMeta[key].label}${featureReady(card, key) ? '' : '準備中'}`);
         const coordinateNote = hasKnownCoordinate(card) ? '' : '（概略位置）';
-        return `${card?.prefecture_label || ''} ${card?.name || ''}${coordinateNote}: ${features.join(' / ') || '表示対象なし'}`;
+        const meta = featureMeta[state.feature] || { label: state.feature };
+        const status = featureReady(card, state.feature) ? '' : '準備中';
+        return `${card?.prefecture_label || ''} ${card?.name || ''}${coordinateNote}: ${meta.label}${status}`;
     }
 
     function markerMode() {
         return map && map.getZoom() >= detailedMarkerMinZoom ? 'detailed' : 'simple';
     }
 
-    function markerFillColor(card) {
-        const readyKey = featureKeys.find((key) => featureReady(card, key));
-        if (readyKey) return featureMeta[readyKey].color;
-        const configuredKey = featureKeys.find((key) => hasFeature(card, key));
-        return configuredKey ? featureMeta[configuredKey].color : '#64748b';
+    function markerFillColor() {
+        return featureMeta[state.feature]?.color || '#64748b';
+    }
+
+    function simpleMarkerStyle(card, selected) {
+        return {
+            radius: selected ? 8 : 6,
+            color: selected ? '#111827' : '#ffffff',
+            weight: selected ? 3 : 1.5,
+            fillColor: markerFillColor(),
+            fillOpacity: featureReady(card, state.feature) ? 0.82 : 0.48,
+            opacity: 1,
+            dashArray: hasKnownCoordinate(card) ? null : '3 3',
+        };
     }
 
     function simpleMarker(card, coordinate, selected) {
-        const marker = L.circleMarker(coordinate, {
-            radius: selected ? 8 : Math.max(5, Math.min(7, 4 + Number(card?.feature_count || 0))),
-            color: selected ? '#111827' : '#ffffff',
-            weight: selected ? 3 : 1.5,
-            fillColor: markerFillColor(card),
-            fillOpacity: cardReadyCount(card) > 0 ? 0.82 : 0.48,
-            opacity: 1,
-            dashArray: hasKnownCoordinate(card) ? null : '3 3',
-            title: markerTitle(card),
-        });
-        marker.bindTooltip(markerTitle(card), { direction: 'top', sticky: true });
-        marker.bindPopup(renderPopup(card), { maxWidth: 340 });
-        marker.on('click', () => selectCard(String(card.slug || ''), { pan: false }));
+        return L.circleMarker(coordinate, simpleMarkerStyle(card, selected));
+    }
+
+    // ツールチップとポップアップは全マーカー分を事前生成せず、触られたときに初めて作る。
+    function attachMarkerInteractions(marker, card) {
         marker.__homeSlug = String(card.slug || '');
-        return marker;
+        marker.on('mouseover', () => {
+            if (!marker.getTooltip()) {
+                marker.bindTooltip(markerTitle(card), { direction: 'top', sticky: true });
+            }
+            marker.openTooltip();
+        });
+        marker.on('click', () => selectCard(marker.__homeSlug, { pan: false }));
+    }
+
+    function openMarkerPopup(slug, card) {
+        const marker = markersBySlug.get(slug);
+        if (!marker) {
+            state.openPopupSlug = slug;
+            return;
+        }
+        if (!marker.getPopup()) marker.bindPopup(renderPopup(card), { maxWidth: 340 });
+        marker.openPopup();
     }
 
     function markerIcon(card, selected) {
-        const serviceBadges = featureKeys
-            .filter((key) => hasFeature(card, key))
-            .map((key) => {
-                const pending = featureReady(card, key) ? '' : ' is-pending';
-                return `<span class="map-pin-dot map-pin-dot-${key}${pending}">${escapeHtml(featureMeta[key].shortLabel)}</span>`;
-            })
-            .join('');
+        const key = state.feature;
+        const ready = featureReady(card, key);
+        const meta = featureMeta[key] || { shortLabel: '?' };
+        const badge = `<span class="map-pin-dot map-pin-dot-${escapeHtml(key)}${ready ? '' : ' is-pending'}">${escapeHtml(meta.shortLabel)}</span>`;
+        const feature = featureByKey(card, key);
+        const hasIssue = card?.has_error === true || card?.has_warning === true
+            || feature?.has_error === true || feature?.has_warning === true;
         const classes = [
             'map-pin',
             selected ? 'is-selected' : '',
-            cardHasIssue(card) ? 'is-issue' : '',
-            cardReadyCount(card) <= 0 ? 'is-pending' : '',
+            hasIssue ? 'is-issue' : '',
+            ready ? '' : 'is-pending',
             hasKnownCoordinate(card) ? '' : 'is-approximate',
         ].filter(Boolean).join(' ');
         return L.divIcon({
             className: 'municipality-pin-icon',
-            html: `<div class="${classes}">${serviceBadges}</div>`,
-            iconSize: [54, 32],
-            iconAnchor: [27, 16],
+            html: `<div class="${classes}">${badge}</div>`,
+            iconSize: [34, 32],
+            iconAnchor: [17, 16],
             popupAnchor: [0, -16],
             tooltipAnchor: [0, -18],
         });
@@ -341,20 +364,28 @@
             '市区町村': municipalityLayer,
         }, { position: 'topleft' }).addTo(map);
 
-        map.on('zoomend', () => {
+        // 詳細ピンは表示範囲内だけ描画するので、移動・ズームのたびに対象を組み直す。
+        // 簡易マーカー(ズームアウト時)はモードが変わらない限り再描画しない。
+        map.on('moveend', () => {
             if (!state.payload) return;
             const nextMode = markerMode();
-            if (nextMode !== renderedMarkerMode) {
-                renderMap({ fit: false });
-            }
+            if (nextMode === renderedMarkerMode && nextMode !== 'detailed') return;
+            window.clearTimeout(moveRenderTimer);
+            moveRenderTimer = window.setTimeout(() => renderMap({ fit: false }), 120);
         });
     }
 
     function renderMap(options = {}) {
         initMap();
         if (!map || !municipalityLayer || !prefectureLayer) return;
+        if (selectedMarker && typeof selectedMarker.isPopupOpen === 'function'
+            && selectedMarker.isPopupOpen() && state.openPopupSlug === '') {
+            state.openPopupSlug = state.selectedSlug;
+        }
         municipalityLayer.clearLayers();
         prefectureLayer.clearLayers();
+        markersBySlug = new Map();
+        selectedMarker = null;
 
         const cards = visibleCards();
         const groups = groupByPrefecture(cards);
@@ -388,12 +419,15 @@
             }
         }
 
-        const selectedCard = cards.find((card) => String(card.slug || '') === state.selectedSlug) || cards[0] || null;
-        selectedMarker = null;
+        // DOM を伴う詳細ピンは、表示範囲(+余白)に入っている自治体だけ生成する。
+        const cullBounds = mode === 'detailed' ? map.getBounds().pad(0.3) : null;
+
         for (const card of cards) {
             const coordinate = coordinateForCard(card);
             const [lat, lon] = coordinate;
-            const selected = selectedCard && String(card.slug || '') === String(selectedCard.slug || '');
+            bounds.extend([lat, lon]);
+            if (cullBounds && !cullBounds.contains(coordinate)) continue;
+            const selected = String(card.slug || '') === state.selectedSlug;
             const marker = mode === 'simple'
                 ? simpleMarker(card, coordinate, selected)
                 : L.marker([lat, lon], {
@@ -403,15 +437,10 @@
                     title: markerTitle(card),
                     zIndexOffset: selected ? 500 : cardReadyCount(card) * 20,
                 });
-            if (mode === 'detailed') {
-                marker.bindTooltip(markerTitle(card), { direction: 'top', sticky: true });
-                marker.bindPopup(renderPopup(card), { maxWidth: 340 });
-                marker.on('click', () => selectCard(String(card.slug || ''), { pan: false }));
-                marker.__homeSlug = String(card.slug || '');
-            }
+            attachMarkerInteractions(marker, card);
             marker.addTo(municipalityLayer);
+            markersBySlug.set(String(card.slug || ''), marker);
             if (selected) selectedMarker = marker;
-            bounds.extend([lat, lon]);
         }
 
         if (options.fit !== false && bounds.isValid()) {
@@ -422,34 +451,57 @@
         } else if (options.fit !== false) {
             map.setView([36.2048, 138.2529], 5);
         }
-        if (selectedMarker && state.openPopupSlug !== '' && state.openPopupSlug === state.selectedSlug) {
-            selectedMarker.openPopup();
-            state.openPopupSlug = '';
+        if (state.openPopupSlug !== '') {
+            const popupCard = cards.find((card) => String(card.slug || '') === state.openPopupSlug);
+            if (popupCard && markersBySlug.has(state.openPopupSlug)) {
+                const popupSlug = state.openPopupSlug;
+                state.openPopupSlug = '';
+                openMarkerPopup(popupSlug, popupCard);
+            }
         }
         renderedMarkerMode = mode;
     }
 
+    function applyMarkerSelection(prevSlug, nextSlug) {
+        for (const slug of new Set([prevSlug, nextSlug])) {
+            if (!slug) continue;
+            const marker = markersBySlug.get(slug);
+            if (!marker) continue;
+            const card = allCards().find((item) => String(item.slug || '') === slug);
+            if (!card) continue;
+            const selected = slug === nextSlug;
+            if (typeof marker.setStyle === 'function' && typeof marker.setRadius === 'function') {
+                const style = simpleMarkerStyle(card, selected);
+                marker.setStyle(style);
+                marker.setRadius(style.radius);
+            } else {
+                marker.setIcon(markerIcon(card, selected));
+                marker.setZIndexOffset(selected ? 500 : cardReadyCount(card) * 20);
+            }
+            if (selected) selectedMarker = marker;
+        }
+    }
+
     function renderPopup(card) {
-        const ready = cardReadyCount(card);
+        const key = state.feature;
+        const ready = featureReady(card, key);
+        const meta = featureMeta[key] || { label: key };
         const coordinateNote = hasKnownCoordinate(card) ? '' : '<div class="popup-count">位置は都道府県内の概略表示です</div>';
-        const services = featureKeys
-            .filter((key) => hasFeature(card, key))
-            .map((key) => `<span class="popup-service popup-service-${key} ${featureReady(card, key) ? '' : 'is-pending'}">${escapeHtml(featureMeta[key].label)}</span>`)
-            .join('');
+        const service = `<span class="popup-service popup-service-${escapeHtml(key)} ${ready ? '' : 'is-pending'}">${escapeHtml(meta.label)}</span>`;
         return `
             <div class="coverage-popup">
                 <strong>${escapeHtml(card?.name || '')}</strong>
                 <span>${escapeHtml(card?.prefecture_label || '')}</span>
-                <div class="popup-services">${services}</div>
-                <div class="popup-count">${escapeHtml(`${ready}/${Number(card?.feature_count || 0)} 利用可能`)}</div>
+                <div class="popup-services">${service}</div>
+                <div class="popup-count">${escapeHtml(ready ? '利用可能' : '準備中')}</div>
                 ${coordinateNote}
             </div>
         `.trim();
     }
 
-    function renderAll() {
+    function renderAll(options = {}) {
         renderStats();
-        renderMap();
+        renderMap(options);
         renderList();
         writeQueryState();
     }
@@ -485,7 +537,7 @@
                 <div class="stat-card">
                     <span class="stat-label">${escapeHtml(stat.label)}</span>
                     <strong>${escapeHtml(`${stat.ready} / ${denominator}`)}</strong>
-                    <span class="stat-note">${index === 0 ? '地図表示中' : `${ratio}% 利用可能`}</span>
+                    <span class="stat-note">${index === 0 ? '全機能の合算' : `${ratio}% 利用可能`}</span>
                     <span class="stat-bar" aria-hidden="true"><span style="width: ${ratio}%"></span></span>
                 </div>
             `.trim();
@@ -557,7 +609,7 @@
             displayCountElement.textContent = `表示自治体: ${cards.length} / ${total}`;
         }
         if (filterHint) {
-            const featureLabel = state.feature === 'all' ? '全機能' : featureMeta[state.feature].label;
+            const featureLabel = featureMeta[state.feature]?.label || state.feature;
             const prefLabel = state.prefecture === 'all' ? '全国' : (prefectureByCode.get(state.prefecture)?.name || state.prefecture);
             filterHint.textContent = `${prefLabel} / ${featureLabel} / ${cards.length}自治体`;
         }
@@ -667,17 +719,36 @@
         }
     }
 
+    // 選択の切り替えでは地図と一覧を作り直さず、対象マーカーと行のスタイルだけ更新する。
     function selectCard(slug, options = {}) {
         const card = allCards().find((item) => String(item.slug || '') === String(slug || '')) || null;
+        const prevSlug = state.selectedSlug;
         state.selectedSlug = card ? String(card.slug || '') : '';
-        state.openPopupSlug = card && options.openPopup !== false ? state.selectedSlug : '';
         renderDetail(card);
-        renderList();
+        updateListSelection();
+        applyMarkerSelection(prevSlug, state.selectedSlug);
         if (card && map && options.pan !== false) {
             const coordinate = coordinateForCard(card);
             map.setView(coordinate, Math.max(map.getZoom(), 9), { animate: true });
         }
-        renderMap({ fit: false });
+        if (card && options.openPopup !== false) {
+            openMarkerPopup(state.selectedSlug, card);
+        }
+    }
+
+    function updateListSelection() {
+        if (!resultList) return;
+        resultList.querySelectorAll('.municipality-row.is-selected').forEach((row) => {
+            row.classList.remove('is-selected');
+        });
+        if (state.selectedSlug === '') return;
+        const rows = resultList.querySelectorAll('.municipality-row[data-slug]');
+        for (const row of rows) {
+            if (row.getAttribute('data-slug') === state.selectedSlug) {
+                row.classList.add('is-selected');
+                break;
+            }
+        }
     }
 
     function ensureSelection() {
@@ -702,7 +773,9 @@
         renderProcessingStatus(payload);
         syncControls();
         ensureSelection();
-        renderAll();
+        // 視点の自動リセットは初回描画だけ。定期更新では現在の表示位置を保つ。
+        renderAll({ fit: !hasFitOnce });
+        hasFitOnce = true;
     }
 
     async function loadPayload() {
@@ -715,7 +788,7 @@
             throw new Error(`Invalid JSON from homepage API (HTTP ${response.status})`);
         }
         if (!response.ok) throw new Error(String(payload?.error || `HTTP ${response.status}`));
-        return payload;
+        return { payload, raw: responseText };
     }
 
     async function loadTaskStatus() {
@@ -737,7 +810,10 @@
 
     async function refresh() {
         try {
-            renderPayload(await loadPayload());
+            const { payload, raw } = await loadPayload();
+            if (raw === lastPayloadRaw) return;
+            lastPayloadRaw = raw;
+            renderPayload(payload);
         } catch (error) {
             console.error('homepage refresh failed', error);
             if (loadingPanel && loadingPanel.isConnected) loadingPanel.textContent = '自治体データの読み込みに失敗しました。';

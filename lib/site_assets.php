@@ -3,13 +3,33 @@ declare(strict_types=1);
 
 // 公開ページ共通の軽量 asset helper。favicon のようなサイト共通資産を一元管理する。
 
+function site_asset_disk_path(string $normalized): string
+{
+    $relative = str_replace('/', DIRECTORY_SEPARATOR, $normalized);
+    $candidates = [];
+    $documentRoot = (string)($_SERVER['DOCUMENT_ROOT'] ?? '');
+    if ($documentRoot !== '') {
+        $candidates[] = rtrim($documentRoot, '/\\') . DIRECTORY_SEPARATOR . $relative;
+    }
+    // ローカル開発はリポジトリ直下の app/、本番コンテナは /var/www/lib と並ぶ html/。
+    $candidates[] = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . $relative;
+    $candidates[] = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'html' . DIRECTORY_SEPARATOR . $relative;
+    foreach ($candidates as $candidate) {
+        if (is_file($candidate)) {
+            return $candidate;
+        }
+    }
+    return '';
+}
+
 function site_asset_url(string $relativePath): string
 {
     $normalized = trim(str_replace('\\', '/', $relativePath), '/');
     $publicPath = '/' . $normalized;
-    $diskPath = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR
-        . str_replace('/', DIRECTORY_SEPARATOR, $normalized);
-    $version = is_file($diskPath) ? (string)filemtime($diskPath) : '';
+    // asset に filemtime を ?v= として付け、nginx の長期 immutable キャッシュと両立させる。
+    // 解決に失敗して版なし URL を返すと更新がブラウザに届かなくなるので、候補は複数見る。
+    $diskPath = site_asset_disk_path($normalized);
+    $version = $diskPath !== '' ? (string)filemtime($diskPath) : '';
     return $version !== '' ? $publicPath . '?v=' . rawurlencode($version) : $publicPath;
 }
 

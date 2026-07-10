@@ -54,8 +54,7 @@ function home_h(?string $value): string
         <section class="coverage-dashboard" aria-label="自治体対応状況">
             <div class="toolbar">
                 <div class="feature-switch" role="group" aria-label="表示する機能">
-                    <button type="button" class="is-active" data-feature-filter="all">全て</button>
-                    <button type="button" data-feature-filter="gijiroku">会議録</button>
+                    <button type="button" class="is-active" data-feature-filter="gijiroku">会議録</button>
                     <button type="button" data-feature-filter="reiki">例規集</button>
                     <button type="button" data-feature-filter="boards">掲示板</button>
                 </div>
@@ -140,8 +139,8 @@ function home_h(?string $value): string
 window.HOMEPAGE_API_URL = '/api/home.php';
 window.HOMEPAGE_TASK_STATUS_API_URL = '/api/task-status.php';
 </script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="<?php echo home_h(site_asset_url('assets/js/municipality-coordinates.js')); ?>"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+<script src="<?php echo home_h(site_asset_url('assets/js/municipality-coordinates.js')); ?>" defer></script>
 <script src="<?php echo home_h(site_asset_url('assets/js/home.js')); ?>" defer></script>
 </body>
 </html>

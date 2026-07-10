@@ -5,6 +5,7 @@
 !/data/municipalities/
 !/data/municipalities/**
 deploy.json
+secret.json
 
 # Local working data (scraping outputs, intermediate files)
 /work/

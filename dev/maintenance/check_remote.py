@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Helper script to check files on remote server."""
 import sys
-sys.path.insert(0, 'deploy')
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / 'deploy'))
 from deploy import (
     load_config,
     prepare_ssh_key_from_config,
@@ -10,7 +13,7 @@ from deploy import (
     ssh_exec,
 )
 
-config = load_config('deploy.json')
+config = load_config(str(REPO_ROOT / 'deploy.json'))
 prepare_ssh_key_from_config(config)
 compose_dir = resolve_remote_dest_dir(config['dest_dir'])
 shared_data_dir = resolve_remote_shared_data_dir(config)
