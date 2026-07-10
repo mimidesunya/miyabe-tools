@@ -22,25 +22,36 @@ function status_asset_url(string $relativePath): string
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>処理状況 - 宮部たつひこの自治体調査</title>
+    <title>収集・公開状況｜自治体マップ</title>
+    <?php echo site_render_page_meta(
+        '収集・公開状況｜自治体マップ',
+        '全国の自治体の会議録・例規集について、データの取得・公開・検索インデックス反映の進み具合を自治体ごとに確認できます。',
+        '/status/'
+    ); ?>
     <?php echo site_render_favicon_links(); ?>
     <link rel="stylesheet" href="<?php echo status_h(status_asset_url('css/home.css')); ?>">
 </head>
 <body>
     <div class="shell">
+        <header class="status-masthead">
+            <?php echo site_render_brand('/'); ?>
+            <nav aria-label="関連ページ">
+                <a href="/">地図から探す</a>
+                <a href="/search/">記録を検索</a>
+                <a href="/api-guide/">AIから使う（MCP）</a>
+            </nav>
+        </header>
         <section class="hero">
-            <div class="eyebrow">Municipal Data Hub</div>
-            <h1>宮部たつひこの<br>自治体調査</h1>
+            <div class="eyebrow">自治体資料の収集状況</div>
+            <h1>収集・公開状況</h1>
             <div class="hero-copy">
                 会議録と例規集の取得、公開、検索インデックス反映の進み具合を確認できます。
             </div>
             <div class="hero-meta">
-                <a href="/?doc_type=minutes">横断検索へ</a>
-                <a href="/api-guide/">API解説</a>
+                <a href="/search/">記録を検索へ</a>
                 <a href="/privacy/">プライバシー</a>
                 <span data-home-display-count>表示自治体: 読み込み中</span>
                 <span data-home-municipality-count>自治体マスタ: 読み込み中</span>
-                <span>切り替え単位: `slug`</span>
                 <span data-home-generated-at>更新: 読み込み中</span>
                 <div class="hero-meta-dynamic" data-home-task-summaries></div>
             </div>
@@ -48,7 +59,7 @@ function status_asset_url(string $relativePath): string
 
         <section class="running-board" hidden data-running-section>
             <div class="running-board-head">
-                <div class="eyebrow">Task Status</div>
+                <div class="eyebrow">実行中の処理</div>
                 <div class="running-board-title">データ処理の実行状況</div>
                 <div class="running-summary-list" data-running-summary-list></div>
             </div>
@@ -64,7 +75,7 @@ function status_asset_url(string $relativePath): string
 
         <section class="prefecture-filter" hidden data-home-filter-section>
             <div class="prefecture-filter-copy">
-                <div class="eyebrow">Prefecture Filter</div>
+                <div class="eyebrow">都道府県で絞り込む</div>
                 <div class="prefecture-filter-title">都道府県ごとに自治体を切り替え</div>
                 <p data-home-filter-hint>都道府県一覧を読み込んでいます。</p>
             </div>

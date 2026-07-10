@@ -1,5 +1,13 @@
 # MCP連携
 
+AI 連携の公式な入口は MCP に一本化しています。公開ガイド `/api-guide/` は MCP を第一に案内し、
+REST API と OpenAPI 定義は互換のために維持・掲載する位置づけです（`/api/search`・`/api/document` の互換性は守る）。
+
+公開ガイドでは「MCP 対応ならどの AI でも同じように使える」とは案内しません。サービスごとに契約条件、
+管理者の許可、設定画面が異なるためです。2026年7月時点の公式情報を基に、Claudeを初心者向けの主な手順とし、
+ChatGPTは契約・管理者設定・段階提供の注意を明記します。Copilot StudioとGemini CLIは開発者向けとして分けます。
+通常のGeminiウェブ版とGemini CLI、通常のMicrosoft CopilotとCopilot Studioも混同しないでください。
+
 会議録・例規集検索は MCP の Streamable HTTP エンドポイントでも公開します。
 PHP 側には MCP SDK を入れず、`docker/mcp` の Node.js サービスが既存の `/api/search` と `/api/document` を内部 HTTP で呼びます。
 

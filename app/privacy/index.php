@@ -22,18 +22,24 @@ function privacy_asset_url(string $relativePath): string
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>プライバシーポリシー - 宮部たつひこの自治体調査</title>
+    <title>プライバシーポリシー｜自治体マップ</title>
+    <?php echo site_render_page_meta(
+        'プライバシーポリシー｜自治体マップ',
+        '自治体マップと、その検索機能をAI（MCP）やAPIから利用する場合の個人情報の取り扱いについて説明します。',
+        '/privacy/'
+    ); ?>
     <?php echo site_render_favicon_links(); ?>
     <link rel="stylesheet" href="<?php echo privacy_h(privacy_asset_url('css/search.css')); ?>">
 </head>
 <body>
 <div class="app-shell docs-shell">
     <header class="topbar">
-        <a class="brand" href="/">宮部たつひこの自治体調査</a>
+        <?php echo site_render_brand('/'); ?>
         <nav class="page-links" aria-label="関連ページ">
-            <a href="/">横断検索</a>
-            <a href="/api-guide/">API解説</a>
-            <a href="/status/">処理状況</a>
+            <a href="/">地図から探す</a>
+            <a href="/search/">記録を検索</a>
+            <a href="/api-guide/">AIから使う（MCP）</a>
+            <a href="/status/">収集・公開状況</a>
         </nav>
     </header>
 
@@ -42,7 +48,7 @@ function privacy_asset_url(string $relativePath): string
             <p class="kicker">Privacy Policy</p>
             <h1>プライバシーポリシー</h1>
             <p>
-                このページは、「宮部たつひこの自治体調査」と、その検索APIをAIやGPTから利用する場合の
+                このページは、「自治体マップ」と、その検索APIをAIやGPTから利用する場合の
                 個人情報の取り扱いについて説明するものです。
             </p>
             <p>制定日: 2026年5月18日</p>
@@ -87,9 +93,9 @@ function privacy_asset_url(string $relativePath): string
         </section>
 
         <section class="docs-section">
-            <h2>AIやGPTからの利用</h2>
+            <h2>AIからの利用</h2>
             <p>
-                GPT Actionsなどから本APIを利用する場合、AIサービスの提供者が検索語やAPIへのリクエスト内容を処理することがあります。
+                MCPやGPT Actionsなどを通じてAIから本サイトの検索機能を利用する場合、AIサービスの提供者が検索語やAPIへのリクエスト内容を処理することがあります。
                 AIサービス側でのデータの取り扱いは、それぞれのサービスの規約やプライバシーポリシーをご確認ください。
             </p>
         </section>

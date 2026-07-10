@@ -62,6 +62,8 @@ $meta = array_values(array_filter([
     search_detail_display_date($document ?? []),
 ], static fn(string $value): bool => $value !== ''));
 
+$docTypeLabel = $docType === 'reiki' ? '例規' : '会議録';
+
 $boot = [
     'query' => $query,
     'document' => $document,
@@ -72,14 +74,23 @@ $boot = [
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?php echo search_detail_h($title); ?> - 会議録詳細</title>
+    <title><?php echo search_detail_h($title); ?>｜自治体マップ</title>
+    <?php if ($document !== null): ?>
+        <?php echo site_render_page_meta(
+            $title . '｜自治体マップ',
+            ($meta !== [] ? implode('・', $meta) . 'の' : '') . $docTypeLabel . '「' . $title . '」の全文を表示します。原典URLつき。',
+            '/search/detail/?id=' . rawurlencode($id) . '&doc_type=' . rawurlencode($docType)
+        ); ?>
+    <?php else: ?>
+        <meta name="robots" content="noindex">
+    <?php endif; ?>
     <?php echo site_render_favicon_links(); ?>
     <link rel="stylesheet" href="<?php echo search_detail_h(search_detail_asset_url('css/search.css')); ?>">
 </head>
 <body class="detail-page">
 <div class="app-shell">
     <header class="topbar">
-        <a class="brand" href="/search/">全国自治体 横断検索</a>
+        <?php echo site_render_brand('/'); ?>
         <?php if ($sourceUrl !== ''): ?>
             <a class="result-link detail-source-link" href="<?php echo search_detail_h($sourceUrl); ?>" target="_blank" rel="noopener noreferrer">原サイト</a>
         <?php endif; ?>
@@ -90,7 +101,7 @@ $boot = [
             <div class="message is-error"><?php echo search_detail_h($error); ?></div>
         <?php else: ?>
             <section class="detail-head">
-                <p class="kicker">会議録詳細</p>
+                <p class="kicker"><?php echo search_detail_h($docTypeLabel); ?>詳細</p>
                 <h1><?php echo search_detail_h($title); ?></h1>
                 <?php if ($meta !== []): ?>
                     <div class="result-meta detail-meta">
@@ -113,7 +124,7 @@ $boot = [
                 </div>
             </section>
 
-            <article id="detail-body" class="detail-body" aria-label="会議録全文"></article>
+            <article id="detail-body" class="detail-body" aria-label="<?php echo search_detail_h($docTypeLabel); ?>全文"></article>
         <?php endif; ?>
     </main>
 </div>

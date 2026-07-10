@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "宮部たつひこの自治体調査 検索API",
+    "title": "自治体マップ 検索API",
     "version": "1.0.0",
-    "description": "全国自治体の会議録と例規集を検索する公開APIです。既定では会議録を検索します。"
+    "description": "全国自治体の会議録と例規集を検索する公開APIです。既定では会議録を検索します。AIアシスタント連携にはMCPエンドポイント https://tools.miya.be/mcp を推奨します。このREST APIは互換のため維持されます。"
   },
   "servers": [
     {

@@ -102,7 +102,6 @@
 
     let map = null;
     let municipalityLayer = null;
-    let prefectureLayer = null;
     let selectedMarker = null;
     let searchDebounceTimer = 0;
     let renderedMarkerMode = '';
@@ -308,7 +307,9 @@
             state.openPopupSlug = slug;
             return;
         }
-        if (!marker.getPopup()) marker.bindPopup(renderPopup(card), { maxWidth: 340 });
+        state.openPopupSlug = '';
+        // autoPan は再構築時の再表示と連鎖して地図が勝手に流れるので使わない。
+        if (!marker.getPopup()) marker.bindPopup(renderPopup(card), { maxWidth: 340, autoPan: false });
         marker.openPopup();
     }
 
@@ -354,15 +355,11 @@
             minZoom: 2,
             maxZoom: 18,
         });
-        prefectureLayer = L.layerGroup().addTo(map);
         municipalityLayer = L.layerGroup().addTo(map);
         L.control.layers({
             '国土地理院 標準地図': gsiStd,
             '国土地理院 淡色地図': gsiPale,
-        }, {
-            '都道府県集約': prefectureLayer,
-            '市区町村': municipalityLayer,
-        }, { position: 'topleft' }).addTo(map);
+        }, null, { position: 'topleft' }).addTo(map);
 
         // 詳細ピンは表示範囲内だけ描画するので、移動・ズームのたびに対象を組み直す。
         // 簡易マーカー(ズームアウト時)はモードが変わらない限り再描画しない。
@@ -377,47 +374,18 @@
 
     function renderMap(options = {}) {
         initMap();
-        if (!map || !municipalityLayer || !prefectureLayer) return;
+        if (!map || !municipalityLayer) return;
         if (selectedMarker && typeof selectedMarker.isPopupOpen === 'function'
             && selectedMarker.isPopupOpen() && state.openPopupSlug === '') {
             state.openPopupSlug = state.selectedSlug;
         }
         municipalityLayer.clearLayers();
-        prefectureLayer.clearLayers();
         markersBySlug = new Map();
         selectedMarker = null;
 
         const cards = visibleCards();
-        const groups = groupByPrefecture(cards);
         const bounds = L.latLngBounds();
         const mode = markerMode();
-
-        if (mode === 'detailed') {
-            for (const [prefCode, prefCards] of groups.entries()) {
-                const pref = prefectureByCode.get(prefCode);
-                if (!pref || prefCards.length === 0) continue;
-                const ready = prefCards.filter((card) => cardReadyCount(card) > 0).length;
-                const prefMarker = L.circleMarker([pref.lat, pref.lon], {
-                    radius: Math.max(10, Math.min(20, 8 + Math.sqrt(prefCards.length) * 2)),
-                    color: '#0f5132',
-                    weight: 2,
-                    fillColor: '#ecfdf5',
-                    fillOpacity: 0.56,
-                    pane: 'markerPane',
-                }).addTo(prefectureLayer);
-                prefMarker.bindTooltip(`${pref.name} ${ready}/${prefCards.length}`, {
-                    permanent: false,
-                    direction: 'top',
-                    sticky: true,
-                });
-                prefMarker.on('click', () => {
-                    state.prefecture = prefCode;
-                    syncControls();
-                    ensureSelection();
-                    renderAll();
-                });
-            }
-        }
 
         // DOM を伴う詳細ピンは、表示範囲(+余白)に入っている自治体だけ生成する。
         const cullBounds = mode === 'detailed' ? map.getBounds().pad(0.3) : null;
@@ -453,10 +421,11 @@
         }
         if (state.openPopupSlug !== '') {
             const popupCard = cards.find((card) => String(card.slug || '') === state.openPopupSlug);
-            if (popupCard && markersBySlug.has(state.openPopupSlug)) {
-                const popupSlug = state.openPopupSlug;
+            if (!popupCard) {
+                // 絞り込みで対象が消えたら予約を捨てる。残すと次の選択のポップアップを潰す。
                 state.openPopupSlug = '';
-                openMarkerPopup(popupSlug, popupCard);
+            } else if (markersBySlug.has(state.openPopupSlug)) {
+                openMarkerPopup(state.openPopupSlug, popupCard);
             }
         }
         renderedMarkerMode = mode;
@@ -751,15 +720,14 @@
         }
     }
 
+    // 自動で先頭自治体を選ばない。ユーザーが選ぶまでは案内を表示し、
+    // 絞り込みで選択中の自治体が消えた場合は選択を解除する。
     function ensureSelection() {
         const cards = visibleCards();
-        if (cards.length === 0) {
+        if (!cards.some((card) => String(card.slug || '') === state.selectedSlug)) {
             state.selectedSlug = '';
             renderDetail(null);
             return;
-        }
-        if (!cards.some((card) => String(card.slug || '') === state.selectedSlug)) {
-            state.selectedSlug = String(cards[0].slug || '');
         }
         renderDetail(cards.find((card) => String(card.slug || '') === state.selectedSlug));
     }

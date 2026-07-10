@@ -3,3 +3,7 @@ Disallow: /api/
 Disallow: /gijiroku/
 Disallow: /reiki/
 Disallow: /boards/
+Disallow: /tatsuhiko-map/admin.php
+Disallow: /tatsuhiko-map/api.php
+
+Sitemap: https://tools.miya.be/sitemap.xml

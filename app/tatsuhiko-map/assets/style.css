@@ -1,0 +1,185 @@
+/* 宮部たつひこマップ専用スタイル。サイト共通の配色（#173845 系）に合わせた最小構成。 */
+:root {
+    --tmap-ink: #1c2b33;
+    --tmap-muted: #5c6f78;
+    --tmap-line: #d8e0e4;
+    --tmap-accent: #173845;
+    --tmap-live: #1d7a4f;
+    --tmap-bg: #f6f8f9;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+    color: var(--tmap-ink);
+    background: var(--tmap-bg);
+    line-height: 1.7;
+}
+
+.tmap-shell {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 16px 20px 40px;
+}
+
+.tmap-shell-narrow { max-width: 640px; }
+
+.tmap-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 8px 0 16px;
+    border-bottom: 1px solid var(--tmap-line);
+}
+
+.tmap-header nav { display: flex; gap: 14px; }
+.tmap-header nav a { color: var(--tmap-accent); text-decoration: none; font-size: 14px; }
+.tmap-header nav a:hover { text-decoration: underline; }
+
+.brand { display: inline-flex; align-items: center; gap: 12px; }
+.brand img { width: 36px; height: 40px; object-fit: contain; display: block; }
+.brand > span { display: flex; align-items: baseline; gap: 12px; }
+.brand strong { font-size: 18px; letter-spacing: 0.06em; }
+.brand small { color: var(--tmap-muted); font-size: 12px; white-space: nowrap; }
+.brand a { color: inherit; text-decoration: none; }
+.brand small a:hover { text-decoration: underline; }
+
+.tmap-lead { padding: 20px 0 12px; }
+.tmap-lead h1 { margin: 0 0 8px; font-size: 24px; letter-spacing: 0.04em; }
+.tmap-lead p { margin: 0 0 12px; color: var(--tmap-muted); max-width: 46em; }
+
+.tmap-status {
+    display: inline-block;
+    padding: 6px 12px;
+    border: 1px solid var(--tmap-line);
+    border-radius: 6px;
+    background: #fff;
+    font-size: 14px;
+}
+
+.tmap-status.is-live {
+    border-color: var(--tmap-live);
+    color: var(--tmap-live);
+    font-weight: 700;
+}
+
+.tmap-map {
+    width: 100%;
+    height: min(70vh, 560px);
+    border: 1px solid var(--tmap-line);
+    border-radius: 8px;
+}
+
+.tmap-footer {
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid var(--tmap-line);
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    color: var(--tmap-muted);
+    font-size: 13px;
+}
+
+.tmap-footer nav { display: flex; gap: 14px; }
+.tmap-footer a { color: var(--tmap-accent); text-decoration: none; }
+.tmap-footer a:hover { text-decoration: underline; }
+
+/* 管理ページ */
+.tmap-panel {
+    margin-top: 24px;
+    padding: 20px;
+    background: #fff;
+    border: 1px solid var(--tmap-line);
+    border-radius: 8px;
+}
+
+.tmap-panel h1 { margin: 0 0 8px; font-size: 20px; }
+.tmap-panel p { margin: 0 0 16px; color: var(--tmap-muted); }
+
+.tmap-alert {
+    margin: 0 0 16px;
+    padding: 10px 12px;
+    border: 1px solid #d9a3a3;
+    background: #fdf3f3;
+    color: #8a2f2f;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.tmap-alert code { font-size: 12px; word-break: break-all; }
+
+.tmap-login-form { display: grid; gap: 8px; max-width: 320px; }
+.tmap-login-form label { font-size: 14px; font-weight: 700; }
+.tmap-login-form input[type="password"] {
+    padding: 8px 10px;
+    border: 1px solid var(--tmap-line);
+    border-radius: 6px;
+    font-size: 16px;
+}
+
+.tmap-login-form button,
+.tmap-toggle {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 6px;
+    background: var(--tmap-accent);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.tmap-login-form button:disabled,
+.tmap-toggle:disabled { opacity: 0.5; cursor: default; }
+
+.tmap-control-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.tmap-control-label { font-weight: 700; }
+
+.tmap-toggle { min-width: 150px; background: #7a7f83; }
+.tmap-toggle.is-on { background: var(--tmap-live); }
+
+.tmap-status-list {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 16px;
+    margin: 0 0 16px;
+    font-size: 14px;
+}
+
+.tmap-status-list dt { color: var(--tmap-muted); }
+.tmap-status-list dd { margin: 0; }
+
+.tmap-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.tmap-actions a { color: var(--tmap-accent); font-size: 14px; }
+
+.tmap-secondary {
+    padding: 8px 12px;
+    border: 1px solid var(--tmap-line);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--tmap-ink);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.tmap-secondary:hover { border-color: var(--tmap-accent); }
+
+.tmap-logout-form { margin-top: 16px; text-align: right; }
+
+@media (max-width: 640px) {
+    .tmap-shell { padding: 12px 14px 32px; }
+    .tmap-map { height: 60vh; }
+}

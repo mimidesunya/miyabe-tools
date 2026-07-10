@@ -1004,3 +1004,1237 @@ h1 {
         grid-template-columns: 1fr;
     }
 }
+
+/* 自治体マップ editorial redesign */
+:root {
+    --paper: #f1eee4;
+    --paper-deep: #e6e0d2;
+    --panel: #fffdf7;
+    --panel-soft: #e8ece8;
+    --ink: #1c211e;
+    --muted: #545c56;
+    --line: #b8b3a7;
+    --blue: #244d61;
+    --blue-deep: #173845;
+    --green: #566649;
+    --amber: #a56d27;
+    --rose: #b64231;
+    --shadow: none;
+    --sans: "BIZ UDPGothic", "Yu Gothic", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    --serif: "BIZ UDMincho", "Yu Mincho", "Hiragino Mincho ProN", serif;
+}
+
+html {
+    background: #d7d3c8;
+    scroll-behavior: smooth;
+}
+
+body {
+    max-width: 100%;
+    overflow-x: hidden;
+    color: var(--ink);
+    background:
+        radial-gradient(circle at 1px 1px, rgba(28, 33, 30, 0.045) 0.7px, transparent 0.8px) 0 0 / 5px 5px,
+        var(--paper);
+    font-family: var(--sans);
+    font-feature-settings: "palt";
+}
+
+.app-shell {
+    width: min(1540px, calc(100% - 40px));
+    margin: 20px auto;
+    padding: 0;
+    border: 1px solid var(--ink);
+    background:
+        linear-gradient(90deg, rgba(28, 33, 30, 0.022) 1px, transparent 1px) 0 0 / 80px 100%,
+        var(--paper);
+}
+
+.site-header {
+    min-height: 76px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 32px;
+    padding: 14px 34px;
+    border-bottom: 1px solid var(--ink);
+}
+
+.brand {
+    width: fit-content;
+    display: inline-flex;
+    align-items: center;
+    gap: 15px;
+    color: var(--ink);
+    font-weight: inherit;
+    text-decoration: none;
+}
+
+.brand img {
+    width: 44px;
+    height: 48px;
+    display: block;
+    flex: 0 0 auto;
+    object-fit: contain;
+}
+
+.brand > span {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+}
+
+.brand strong {
+    font-family: var(--serif);
+    font-size: clamp(20px, 2vw, 26px);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 1;
+}
+
+.brand small {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    white-space: nowrap;
+}
+
+.brand a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.brand small a:hover {
+    text-decoration: underline;
+}
+
+.header-meta {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    color: var(--muted);
+    font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+    font-size: 10px;
+}
+
+.live-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.live-mark i {
+    width: 7px;
+    height: 7px;
+    display: block;
+    border-radius: 50%;
+    background: var(--rose);
+    box-shadow: 0 0 0 4px rgba(182, 66, 49, 0.12);
+}
+
+.site-nav {
+    min-height: 52px;
+    display: grid;
+    grid-template-columns: repeat(4, max-content) 1fr;
+    gap: 0;
+    align-items: stretch;
+    border-bottom: 1px solid var(--ink);
+}
+
+.site-nav a,
+.site-nav .nav-index {
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    border-right: 1px solid var(--line);
+    border-radius: 0;
+    color: var(--muted);
+    background: transparent;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.site-nav a:hover,
+.site-nav a[aria-current="page"] {
+    color: var(--panel);
+    background: var(--blue-deep);
+}
+
+.site-nav .nav-index {
+    justify-content: flex-end;
+    border-right: 0;
+    font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+}
+
+main {
+    display: block;
+}
+
+.map-intro {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 390px;
+    gap: 0;
+    align-items: stretch;
+    padding: 0;
+    border-bottom: 1px solid var(--ink);
+}
+
+.map-intro-copy {
+    min-width: 0;
+    display: grid;
+    align-content: center;
+    gap: 16px;
+    padding: 32px clamp(34px, 6vw, 92px);
+    border-right: 1px solid var(--ink);
+}
+
+.eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: var(--blue);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: none;
+}
+
+.eyebrow span,
+.section-head > div > span {
+    min-width: 27px;
+    padding-bottom: 3px;
+    border-bottom: 2px solid var(--rose);
+    color: var(--rose);
+    font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+    font-size: 11px;
+    letter-spacing: 0;
+}
+
+h1 {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: clamp(22px, 2.4vw, 30px);
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1.4;
+}
+
+h1 em {
+    color: var(--blue);
+    font-style: normal;
+}
+
+.map-intro p.intro-lead {
+    max-width: 680px;
+    overflow-wrap: anywhere;
+    color: var(--muted);
+    font-family: var(--serif);
+    font-size: 16px;
+    line-height: 2;
+}
+
+.map-intro-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 18px;
+}
+
+.map-intro-actions a,
+.map-intro-actions .primary-link {
+    display: inline-flex;
+    gap: 18px;
+    padding: 4px 0;
+    border: 0;
+    border-bottom: 1px solid var(--ink);
+    border-radius: 0;
+    color: var(--ink);
+    background: transparent;
+    font-size: 12px;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.map-intro-actions a:hover {
+    color: var(--rose);
+    border-color: var(--rose);
+}
+
+.stats-strip {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    align-content: center;
+    gap: 0;
+    padding: 38px 34px;
+    background: rgba(255, 253, 247, 0.34);
+}
+
+.stats-strip::before {
+    content: "きょうの収録状況";
+    display: block;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--ink);
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.stat-card,
+.coverage-dashboard,
+.operations-board,
+.municipality-results,
+.detail-panel,
+.operation-card,
+.running-item {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.stat-card {
+    min-height: 70px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    gap: 2px 12px;
+    align-content: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.stat-card-loading {
+    display: block;
+    min-height: auto;
+    padding: 18px 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.stat-label {
+    align-self: end;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.stat-card strong {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    align-self: center;
+    color: var(--blue-deep);
+    font-family: var(--serif);
+    font-size: 25px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.stat-note {
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 500;
+}
+
+.stat-bar {
+    display: none;
+}
+
+.search-ribbon {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 28px;
+    align-items: center;
+    padding: 27px 34px;
+    border-bottom: 1px solid var(--ink);
+    color: var(--panel);
+    background: var(--blue-deep);
+}
+
+.search-ribbon > label {
+    font-family: var(--serif);
+    font-size: 17px;
+    font-weight: 700;
+}
+
+.search-ribbon-control {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 46px minmax(0, 1fr) auto;
+    border-bottom: 1px solid rgba(255, 253, 247, 0.78);
+}
+
+.search-ribbon-control > span {
+    display: grid;
+    place-items: center;
+    font-size: 28px;
+    transform: rotate(-15deg);
+}
+
+.search-ribbon-control input {
+    min-width: 0;
+    height: 54px;
+    padding: 0 10px;
+    border: 0;
+    outline: 0;
+    color: var(--panel);
+    background: transparent;
+    font-size: 16px;
+}
+
+.search-ribbon-control input::placeholder {
+    color: rgba(255, 253, 247, 0.62);
+}
+
+.search-ribbon-control button {
+    margin: 6px 0 6px 10px;
+    padding: 0 25px;
+    border: 1px solid var(--panel);
+    color: var(--ink);
+    background: var(--panel);
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.search-ribbon-control button:hover {
+    color: var(--panel);
+    background: transparent;
+}
+
+.coverage-dashboard {
+    display: grid;
+    gap: 0;
+    padding: 54px 34px 70px;
+    border-bottom: 1px solid var(--ink);
+}
+
+.coverage-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 28px;
+    align-items: end;
+    margin-bottom: 28px;
+}
+
+.coverage-head h2,
+.section-head h2 {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: clamp(18px, 1.9vw, 24px);
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1.4;
+}
+
+.coverage-head > div > p {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.coverage-count {
+    min-width: 140px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--ink);
+    color: var(--blue);
+    font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+    font-size: 11px;
+    text-align: right;
+}
+
+.toolbar {
+    min-height: 76px;
+    display: grid;
+    grid-template-columns: minmax(310px, 1fr) 220px 220px 260px;
+    gap: 0;
+    align-items: stretch;
+    border: 1px solid var(--ink);
+    border-bottom: 0;
+    background: rgba(255, 253, 247, 0.38);
+}
+
+.feature-switch {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+}
+
+.feature-switch button {
+    min-height: 0;
+    padding: 0 10px;
+    border: 0;
+    border-right: 1px solid var(--line);
+    border-radius: 0;
+    color: var(--ink);
+    background: transparent;
+    font-size: 13px;
+}
+
+.feature-switch button::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    display: inline-block;
+    margin-right: 8px;
+    border-radius: 50%;
+    background: var(--blue);
+}
+
+.feature-switch button:nth-child(2)::before { background: var(--amber); }
+.feature-switch button:nth-child(3)::before { background: var(--green); }
+
+.feature-switch button:hover,
+.feature-switch button.is-active {
+    color: var(--panel);
+    background: var(--ink);
+}
+
+.control-field {
+    align-content: center;
+    gap: 4px;
+    padding: 10px 16px;
+    border-left: 1px solid var(--line);
+}
+
+.control-field span {
+    color: var(--muted);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+}
+
+.control-field select,
+.control-field input {
+    min-height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    outline: 0;
+    color: var(--ink);
+    background: transparent;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.map-workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+    gap: 0;
+    min-height: 700px;
+    border: 1px solid var(--ink);
+}
+
+.map-stage {
+    gap: 0;
+    border-right: 1px solid var(--ink);
+}
+
+.map-stage-head {
+    min-height: 66px;
+    align-items: center;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(255, 253, 247, 0.38);
+}
+
+.map-stage-head h2 {
+    font-family: var(--serif);
+    font-size: 17px;
+}
+
+.legend {
+    gap: 12px;
+    font-size: 10px;
+}
+
+.legend span {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+.map-frame,
+.coverage-map {
+    height: 634px;
+    min-height: 634px;
+}
+
+.map-frame {
+    border: 0;
+    border-radius: 0;
+    background: #dce3df;
+}
+
+.map-frame::after {
+    content: "JAPAN  /  国土地理院地図";
+    position: absolute;
+    left: 18px;
+    bottom: 10px;
+    z-index: 500;
+    padding: 4px 6px;
+    color: var(--blue-deep);
+    background: rgba(241, 238, 228, 0.82);
+    font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    pointer-events: none;
+}
+
+.map-loading {
+    inset: 0;
+    border-radius: 0;
+    background: rgba(241, 238, 228, 0.84);
+}
+
+.leaflet-control-layers,
+.leaflet-bar,
+.leaflet-tooltip,
+.leaflet-popup-content-wrapper {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+.detail-panel {
+    min-width: 0;
+    padding: 30px 26px;
+    background: rgba(255, 253, 247, 0.58);
+}
+
+.detail-empty h2,
+.detail-head h2 {
+    padding-bottom: 16px;
+    border-bottom: 2px solid var(--ink);
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.detail-pref {
+    color: var(--rose);
+    font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+}
+
+.service-dot,
+.status,
+.feature-open {
+    border-radius: 0;
+}
+
+.detail-features {
+    border-top: 1px solid var(--ink);
+    gap: 0;
+}
+
+.feature-detail {
+    padding: 14px 0;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+}
+
+.feature-detail-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+}
+
+.feature-open,
+.feature-open-disabled {
+    min-height: 28px;
+    color: var(--ink);
+    background: transparent;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.detail-actions {
+    margin-top: 12px;
+    border-top: 0;
+}
+
+.detail-actions a {
+    border-radius: 0;
+    background: var(--blue-deep);
+}
+
+.detail-actions a:hover {
+    background: var(--rose);
+}
+
+.operations-board,
+.municipality-results {
+    gap: 24px;
+    padding: 54px 34px 64px;
+    border-bottom: 1px solid var(--ink);
+}
+
+.section-head {
+    align-items: end;
+}
+
+.section-head > div {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.section-head p {
+    max-width: 520px;
+    color: var(--muted);
+    text-align: right;
+}
+
+.operation-summary-list,
+.running-list {
+    gap: 0;
+    border-top: 2px solid var(--ink);
+}
+
+.operation-card,
+.running-item {
+    padding: 16px 12px;
+    border-bottom: 1px solid var(--line);
+}
+
+.operation-card-top span,
+.task-badge,
+.operation-stats span {
+    border-radius: 0;
+}
+
+.municipality-list {
+    gap: 28px;
+    border-top: 2px solid var(--ink);
+    padding-top: 20px;
+}
+
+.pref-result {
+    grid-template-columns: 110px minmax(0, 1fr);
+    gap: 22px;
+    align-items: start;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+}
+
+.pref-result h3 {
+    padding-top: 10px;
+    font-family: var(--serif);
+    font-size: 17px;
+}
+
+.pref-result-grid {
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 0;
+    border-top: 1px solid var(--line);
+    border-left: 1px solid var(--line);
+}
+
+.municipality-row {
+    min-height: 58px;
+    border: 0;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: rgba(255, 253, 247, 0.34);
+}
+
+.municipality-row:hover,
+.municipality-row.is-selected {
+    border-color: var(--line);
+    color: var(--panel);
+    background: var(--blue-deep);
+}
+
+.municipality-row.is-selected .service-dot-empty {
+    color: var(--ink);
+}
+
+.loading-panel {
+    border-radius: 0;
+    background: rgba(255, 253, 247, 0.42);
+}
+
+.page-footer {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 24px;
+    align-items: center;
+    padding: 26px 34px;
+    color: var(--paper);
+    background: var(--ink);
+}
+
+.footer-brand {
+    display: grid;
+    gap: 7px;
+}
+
+.footer-brand strong {
+    font-family: var(--serif);
+    font-size: 18px;
+    letter-spacing: 0.08em;
+}
+
+.footer-brand small,
+.footer-data {
+    color: rgba(241, 238, 228, 0.62);
+    font-size: 10px;
+}
+
+.footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    font-size: 12px;
+}
+
+.footer-links a {
+    padding: 2px 0;
+    color: rgba(241, 238, 228, 0.75);
+    border-bottom: 1px solid rgba(241, 238, 228, 0.35);
+    text-decoration: none;
+}
+
+.footer-links a:hover {
+    color: var(--paper);
+    border-color: var(--paper);
+}
+
+.footer-data {
+    display: grid;
+    justify-items: end;
+    gap: 8px;
+}
+
+.page-footer .footer-data span:not(:empty) {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+@media (max-width: 1100px) {
+    .map-intro {
+        grid-template-columns: minmax(0, 1fr) 320px;
+    }
+
+    .map-intro-copy {
+        padding-inline: 48px;
+    }
+
+    .coverage-head {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .toolbar {
+        grid-template-columns: 1fr 170px 170px 210px;
+    }
+
+    .map-workspace {
+        grid-template-columns: minmax(0, 1fr) 310px;
+    }
+}
+
+@media (max-width: 860px) {
+    .app-shell {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        overflow: hidden;
+        border-width: 0;
+    }
+
+    .site-header {
+        min-height: 60px;
+        grid-template-columns: 1fr;
+        padding: 10px 18px;
+    }
+
+    .brand img {
+        width: 38px;
+        height: 42px;
+    }
+
+    .brand > span {
+        display: grid;
+        gap: 4px;
+    }
+
+    .brand strong {
+        font-size: 20px;
+        letter-spacing: 0.02em;
+    }
+
+    .brand small {
+        font-size: 9px;
+    }
+
+    .header-meta {
+        display: none;
+    }
+
+    .site-nav {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .site-nav a,
+    .site-nav .nav-index {
+        min-height: 48px;
+        justify-content: flex-start;
+        padding: 0 18px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+    }
+
+    .site-nav .nav-index {
+        grid-column: 1 / -1;
+    }
+
+    .map-intro {
+        grid-template-columns: 1fr;
+    }
+
+    .map-intro-copy {
+        padding: 28px 24px;
+        border-right: 0;
+        border-bottom: 1px solid var(--ink);
+    }
+
+    h1 {
+        font-size: 21px;
+    }
+
+    .map-intro p.intro-lead {
+        font-size: 14px;
+    }
+
+    .stats-strip {
+        padding: 30px 24px 36px;
+    }
+
+    .search-ribbon {
+        grid-template-columns: 1fr;
+        padding: 24px;
+    }
+
+    .search-ribbon-control {
+        grid-template-columns: 38px minmax(0, 1fr);
+    }
+
+    .search-ribbon-control button {
+        grid-column: 1 / -1;
+        min-height: 46px;
+        margin: 7px 0 0;
+    }
+
+    .coverage-dashboard,
+    .operations-board,
+    .municipality-results {
+        padding: 42px 18px 52px;
+    }
+
+    .coverage-head {
+        grid-template-columns: 1fr;
+        gap: 15px;
+        align-items: start;
+    }
+
+    .coverage-count {
+        justify-self: start;
+        text-align: left;
+    }
+
+    .toolbar {
+        grid-template-columns: 1fr 1fr;
+        border-bottom: 1px solid var(--ink);
+    }
+
+    .feature-switch {
+        grid-column: 1 / -1;
+        min-height: 56px;
+        grid-template-columns: repeat(3, 1fr);
+        border-bottom: 1px solid var(--ink);
+    }
+
+    .control-field {
+        min-height: 62px;
+        border-left: 0;
+    }
+
+    .control-field + .control-field {
+        border-left: 1px solid var(--line);
+    }
+
+    .control-field-search {
+        grid-column: 1 / -1;
+        border-top: 1px solid var(--line);
+        border-left: 0 !important;
+    }
+
+    .map-workspace {
+        grid-template-columns: 1fr;
+    }
+
+    .map-stage {
+        border-right: 0;
+        border-bottom: 1px solid var(--ink);
+    }
+
+    .map-stage-head {
+        align-items: flex-start;
+    }
+
+    .map-frame,
+    .coverage-map {
+        height: 540px;
+        min-height: 540px;
+    }
+
+    .detail-panel {
+        padding: 28px 22px 34px;
+    }
+
+    .section-head {
+        align-items: flex-start;
+    }
+
+    .section-head p {
+        text-align: left;
+    }
+
+    .pref-result {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .page-footer {
+        grid-template-columns: 1fr;
+        padding: 26px 24px;
+    }
+
+    .footer-data {
+        justify-items: start;
+    }
+}
+
+@media (max-width: 520px) {
+    .map-intro-copy {
+        gap: 14px;
+    }
+
+    .map-intro-actions {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .control-field + .control-field {
+        border-top: 1px solid var(--line);
+        border-left: 0;
+    }
+
+    .map-stage-head {
+        display: grid;
+    }
+
+    .legend {
+        justify-content: flex-start;
+    }
+
+    .map-frame,
+    .coverage-map {
+        height: 480px;
+        min-height: 480px;
+    }
+
+    .pref-result-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+}
+
+/* /status/ shares the same visual language without the map workspace. */
+body > .shell {
+    width: min(1320px, calc(100% - 40px));
+    margin: 20px auto;
+    border: 1px solid var(--ink);
+    background:
+        linear-gradient(90deg, rgba(28, 33, 30, 0.022) 1px, transparent 1px) 0 0 / 80px 100%,
+        var(--paper);
+}
+
+.status-masthead {
+    min-height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 18px 30px;
+    border-bottom: 1px solid var(--ink);
+}
+
+.status-masthead nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+}
+
+.status-masthead nav a,
+.hero-meta a {
+    padding-bottom: 3px;
+    border-bottom: 1px solid var(--ink);
+    color: var(--ink);
+    font-size: 11px;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+body > .shell > .hero {
+    display: grid;
+    gap: 14px;
+    padding: 32px 36px;
+    border-bottom: 1px solid var(--ink);
+}
+
+.hero-copy {
+    max-width: 760px;
+    color: var(--muted);
+    font-family: var(--serif);
+    line-height: 1.9;
+}
+
+.hero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 18px;
+    align-items: center;
+    color: var(--muted);
+    font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+    font-size: 10px;
+}
+
+.hero-meta span {
+    padding-left: 12px;
+    border-left: 1px solid var(--line);
+}
+
+.running-board,
+.prefecture-filter,
+.legend,
+.municipality-grid {
+    margin: 0;
+    padding: 34px 30px;
+    border-bottom: 1px solid var(--ink);
+}
+
+.running-board-head,
+.prefecture-filter {
+    display: grid;
+    gap: 14px;
+}
+
+.running-board-title,
+.prefecture-filter-title {
+    font-family: var(--serif);
+    font-size: 28px;
+    font-weight: 700;
+}
+
+.running-summary-list,
+.running-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    border-top: 2px solid var(--ink);
+}
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 22px;
+    color: var(--muted);
+    font-size: 10px;
+}
+
+.prefecture-filter {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+}
+
+.prefecture-filter-copy p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.prefecture-filter-controls {
+    display: flex;
+    gap: 12px;
+}
+
+.prefecture-filter-control {
+    display: grid;
+    gap: 5px;
+}
+
+.prefecture-filter-control span {
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.prefecture-filter-control select {
+    min-height: 42px;
+    padding: 0 12px;
+    border: 1px solid var(--ink);
+    border-radius: 0;
+    background: var(--panel);
+}
+
+.municipality-grid .pref-result {
+    margin-bottom: 24px;
+}
+
+@media (max-width: 860px) {
+    body > .shell {
+        width: 100%;
+        margin: 0;
+        border: 0;
+    }
+
+    .status-masthead {
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 14px 18px;
+    }
+
+    body > .shell > .hero,
+    .running-board,
+    .prefecture-filter,
+    .legend,
+    .municipality-grid {
+        padding: 34px 20px;
+    }
+
+    .prefecture-filter {
+        grid-template-columns: 1fr;
+    }
+
+    .prefecture-filter-controls {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}

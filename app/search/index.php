@@ -141,14 +141,19 @@ $boot = [
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>全国自治体 横断検索</title>
+    <title>全国自治体 横断検索｜自治体マップ</title>
+    <?php echo site_render_page_meta(
+        '全国自治体 横断検索｜自治体マップ',
+        '全国の自治体の議会会議録と例規集（条例・規則）をまとめて全文検索できます。都道府県・自治体・日付で絞り込み、原典URLまでたどれます。無料・登録不要。',
+        '/search/'
+    ); ?>
     <?php echo site_render_favicon_links(); ?>
     <link rel="stylesheet" href="<?php echo search_h(search_asset_url('css/search.css')); ?>">
 </head>
 <body>
 <div class="app-shell">
     <header class="topbar">
-        <a class="brand" href="/">宮部たつひこの自治体調査</a>
+        <?php echo site_render_brand('/'); ?>
         <nav class="topnav" aria-label="検索範囲">
             <button type="button" data-doc-type="minutes">会議録</button>
             <button type="button" data-doc-type="reiki">例規集</button>
@@ -246,8 +251,9 @@ $boot = [
                     <p class="kicker">全国自治体</p>
                     <h1>全国自治体 横断検索</h1>
                     <div class="page-links">
-                        <a href="/status/">処理状況</a>
-                        <a href="/api-guide/">API解説</a>
+                        <a href="/">地図から探す</a>
+                        <a href="/status/">収集・公開状況</a>
+                        <a href="/api-guide/">AIから使う（MCP）</a>
                         <a href="/privacy/">プライバシー</a>
                     </div>
                 </div>

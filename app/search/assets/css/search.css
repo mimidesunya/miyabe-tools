@@ -656,6 +656,85 @@ mark {
   grid-template-columns: minmax(180px, max-content) minmax(0, 1fr);
 }
 
+.docs-note {
+  padding: 12px 14px;
+  border-left: 4px solid var(--accent);
+  background: var(--accent-weak);
+  color: var(--text) !important;
+}
+
+.docs-steps {
+  max-width: 780px;
+  margin: 0 0 16px;
+  padding-left: 2.2em;
+  color: var(--text);
+  line-height: 1.8;
+}
+
+.docs-steps li {
+  padding: 4px 0 4px 6px;
+}
+
+.docs-steps li::marker {
+  color: var(--warn);
+  font-weight: 800;
+}
+
+.docs-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  max-width: 780px;
+  margin-bottom: 14px;
+}
+
+.docs-choice-grid > div {
+  padding: 16px;
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+}
+
+.docs-choice-grid h3 {
+  margin: 0 0 5px;
+  font-family: "BIZ UDMincho", "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-size: 17px;
+}
+
+.docs-choice-grid p {
+  margin: 0;
+}
+
+.docs-caution {
+  border-color: var(--warn);
+}
+
+.docs-details {
+  display: block;
+}
+
+.docs-details summary {
+  color: var(--text);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.docs-details summary::marker {
+  color: var(--warn);
+}
+
+.docs-details[open] summary {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.docs-details-body {
+  padding-top: 18px;
+}
+
+.docs-details-body h2:not(:first-child) {
+  margin-top: 26px;
+}
+
 .pager {
   display: flex;
   align-items: center;
@@ -829,5 +908,135 @@ mark {
 
   .docs-params {
     grid-template-columns: 1fr;
+  }
+
+  .docs-choice-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 自治体マップ common editorial brand */
+:root {
+  --bg: #f1eee4;
+  --panel: #fffdf7;
+  --panel-soft: #e8ece8;
+  --line: #b8b3a7;
+  --line-strong: #777b74;
+  --text: #1c211e;
+  --muted: #545c56;
+  --accent: #173845;
+  --accent-weak: #d8e3e3;
+  --warn: #b64231;
+  --shadow: none;
+}
+
+body {
+  background:
+    radial-gradient(circle at 1px 1px, rgba(28, 33, 30, 0.045) 0.7px, transparent 0.8px) 0 0 / 5px 5px,
+    var(--bg);
+}
+
+.topbar {
+  min-height: 92px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--text);
+}
+
+.brand {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.brand img {
+  width: 44px;
+  height: 48px;
+  display: block;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
+.brand > span {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.brand strong {
+  font-family: "BIZ UDMincho", "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-size: 24px;
+  letter-spacing: 0.06em;
+}
+
+.brand small {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+.brand a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.brand small a:hover {
+  text-decoration: underline;
+}
+
+h1,
+.docs-section h2,
+.detail-head h1 {
+  font-family: "BIZ UDMincho", "Yu Mincho", "Hiragino Mincho ProN", serif;
+}
+
+.filters,
+.workspace,
+.result-item,
+.facet-panel,
+.docs-hero,
+.docs-section,
+.detail-head,
+.detail-search,
+.detail-body {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.primary-button,
+.topnav,
+.topnav button,
+.result-link,
+.stat,
+.message,
+.field input,
+.field select,
+.calendar-picker,
+.inline-help-button,
+.help-modal-panel,
+.help-close-button {
+  border-radius: 0;
+}
+
+.kicker {
+  color: var(--warn);
+  letter-spacing: 0.1em;
+}
+
+@media (max-width: 900px) {
+  .topbar {
+    min-height: auto;
+  }
+
+  .brand > span {
+    display: grid;
+    gap: 3px;
+  }
+
+  .brand strong {
+    font-size: 20px;
   }
 }

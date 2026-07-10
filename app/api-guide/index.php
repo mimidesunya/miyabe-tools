@@ -22,163 +22,191 @@ function api_guide_asset_url(string $relativePath): string
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>AI向けAPI解説 - 宮部たつひこの自治体調査</title>
+    <title>AIから使う方法｜自治体マップ</title>
+    <?php echo site_render_page_meta(
+        'AIから使う方法｜自治体マップ',
+        '自治体マップをClaudeやChatGPTなどから使う方法を、契約や管理者設定による違いも含めて分かりやすく説明します。自治体マップ側の登録やAPIキーは不要です。',
+        '/api-guide/'
+    ); ?>
     <?php echo site_render_favicon_links(); ?>
     <link rel="stylesheet" href="<?php echo api_guide_h(api_guide_asset_url('css/search.css')); ?>">
 </head>
 <body>
 <div class="app-shell docs-shell">
     <header class="topbar">
-        <a class="brand" href="/">宮部たつひこの自治体調査</a>
+        <?php echo site_render_brand('/'); ?>
         <nav class="page-links" aria-label="関連ページ">
-            <a href="/">横断検索</a>
-            <a href="/status/">処理状況</a>
+            <a href="/">地図から探す</a>
+            <a href="/search/">記録を検索</a>
+            <a href="/status/">収集・公開状況</a>
             <a href="/privacy/">プライバシー</a>
-            <a href="/openapi.json">OpenAPI JSON</a>
-            <a href="/openapi.yaml">OpenAPI YAML</a>
         </nav>
     </header>
 
     <main class="docs-page">
         <section class="docs-hero">
-            <p class="kicker">API Guide</p>
-            <h1>AIから検索APIを使う</h1>
+            <p class="kicker">AIに調べてもらう</p>
+            <h1>自治体マップをAIにつなぐ方法</h1>
             <p>
-                このAPIは、全国自治体の会議録と例規集を検索するための公開APIです。
-                AIエージェントやカスタムGPTに渡しやすいよう、OpenAPI定義を用意しています。
+                いちばん簡単なのは、このサイトの<a href="/search/">「記録を検索」</a>をそのまま使う方法です。
+                AIに探してもらいたい場合は、下のアドレスをAIサービスに登録します。
             </p>
-            <pre><code>OpenAPI JSON: https://tools.miya.be/openapi.json
-OpenAPI YAML: https://tools.miya.be/openapi.yaml
-MCP: https://tools.miya.be/mcp</code></pre>
+            <pre><code>https://tools.miya.be/mcp</code></pre>
+            <p class="docs-note">
+                自治体マップ側の登録やAPIキーは不要です。ただし、使っているAIの契約や、
+                会社・学校の管理者設定によっては登録できません。
+            </p>
         </section>
 
         <section class="docs-section">
-            <h2>まず使うもの</h2>
+            <h2>これは何をするもの？</h2>
             <p>
-                AIに直接読ませる場合は、上のOpenAPI定義を指定してください。
-                人間が試すだけなら、次のURLで同じ検索を確認できます。
+                MCPは、AIに「自治体マップの検索ボタン」を渡すためのしくみです。
+                つなぐと、AIが会議録や条例・規則を検索し、見つけた文書を読めるようになります。
+                ただし、すべてのAIがMCPに対応しているわけではなく、つなぎ方もAIごとに違います。
             </p>
-            <pre><code>GET https://tools.miya.be/api/search?q=盛土%20メガソーラー</code></pre>
-            <p>
-                省略時は会議録検索です。例規集を検索する場合は <code>doc_type=reiki</code> を付けます。
-            </p>
-            <pre><code>GET https://tools.miya.be/api/search?doc_type=reiki&amp;q=個人情報保護</code></pre>
-            <p>
-                検索結果の <code>api_document_url</code> を呼ぶと、その文書の全文テキストをJSONで取得できます。
-            </p>
-            <pre><code>GET https://tools.miya.be/api/document?id=検索結果のid&amp;doc_type=minutes</code></pre>
         </section>
 
         <section class="docs-section">
-            <h2>AI別の考え方</h2>
-            <dl class="docs-params docs-params-wide">
-                <dt>ChatGPT / GPTs</dt>
-                <dd>
-                    GPT Actions はOpenAPIスキーマを使って外部APIを呼び出します。
-                    Actionsに <code>https://tools.miya.be/openapi.json</code> を読み込ませるのが最短です。
-                    このAPIは認証なしで検索できます。
-                    <a href="https://help.openai.com/en/articles/9442513-configuring-actions-in-gpts" target="_blank" rel="noopener">OpenAIの説明</a>
-                </dd>
-                <dt>Claude</dt>
-                <dd>
-                    ClaudeのコネクタはMCPが中心です。Claudeに常設ツールとして持たせるなら、
-                    <code>https://tools.miya.be/mcp</code> を登録してください。
-                    <code>search_minutes</code>、<code>search_reiki</code>、<code>get_municipal_document</code> を読み取り専用ツールとして公開しています。
-                    <a href="https://claude.com/docs/connectors/overview" target="_blank" rel="noopener">Claude Connectors</a>
-                </dd>
-                <dt>Gemini / Vertex AI</dt>
-                <dd>
-                    Gemini APIのfunction callingでは関数宣言を渡します。Vertex AI Extensions ではOpenAPI 3.0互換のYAMLをAPI仕様として使えます。
-                    Vertex側に取り込む場合は <code>openapi.yaml</code> を基にしてください。
-                    <a href="https://cloud.google.com/vertex-ai/generative-ai/docs/extensions/create-extension" target="_blank" rel="noopener">Vertex AI Extensions</a>
-                </dd>
-                <dt>Microsoft Copilot Studio</dt>
-                <dd>
-                    Copilot StudioのREST APIツールやカスタムコネクタでは、OpenAPI仕様ファイルをアップロードしてツール化できます。
-                    取り込み時は <code>openapi.yaml</code> または <code>openapi.json</code> を使います。
-                    <a href="https://learn.microsoft.com/en-sg/microsoft-copilot-studio/agent-extend-action-rest-api" target="_blank" rel="noopener">REST API tool</a>
-                </dd>
-            </dl>
+            <p class="kicker">おすすめ</p>
+            <h2>Claudeにつなぐ</h2>
+            <ol class="docs-steps">
+                <li>Claudeを開き、左下の名前を押して、<strong>「カスタマイズ」</strong>を開きます。</li>
+                <li><strong>「コネクタ」</strong>→<strong>「＋」</strong>→<strong>「カスタムコネクタを追加」</strong>へ進みます。</li>
+                <li>名前を「自治体マップ」、アドレスを <code>https://tools.miya.be/mcp</code> にして追加します。</li>
+                <li>新しい会話で<strong>「＋」</strong>→<strong>「コネクタ」</strong>を開き、「自治体マップ」を有効にします。</li>
+            </ol>
+            <p>
+                認証方法を聞かれた場合は「なし」です。無料版はカスタムコネクタを1つまで追加できます。
+                Team・Enterpriseでは、先に会社や団体の管理者による追加が必要です。
+                <a href="https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp" target="_blank" rel="noopener">Claude公式の説明</a>
+            </p>
         </section>
 
         <section class="docs-section">
-            <h2>AIに渡す短い指示例</h2>
-            <p>カスタムGPTやエージェントの説明には、次のような指示を入れると安定します。</p>
-            <pre><code>自治体の会議録・例規集を調べるときは searchMunicipalDocuments を使う。
-まず doc_type=minutes で会議録を検索する。
-条例や規則そのものを探すときだけ doc_type=reiki を使う。
-地域が指定されたら pref_code または slug で絞る。
-回答では title, municipality_name, held_on または sort_date, excerpt, source_url を根拠として示す。
-excerpt は抜粋なので、必要なら api_document_url で全文を取得して確認する。
-最終確認が必要な場合は source_url の原サイトも示す。</code></pre>
+            <h2>ChatGPTにつなぐ</h2>
+            <p>
+                ChatGPTのMCP機能は、契約の種類と管理者の設定によって使える範囲が違います。
+                メニューが見当たらなくても、操作を間違えたとは限りません。
+            </p>
+            <ol class="docs-steps">
+                <li>パソコンのブラウザでChatGPTを開きます。現在、この設定はスマートフォン版ではできません。</li>
+                <li><strong>「設定」</strong>→<strong>「アプリ」</strong>→<strong>「詳細設定」</strong>で、開発者モードを有効にします。</li>
+                <li>アプリを作成する画面で、アドレスに <code>https://tools.miya.be/mcp</code> を指定します。</li>
+            </ol>
+            <p class="docs-note">
+                Business・Enterprise・Eduでは、管理者の許可が必要です。Proでは読み取り用MCPを使える案内がありますが、
+                機能は段階的に提供されています。契約や設定によっては、この手順を使えません。
+            </p>
+            <p>
+                MCPを追加できない場合でも、「GPTを作成」の「アクション」が使える契約なら、
+                <a href="/openapi.json">OpenAPI JSON</a>を読み込ませる方法があります。認証は「なし」です。
+                なお、1つのGPTで「アプリ」と「アクション」を同時には使えません。
+            </p>
+            <p>
+                <a href="https://help.openai.com/en/articles/12584461-developer-mode-apps-and-full-mcp-connectors-in-chatgpt-beta" target="_blank" rel="noopener">ChatGPTのMCPに関する公式説明</a>
+                ／
+                <a href="https://help.openai.com/en/articles/9442513" target="_blank" rel="noopener">GPTアクションの公式説明</a>
+            </p>
         </section>
 
         <section class="docs-section">
-            <h2>主なパラメータ</h2>
+            <h2>つないだ後の質問例</h2>
+            <p>むずかしい命令は必要ありません。いつもの言葉で頼んでください。</p>
+            <pre><code>川崎市の議会で「盛土」について話し合われた記録を探して
+メガソーラーを規制する条例がある自治体を教えて
+その会議録の全文を読んで、賛成と反対の意見をまとめて
+答えの根拠にした自治体のページも示して</code></pre>
+        </section>
+
+        <section class="docs-section">
+            <h2>何を調べられる？</h2>
+            <div class="docs-choice-grid">
+                <div>
+                    <h3>会議録</h3>
+                    <p>議会で、だれが何を話したかを調べます。</p>
+                </div>
+                <div>
+                    <h3>例規集</h3>
+                    <p>その自治体で決まっている条例や規則を調べます。</p>
+                </div>
+            </div>
+            <p>
+                AIは検索と本文の読み取りを自動で使い分けます。道具の名前を覚える必要はありません。
+            </p>
+        </section>
+
+        <section class="docs-section docs-caution">
+            <h2>最後は元の資料を確かめてください</h2>
+            <p>
+                AIは、読み落としたり、もっともらしい間違いを言ったりすることがあります。
+                選挙、裁判、契約など大事な判断に使う場合は、回答に出てきた自治体の元ページを開き、
+                本文と日付を自分でも確かめてください。
+            </p>
+        </section>
+
+        <details class="docs-section docs-details">
+            <summary>そのほかのAI・開発ツールで使う</summary>
+            <div class="docs-details-body">
+                <h2>Microsoft Copilot Studio</h2>
+                <p>
+                    会社などでAIを作る「Copilot Studio」はMCPに対応しています。
+                    エージェントの「ツール」→「ツールを追加」→「新しいツール」→「Model Context Protocol」と進み、
+                    <code>https://tools.miya.be/mcp</code> を指定します。認証方法は「なし」です。
+                    ふつうのMicrosoft Copilotのチャットとは別の機能です。
+                    <a href="https://learn.microsoft.com/en-us/microsoft-copilot-studio/mcp-add-existing-server-to-agent" target="_blank" rel="noopener">Microsoft公式の説明</a>
+                </p>
+
+                <h2>Gemini CLI</h2>
+                <p>
+                    プログラム開発者向けのGemini CLIでは、<code>settings.json</code> に次のように書きます。
+                    ふつうのGeminiのウェブ画面やスマートフォンアプリの設定ではありません。
+                    <a href="https://geminicli.com/docs/tools/mcp-server/" target="_blank" rel="noopener">Gemini CLI公式の説明</a>
+                </p>
+                <pre><code>{
+  "mcpServers": {
+    "自治体マップ": {
+      "httpUrl": "https://tools.miya.be/mcp"
+    }
+  }
+}</code></pre>
+                <p>
+                    Claude CodeやCursorなどでも、Streamable HTTP方式のMCPサーバーとして同じアドレスを設定します。
+                </p>
+            </div>
+        </details>
+
+        <section class="docs-section">
+            <h2>開発者向け：REST API</h2>
+            <p>
+                ここから先は、プログラムを作る人向けです。直接呼び出すためのREST APIとOpenAPI定義も維持しています。
+                新しくAI連携を作る場合はMCPをおすすめします。
+            </p>
+            <pre><code>GET https://tools.miya.be/api/search?q=盛土%20メガソーラー
+GET https://tools.miya.be/api/search?doc_type=reiki&amp;q=個人情報保護
+GET https://tools.miya.be/api/document?id=検索結果のid&amp;doc_type=minutes
+
+OpenAPI JSON: https://tools.miya.be/openapi.json
+OpenAPI YAML: https://tools.miya.be/openapi.yaml</code></pre>
             <dl class="docs-params">
                 <dt><code>q</code></dt>
-                <dd>必須。検索語です。例: <code>盛土 メガソーラー</code></dd>
+                <dd>必須。検索語です。空白区切りはAND、<code>"..."</code> は完全一致、<code>OR</code>・<code>NOT</code>・括弧も使えます。</dd>
                 <dt><code>doc_type</code></dt>
-                <dd><code>minutes</code> は会議録、<code>reiki</code> は例規集です。省略すると <code>minutes</code> になります。</dd>
+                <dd><code>minutes</code>（会議録）または <code>reiki</code>（例規集）。省略すると <code>minutes</code> です。</dd>
                 <dt><code>pref_code</code></dt>
-                <dd>都道府県コードです。例: 神奈川県は <code>14</code>。</dd>
+                <dd>都道府県コード。例: 神奈川県は <code>14</code>。</dd>
                 <dt><code>slug</code></dt>
-                <dd>自治体を1つに絞るIDです。検索結果や検索画面のURLに含まれます。</dd>
+                <dd>自治体を1つに絞るID。検索結果や検索画面のURLに含まれます。</dd>
                 <dt><code>start_date</code> / <code>end_date</code></dt>
                 <dd>対象日を絞ります。例: <code>start_date=2020-01-01&amp;end_date=2024-12-31</code>。</dd>
-                <dt><code>start_year</code> / <code>end_year</code></dt>
-                <dd>対象年で絞る互換パラメータです。例: <code>start_year=2020&amp;end_year=2024</code>。</dd>
                 <dt><code>sort</code></dt>
-                <dd><code>date</code> は新しい順、<code>relevance</code> は関連度順です。</dd>
+                <dd><code>date</code>（新しい順）または <code>relevance</code>（関連度順）。</dd>
                 <dt><code>page</code> / <code>per_page</code></dt>
-                <dd>ページ番号と1ページあたりの件数です。<code>per_page</code> は最大100件です。</dd>
+                <dd>ページ番号と1ページあたりの件数。<code>per_page</code> は最大100件です。</dd>
             </dl>
-        </section>
-
-        <section class="docs-section">
-            <h2>検索語の書き方</h2>
-            <dl class="docs-params">
-                <dt><code>盛土 メガソーラー</code></dt>
-                <dd>複数語はAND検索です。</dd>
-                <dt><code>"同和団体" 温泉</code></dt>
-                <dd>引用符で囲んだ語句を完全一致にし、ほかの語と組み合わせます。</dd>
-                <dt><code>盛土 OR 土砂</code></dt>
-                <dd>どちらかを含む文書を探します。</dd>
-                <dt><code>メガソーラー NOT 促進</code></dt>
-                <dd>後ろの語を含む文書を除外します。</dd>
-            </dl>
-        </section>
-
-        <section class="docs-section">
-            <h2>返ってくる項目</h2>
-            <dl class="docs-params">
-                <dt><code>total</code></dt>
-                <dd>ヒット件数です。</dd>
-                <dt><code>items</code></dt>
-                <dd>検索結果の配列です。</dd>
-                <dt><code>title</code></dt>
-                <dd>会議名、条例名、文書名などです。</dd>
-                <dt><code>excerpt</code></dt>
-                <dd>該当箇所の抜粋です。検索語は <code>[[[</code> と <code>]]]</code> で囲まれます。</dd>
-                <dt><code>detail_url</code></dt>
-                <dd>ブラウザで見るための詳細ページです。会議録ではサイト内の全文表示ページ、例規集では原サイト等のURLです。</dd>
-                <dt><code>api_document_url</code></dt>
-                <dd>その文書の全文をJSONで取得するAPI URLです。</dd>
-                <dt><code>body</code></dt>
-                <dd><code>/api/document</code> で返る全文テキストです。検索結果の一覧には含まれません。</dd>
-                <dt><code>source_url</code></dt>
-                <dd>自治体や配信元の原サイトです。最終確認に使います。</dd>
-            </dl>
-        </section>
-
-        <section class="docs-section">
-            <h2>注意点</h2>
             <p>
-                このAPIは調査の入口です。AIの回答では、検索結果の抜粋だけで断定せず、
-                重要な内容は <code>api_document_url</code> で全文を確認してください。
-                MCPから使う場合は <code>get_municipal_document</code> で全文を確認してください。
-                必要に応じて <code>source_url</code> の原サイトも確認してください。
-                会議録と例規集は性格が違うため、原則として別々に検索します。
+                検索結果の <code>api_document_url</code> を呼ぶと全文をJSONで取得できます。
+                <code>source_url</code> は自治体や配信元の原サイトで、最終確認に使います。
             </p>
         </section>
     </main>
