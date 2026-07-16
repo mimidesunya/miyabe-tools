@@ -41,6 +41,10 @@
 - `voicetechno`
 - `db-search`
 - `msearch`
+- `discussvision`
+- `kami-city-pdf`
+- `site-gikai-pdf`
+- `static-kaigiroku-dir`
 - `独自`
 
 ## スクレイパ系統との対応
@@ -50,7 +54,22 @@
 - `gijiroku.com` 系: `gijiroku.com`, `voices`
 - `dbsr` 系: `dbsr`, `db-search`, `kaigiroku-indexphp`
 - 単独系: `kaigiroku.net`, `kensakusystem`
-- 未対応: `amivoice`, `voicetechno`, `msearch`, `独自`
+- AmiVoice 系: `amivoice`
+- msearch 静的会議録系: `msearch`
+- PDF・静的ページ系: `kami-city-pdf`, `site-gikai-pdf`, `static-kaigiroku-dir`
+- `独自`: 汎用 PDF クロールへ送る。ただし会議録以外の PDF を拾う可能性があるため個別 QA が必要
+- 未対応: `discussvision`, `voicetechno`
+
+## 公式導線の個別確認
+
+2026-07-16 に公式議会ページから現行検索システムへの導線を確認し、次を補完しました。
+
+| 自治体コード | 自治体 | system_type | 代表 URL |
+|---|---|---|---|
+| `15225` | 魚沼市 | `kaigiroku.net` | `https://ssp.kaigiroku.net/tenant/uonuma/SpTop.html` |
+| `38213` | 四国中央市 | `kaigiroku.net` | `https://ssp.kaigiroku.net/tenant/shikokuchuo/pg/index.html` |
+| `43202` | 八代市 | `voices` | `https://www.city.yatsushiro.kumamoto.jp/VOICES/` |
+| `06211` | 東根市 | `msearch` | `https://city.higashine.netj.jp/kensaku/mokuji.html` |
 
 ## 再生成
 

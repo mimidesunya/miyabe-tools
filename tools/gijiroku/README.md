@@ -53,6 +53,24 @@ python tools/gijiroku/scrapers/kensakusystem.py \
   --max-meetings 10
 ```
 
+AmiVoice 系:
+
+```bash
+python tools/gijiroku/scrapers/amivoice.py \
+  --slug 08217-toride-shi \
+  --ack-robots \
+  --max-meetings 10
+```
+
+msearch 静的会議録系:
+
+```bash
+python tools/gijiroku/scrapers/msearch.py \
+  --slug 06211-higashine-shi \
+  --ack-robots \
+  --max-meetings 10
+```
+
 香美市公式サイトの PDF 一覧型:
 
 ```bash
@@ -107,7 +125,7 @@ python tools/gijiroku/scrape_all_minutes.py --ack-robots --systems gijiroku.com 
 python tools/gijiroku/scrape_all_minutes.py --ack-robots --systems gijiroku.com --max-targets 5 --parallel 5 --per-host-start-interval 2
 ```
 
-実装済みの `gijiroku.com` / `voices` / `kaigiroku.net` / `dbsr` / `db-search` / `kaigiroku-indexphp` / `kensakusystem` / `kami-city-pdf` / `site-gikai-pdf` / `static-kaigiroku-dir` / `独自`(汎用PDF) をまとめて回す場合:
+実装済みの `gijiroku.com` / `voices` / `kaigiroku.net` / `dbsr` / `db-search` / `kaigiroku-indexphp` / `kensakusystem` / `amivoice` / `msearch` / `kami-city-pdf` / `site-gikai-pdf` / `static-kaigiroku-dir` / `独自`(汎用PDF) をまとめて回す場合:
 
 ```bash
 python tools/gijiroku/scrape_all_minutes.py --ack-robots --parallel 8 --per-host-parallel 1 --per-host-start-interval 2

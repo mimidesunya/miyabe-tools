@@ -34,7 +34,8 @@ php /var/www/lib/migrate_runtime_state_to_postgres.php
 
 ## リモートでの議事録取得
 
-`assembly_minutes_system_urls.tsv` のうち、実装済みの `gijiroku.com` / `voices` / `kaigiroku.net` / `dbsr` / `db-search` / `kaigiroku-indexphp` / `kensakusystem` を対象にします。  
+`assembly_minutes_system_urls.tsv` のうち、実装済みの `gijiroku.com` / `voices` / `kaigiroku.net` / `dbsr` / `db-search` / `kaigiroku-indexphp` / `kensakusystem` / `amivoice` / `msearch` を対象にします。
+
 同一ホストには既定で 1 自治体ずつしか当てません。
 
 既定ではデプロイ時に自動起動・再起動されます。状態確認:

@@ -303,7 +303,10 @@ def gijiroku_target_matches_slug(target: dict, slug: str) -> bool:
 def derive_base_url(source_url: str) -> str:
     parts = urlsplit(source_url)
     path = parts.path or "/"
-    if path.endswith("/"):
+    tenant_match = re.match(r"^(.*?/tenant/[^/]+/)", path, flags=re.I)
+    if tenant_match:
+        base_path = tenant_match.group(1)
+    elif path.endswith("/"):
         base_path = path
     else:
         base_path = path.rsplit("/", 1)[0] + "/"

@@ -907,7 +907,7 @@ def main() -> int:
         print(f"        robots.txt: {target['robots_txt_url']}")
         return 2
 
-    output_dir: Path = (args.output_dir or target["data_dir"]).resolve()
+    output_dir: Path = (args.output_dir or target["work_dir"]).resolve()
     work_dir: Path = (args.output_dir or target["work_dir"]).resolve()
     downloads_dir = (
         (output_dir / "downloads").resolve()

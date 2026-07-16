@@ -333,7 +333,7 @@ jis_code	url	system_type
 06208	https://ssp.kaigiroku.net/tenant/murayama/SpMinuteSearch.html	kaigiroku.net
 06209	https://www.city.nagai.yamagata.jp/shigikai/kaigiroku/index.html	独自
 06210	https://ssp.kaigiroku.net/tenant/tendo/SpMinuteSearch.html	kaigiroku.net
-06211	https://city.higashine.netj.jp/cgi-bin/kaigiroku/msearch.cgi	msearch
+06211	https://city.higashine.netj.jp/kensaku/mokuji.html	msearch
 06212		
 06213	http://www.city.nanyo.yamagata.jp/gikaikaigiroku/	独自
 06301		
@@ -759,7 +759,7 @@ jis_code	url	system_type
 15222	https://ssp.kaigiroku.net/tenant/joetsu/SpMinuteSearch.html	kaigiroku.net
 15223	https://www.city.agano.niigata.jp/section/shigikai/kaigiroku/indx.html	独自
 15224	https://ssp.kaigiroku.net/tenant/sado/SpTop.html	kaigiroku.net
-15225		
+15225	https://ssp.kaigiroku.net/tenant/uonuma/SpTop.html	kaigiroku.net
 15226	https://www.city.minamiuonuma.niigata.jp/gikai/kaigiroku_giketsukekka/honkaigigijiroku/	独自
 15227	https://ssp.kaigiroku.net/tenant/tainai/SpMinuteSearch.html	kaigiroku.net
 15307	https://www.town.seiro.niigata.jp/section/gikai/kaigiroku.html	独自
@@ -1464,7 +1464,7 @@ jis_code	url	system_type
 38206	https://ssp.kaigiroku.net/tenant/saijo/SpMinuteSearch.html	kaigiroku.net
 38207	https://www.city.ozu.ehime.jp/kaigiroku/index.html	独自
 38210	https://ssp.kaigiroku.net/tenant/iyo/MinuteSearch.html	kaigiroku.net
-38213		
+38213	https://ssp.kaigiroku.net/tenant/shikokuchuo/pg/index.html	kaigiroku.net
 38214	https://www.city.seiyo.ehime.jp/shisei/shigikai/kaigiroku/index.html	独自
 38215	https://ssp.kaigiroku.net/tenant/toon/SpMinuteSearch.html	kaigiroku.net
 38356	https://www.town.kamijima.lg.jp/site/gikai/list107.html	独自
@@ -1617,7 +1617,7 @@ jis_code	url	system_type
 42411	https://official.shinkamigoto.net/goto_chosei.php?wcid=l00003x2	独自
 43000	https://ssp.kaigiroku.net/tenant/prefkumamoto/MinuteSearch.html	kaigiroku.net
 43100	https://kumamoto.gijiroku.com/voices/g08v_search.asp	gijiroku.com
-43202		
+43202	https://www.city.yatsushiro.kumamoto.jp/VOICES/	voices
 43203	https://www.city.hitoyoshi.lg.jp/shisei/gikaijyoho/kaigiroku/2435435	独自
 43204	https://www.city.arao.kumamoto.dbsr.jp/index.php/	dbsr
 43205	http://www.kensakusystem.jp/minamata/index.html	kensakusystem

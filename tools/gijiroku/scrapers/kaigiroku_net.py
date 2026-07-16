@@ -151,11 +151,27 @@ def source_api_root(source_url: str) -> str:
 def tenant_base_url(source_url: str) -> str:
     parts = urlsplit(source_url)
     path = parts.path or "/"
-    if path.endswith("/"):
+    tenant_match = re.match(r"^(.*?/tenant/[^/]+/)", path, flags=re.I)
+    if tenant_match:
+        # PC 版トップが /tenant/<name>/pg/index.html にある自治体でも、
+        # API と MinuteView.html は tenant 直下にある。
+        base_path = tenant_match.group(1)
+    elif path.endswith("/"):
         base_path = path
     else:
         base_path = path.rsplit("/", 1)[0] + "/"
     return urlunsplit((parts.scheme or "https", parts.netloc, base_path, "", ""))
+
+
+def tenant_entry_urls(source_url: str) -> list[str]:
+    urls = [source_url]
+    if "/pg/" in (urlsplit(source_url).path or "").lower():
+        # /pg/index.html は PC 版の案内ページで dnp.params を持たない。
+        # 同ページのスマートフォン版リンク先には API 用 tenant_id がある。
+        mobile_top = urljoin(tenant_base_url(source_url), "SpTop.html")
+        if mobile_top not in urls:
+            urls.append(mobile_top)
+    return urls
 
 
 def build_schedule_url(source_url: str, tenant_id: int, council_id: int, schedule_id: int) -> str:
@@ -170,18 +186,22 @@ def safe_json_loads(text: str) -> dict:
 
 
 def load_tenant_id(page, source_url: str, timeout_ms: int) -> int:
-    page.goto(source_url, wait_until="domcontentloaded", timeout=timeout_ms)
-    try:
-        page.wait_for_load_state("networkidle", timeout=5_000)
-    except Exception:
-        pass
+    attempted_urls: list[str] = []
+    for entry_url in tenant_entry_urls(source_url):
+        attempted_urls.append(entry_url)
+        page.goto(entry_url, wait_until="domcontentloaded", timeout=timeout_ms)
+        try:
+            page.wait_for_load_state("networkidle", timeout=5_000)
+        except Exception:
+            pass
 
-    serialized = page.evaluate("JSON.stringify((window.dnp && dnp.params) || {})")
-    params = safe_json_loads(serialized)
-    tenant_id = params.get("tenant_id")
-    if tenant_id is None:
-        raise RuntimeError("tenant_id を取得できませんでした。")
-    return int(tenant_id)
+        serialized = page.evaluate("JSON.stringify((window.dnp && dnp.params) || {})")
+        params = safe_json_loads(serialized)
+        tenant_id = params.get("tenant_id")
+        if tenant_id is not None:
+            return int(tenant_id)
+
+    raise RuntimeError(f"tenant_id を取得できませんでした: {', '.join(attempted_urls)}")
 
 
 def api_post(request_context, api_root: str, path: str, payload: dict[str, object], timeout_ms: int, referer: str) -> dict:
@@ -567,7 +587,7 @@ def main() -> int:
         print(f"        robots.txt: {target['robots_txt_url']}")
         return 2
 
-    output_dir: Path = (args.output_dir or target["data_dir"]).resolve()
+    output_dir: Path = (args.output_dir or target["work_dir"]).resolve()
     work_dir: Path = (args.output_dir or target["work_dir"]).resolve()
     downloads_dir = (
         (output_dir / "downloads").resolve()

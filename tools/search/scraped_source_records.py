@@ -338,6 +338,21 @@ def extract_held_on(
     source_hint: str = "",
 ) -> tuple[str | None, int | None, int | None, int | None]:
     source_label = source_hint or title
+    explicit_match = re.search(r"(?im)^Held-On:\s*(\d{4})-(\d{2})-(\d{2})\s*$", text)
+    if explicit_match:
+        year = int(explicit_match.group(1))
+        month = int(explicit_match.group(2))
+        day = int(explicit_match.group(3))
+        try:
+            return date(year, month, day).isoformat(), year, month, day
+        except ValueError:
+            warn_invalid_minutes_date(
+                explicit_match.group(0),
+                year=year,
+                month=month,
+                day=day,
+                source=source_label,
+            )
     for match in MINUTES_DATE_PATTERN.finditer(joined_head_text(text, limit=20)):
         gregorian_year = era_to_gregorian(match.group(1), match.group(2))
         month = int(to_ascii_digits(match.group(4)))

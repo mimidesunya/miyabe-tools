@@ -39,6 +39,14 @@
 - `reiki.html`
 - `独自`
 
+## 公式導線の個別確認
+
+2026-07-16 に北見市公式ページの導線を確認し、旧 `lg.joureikun.jp` から現行の LegalCrud へ更新しました。
+
+| 自治体コード | 自治体 | system_type | 代表 URL |
+|---|---|---|---|
+| `01208` | 北見市 | `legalcrud` | `https://public2.legalcrud.com/kitami_city/reiki/` |
+
 ## 再生成
 
 ```powershell

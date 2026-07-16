@@ -22,6 +22,7 @@ ERA_DATE_RE = re.compile(
     r"(明治|大正|昭和|平成|令和)\s*([元\d０-９]+)年"
     r"(?:\s*([0-9０-９]{1,2})月\s*([0-9０-９]{1,2})日)?"
 )
+MONTH_DAY_RE = re.compile(r"([0-9０-９]{1,2})月\s*([0-9０-９]{1,2})日")
 ISO_DATE_RE = re.compile(r"\b(19\d{2}|20\d{2})[-/.年]\s*([01]?\d)[-/.月]\s*([0-3]?\d)日?\b")
 WESTERN_YEAR_RE = re.compile(r"\b(19\d{2}|20\d{2})\b")
 MAX_FILENAME_BYTES = 180
@@ -115,19 +116,29 @@ def infer_sort_date(item: Any) -> str:
         for key in ("year_label", "meeting_group", "title", "page_title")
     )
 
-    match = ERA_DATE_RE.search(text)
-    if match:
+    era_year_fallback: int | None = None
+    for match in ERA_DATE_RE.finditer(text):
         year = era_year_to_gregorian(match.group(1), match.group(2))
         if year is not None:
             month = japanese_year_to_int(match.group(3) or "") if match.group(3) else None
             day = japanese_year_to_int(match.group(4) or "") if match.group(4) else None
             if month and day:
                 return _iso_date(year, month, day)
-            return f"{year:04d}-00-00"
+            if era_year_fallback is None:
+                era_year_fallback = year
 
     match = ISO_DATE_RE.search(to_ascii_digits(text))
     if match:
         return _iso_date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+
+    if era_year_fallback is not None:
+        month_day_match = MONTH_DAY_RE.search(text)
+        if month_day_match:
+            month = japanese_year_to_int(month_day_match.group(1))
+            day = japanese_year_to_int(month_day_match.group(2))
+            if month and day:
+                return _iso_date(era_year_fallback, month, day)
+        return f"{era_year_fallback:04d}-00-00"
 
     source_year = item_value(item, "source_year", None)
     if isinstance(source_year, int) and source_year > 0:

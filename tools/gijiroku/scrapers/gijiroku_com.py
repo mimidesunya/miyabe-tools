@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Iterable
 from urllib.parse import parse_qs, unquote_to_bytes, urljoin, urlparse, urlsplit
 
+from bs4 import BeautifulSoup
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
@@ -183,6 +184,15 @@ def html_to_text(raw_html: str) -> str:
     return text.strip()
 
 
+def build_fallback_meeting_text(item: MeetingItem, body_text: str) -> str:
+    return (
+        f"{item.title}\n"
+        f"{item.year_label}\n"
+        f"Source URL: {item.url}\n\n"
+        f"{body_text.strip()}\n"
+    )
+
+
 def fetch_response_text(request_context, url: str, timeout_ms: int) -> tuple[str, bytes]:
     response = request_context.get(url, timeout=timeout_ms)
     if not response.ok:
@@ -287,7 +297,98 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def discover_meeting_items(page, base_url: str, timeout_ms: int) -> list[MeetingItem]:
+def parse_legacy_voices_list_page(raw_html: str, page_url: str) -> tuple[list[MeetingItem], list[str]]:
+    soup = BeautifulSoup(raw_html, "html.parser")
+    meetings: list[MeetingItem] = []
+    page_urls: list[str] = []
+
+    for cell in soup.find_all("td"):
+        anchors = cell.find_all("a", href=True)
+        detail_anchor = next(
+            (
+                anchor
+                for anchor in anchors
+                if "voiweb.exe?ACT=100" in str(anchor.get("href", ""))
+                and "FINO=" in str(anchor.get("href", ""))
+            ),
+            None,
+        )
+        if detail_anchor is None:
+            continue
+
+        detail_url = urljoin(page_url, str(detail_anchor.get("href", "")))
+        title = normalize_space(cell.get_text(" ", strip=True).replace(",", " "))
+        if not title:
+            continue
+        year_match = re.search(r"(昭和|平成|令和)\s*[元\d０-９]+\s*年", title)
+        year_label = normalize_space(year_match.group(0)) if year_match else "unknown"
+        meetings.append(
+            MeetingItem(
+                title=title,
+                url=detail_url,
+                year_label=year_label,
+                meeting_group=extract_meeting_group(title, detail_url),
+            )
+        )
+
+    for anchor in soup.find_all("a", href=True):
+        href = str(anchor.get("href", ""))
+        if "voiweb.exe?ACT=100" not in href or "PAGE=" not in href or "FINO=" in href:
+            continue
+        page_urls.append(urljoin(page_url, href))
+
+    return meetings, unique_preserve_order(page_urls)
+
+
+def discover_legacy_voices_meeting_items(
+    request_context,
+    base_url: str,
+    timeout_ms: int,
+    max_meetings: int,
+    delay_seconds: float,
+) -> list[MeetingItem]:
+    first_url = urljoin(base_url, "CGI/voiweb.exe?ACT=100&KTYP=2,3,0&KGTP=1,2&SORT=0")
+    pending_urls = [first_url]
+    visited_pages: set[str] = set()
+    pending_pages: set[str] = {"1"}
+    meetings: list[MeetingItem] = []
+
+    while pending_urls:
+        page_url = pending_urls.pop(0)
+        page_number = (parse_qs(urlsplit(page_url).query).get("PAGE") or ["1"])[0]
+        pending_pages.discard(page_number)
+        if page_number in visited_pages:
+            continue
+        visited_pages.add(page_number)
+
+        raw_html, _ = fetch_response_text(request_context, page_url, timeout_ms)
+        if not raw_html:
+            continue
+        page_meetings, page_urls = parse_legacy_voices_list_page(raw_html, page_url)
+        meetings.extend(page_meetings)
+        if max_meetings > 0 and len(meetings) >= max_meetings:
+            break
+        for candidate_url in page_urls:
+            candidate_page = (parse_qs(urlsplit(candidate_url).query).get("PAGE") or ["1"])[0]
+            if candidate_page not in visited_pages and candidate_page not in pending_pages:
+                pending_urls.append(candidate_url)
+                pending_pages.add(candidate_page)
+        if delay_seconds > 0 and pending_urls:
+            time.sleep(delay_seconds)
+
+    uniq: dict[tuple[str, str], MeetingItem] = {}
+    for item in meetings:
+        uniq[(item.title, item.url)] = item
+    return list(uniq.values())
+
+
+def discover_meeting_items(
+    page,
+    base_url: str,
+    timeout_ms: int,
+    max_meetings: int = 0,
+    delay_seconds: float = 0,
+) -> list[MeetingItem]:
     meetings: list[MeetingItem] = []
     year_pages: list[tuple[str, str]] = []
 
@@ -364,7 +465,17 @@ def discover_meeting_items(page, base_url: str, timeout_ms: int) -> list[Meeting
     uniq: dict[tuple[str, str], MeetingItem] = {}
     for item in meetings:
         uniq[(item.title, item.url)] = item
-    return list(uniq.values())
+    discovered = list(uniq.values())
+    if discovered:
+        return discovered
+
+    return discover_legacy_voices_meeting_items(
+        page.context.request,
+        base_url,
+        timeout_ms,
+        max_meetings,
+        delay_seconds,
+    )
 
 
 def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_ms: int, stem: str) -> tuple[str, str]:
@@ -423,7 +534,7 @@ def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_
                 text = html_to_text(full_html)
                 dest = gijiroku_storage.write_text(
                     output_dir / (stem + ".txt"),
-                    text,
+                    build_fallback_meeting_text(item, text),
                     compress=True,
                 )
                 return "saved_text", str(dest)
@@ -476,7 +587,7 @@ def main() -> int:
         print(f"        robots.txt: {target['robots_txt_url']}")
         return 2
 
-    output_dir: Path = (args.output_dir or target["data_dir"]).resolve()
+    output_dir: Path = (args.output_dir or target["work_dir"]).resolve()
     work_dir: Path = (args.output_dir or target["work_dir"]).resolve()
     downloads_dir = (
         (output_dir / "downloads").resolve()
@@ -509,7 +620,13 @@ def main() -> int:
         page.set_default_timeout(args.timeout_ms)
 
         print("[INFO] 会議一覧を収集中...")
-        meeting_items = discover_meeting_items(page, target["base_url"], args.timeout_ms)
+        meeting_items = discover_meeting_items(
+            page,
+            target["base_url"],
+            args.timeout_ms,
+            args.max_meetings,
+            args.delay_seconds,
+        )
         print(f"[INFO] 会議候補 {len(meeting_items)} 件")
 
         index_json.parent.mkdir(parents=True, exist_ok=True)
