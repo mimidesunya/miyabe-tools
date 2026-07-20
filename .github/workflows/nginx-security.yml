@@ -1,0 +1,77 @@
+name: nginx security
+
+on:
+  pull_request:
+    paths:
+      - docker/nginx/**
+      - nginx/**
+      - docker-compose.yml
+      - .github/workflows/nginx-security.yml
+  push:
+    branches:
+      - main
+    paths:
+      - docker/nginx/**
+      - nginx/**
+      - docker-compose.yml
+      - .github/workflows/nginx-security.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nginx-security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Validate Compose configuration
+        run: docker compose --file docker-compose.yml config --quiet
+
+      - name: Build production nginx image
+        run: >-
+          docker build --pull --file docker/nginx/Dockerfile
+          --tag nginx-security:miyabe-tools .
+
+      - name: Validate and dump production nginx configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          docker run --rm \
+            --add-host php:127.0.0.1 \
+            --add-host mcp:127.0.0.1 \
+            nginx-security:miyabe-tools nginx -T \
+            > artifacts/nginx-T.txt 2>&1
+
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610
+        with:
+          image: nginx-security:miyabe-tools
+          format: cyclonedx-json
+          output-file: artifacts/nginx.cdx.json
+          upload-artifact: false
+
+      - name: Scan HIGH and CRITICAL vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: nginx-security:miyabe-tools
+          format: json
+          output: artifacts/trivy.json
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          vuln-type: os,library
+
+      - name: Upload security evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: nginx-security-miyabe-tools
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 14

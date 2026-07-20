@@ -890,6 +890,7 @@ def main():
     parser = argparse.ArgumentParser(description='Deploy script.')
     parser.add_argument('config_file', help='Path to configuration JSON file')
     parser.add_argument('--full', action='store_true', help='Perform full deployment including Docker build and push. Default is code-only sync.')
+    parser.add_argument('--nginx-only', action='store_true', help='Build, push, and deploy only the nginx web image without syncing application or data files.')
     parser.add_argument('--dry-run', action='store_true', help='Show what would be synced without actually transferring files.')
     parser.add_argument(
         '--skip-normalize',
@@ -951,6 +952,8 @@ def main():
     
     args = parser.parse_args()
 
+    if args.full and args.nginx_only:
+        parser.error('--full and --nginx-only cannot be used together')
     if args.skip_normalize and args.with_normalize:
         parser.error('--skip-normalize and --with-normalize cannot be used together')
     if args.skip_data_maintenance and args.with_data_maintenance:
@@ -975,6 +978,34 @@ def main():
 
     dest_dir = resolve_remote_dest_dir(config['dest_dir'])
     shared_data_dir = resolve_remote_shared_data_dir(config)
+
+    if args.nginx_only:
+        print("=== Docker Login ===")
+        docker_login(registry, config['registry_user'], config['registry_pass'])
+
+        print("=== Build & Push nginx Web Image ===")
+        run_command(f"docker build --pull -t {img_web} -f docker/nginx/Dockerfile .", capture_output=False)
+        run_command(f"docker push {img_web}", capture_output=False)
+
+        print("=== Deploy nginx Web Image to Remote ===")
+        remote_login = (
+            f"cat <<'EOF' | docker login {shlex.quote(registry)} "
+            f"-u {shlex.quote(config['registry_user'])} --password-stdin\n"
+            f"{config['registry_pass']}\n"
+            "EOF"
+        )
+        ssh_exec_sensitive(config, remote_login)
+        ssh_exec(
+            config,
+            f"cd {dest_dir} && "
+            "docker compose pull web && "
+            "docker compose up -d --no-deps --force-recreate web && "
+            "docker compose exec -T web nginx -v",
+            stream=True,
+            timeout_seconds=300,
+        )
+        print("=== nginx-only Deployment Complete ===")
+        return
 
     if args.stop_scraping_only:
         print("=== Stopping scraping services only ===")
@@ -1140,7 +1171,7 @@ services:
       retries: 30
 
   opensearch:
-    image: opensearchproject/opensearch:2.15.0
+    image: opensearchproject/opensearch:2.19.6
     restart: unless-stopped
     cpus: "4.0"
     environment:
