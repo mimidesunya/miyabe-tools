@@ -100,6 +100,9 @@ IMAGE_BUTTON_LABELS = (
     "アイキャッチ画像",
     "メイン画像",
 )
+CONTENT_IMAGE_BUTTON_SELECTOR = "button[data-cke-tooltip-text='画像挿入']"
+CONTENT_IMAGE_UPLOAD_URL_FRAGMENT = "ckeditor5/pictures"
+IMAGE_MARKDOWN_PATTERN = re.compile(r"^!\[([^\]]*)\]\(([^)]+)\)$")
 
 
 class SenkyoComError(RuntimeError):
@@ -161,7 +164,7 @@ def extract_article(path: Path, title_override: str = "") -> Article:
         title=title,
         markdown=markdown,
         body_markdown=body_markdown,
-        body_html=markdown_to_html(body_markdown),
+        body_html=markdown_to_html(body_markdown, base_dir=path.parent),
     )
 
 
@@ -182,12 +185,19 @@ def inline_markdown(text: str) -> str:
     return "".join(output)
 
 
-def markdown_to_html(markdown: str) -> str:
-    """投稿原稿で使う見出し・箇条書き・太字・リンクだけを安全にHTML化する。"""
+def markdown_to_html(markdown: str, base_dir: Path | None = None) -> str:
+    """投稿原稿で使う見出し・箇条書き・太字・リンク・コード・画像を安全にHTML化する。
+
+    画像行 `![説明](パス)` はローカルファイルパスのままフィギュア要素にする。
+    実際のアップロードとURL差し替えは embed_content_images() が後で行う。
+    """
 
     blocks: list[str] = []
     paragraph: list[str] = []
     list_items: list[str] = []
+    code_lines: list[str] = []
+    code_language = ""
+    in_code_block = False
 
     def flush_paragraph() -> None:
         if paragraph:
@@ -200,8 +210,35 @@ def markdown_to_html(markdown: str) -> str:
             blocks.append(f"<ul>{items}</ul>")
             list_items.clear()
 
+    def flush_code_block() -> None:
+        nonlocal code_language, in_code_block
+        if not in_code_block:
+            return
+        class_attribute = (
+            f' class="language-{html.escape(code_language, quote=True)}"' if code_language else ""
+        )
+        escaped_code = html.escape("\n".join(code_lines))
+        blocks.append(f"<pre><code{class_attribute}>{escaped_code}</code></pre>")
+        code_lines.clear()
+        code_language = ""
+        in_code_block = False
+
     for raw_line in markdown.splitlines():
+        if in_code_block:
+            if re.fullmatch(r"```\s*", raw_line):
+                flush_code_block()
+            else:
+                code_lines.append(raw_line)
+            continue
+
         line = raw_line.rstrip()
+        code_fence = re.fullmatch(r"```([A-Za-z0-9_+-]*)\s*", line)
+        if code_fence:
+            flush_paragraph()
+            flush_list()
+            code_language = code_fence.group(1)
+            in_code_block = True
+            continue
         if not line.strip():
             flush_paragraph()
             flush_list()
@@ -220,11 +257,25 @@ def markdown_to_html(markdown: str) -> str:
             flush_paragraph()
             list_items.append(line[2:].strip())
             continue
+        image_match = IMAGE_MARKDOWN_PATTERN.match(line)
+        if image_match:
+            flush_paragraph()
+            flush_list()
+            caption = image_match.group(1).strip()
+            image_path = image_match.group(2).strip()
+            if base_dir is not None and not re.match(r"^https?://", image_path):
+                image_path = str((base_dir / image_path).resolve())
+            src = html.escape(image_path, quote=True)
+            alt = html.escape(caption, quote=True)
+            figcaption = f"<figcaption>{inline_markdown(caption)}</figcaption>" if caption else ""
+            blocks.append(f'<figure class="image"><img src="{src}" alt="{alt}">{figcaption}</figure>')
+            continue
         flush_list()
         paragraph.append(line.strip())
 
     flush_paragraph()
     flush_list()
+    flush_code_block()
     return "\n".join(blocks)
 
 
@@ -630,13 +681,15 @@ def set_body(page: Page, selectors: dict[str, list[str]], body_html: str) -> Non
             if source_buttons.nth(index).is_visible()
         ]
         if len(visible_source_buttons) == 1:
-            visible_source_buttons[0].click()
+            # force=True: 直前の本文画像アップロードで残る「画像幅」等の
+            # フローティングツールバーがボタンを一時的に覆うことがあるため。
+            visible_source_buttons[0].click(force=True)
             source_area = page.locator(".ck-source-editing-area textarea, textarea.ck-source-editing-area")
             for index in range(source_area.count()):
                 candidate = source_area.nth(index)
                 if candidate.is_visible():
                     candidate.fill(body_html)
-                    visible_source_buttons[0].click()
+                    visible_source_buttons[0].click(force=True)
                     return
 
     locator = visible_locator(page, selectors["body"])
@@ -681,6 +734,83 @@ def upload_image(page: Page, selectors: dict[str, list[str]], image_path: Path) 
     page.wait_for_timeout(500)
 
 
+CONTENT_IMAGE_SRC_PATTERN = re.compile(r'<img src="([^"]+)"')
+
+
+def find_local_content_image_srcs(html_body: str) -> list[str]:
+    """本文HTML内の <img src> のうち、ローカルファイルパスのものを出現順・重複なしで返す。"""
+
+    seen: dict[str, None] = {}
+    for src in CONTENT_IMAGE_SRC_PATTERN.findall(html_body):
+        unescaped = html.unescape(src)
+        if re.match(r"^https?://", unescaped):
+            continue
+        seen.setdefault(unescaped, None)
+    return list(seen)
+
+
+def upload_content_image(page: Page, image_path: Path) -> str:
+    """CKEditor5の「画像挿入」ボタン経由で本文用画像をアップロードし、公開URLを返す。"""
+
+    validate_image_path(image_path)
+    button = page.locator(CONTENT_IMAGE_BUTTON_SELECTOR)
+    if button.count() == 0:
+        raise SenkyoComError(
+            "本文への画像挿入ボタン（画像挿入）を検出できませんでした。"
+            "CKEditorのツールバー構成が変わった可能性があります。"
+        )
+    try:
+        with page.expect_response(
+            lambda response: CONTENT_IMAGE_UPLOAD_URL_FRAGMENT in response.url,
+            timeout=30_000,
+        ) as response_info:
+            with page.expect_file_chooser(timeout=10_000) as chooser_info:
+                button.click()
+            chooser_info.value.set_files(str(image_path.resolve()))
+    except PlaywrightTimeoutError as exc:
+        raise SenkyoComError(f"本文画像のアップロードが完了しませんでした: {image_path}") from exc
+
+    response = response_info.value
+    try:
+        payload = response.json()
+    except Exception as exc:  # noqa: BLE001 - レスポンスがJSONでない場合の防御
+        raise SenkyoComError(f"本文画像アップロードの応答を解析できませんでした: {image_path}") from exc
+
+    url = payload.get("url") if isinstance(payload, dict) else None
+    if not response.ok or not url:
+        message = ""
+        if isinstance(payload, dict):
+            error = payload.get("error")
+            if isinstance(error, dict):
+                message = str(error.get("message") or "")
+        raise SenkyoComError(f"本文画像のアップロードに失敗しました: {image_path} {message}".strip())
+
+    page.wait_for_timeout(500)
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(200)
+    # アップロードでCKEditorがエディター本文へ自動挿入した画像を取り消す。
+    # 実際の埋め込みはset_body()での本文HTML全体置換で行うため、
+    # ここで挿入されたままだと本文が二重になったり、画像選択時の
+    # フローティングツールバーが後続操作を妨げたりする。
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(300)
+    return url
+
+
+def embed_content_images(page: Page, html_body: str) -> str:
+    """本文HTML中のローカル画像パスを、実際にアップロードした公開URLへ置き換える。"""
+
+    local_srcs = find_local_content_image_srcs(html_body)
+    updated = html_body
+    for local_src in local_srcs:
+        uploaded_url = upload_content_image(page, Path(local_src))
+        updated = updated.replace(
+            f'src="{html.escape(local_src, quote=True)}"',
+            f'src="{html.escape(uploaded_url, quote=True)}"',
+        )
+    return updated
+
+
 def save_draft(page: Page, button_text_override: str = "") -> None:
     labels = (button_text_override,) if button_text_override else DRAFT_BUTTON_LABELS
     for label in labels:
@@ -705,13 +835,33 @@ def save_draft(page: Page, button_text_override: str = "") -> None:
 
 
 def confirm_draft_saved(page: Page, editor_url: str) -> None:
-    """保存後の成功メッセージまたは画面遷移を最大15秒待って確認する。"""
+    """保存後の成功メッセージまたは画面遷移を最大15秒待って確認する。
+
+    保存が入力エラー（例:本文が空）で失敗した場合、フォームはURLを
+    editor_url（…/posts/new）から送信先の…/postsへ変えたまま「新規作成」
+    画面をエラーバナー付きで再表示することがある。この状態はURLだけ見ると
+    「別画面へ遷移した」ように見えてしまうため、成功メッセージが無い状態で
+    先にエラーバナーを検出し、誤って成功と判定しないようにする。
+    """
     success_labels = ("作成しました", "保存しました", "更新しました")
+    error_labels = ("エラーが発生しました",)
     for _ in range(30):
         for label in success_labels:
             try:
                 if page.get_by_text(label, exact=False).count() > 0:
                     return
+            except PlaywrightTimeoutError:
+                continue
+        for label in error_labels:
+            try:
+                error_banner = page.get_by_text(label, exact=False)
+                if error_banner.count() > 0:
+                    detail = ""
+                    try:
+                        detail = error_banner.first.locator("xpath=..").inner_text()
+                    except PlaywrightTimeoutError:
+                        pass
+                    raise SenkyoComError(f"下書き保存が失敗しました: {detail or label}")
             except PlaywrightTimeoutError:
                 continue
         if page.url.rstrip("/") != editor_url.rstrip("/") and "/new" not in page.url:
@@ -800,6 +950,9 @@ def command_draft(args: argparse.Namespace, update_url: str | None = None) -> in
     image_path = Path(args.image).resolve() if args.image else None
     if image_path is not None:
         validate_image_path(image_path)
+    content_image_srcs = find_local_content_image_srcs(article.body_html)
+    for local_src in content_image_srcs:
+        validate_image_path(Path(local_src))
     selectors = load_selector_config(Path(args.selector_config) if args.selector_config else None)
     artifact_dir = Path(args.artifact_dir).resolve()
     artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -818,6 +971,7 @@ def command_draft(args: argparse.Namespace, update_url: str | None = None) -> in
         print(f"タイトル: {article.title}")
         print(f"本文HTML: {preview}")
         print(f"画像: {image_path or '指定なし'}")
+        print(f"本文内画像: {len(content_image_srcs)}件" if content_image_srcs else "本文内画像: なし")
         print("dry-run のためブラウザー操作・アップロード・保存は行っていません。")
         return 0
 
@@ -837,7 +991,8 @@ def command_draft(args: argparse.Namespace, update_url: str | None = None) -> in
             allow_duplicate=bool(getattr(args, "allow_duplicate", False)),
         )
         set_title(session.page, selectors, article.title)
-        set_body(session.page, selectors, article.body_html)
+        body_html = embed_content_images(session.page, article.body_html)
+        set_body(session.page, selectors, body_html)
         if image_path is not None:
             upload_image(session.page, selectors, image_path)
 

@@ -1,6 +1,6 @@
 services:
   web:
-    image: nginx:latest
+    image: nginx:1.30.4@sha256:5cf90903deda2c5981b8ad05e7617ac010e389f0dde0ac83487c02c509281de6
     restart: "no"
     ports:
       - "8301:80"
@@ -73,7 +73,7 @@ services:
       retries: 30
 
   opensearch:
-    image: opensearchproject/opensearch:2.15.0
+    image: opensearchproject/opensearch:2.19.6
     restart: "no"
     cpus: "1.0"
     environment:
@@ -91,7 +91,7 @@ services:
       retries: 30
 
   opensearch-dashboards:
-    image: opensearchproject/opensearch-dashboards:2.15.0
+    image: opensearchproject/opensearch-dashboards:2.19.6
     restart: "no"
     environment:
       OPENSEARCH_HOSTS: '["http://opensearch:9200"]'

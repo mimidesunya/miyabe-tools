@@ -7,6 +7,7 @@ from pathlib import Path
 from post_draft import (
     SenkyoComError,
     extract_article,
+    find_local_content_image_srcs,
     load_credentials,
     markdown_to_html,
     normalize_new_post_url,
@@ -29,6 +30,51 @@ class MarkdownConversionTest(unittest.TestCase):
         converted = markdown_to_html("<script>alert(1)</script>")
         self.assertNotIn("<script>", converted)
         self.assertIn("&lt;script&gt;", converted)
+
+    def test_toml_code_fence_is_converted_and_escaped(self) -> None:
+        converted = markdown_to_html(
+            '```toml\n[mcp_servers.miyabe]\nurl = "https://tools.miya.be/mcp"\n'
+            'note = "<script>alert(1)</script>"\n```'
+        )
+        self.assertIn(
+            '<pre><code class="language-toml">[mcp_servers.miyabe]\n'
+            'url = &quot;https://tools.miya.be/mcp&quot;\n'
+            'note = &quot;&lt;script&gt;alert(1)&lt;/script&gt;&quot;</code></pre>',
+            converted,
+        )
+        self.assertNotIn("<script>", converted)
+
+    def test_image_markdown_becomes_figure_with_caption(self) -> None:
+        converted = markdown_to_html("![資料1ページ](/tmp/shiryo.png)")
+        self.assertIn('<figure class="image">', converted)
+        self.assertIn('src="/tmp/shiryo.png"', converted)
+        self.assertIn('alt="資料1ページ"', converted)
+        self.assertIn("<figcaption>資料1ページ</figcaption>", converted)
+
+    def test_image_markdown_relative_path_resolves_against_base_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base_dir = Path(directory)
+            converted = markdown_to_html("![説明](images/page1.png)", base_dir=base_dir)
+        expected_src = str((base_dir / "images/page1.png").resolve())
+        self.assertIn(f'src="{expected_src}"', converted)
+
+    def test_image_markdown_without_caption_omits_figcaption(self) -> None:
+        converted = markdown_to_html("![](/tmp/shiryo.png)")
+        self.assertNotIn("<figcaption>", converted)
+
+
+class ContentImageDiscoveryTest(unittest.TestCase):
+    def test_local_srcs_are_found_in_order_without_duplicates(self) -> None:
+        html_body = (
+            '<figure class="image"><img src="/tmp/a.png" alt="a"></figure>'
+            '<figure class="image"><img src="/tmp/b.png" alt="b"></figure>'
+            '<figure class="image"><img src="/tmp/a.png" alt="a"></figure>'
+        )
+        self.assertEqual(["/tmp/a.png", "/tmp/b.png"], find_local_content_image_srcs(html_body))
+
+    def test_remote_srcs_are_ignored(self) -> None:
+        html_body = '<img src="https://example.com/a.png"><img src="/tmp/b.png">'
+        self.assertEqual(["/tmp/b.png"], find_local_content_image_srcs(html_body))
 
 
 class ArticleExtractionTest(unittest.TestCase):
