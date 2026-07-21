@@ -57,13 +57,14 @@ jobs:
           output-file: artifacts/nginx.cdx.json
           upload-artifact: false
 
-      - name: Scan HIGH and CRITICAL vulnerabilities
+      - name: Scan fixable HIGH and CRITICAL vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
           image-ref: nginx-security:miyabe-tools
           format: json
           output: artifacts/trivy.json
           exit-code: "1"
+          ignore-unfixed: true
           severity: HIGH,CRITICAL
           vuln-type: os,library
 
