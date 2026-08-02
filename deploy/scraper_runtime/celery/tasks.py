@@ -12,6 +12,7 @@ from deploy.scraper_runtime.celery import runtime as celery_runtime
 from tools.tasks.runner import process_group_popen_kwargs, terminate_process_group
 from tools.tasks import status as batch_status
 from tools.gijiroku import gijiroku_targets
+from tools.gijiroku import audit_minutes_robots
 from tools.reiki import reiki_targets
 
 
@@ -391,6 +392,33 @@ def _run_gijiroku_scrape_impl() -> None:
     _run_command("gijiroku scrape", _gijiroku_scrape_command())
 
 
+# TSV の URL/system_type 差分だけ robots.txt を再監査する。
+def _audit_gijiroku_registry_changes() -> bool:
+    if not celery_runtime.env_bool("SCRAPER_GIJIROKU_AUTO_AUDIT", True):
+        return False
+    try:
+        summary = audit_minutes_robots.audit_registry(
+            write=True,
+            stale_only=True,
+            workers=celery_runtime.env_int("SCRAPER_GIJIROKU_AUDIT_WORKERS", 4, minimum=1),
+            timeout=celery_runtime.env_float("SCRAPER_GIJIROKU_AUDIT_TIMEOUT", 12.0, minimum=1.0),
+            cache_path=audit_minutes_robots.DEFAULT_POLICY_CACHE,
+        )
+    except Exception as exc:
+        # 変更行は loader 側でも review_required になるため取得されない。
+        # 既存の enabled 対象の通常巡回まで止めないよう、監査失敗だけを記録する。
+        print(f"[CELERY] gijiroku registry audit failed: {type(exc).__name__}: {exc}", flush=True)
+        return False
+    if summary.selected_rows:
+        print(
+            "[CELERY] gijiroku registry audit: "
+            f"selected={summary.selected_rows} changed={summary.changed_rows} "
+            f"enabled_changed={summary.enabled_targets_changed}",
+            flush=True,
+        )
+    return summary.enabled_targets_changed
+
+
 # 例規集 backfill タスクの実処理を起動する。
 def _run_reiki_backfill_impl() -> None:
     _run_command("reiki backfill", _reiki_backfill_command())
@@ -413,8 +441,13 @@ def _recover_stale_metadata(task_name: str) -> None:
 # 会議録の周期 scrape を投入するか判定し、必要なら run_gijiroku_cycle をキューへ送る。
 def dispatch_gijiroku_cycle() -> dict[str, object]:
     # beat から呼ばれる入口。ここでは「投入するか」だけを決め、実処理は run_*_cycle へ渡す。
+    enabled_targets_changed = _audit_gijiroku_registry_changes()
     schedule_seconds = celery_runtime.env_int("CELERY_GIJIROKU_SCHEDULE_SECONDS", 6 * 60 * 60, minimum=60)
-    if not celery_runtime.cycle_is_due("gijiroku", schedule_seconds):
+    if not celery_runtime.cycle_is_due(
+        "gijiroku",
+        schedule_seconds,
+        force_due=enabled_targets_changed,
+    ):
         return {"enqueued": False, "task": "gijiroku", "reason": "not_due"}
     result = app.send_task("deploy.scraper_runtime.celery.tasks.run_gijiroku_cycle", queue="gijiroku")
     return {"enqueued": True, "task": "gijiroku", "task_id": result.id}

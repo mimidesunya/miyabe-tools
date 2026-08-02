@@ -67,7 +67,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ack-robots",
         action="store_true",
-        help="robots.txt・利用規約・許諾確認済みとして実行する",
+        help="明示的な除外対象以外について、robots.txt・利用規約・許諾確認済みとして実行する",
+    )
+    parser.add_argument(
+        "--list-excluded",
+        action="store_true",
+        help="robots.txt等の取得ポリシーにより自動取得対象外となった対象を表示して終了する",
     )
     parser.add_argument(
         "--systems",
@@ -280,10 +285,21 @@ BATCH_SPEC = scraping_batch.BatchSpec(
 )
 
 
+def list_excluded_targets(targets: list[dict]) -> None:
+    print(f"[INFO] 取得対象外: {len(targets)}件")
+    for target in targets:
+        print(
+            f"{target['slug']}\t{target['code']}\t{target['system_type']}\t"
+            f"{target.get('crawl_status', '')}\t{target.get('exclusion_reason', '')}\t"
+            f"{target.get('policy_checked_at', '')}\t"
+            f"{target.get('exclusion_detail', '')}\t{target['source_url']}"
+        )
+
+
 # 会議録一括スクレイピングの入口。対象選定までを行い、実行ループは共通実装に任せる。
 def main() -> int:
     args = build_parser().parse_args()
-    if not args.ack_robots and not args.list_targets:
+    if not args.ack_robots and not args.list_targets and not args.list_excluded:
         print("[ERROR] robots.txt / 利用規約確認のため --ack-robots を指定してください。", flush=True)
         return 2
     error = scraping_batch.validate_common_args(args)
@@ -297,7 +313,7 @@ def main() -> int:
         print(f"[ERROR] {exc}", flush=True)
         return 2
 
-    targets = [
+    selected_targets = [
         freshness_metadata.attach_target_freshness("gijiroku", target)
         for target in gijiroku_targets.iter_gijiroku_targets()
         if (
@@ -309,6 +325,31 @@ def main() -> int:
             in requested_systems
         )
     ]
+
+    excluded_targets = [target for target in selected_targets if not bool(target.get("crawl_enabled", False))]
+    if args.list_excluded:
+        excluded_targets = scraping_batch.filter_targets(excluded_targets, args.filter)
+        list_excluded_targets(excluded_targets)
+        return 0
+
+    if excluded_targets:
+        excluded_count = sum(
+            1
+            for target in excluded_targets
+            if str(target.get("crawl_status", "")) == gijiroku_targets.CRAWL_STATUS_EXCLUDED
+        )
+        review_count = sum(
+            1
+            for target in excluded_targets
+            if str(target.get("crawl_status", "")) == gijiroku_targets.CRAWL_STATUS_REVIEW_REQUIRED
+        )
+        print(
+            f"[INFO] 取得ポリシーにより {len(excluded_targets)}件を実行対象から除外しました "
+            f"(robots等の明示除外={excluded_count}, 要確認={review_count})。"
+            "詳細は --list-excluded で確認できます。",
+            flush=True,
+        )
+    targets = [target for target in selected_targets if bool(target.get("crawl_enabled", True))]
 
     return scraping_batch.run_batch(BATCH_SPEC, args, targets)
 

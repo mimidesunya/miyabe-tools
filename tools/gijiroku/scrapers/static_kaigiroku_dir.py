@@ -166,12 +166,15 @@ def should_follow_related_minutes_page(start_url: str, candidate_url: str, label
     if not same_host(start_url, candidate_url):
         return False
     path = urlsplit(candidate_url).path.lower()
-    if not any(keyword in path for keyword in ("gikai", "shigikai", "songikai", "parliament")):
+    minutes_link = looks_like_minutes_link(label, candidate_url)
+    # CMSの会議録カテゴリから /docs/<id> の年別ページへ出る構成もある。
+    # URLだけでなく公開リンクの明示的な「会議録」ラベルを根拠に追跡する。
+    if not any(keyword in path for keyword in ("gikai", "shigikai", "songikai", "parliament")) and not minutes_link:
         return False
     ext = path_extension(candidate_url)
     if ext in SKIP_EXTENSIONS or ext == ".pdf":
         return False
-    return ext in DOCUMENT_EXTENSIONS and looks_like_minutes_link(label, candidate_url)
+    return ext in DOCUMENT_EXTENSIONS and minutes_link
 
 
 def is_document_pdf(candidate_url: str) -> bool:

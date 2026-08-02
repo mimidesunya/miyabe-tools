@@ -787,13 +787,19 @@ if ($SeedTsv -ne '') {
 }
 
 $lines = New-Object System.Collections.Generic.List[string]
-$lines.Add("jis_code`turl`tsystem_type")
+$lines.Add("jis_code`turl`tsystem_type`tcrawl_status`texclusion_reason`texclusion_detail`tpolicy_checked_at`tpolicy_fingerprint")
 $matchedCount = 0
 $blankCount = 0
 
 foreach ($row in ($inputRows | Sort-Object jis_code)) {
     $url = ''
     $systemType = ''
+    $originalUrl = [string]$row.url
+    $crawlStatus = if ($null -ne $row.PSObject.Properties['crawl_status']) { [string]$row.crawl_status } else { '' }
+    $exclusionReason = if ($null -ne $row.PSObject.Properties['exclusion_reason']) { [string]$row.exclusion_reason } else { '' }
+    $exclusionDetail = if ($null -ne $row.PSObject.Properties['exclusion_detail']) { [string]$row.exclusion_detail } else { '' }
+    $policyCheckedAt = if ($null -ne $row.PSObject.Properties['policy_checked_at']) { [string]$row.policy_checked_at } else { '' }
+    $policyFingerprint = if ($null -ne $row.PSObject.Properties['policy_fingerprint']) { [string]$row.policy_fingerprint } else { '' }
 
     if ($SeedTsv -ne '') {
         $url = [string]$row.url
@@ -856,11 +862,23 @@ foreach ($row in ($inputRows | Sort-Object jis_code)) {
 
     if ($url -eq '') {
         $blankCount++
+        $crawlStatus = 'unresolved'
+        $exclusionReason = 'source_url_unresolved'
+        $exclusionDetail = '会議録の代表URLを未特定'
+        $policyCheckedAt = ''
+        $policyFingerprint = ''
     } else {
         $matchedCount++
+        if ($url -ne $originalUrl -or $crawlStatus -eq '') {
+            $crawlStatus = 'review_required'
+            $exclusionReason = 'robots_not_audited'
+            $exclusionDetail = 'URL更新後の取得経路監査が必要'
+            $policyCheckedAt = ''
+            $policyFingerprint = ''
+        }
     }
 
-    $lines.Add("$($row.jis_code)`t$url`t$systemType")
+    $lines.Add("$($row.jis_code)`t$url`t$systemType`t$crawlStatus`t$exclusionReason`t$exclusionDetail`t$policyCheckedAt`t$policyFingerprint")
 }
 
 [System.IO.Directory]::CreateDirectory((Split-Path -Parent $OutFile)) | Out-Null

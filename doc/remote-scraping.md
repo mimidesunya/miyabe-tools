@@ -4,7 +4,7 @@
 
 ## 事前同期
 
-`tools/` のスクレイパ本体、`data/municipalities/` の自治体一覧、スクレイパ用 Dockerfile をリモートへ同期します。
+`tools/` のスクレイパ本体、`deploy/scraper_runtime/` のCelery実行系、`data/municipalities/` の自治体一覧、スクレイパ用 Dockerfile をリモートへ同期します。
 
 ```bash
 python deploy/prepare_remote_scraping.py deploy.json --build-image
@@ -34,7 +34,11 @@ php /var/www/lib/migrate_runtime_state_to_postgres.php
 
 ## リモートでの議事録取得
 
-`assembly_minutes_system_urls.tsv` のうち、実装済みの `gijiroku.com` / `voices` / `kaigiroku.net` / `dbsr` / `db-search` / `kaigiroku-indexphp` / `kensakusystem` / `amivoice` / `msearch` を対象にします。
+`assembly_minutes_system_urls.tsv` のうち、`crawl_status=enabled` かつ実装済みの system_type を対象にします。URLが登録済みでも `excluded`（robots.txtによる必須経路拒否）または `review_required`（確認不能・再監査待ち）の行はCelery巡回へ投入しません。
+
+TSVをデプロイすると、会議録 dispatcher は `policy_fingerprint` から `url` / `system_type` の変更を検出します。変更行だけrobots.txtを再監査し、許可された場合は通常の6時間周期を待たずに会議録サイクルを投入します。拒否された場合は `excluded` と拒否経路をTSVへ記録し、取得しません。監査結果は `work/gijiroku/registry_policy_cache.json` にも保持するため、次のデプロイでローカルTSVに上書きされても同じURLを再処理しません。この自動監査は `SCRAPER_GIJIROKU_AUTO_AUDIT=1`（既定）で有効です。
+
+自動差分監査のコードを初めて本番へ反映する際だけは `deploy.sh --restart-scraping` を使うか、既定でworkerを再作成する `prepare_remote_scraping.py` を使います。以後のTSVだけの更新では、稼働中workerがマウント済みTSVを読み直すため再起動は不要です。
 
 同一ホストには既定で 1 自治体ずつしか当てません。
 
@@ -76,7 +80,7 @@ docker compose -f docker-compose.scraping.yml restart scraper-gijiroku scraper-b
 python3 deploy/remote_exec.py deploy.json -- "cd ~/services/miyabe-tools && docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml ps"
 ```
 
-`scraper-beat` は 1 分ごとに dispatcher task を投げ、会議録 worker は「前回の完了から既定 6 時間以上経過しているか」を見て `run_gijiroku_cycle` を queue へ積みます。`run_gijiroku_cycle` は各自治体のスクレイプ完了後に `tools/search/build_opensearch_index.py --mode update --doc-type minutes --slug ...` を実行し、その自治体分だけ OpenSearch alias 上で差し替えます。
+`scraper-beat` は 1 分ごとに dispatcher task を投げます。会議録 worker は最初にTSVの差分監査を行い、新たに許可された対象があれば即時に、それ以外は前回の完了から既定 6 時間以上経過したときに `run_gijiroku_cycle` を queue へ積みます。`run_gijiroku_cycle` は各自治体のスクレイプ完了後に `tools/search/build_opensearch_index.py --mode update --doc-type minutes --slug ...` を実行し、その自治体分だけ OpenSearch alias 上で差し替えます。
 
 即時に 1 サイクル走らせたい場合:
 

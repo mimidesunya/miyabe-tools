@@ -230,7 +230,7 @@ def _iter_supported_target_slugs(task_name: str) -> list[str]:
             from tools.gijiroku import gijiroku_targets
 
             slugs: list[str] = []
-            for target in gijiroku_targets.iter_gijiroku_targets():
+            for target in gijiroku_targets.iter_scrapeable_gijiroku_targets():
                 system_type = str(target.get("system_type") or "").strip()
                 system_family = gijiroku_targets.canonical_minutes_system_type(system_type)
                 if system_type in GIJIROKU_SUPPORTED_SYSTEMS or system_family in GIJIROKU_SUPPORTED_SYSTEMS:
@@ -287,15 +287,19 @@ def cycle_is_due(
     schedule_seconds: int,
     *,
     stale_seconds: int = DEFAULT_STALE_SECONDS,
+    force_due: bool = False,
 ) -> bool:
     # 投入判定の順序:
     # 1. 失敗直後のクールダウン中なら待つ
     # 2. まだ生きている実行中タスクがあれば待つ
-    # 3. 未完了が残っていれば短い周期、なければ通常周期で判定する
+    # 3. レジストリ差分で新しい対象が許可されたら即時投入する
+    # 4. 未完了が残っていれば短い周期、なければ通常周期で判定する
     if retry_marker_active(task_name):
         return False
     if task_is_running(task_name, stale_seconds=stale_seconds):
         return False
+    if force_due:
+        return True
     latest = latest_status_timestamp(task_name)
     if latest is None:
         return True

@@ -17,6 +17,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from municipality_slugs import code_name_slug, sanitize_slug_token
+from gijiroku.crawl_policy import policy_fingerprint
 
 
 WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
@@ -42,6 +43,21 @@ SYSTEM_FAMILY_BY_TYPE = {
     for family, system_types in SYSTEM_FAMILY_ALIASES.items()
     for system_type in system_types
 }
+
+CRAWL_STATUS_ENABLED = "enabled"
+CRAWL_STATUS_EXCLUDED = "excluded"
+CRAWL_STATUS_UNRESOLVED = "unresolved"
+CRAWL_STATUS_REVIEW_REQUIRED = "review_required"
+VALID_CRAWL_STATUSES = {
+    CRAWL_STATUS_ENABLED,
+    CRAWL_STATUS_EXCLUDED,
+    CRAWL_STATUS_UNRESOLVED,
+    CRAWL_STATUS_REVIEW_REQUIRED,
+}
+
+
+class CrawlPolicyBlockedError(ValueError):
+    """対象は登録済みだが、取得ポリシーにより実行できない。"""
 
 
 def project_root() -> Path:
@@ -114,6 +130,32 @@ def load_municipality_homepage_index() -> dict[str, str]:
     return index
 
 
+def effective_crawl_policy(row: dict[str, str]) -> dict[str, str]:
+    """保存済み判断を読み、レジストリ変更後なら監査待ちへ落とす。"""
+    source_url = str(row.get("url", "")).strip()
+    crawl_status = str(row.get("crawl_status", "")).strip()
+    if crawl_status not in VALID_CRAWL_STATUSES:
+        # 旧3列TSVとの後方互換。
+        crawl_status = CRAWL_STATUS_ENABLED if source_url else CRAWL_STATUS_UNRESOLVED
+
+    stored_fingerprint = str(row.get("policy_fingerprint", "")).strip()
+    if "policy_fingerprint" in row and source_url and stored_fingerprint != policy_fingerprint(row):
+        return {
+            "crawl_status": CRAWL_STATUS_REVIEW_REQUIRED,
+            "exclusion_reason": "registry_changed",
+            "exclusion_detail": "URLまたはsystem_type変更後のrobots監査待ち",
+            "policy_checked_at": "",
+            "policy_fingerprint": stored_fingerprint,
+        }
+    return {
+        "crawl_status": crawl_status,
+        "exclusion_reason": str(row.get("exclusion_reason", "")).strip(),
+        "exclusion_detail": str(row.get("exclusion_detail", "")).strip(),
+        "policy_checked_at": str(row.get("policy_checked_at", "")).strip(),
+        "policy_fingerprint": stored_fingerprint,
+    }
+
+
 def load_local_minutes_url_index() -> dict[str, dict[str, str]]:
     index: dict[str, dict[str, str]] = {}
     path = DATA_ROOT / "municipalities" / "assembly_minutes_system_urls.tsv"
@@ -125,9 +167,13 @@ def load_local_minutes_url_index() -> dict[str, dict[str, str]]:
             code = str(row.get("jis_code", "")).strip()
             if code == "":
                 continue
+            source_url = str(row.get("url", "")).strip()
+            system_type = str(row.get("system_type", "")).strip()
+            policy = effective_crawl_policy(row)
             index[code] = {
-                "url": str(row.get("url", "")).strip(),
-                "system_type": str(row.get("system_type", "")).strip(),
+                "url": source_url,
+                "system_type": system_type,
+                **policy,
             }
     return index
 
@@ -190,6 +236,11 @@ def build_target_entry(
     source_url: str,
     system_type: str,
     master_entry: dict[str, str] | None,
+    crawl_status: str = CRAWL_STATUS_ENABLED,
+    exclusion_reason: str = "",
+    exclusion_detail: str = "",
+    policy_checked_at: str = "",
+    policy_fingerprint_value: str = "",
 ) -> dict:
     # 会議録スクレイパも保存先と議会名を slug / master から決め打ちし、個別 override は持たない。
     name = str((master_entry or {}).get("name", "")).strip() or slug
@@ -212,6 +263,12 @@ def build_target_entry(
         "source_url": source_url,
         "base_url": derive_base_url(source_url),
         "robots_txt_url": derive_robots_txt_url(source_url),
+        "crawl_status": crawl_status,
+        "crawl_enabled": crawl_status == CRAWL_STATUS_ENABLED,
+        "exclusion_reason": exclusion_reason,
+        "exclusion_detail": exclusion_detail,
+        "policy_checked_at": policy_checked_at,
+        "policy_fingerprint": policy_fingerprint_value,
         "data_dir": build_data_path(data_dir),
         "work_dir": build_work_path(data_dir),
         "downloads_dir": build_work_path(downloads_dir),
@@ -219,7 +276,16 @@ def build_target_entry(
     }
 
 
-def iter_gijiroku_targets(expected_system: str | None = None) -> list[dict]:
+def iter_gijiroku_targets(
+    expected_system: str | None = None,
+    *,
+    include_inactive: bool = True,
+) -> list[dict]:
+    """URL登録済み対象を返す。
+
+    検索・既存データ整理から登録情報が消えないよう、既定ではrobots除外も含める。
+    新規取得に使う呼び出し元は iter_scrapeable_gijiroku_targets() を使う。
+    """
     url_index = load_local_minutes_url_index()
     master_index = load_municipality_master_index()
     homepage_index = load_municipality_homepage_index()
@@ -233,6 +299,10 @@ def iter_gijiroku_targets(expected_system: str | None = None) -> list[dict]:
 
         source_url = str(url_entry.get("url", "")).strip()
         if source_url == "":
+            continue
+
+        crawl_status = str(url_entry.get("crawl_status", CRAWL_STATUS_ENABLED)).strip()
+        if not include_inactive and crawl_status != CRAWL_STATUS_ENABLED:
             continue
 
         master_entry = master_index.get(code)
@@ -249,10 +319,20 @@ def iter_gijiroku_targets(expected_system: str | None = None) -> list[dict]:
                 source_url=source_url,
                 system_type=system_type,
                 master_entry=master_entry,
+                crawl_status=crawl_status,
+                exclusion_reason=str(url_entry.get("exclusion_reason", "")).strip(),
+                exclusion_detail=str(url_entry.get("exclusion_detail", "")).strip(),
+                policy_checked_at=str(url_entry.get("policy_checked_at", "")).strip(),
+                policy_fingerprint_value=str(url_entry.get("policy_fingerprint", "")).strip(),
             )
         )
 
     return targets
+
+
+def iter_scrapeable_gijiroku_targets(expected_system: str | None = None) -> list[dict]:
+    """robots監査で明示的に enabled となった対象だけを返す。"""
+    return iter_gijiroku_targets(expected_system=expected_system, include_inactive=False)
 
 
 def default_slug_for_system(expected_system: str | None = None) -> str:
@@ -265,7 +345,7 @@ def default_slug_for_system(expected_system: str | None = None) -> str:
         except ValueError:
             pass
 
-    all_targets = iter_gijiroku_targets(expected_system=expected_system)
+    all_targets = iter_scrapeable_gijiroku_targets(expected_system=expected_system)
     if all_targets:
         return str(all_targets[0]["slug"])
 
@@ -274,9 +354,21 @@ def default_slug_for_system(expected_system: str | None = None) -> str:
     raise ValueError(f"No municipality found for system_type={expected_system!r}")
 
 
-def load_gijiroku_target(slug: str, expected_system: str | None = None) -> dict:
+def load_gijiroku_target(
+    slug: str,
+    expected_system: str | None = None,
+    *,
+    allow_inactive: bool = False,
+) -> dict:
     for target in iter_gijiroku_targets(expected_system=expected_system):
         if gijiroku_target_matches_slug(target, slug):
+            if not allow_inactive and str(target.get("crawl_status", "")) != CRAWL_STATUS_ENABLED:
+                reason = str(target.get("exclusion_reason", "")).strip() or "crawl_policy"
+                detail = str(target.get("exclusion_detail", "")).strip()
+                suffix = f" ({detail})" if detail else ""
+                raise CrawlPolicyBlockedError(
+                    f"Municipality is not enabled for crawling: {slug} / {reason}{suffix}"
+                )
             return target
 
     raise ValueError(f"Municipality slug not found: {slug}")

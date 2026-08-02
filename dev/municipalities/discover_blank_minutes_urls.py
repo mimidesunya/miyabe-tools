@@ -16,6 +16,7 @@ import concurrent.futures as cf
 import csv
 import re
 import sys
+import threading
 import warnings
 from collections import deque
 from pathlib import Path
@@ -28,6 +29,9 @@ warnings.filterwarnings("ignore")
 urllib3.disable_warnings()
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+from tools.gijiroku.robots_rules import robots_can_fetch
+
 TSV = ROOT / "data" / "municipalities" / "assembly_minutes_system_urls.tsv"
 HOMEPAGES = ROOT / "data" / "municipalities" / "municipality_homepages.csv"
 MASTER = ROOT / "data" / "municipalities" / "municipality_master.tsv"
@@ -52,6 +56,42 @@ HOST_SYSTEMS = [
 ASSET_RE = re.compile(r"\.(pdf|jpg|jpeg|png|gif|zip|docx?|xlsx?|pptx?|css|js|ico|mp4|mp3)$", re.I)
 
 
+class RobotsGate:
+    """公式サイトの深掘り探索でもrobots.txtを越えて巡回しない。"""
+
+    def __init__(self, timeout: float):
+        self.timeout = timeout
+        self._lock = threading.Lock()
+        self._rules: dict[str, str | bool] = {}
+
+    def can_fetch(self, url: str) -> bool:
+        parts = urlsplit(url)
+        robots_url = f"{parts.scheme or 'https'}://{parts.netloc}/robots.txt"
+        with self._lock:
+            cached = self._rules.get(robots_url)
+        if cached is None:
+            try:
+                response = requests.get(robots_url, headers=UA, timeout=self.timeout, verify=False, allow_redirects=True)
+                if response.status_code in {404, 410}:
+                    loaded: str | bool = True
+                elif 200 <= response.status_code < 300:
+                    loaded = response.text
+                else:
+                    # 確認不能時に探索を強行しない。URL登録後の本監査とは区別する。
+                    loaded = False
+            except Exception:
+                loaded = False
+            with self._lock:
+                self._rules[robots_url] = loaded
+            cached = loaded
+        if isinstance(cached, bool):
+            return cached
+        return robots_can_fetch(cached, UA["User-Agent"], url)
+
+
+ROBOTS_GATE: RobotsGate | None = None
+
+
 def load_rows(path: Path, delim: str = "\t") -> list[dict]:
     with open(path, "r", encoding="utf-8-sig", newline="") as handle:
         return list(csv.DictReader(handle, delimiter=delim))
@@ -69,6 +109,8 @@ def classify_host(url: str) -> str | None:
 
 
 def fetch(session: requests.Session, url: str, timeout: float) -> requests.Response | None:
+    if ROBOTS_GATE is not None and not ROBOTS_GATE.can_fetch(url):
+        return None
     try:
         r = session.get(url, headers=UA, timeout=timeout, verify=False, allow_redirects=True)
         if r.status_code != 200:
@@ -145,6 +187,7 @@ def discover(code: str, homepage: str, *, timeout: float, max_pages: int, max_de
 
 
 def main() -> int:
+    global ROBOTS_GATE
     parser = argparse.ArgumentParser(description="空欄会議録URLの深掘り発見")
     parser.add_argument("--write", action="store_true", help="解決結果を TSV に書き込む")
     parser.add_argument("--limit", type=int, default=0, help="処理件数上限（試験用）")
@@ -153,6 +196,7 @@ def main() -> int:
     parser.add_argument("--max-pages", type=int, default=30)
     parser.add_argument("--max-depth", type=int, default=4)
     args = parser.parse_args()
+    ROBOTS_GATE = RobotsGate(max(1.0, args.timeout))
 
     rows = load_rows(TSV)
     blanks = [r["jis_code"] for r in rows if not (r.get("system_type") or "").strip()]
@@ -193,6 +237,15 @@ def main() -> int:
             if c in resolved:
                 r["system_type"] = resolved[c][0]
                 r["url"] = resolved[c][1]
+                # 発見処理はrobotsを守るが、実スクレイパ固有のAPI/一覧経路は
+                # audit_minutes_robots.py で別途判定するまで実行判断を保留する。
+                if "crawl_status" in r:
+                    r["crawl_status"] = "review_required"
+                    r["exclusion_reason"] = "robots_not_audited"
+                    r["exclusion_detail"] = "発見後の取得経路監査が必要"
+                    r["policy_checked_at"] = ""
+                    if "policy_fingerprint" in r:
+                        r["policy_fingerprint"] = ""
         with open(TSV, "w", encoding="utf-8", newline="") as handle:
             w = csv.DictWriter(handle, fieldnames=rows[0].keys(), delimiter="\t")
             w.writeheader()
