@@ -67,7 +67,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ack-robots",
         action="store_true",
-        help="明示的な除外対象以外について、robots.txt・利用規約・許諾確認済みとして実行する",
+        help="TSVのcrawl_statusに基づく実行判断を確認して開始する",
     )
     parser.add_argument(
         "--list-excluded",
@@ -300,7 +300,7 @@ def list_excluded_targets(targets: list[dict]) -> None:
 def main() -> int:
     args = build_parser().parse_args()
     if not args.ack_robots and not args.list_targets and not args.list_excluded:
-        print("[ERROR] robots.txt / 利用規約確認のため --ack-robots を指定してください。", flush=True)
+        print("[ERROR] TSVの取得判断を確認し、--ack-robots を指定してください。", flush=True)
         return 2
     error = scraping_batch.validate_common_args(args)
     if error:

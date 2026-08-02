@@ -36,7 +36,7 @@ php /var/www/lib/migrate_runtime_state_to_postgres.php
 
 `assembly_minutes_system_urls.tsv` のうち、`crawl_status=enabled` かつ実装済みの system_type を対象にします。URLが登録済みでも `excluded`（robots.txtによる必須経路拒否）または `review_required`（確認不能・再監査待ち）の行はCelery巡回へ投入しません。
 
-TSVをデプロイすると、会議録 dispatcher は `policy_fingerprint` から `url` / `system_type` の変更を検出します。変更行だけrobots.txtを再監査し、許可された場合は通常の6時間周期を待たずに会議録サイクルを投入します。拒否された場合は `excluded` と拒否経路をTSVへ記録し、取得しません。監査結果は `work/gijiroku/registry_policy_cache.json` にも保持するため、次のデプロイでローカルTSVに上書きされても同じURLを再処理しません。この自動監査は `SCRAPER_GIJIROKU_AUTO_AUDIT=1`（既定）で有効です。
+TSVをデプロイすると、会議録 dispatcher は `crawl_status=enabled` を運用者による明示許可として最優先します。この行はrobots監査を行わず、状態やURLの変更を検出した場合は通常の6時間周期を待たずに会議録サイクルを投入します。`enabled` 以外の変更行だけrobots.txtを監査し、拒否された場合は `excluded` と拒否経路をTSVへ記録します。状態は `work/gijiroku/registry_policy_cache.json` にも保持します。この自動処理は `SCRAPER_GIJIROKU_AUTO_AUDIT=1`（既定）で有効です。
 
 自動差分監査のコードを初めて本番へ反映する際だけは `deploy.sh --restart-scraping` を使うか、既定でworkerを再作成する `prepare_remote_scraping.py` を使います。以後のTSVだけの更新では、稼働中workerがマウント済みTSVを読み直すため再起動は不要です。
 

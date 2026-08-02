@@ -5,9 +5,9 @@ JavaScript 前提サイト向けに `Playwright` を利用します。`kensakusy
 
 ## 重要
 
-- `robots.txt` では CGI 配下（会議録本体がある領域）へのアクセス制限が示されています。
-- 実運用前に利用規約・許諾を確認してください。
-- 本ツールは明示確認フラグ `--ack-robots` がないと実行しません。
+- `crawl_status=enabled` は運用者による明示許可であり、robots監査を行わず取得します。
+- 実運用上の取得判断は `assembly_minutes_system_urls.tsv` に記録してください。
+- 本ツールは既存の実行確認フラグ `--ack-robots` がないと実行しません。
 - 連続アクセス負荷を下げるため、`--delay-seconds` を小さくしすぎないでください。
 
 ## セットアップ
@@ -185,7 +185,7 @@ php dev/gijiroku/organize_minutes_data.php --slug 14130-kawasaki-shi
 - `--max-meetings` 処理件数上限（`0` は無制限）
 - `--timeout-ms` 操作タイムアウト（ミリ秒）
 - `--parallel` 自治体スクレイパの同時実行数
-- `--ack-robots` 規約/robots 確認済みフラグ（必須）
+- `--ack-robots` TSVの取得判断を確認する実行フラグ（必須）
 - `--save-html` ダウンロード失敗時に会議詳細HTMLを保存
 - `--max-years` `kaigiroku.net` 系で取得対象年数を制限
 - `--save-debug-json` `kaigiroku.net` 系で調査用 JSON を保存

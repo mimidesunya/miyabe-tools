@@ -131,7 +131,7 @@ def load_municipality_homepage_index() -> dict[str, str]:
 
 
 def effective_crawl_policy(row: dict[str, str]) -> dict[str, str]:
-    """保存済み判断を読み、レジストリ変更後なら監査待ちへ落とす。"""
+    """保存済み判断を読み、enabled は運用者の明示許可として優先する。"""
     source_url = str(row.get("url", "")).strip()
     crawl_status = str(row.get("crawl_status", "")).strip()
     if crawl_status not in VALID_CRAWL_STATUSES:
@@ -139,6 +139,14 @@ def effective_crawl_policy(row: dict[str, str]) -> dict[str, str]:
         crawl_status = CRAWL_STATUS_ENABLED if source_url else CRAWL_STATUS_UNRESOLVED
 
     stored_fingerprint = str(row.get("policy_fingerprint", "")).strip()
+    if crawl_status == CRAWL_STATUS_ENABLED:
+        return {
+            "crawl_status": crawl_status,
+            "exclusion_reason": "",
+            "exclusion_detail": "",
+            "policy_checked_at": str(row.get("policy_checked_at", "")).strip(),
+            "policy_fingerprint": stored_fingerprint,
+        }
     if "policy_fingerprint" in row and source_url and stored_fingerprint != policy_fingerprint(row):
         return {
             "crawl_status": CRAWL_STATUS_REVIEW_REQUIRED,

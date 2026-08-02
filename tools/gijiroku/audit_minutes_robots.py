@@ -216,9 +216,20 @@ def apply_cached_policies(
         updated = normalized_row(row)
         code = str(row.get("jis_code", "")).strip()
         cached = cache.get(code, {})
+        current_fingerprint = policy_fingerprint(row)
+        if updated["crawl_status"] == "enabled":
+            # enabled は運用者の明示許可。過去のrobots判定を復元せず、
+            # URL/system_type の現在値だけを記録して監査対象から外す。
+            if updated["policy_fingerprint"] != current_fingerprint or updated["exclusion_reason"]:
+                updated["policy_checked_at"] = ""
+            updated["exclusion_reason"] = ""
+            updated["exclusion_detail"] = ""
+            updated["policy_fingerprint"] = current_fingerprint
+            restored.append(updated)
+            continue
         if (
             str(cached.get("crawl_status", "")) in VALID_CACHE_STATUSES
-            and str(cached.get("policy_fingerprint", "")) == policy_fingerprint(row)
+            and str(cached.get("policy_fingerprint", "")) == current_fingerprint
         ):
             updated.update({key: str(cached.get(key, "") or "").strip() for key in POLICY_RESULT_FIELDS})
         restored.append(updated)
@@ -273,6 +284,7 @@ def audit_registry(
     timeout: float = 12.0,
     checked_at: str | None = None,
     cache_path: Path | None = None,
+    include_enabled: bool = False,
 ) -> AuditSummary:
     source_digest = file_digest(path)
     source_rows = read_rows(path)
@@ -280,8 +292,30 @@ def audit_registry(
     rows = apply_cached_policies(source_rows, policy_cache)
     selected_codes = {str(value).strip() for value in (codes or set()) if str(value).strip()}
 
+    def enabled_override_changed(row: dict[str, str]) -> bool:
+        if str(row.get("crawl_status", "")).strip() != "enabled":
+            return False
+        code = str(row.get("jis_code", "")).strip()
+        cached = policy_cache.get(code, {})
+        return (
+            str(cached.get("crawl_status", "")) != "enabled"
+            or str(cached.get("policy_fingerprint", "")) != policy_fingerprint(row)
+        )
+
+    operator_enabled_changed = bool(
+        cache_path is not None
+        and policy_cache
+        and any(enabled_override_changed(row) for row in source_rows)
+    )
+
     def is_selected(row: dict[str, str]) -> bool:
         if selected_codes and str(row.get("jis_code", "")).strip() not in selected_codes:
+            return False
+        if (
+            not stamp_fingerprints
+            and not include_enabled
+            and str(row.get("crawl_status", "")).strip() == "enabled"
+        ):
             return False
         if stale_only and policy_fingerprint_is_current(row):
             return False
@@ -306,7 +340,7 @@ def audit_registry(
 
     audit_date = checked_at or date.today().isoformat()
     audited: list[dict[str, str]] = []
-    enabled_targets_changed = False
+    enabled_targets_changed = operator_enabled_changed
     for index, row in enumerate(rows):
         before = normalized_row(row)
         if index not in selected_indexes:
@@ -334,12 +368,15 @@ def audit_registry(
     if wrote:
         write_rows(path, audited, expected_digest=source_digest)
 
-    if write and cache_path is not None and selected_indexes and not stamp_fingerprints:
-        updated_cache = dict(policy_cache)
-        for index in selected_indexes:
-            row = audited[index]
+    if write and cache_path is not None and not stamp_fingerprints:
+        updated_cache: dict[str, dict[str, str]] = {}
+        for row in audited:
             code = str(row.get("jis_code", "")).strip()
-            if code and row["policy_fingerprint"] == policy_fingerprint(row):
+            if (
+                code
+                and row["crawl_status"] in VALID_CACHE_STATUSES
+                and row["policy_fingerprint"] == policy_fingerprint(row)
+            ):
                 updated_cache[code] = {key: row[key] for key in POLICY_RESULT_FIELDS}
         if updated_cache != policy_cache:
             write_policy_cache(cache_path, updated_cache)
@@ -362,6 +399,11 @@ def main() -> int:
     parser.add_argument("--write", action="store_true", help="監査結果をTSVへ保存する")
     parser.add_argument("--codes", default="", help="監査する自治体コードのカンマ区切り（空なら全件）")
     parser.add_argument("--stale-only", action="store_true", help="URLかsystem_typeが変わった行だけ監査する")
+    parser.add_argument(
+        "--include-enabled",
+        action="store_true",
+        help="明示許可されたenabled行もrobots監査する",
+    )
     parser.add_argument(
         "--stamp-fingerprints",
         action="store_true",
@@ -387,6 +429,7 @@ def main() -> int:
         workers=args.workers,
         timeout=args.timeout,
         cache_path=args.cache,
+        include_enabled=args.include_enabled,
     )
     print(
         f"rows={summary.rows} selected={summary.selected_rows} "

@@ -57,7 +57,7 @@ class MinutesRobotsPolicyTest(unittest.TestCase):
         self.assertIn("/dnp/search/", classified["exclusion_detail"])
         self.assertEqual(classified["policy_fingerprint"], crawl_policy.policy_fingerprint(row))
 
-    def test_registry_change_is_blocked_until_policy_is_reaudited(self) -> None:
+    def test_enabled_registry_change_remains_operator_enabled(self) -> None:
         row = {
             "url": "https://example.test/old/",
             "system_type": "独自",
@@ -68,15 +68,15 @@ class MinutesRobotsPolicyTest(unittest.TestCase):
 
         effective = gijiroku_targets.effective_crawl_policy(row)
 
-        self.assertEqual(effective["crawl_status"], "review_required")
-        self.assertEqual(effective["exclusion_reason"], "registry_changed")
+        self.assertEqual(effective["crawl_status"], "enabled")
+        self.assertEqual(effective["exclusion_reason"], "")
 
     def test_stale_only_audit_enables_changed_row_and_requests_immediate_cycle(self) -> None:
         row = {
             "jis_code": "00000",
             "url": "https://example.test/old/",
             "system_type": "独自",
-            "crawl_status": "enabled",
+            "crawl_status": "review_required",
             "policy_checked_at": "2026-08-01",
         }
         row["policy_fingerprint"] = crawl_policy.policy_fingerprint(row)
@@ -111,7 +111,7 @@ class MinutesRobotsPolicyTest(unittest.TestCase):
             "jis_code": "00000",
             "url": "https://example.test/new/",
             "system_type": "独自",
-            "crawl_status": "enabled",
+            "crawl_status": "review_required",
             "policy_checked_at": "2026-08-01",
             "policy_fingerprint": "old-deployment-value",
         }
@@ -146,6 +146,85 @@ class MinutesRobotsPolicyTest(unittest.TestCase):
         self.assertTrue(summary.wrote)
         fetch_robots.assert_not_called()
         write_rows.assert_called_once()
+
+    def test_enabled_override_skips_robots_and_requests_immediate_cycle(self) -> None:
+        source = {
+            "jis_code": "00000",
+            "url": "https://example.test/new/",
+            "system_type": "独自",
+            "crawl_status": "enabled",
+            "exclusion_reason": "robots_disallowed",
+            "exclusion_detail": "old robots result",
+            "policy_checked_at": "2026-08-01",
+            "policy_fingerprint": "old-deployment-value",
+        }
+        cached = {
+            "00000": {
+                "crawl_status": "excluded",
+                "exclusion_reason": "robots_disallowed",
+                "exclusion_detail": "old robots result",
+                "policy_checked_at": "2026-08-01",
+                "policy_fingerprint": crawl_policy.policy_fingerprint(source),
+            }
+        }
+
+        with (
+            mock.patch.object(audit_minutes_robots, "file_digest", return_value="source-digest"),
+            mock.patch.object(audit_minutes_robots, "read_rows", return_value=[source]),
+            mock.patch.object(audit_minutes_robots, "load_policy_cache", return_value=cached),
+            mock.patch.object(audit_minutes_robots, "fetch_robots") as fetch_robots,
+            mock.patch.object(audit_minutes_robots, "write_rows") as write_rows,
+            mock.patch.object(audit_minutes_robots, "write_policy_cache") as write_policy_cache,
+        ):
+            summary = audit_minutes_robots.audit_registry(
+                Path("registry.tsv"),
+                write=True,
+                stale_only=True,
+                workers=1,
+                cache_path=Path("cache.json"),
+            )
+
+        self.assertEqual(summary.selected_rows, 0)
+        self.assertTrue(summary.enabled_targets_changed)
+        self.assertTrue(summary.wrote)
+        fetch_robots.assert_not_called()
+        write_rows.assert_called_once()
+        write_policy_cache.assert_called_once()
+
+    def test_initial_cache_seed_does_not_request_duplicate_cycle(self) -> None:
+        source = {
+            "jis_code": "00000",
+            "url": "https://example.test/minutes/",
+            "system_type": "独自",
+            "crawl_status": "enabled",
+            "exclusion_reason": "",
+            "exclusion_detail": "",
+            "policy_checked_at": "",
+        }
+        source["policy_fingerprint"] = crawl_policy.policy_fingerprint(source)
+
+        with (
+            mock.patch.object(audit_minutes_robots, "file_digest", return_value="source-digest"),
+            mock.patch.object(audit_minutes_robots, "read_rows", return_value=[source]),
+            mock.patch.object(audit_minutes_robots, "load_policy_cache", return_value={}),
+            mock.patch.object(audit_minutes_robots, "fetch_robots") as fetch_robots,
+            mock.patch.object(audit_minutes_robots, "write_rows") as write_rows,
+            mock.patch.object(audit_minutes_robots, "write_policy_cache") as write_policy_cache,
+        ):
+            summary = audit_minutes_robots.audit_registry(
+                Path("registry.tsv"),
+                write=True,
+                stale_only=True,
+                workers=1,
+                cache_path=Path("cache.json"),
+            )
+
+        self.assertEqual(summary.selected_rows, 0)
+        self.assertFalse(summary.enabled_targets_changed)
+        self.assertFalse(summary.wrote)
+        fetch_robots.assert_not_called()
+        write_rows.assert_not_called()
+        write_policy_cache.assert_called_once()
 
     def test_legacy_rows_keep_backward_compatible_statuses(self) -> None:
         self.assertIn(gijiroku_targets.CRAWL_STATUS_ENABLED, gijiroku_targets.VALID_CRAWL_STATUSES)

@@ -707,7 +707,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 13401			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 13402			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 13421	https://ssp.kaigiroku.net/tenant/ogasawara/SpTop.html	kaigiroku.net	excluded	robots_disallowed	https://ssp.kaigiroku.net/robots.txt / 拒否経路: https://ssp.kaigiroku.net/dnp/search/	2026-08-02	15ad0cafd60e4f04d2b832571cba5fb1067ce0d3121225df3c80c30fa7ba366a
-14000	https://ssp.kaigiroku.net/tenant/prefkanagawa/SpMinuteSearch.html	kaigiroku.net	excluded	robots_disallowed	https://ssp.kaigiroku.net/robots.txt / 拒否経路: https://ssp.kaigiroku.net/dnp/search/	2026-08-02	60a722e587f4fa86715c86cb6f8e517cffc35fc90fab67849e839a7e73cbe4cd
+14000	https://ssp.kaigiroku.net/tenant/prefkanagawa/SpMinuteSearch.html	kaigiroku.net	enabled				60a722e587f4fa86715c86cb6f8e517cffc35fc90fab67849e839a7e73cbe4cd
 14100	http://giji.city.yokohama.lg.jp/tenant/yokohama/MinuteSearch.html	kaigiroku.net	excluded	robots_disallowed	http://giji.city.yokohama.lg.jp/robots.txt / 拒否経路: http://giji.city.yokohama.lg.jp/dnp/search/	2026-08-02	1de78f5688501721113524f87e20db6c3b2dba81169be5120a972b7e5e6d61ab
 14130	https://www13.gijiroku.com/kawasaki_council/g07v_search.asp?Sflg=2	gijiroku.com	enabled			2026-08-02	d8f088efe54d742eea67551b64b7aaf2e8c6af798dc68053e7445f9b343b6236
 14150	https://ssp.kaigiroku.net/tenant/sagamihara/SpMinuteSearch.html	kaigiroku.net	excluded	robots_disallowed	https://ssp.kaigiroku.net/robots.txt / 拒否経路: https://ssp.kaigiroku.net/dnp/search/	2026-08-02	b6296d8d118c34d3abdfadbc71cef45a3329f1e04e75c66eed73de5aa2fb01d3

@@ -23,7 +23,8 @@
 - ページに `提供なし` とある自治体、または一覧に見当たらない自治体は空欄
 - 空欄は「この調査手順でURLを確定できなかった」ことを意味し、Web 上での不存在を断定するものではありません
 - 代表URLが許可されていても、本文取得に必須のAPI・一覧URLが拒否されていれば `excluded` とします
-- URLまたは `system_type` を更新した直後は、保存済み判断を無効化してrobots差分監査が済むまで自動取得しません
+- `crawl_status=enabled` は運用者による明示許可として扱い、URLや `system_type` が変わってもrobots監査を行わず取得します
+- `enabled` 以外でURLまたは `system_type` を更新した場合は、robots差分監査が済むまで自動取得しません
 
 ## 列
 
@@ -38,7 +39,7 @@
 
 `crawl_status` の意味は次のとおりです。
 
-- `enabled`: robots監査済みで自動取得可能
+- `enabled`: 運用者が自動取得を明示許可。robots監査は行わない
 - `excluded`: robots.txtが現在のスクレイパの必須経路を明示的に拒否
 - `review_required`: robots.txtを取得できない、またはURL更新後の自動再監査待ち
 - `unresolved`: 会議録代表URLを未特定
@@ -47,12 +48,12 @@
 
 ## 通常の追加・変更手順
 
-運用時に手編集するのは原則として `jis_code`、`url`、`system_type` の3列だけです。既存自治体は同じ `jis_code` の行を更新し、重複行は追加しません。残りの状態列はシステムが管理します。
+既存自治体は同じ `jis_code` の行を更新し、重複行は追加しません。通常の自動判定では `url` と `system_type` を更新します。robots判定にかかわらず取得するという運用判断を明示する場合だけ、`crawl_status` を `enabled` にします。その他の状態列はシステムが管理します。
 
 1. `assembly_minutes_system_urls.tsv` の `url` と `system_type` を追加または変更する
 2. 通常どおりデプロイする
-3. 稼働中の Celery dispatcher が1分以内にフィンガープリント差分を検出し、変更行だけrobots.txtを監査する
-4. 許可なら `enabled` にして初回取得を即時投入し、拒否なら `excluded` と拒否経路を記録する
+3. `crawl_status=enabled` ならrobots監査を省略し、稼働中の Celery dispatcher が取得サイクルを即時投入する
+4. `enabled` 以外なら変更行だけrobots.txtを監査し、許可なら `enabled`、拒否なら `excluded` と拒否経路を記録する
 
 robots.txtを取得できなかった場合は `review_required` となり、取得処理には入りません。監査結果をローカル正本へ確定してコミットしたい場合や手動再確認には、下記の監査コマンドを使います。
 
@@ -122,7 +123,7 @@ python tools/gijiroku/audit_minutes_robots.py
 python tools/gijiroku/audit_minutes_robots.py --write
 ```
 
-監査はドライランを先に実行します。特定自治体だけを再確認する場合は `--codes 01361,05346` のように指定できます。
+監査はドライランを先に実行します。`enabled` 行は既定で監査しません。特定自治体だけを再確認する場合は `--codes 01361,05346` のように指定し、`enabled` も再監査する場合だけ `--include-enabled` を追加します。
 
 変更行だけをローカルで処理する場合:
 
