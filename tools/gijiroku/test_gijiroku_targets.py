@@ -239,14 +239,14 @@ class MinutesRobotsPolicyTest(unittest.TestCase):
             )
         )
 
-    def test_registered_robots_exclusion_is_not_scrapeable(self) -> None:
+    def test_registered_review_required_target_is_not_scrapeable(self) -> None:
         all_targets = gijiroku_targets.iter_gijiroku_targets()
         scrapeable = gijiroku_targets.iter_scrapeable_gijiroku_targets()
 
-        self.assertIn("37000", {target["code"] for target in all_targets})
-        self.assertNotIn("37000", {target["code"] for target in scrapeable})
+        self.assertIn("47000", {target["code"] for target in all_targets})
+        self.assertNotIn("47000", {target["code"] for target in scrapeable})
         with self.assertRaises(gijiroku_targets.CrawlPolicyBlockedError):
-            gijiroku_targets.load_gijiroku_target("37000")
+            gijiroku_targets.load_gijiroku_target("47000")
 
 
 if __name__ == "__main__":
