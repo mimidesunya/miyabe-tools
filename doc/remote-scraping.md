@@ -89,6 +89,16 @@ docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml exec -T s
   sh -lc 'cd /workspace && PYTHONPATH=/workspace python3 deploy/scraper_runtime/celery/enqueue.py gijiroku-cycle'
 ```
 
+前回の実エラーで通常巡回から除外されている会議録対象を、一度だけすべて再試行する場合:
+
+```bash
+docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml exec -T scraper-gijiroku \
+  sh -lc 'cd /workspace && PYTHONPATH=/workspace python3 deploy/scraper_runtime/celery/enqueue.py gijiroku-cycle --retry-failed'
+```
+
+このオプションは取得済み成果物や失敗ログを削除しません。投入されたサイクルに限って
+`previous_failed` の対象を優先度キューへ戻し、次回以降は通常の失敗抑制へ戻ります。
+
 会議録の OpenSearch index を明示的に再構築したい場合:
 
 ```bash

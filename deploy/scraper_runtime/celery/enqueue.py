@@ -40,6 +40,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="*-index task で更新する自治体 slug",
     )
+    parser.add_argument(
+        "--retry-failed",
+        action="store_true",
+        help="gijiroku-cycle で前回失敗対象を一度だけ再試行する",
+    )
     return parser
 
 
@@ -49,6 +54,11 @@ def main() -> int:
     kwargs = {}
     if args.task.endswith("-rebuild"):
         kwargs["name_filter"] = args.filter.strip()
+    if args.retry_failed:
+        if args.task != "gijiroku-cycle":
+            print("--retry-failed is only valid for gijiroku-cycle", file=sys.stderr)
+            return 2
+        kwargs["retry_failed"] = True
     if args.task.endswith("-index"):
         slug = args.slug.strip()
         if slug == "":
@@ -65,6 +75,7 @@ def main() -> int:
                 "task_id": result.id,
                 "filter": kwargs.get("name_filter", ""),
                 "slug": kwargs.get("slug", ""),
+                "retry_failed": bool(kwargs.get("retry_failed", False)),
             },
             ensure_ascii=False,
         )

@@ -240,13 +240,31 @@ class MinutesRobotsPolicyTest(unittest.TestCase):
         )
 
     def test_registered_review_required_target_is_not_scrapeable(self) -> None:
-        all_targets = gijiroku_targets.iter_gijiroku_targets()
-        scrapeable = gijiroku_targets.iter_scrapeable_gijiroku_targets()
+        review_target = {
+            "url": "https://example.test/minutes/",
+            "system_type": "独自",
+            "crawl_status": gijiroku_targets.CRAWL_STATUS_REVIEW_REQUIRED,
+            "exclusion_reason": "robots_unreachable",
+            "exclusion_detail": "robots.txt / HTTP 403",
+            "policy_checked_at": "2026-08-02",
+            "policy_fingerprint": "fingerprint",
+        }
+        with (
+            mock.patch.object(
+                gijiroku_targets,
+                "load_local_minutes_url_index",
+                return_value={"00000": review_target},
+            ),
+            mock.patch.object(gijiroku_targets, "load_municipality_master_index", return_value={}),
+            mock.patch.object(gijiroku_targets, "load_municipality_homepage_index", return_value={}),
+        ):
+            all_targets = gijiroku_targets.iter_gijiroku_targets()
+            scrapeable = gijiroku_targets.iter_scrapeable_gijiroku_targets()
 
-        self.assertIn("47000", {target["code"] for target in all_targets})
-        self.assertNotIn("47000", {target["code"] for target in scrapeable})
-        with self.assertRaises(gijiroku_targets.CrawlPolicyBlockedError):
-            gijiroku_targets.load_gijiroku_target("47000")
+            self.assertIn("00000", {target["code"] for target in all_targets})
+            self.assertNotIn("00000", {target["code"] for target in scrapeable})
+            with self.assertRaises(gijiroku_targets.CrawlPolicyBlockedError):
+                gijiroku_targets.load_gijiroku_target("00000")
 
 
 if __name__ == "__main__":

@@ -147,6 +147,11 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="対象自治体一覧だけ表示して終了する",
     )
+    parser.add_argument(
+        "--retry-failed",
+        action="store_true",
+        help="前回の実エラーで自動除外された対象を、この実行に限って再試行する",
+    )
 
 
 # 共通 CLI オプションの値を検証し、問題があればエラーメッセージを返す。
@@ -718,7 +723,12 @@ def list_targets(spec: BatchSpec, targets: list[dict]) -> None:
 
 
 # score が 0 より大きい自治体だけを抽出し、優先度順に並べる。
-def select_runnable_targets(spec: BatchSpec, targets: list[dict]) -> list[dict]:
+def select_runnable_targets(
+    spec: BatchSpec,
+    targets: list[dict],
+    *,
+    retry_failed: bool = False,
+) -> list[dict]:
     skipped_zero_score = 0
     label_counts: dict[str, int] = {}
     runnable_targets: list[dict] = []
@@ -729,7 +739,8 @@ def select_runnable_targets(spec: BatchSpec, targets: list[dict]) -> list[dict]:
             priority = {"priority_score": 2_000_000_000, "priority_label": "unknown_total"}
         label = str(priority.get("priority_label") or "unknown")
         label_counts[label] = label_counts.get(label, 0) + 1
-        if int(priority.get("priority_score") or 0) <= 0:
+        retry_previous_failure = retry_failed and label == "previous_failed"
+        if int(priority.get("priority_score") or 0) <= 0 and not retry_previous_failure:
             skipped_zero_score += 1
             continue
         runnable_targets.append(target)
@@ -770,7 +781,11 @@ def run_batch(spec: BatchSpec, args: argparse.Namespace, targets: list[dict]) ->
     stop_controller = install_stop_signal_handlers()
 
     targets = filter_targets(targets, args.filter)
-    targets = select_runnable_targets(spec, targets)
+    targets = select_runnable_targets(
+        spec,
+        targets,
+        retry_failed=bool(getattr(args, "retry_failed", False)),
+    )
     if args.max_targets > 0:
         targets = targets[: args.max_targets]
 
