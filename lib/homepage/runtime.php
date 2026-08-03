@@ -1349,6 +1349,10 @@ function homepage_feature_target_codes(string $featureKey): array
         if (trim((string)($row['url'] ?? '')) === '') {
             continue;
         }
+        $crawlStatus = trim((string)($row['crawl_status'] ?? ''));
+        if ($crawlStatus !== '' && $crawlStatus !== 'enabled') {
+            continue;
+        }
         $systemType = trim((string)($row['system_type'] ?? ''));
         if ($supportedSystemTypes !== [] && !isset($supportedSystemTypes[$systemType])) {
             continue;
@@ -1356,6 +1360,15 @@ function homepage_feature_target_codes(string $featureKey): array
         $codes[] = trim((string)$code);
     }
     $cache[$featureKey] = $codes;
+    return $cache[$featureKey];
+}
+
+function homepage_feature_target_code_set(string $featureKey): array
+{
+    static $cache = [];
+    if (!array_key_exists($featureKey, $cache)) {
+        $cache[$featureKey] = array_fill_keys(homepage_feature_target_codes($featureKey), true);
+    }
     return $cache[$featureKey];
 }
 
@@ -1371,9 +1384,12 @@ function homepage_feature_supported_system_types(string $featureKey): array
             'db-search',
             'kaigiroku-indexphp',
             'kensakusystem',
+            'amivoice',
+            'msearch',
             'kami-city-pdf',
             'site-gikai-pdf',
             'static-kaigiroku-dir',
+            '独自',
         ], true),
         // tools/reiki/scrape_all_reiki.py の SUPPORTED_SYSTEMS と同期する。
         'reiki' => array_fill_keys([
@@ -2168,8 +2184,11 @@ function homepage_collect_visible_features(
 ): array {
     $visibleFeatures = [];
     $readyVisibleCount = 0;
+    $municipalityCode = trim((string)($municipality['code'] ?? ''));
 
     foreach ($featureLabels as $featureKey => $label) {
+        $targetCodeSet = homepage_feature_target_code_set($featureKey);
+        $isPlannedTarget = $municipalityCode !== '' && isset($targetCodeSet[$municipalityCode]);
         $runtimeState = $featureRuntimeStates[$featureKey] ?? null;
         $feature = is_array($runtimeState['feature'] ?? null)
             ? $runtimeState['feature']
@@ -2204,6 +2223,15 @@ function homepage_collect_visible_features(
             $hasData,
             is_array($displays['fallback'] ?? null) ? $displays['fallback'] : null
         );
+        if ($isPlannedTarget && !$hasData && $display === null) {
+            $display = [
+                'label' => '取得予定',
+                'class' => 'task-info',
+                'detail' => '取得待ち',
+                'progress_current' => null,
+                'progress_total' => null,
+            ];
+        }
 
         $hasError = homepage_task_display_has_error($display)
             || homepage_task_display_has_error($primaryDisplay)
@@ -2213,17 +2241,17 @@ function homepage_collect_visible_features(
             || homepage_task_display_has_warning($publishDisplay);
         $hasIssue = $hasError || $hasWarning;
         $needsPublish = !$hasData && homepage_task_display_is_complete($primaryDisplay);
-        if (!$hasData && !$needsPublish && !$hasIssue) {
+        if (!$hasData && !$needsPublish && !$hasIssue && !$isPlannedTarget) {
             continue;
         }
-        if (!$hasData && !$hasIssue && homepage_unpublished_display_should_hide($display)) {
+        if (!$hasData && !$hasIssue && !$isPlannedTarget && homepage_unpublished_display_should_hide($display)) {
             continue;
         }
-        if (!$hasData && $display === null) {
+        if (!$hasData && $display === null && !$isPlannedTarget) {
             continue;
         }
 
-        // 公開中のデータがあるものと、まだ未公開でも進捗を見せたいものだけを残す。
+        // 公開中のデータに加え、enabled の取得予定対象は未着手でも「未公開」として残す。
         if ($isEnabled) {
             $statusLabel = '利用可能';
             $statusClass = 'status-ready';

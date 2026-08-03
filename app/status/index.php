@@ -70,7 +70,7 @@ function status_asset_url(string $relativePath): string
             <span>利用可能: 画面とデータを公開中です</span>
             <span>休止中: データはあるものの公開を止めています</span>
             <span>要反映: 取得は完了したが公開用 HTML / 検索反映待ちです</span>
-            <span>未公開: データ未生成ですが取得タスクの進捗は確認できます</span>
+            <span>未公開: 取得予定、または取得・公開反映待ちです</span>
         </div>
 
         <section class="prefecture-filter" hidden data-home-filter-section>
