@@ -115,6 +115,17 @@ def _gijiroku_scrape_command(*, retry_failed: bool = False, name_filter: str = "
             _python_command_text(),
             "--index-dispatch",
             "celery",
+            # DBSR 系の一覧収集は既定 900 秒で打ち切られる。件数の多い自治体は
+            # その範囲で全一覧を走査し切れず partial_planned のまま再投入され続ける。
+            # 上限なし再走査では 0（無制限）を渡せるよう env で上書きできるようにする。
+            "--dbsr-discovery-timeout-seconds",
+            str(
+                celery_runtime.env_int(
+                    "SCRAPER_GIJIROKU_DBSR_DISCOVERY_TIMEOUT",
+                    900,
+                    minimum=0,
+                )
+            ),
         ]
     )
     if not _scraper_build_search_index():
