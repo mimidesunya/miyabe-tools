@@ -117,6 +117,9 @@ def build_scraping_compose(
                     "SCRAPER_GIJIROKU_INDEX_PARALLEL": "1",
                     "SCRAPER_GIJIROKU_PER_HOST_PARALLEL": "1",
                     "SCRAPER_GIJIROKU_PER_HOST_START_INTERVAL": "10",
+                    # 0 は無制限。既定の 900 秒では件数の多い DBSR 自治体が
+                    # 全一覧を走査し切れず partial_planned のまま再投入され続ける。
+                    "SCRAPER_GIJIROKU_DBSR_DISCOVERY_TIMEOUT": "0",
                 },
                 "extra_hosts": ["host.docker.internal:host-gateway"],
                 "volumes": [
