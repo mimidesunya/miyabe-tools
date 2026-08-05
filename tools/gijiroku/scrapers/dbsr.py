@@ -357,16 +357,46 @@ def discover_list_pages(page, target: dict, timeout_ms: int, deadline: float | N
             collect_list_page_entries(page, cell.locator("dd"), year_label, items)
         return list(items.values())
 
-    # 新しい DBSR テンプレート（香川県など）は table--all を付けず
-    # <ul class="table"> を使う。旧テンプレートもこの selector に含まれる。
-    cells = page.locator("ul.table > li.table__cell")
+    # 新しい DBSR テンプレートは table--all を付けず table 系のクラスを使うが、
+    # 自治体によってタグ名が異なる。クラス名は共通なのでタグ名は指定しない。
+    #   香川県など:   ul.table  > li.table__cell      > dt.table__header + dd.table__item
+    #   かほく市など: div.table > section.table__cell > h3.table__header + ul.table__item
+    #                 （会議は ul.table__item > li.table__sub-item に入れ子になる）
+    cells = page.locator(".table > .table__cell")
+    if cells.count() == 0:
+        cells = page.locator(".table__cell")
     for cell_index in range(cells.count()):
         ensure_discovery_time(deadline, f"年度一覧 {cell_index + 1}/{cells.count()}")
         cell = cells.nth(cell_index)
-        year_label = safe_inner_text(cell.locator("dt.table__header:not(.visually-hidden)").first)
+        year_label = safe_inner_text(cell.locator(".table__header:not(.visually-hidden)").first)
         if not year_label:
-            year_label = safe_inner_text(cell.locator("dt.table__header").first) or "不明"
-        collect_list_page_entries(page, cell.locator("dd.table__item"), year_label, items)
+            year_label = safe_inner_text(cell.locator(".table__header").first) or "不明"
+        # 入れ子テンプレートでは table__item が年度のまとまりなので、
+        # そのまま渡すと 1 年度 = 1 会議に潰れてしまう。会議単位の
+        # table__sub-item があるときはそちらを会議として数える。
+        entries = cell.locator(".table__sub-item")
+        if entries.count() == 0:
+            entries = cell.locator(".table__item")
+        collect_list_page_entries(page, entries, year_label, items)
+
+    if not items:
+        # search-library ページを持たないテンプレート（あきる野市・大野城市など）は
+        # 入口ページ自体に会議一覧が並ぶ。この形では search-library が 404 になるため、
+        # 入口ページへ戻って年度見出しごとに会議を拾う。
+        ensure_discovery_time(deadline, "入口ページ一覧")
+        page.goto(str(target["source_url"]), wait_until="domcontentloaded", timeout=timeout_ms)
+        try:
+            page.wait_for_load_state("networkidle", timeout=3_000)
+        except Exception:
+            pass
+        groups = page.locator("ul.recent__links")
+        for group_index in range(groups.count()):
+            ensure_discovery_time(deadline, f"入口ページ一覧 {group_index + 1}/{groups.count()}")
+            group = groups.nth(group_index)
+            year_label = safe_inner_text(
+                group.locator("xpath=preceding-sibling::*[contains(@class,'recent__lib-header')][1]")
+            ) or "不明"
+            collect_list_page_entries(page, group.locator("li"), year_label, items)
 
     return list(items.values())
 
@@ -438,6 +468,32 @@ def extract_document_rows_from_page(page) -> list[DocumentRow]:
             continue
 
         date_text = safe_inner_text(item.locator("span.date").first)
+        held_on = held_on_from_text(date_text or title)
+        if not held_on:
+            continue
+
+        rows.append(
+            DocumentRow(
+                title=title,
+                url=canonicalize_template_url(urljoin(page.url, href)),
+                held_on=held_on,
+            )
+        )
+    if rows:
+        return rows
+
+    # 文書一覧が document-list 形式のテンプレート（あきる野市・大野城市など）。
+    # 表題に西暦が入らないので、開催日は .document-list__date の <time> から取る。
+    items = page.locator(".document-list")
+    for index in range(items.count()):
+        item = items.nth(index)
+        anchor = item.locator(".document-list__title a").first
+        title = safe_inner_text(anchor)
+        href = safe_href(anchor)
+        if not title or not href:
+            continue
+
+        date_text = safe_inner_text(item.locator(".document-list__date").first)
         held_on = held_on_from_text(date_text or title)
         if not held_on:
             continue
