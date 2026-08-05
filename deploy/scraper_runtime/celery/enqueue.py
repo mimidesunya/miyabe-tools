@@ -33,7 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--filter",
         default="",
-        help="旧互換オプション。OpenSearch rebuild では無視されます",
+        help="gijiroku-cycle の自治体絞り込み、または旧 rebuild 互換オプション",
     )
     parser.add_argument(
         "--slug",
@@ -53,6 +53,8 @@ def main() -> int:
     task_name, queue_name = TASK_CHOICES[args.task]
     kwargs = {}
     if args.task.endswith("-rebuild"):
+        kwargs["name_filter"] = args.filter.strip()
+    if args.task == "gijiroku-cycle" and args.filter.strip():
         kwargs["name_filter"] = args.filter.strip()
     if args.retry_failed:
         if args.task != "gijiroku-cycle":

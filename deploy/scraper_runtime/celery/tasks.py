@@ -91,7 +91,7 @@ def _gijiroku_backfill_command() -> list[str]:
 
 
 # 会議録一括スクレイパを remote 用オプション付きで起動するコマンドを作る。
-def _gijiroku_scrape_command(*, retry_failed: bool = False) -> list[str]:
+def _gijiroku_scrape_command(*, retry_failed: bool = False, name_filter: str = "") -> list[str]:
     command = _python_command() + ["tools/gijiroku/scrape_all_minutes.py"]
     if celery_runtime.env_bool("SCRAPER_GIJIROKU_ACK_ROBOTS", True):
         command.append("--ack-robots")
@@ -121,6 +121,8 @@ def _gijiroku_scrape_command(*, retry_failed: bool = False) -> list[str]:
         command.append("--no-build-index")
     if retry_failed:
         command.append("--retry-failed")
+    if name_filter.strip():
+        command.extend(["--filter", name_filter.strip()])
     return command
 
 
@@ -390,8 +392,11 @@ def _run_gijiroku_backfill_impl() -> None:
 
 
 # 会議録 scrape cycle の実処理を起動する。
-def _run_gijiroku_scrape_impl(*, retry_failed: bool = False) -> None:
-    _run_command("gijiroku scrape", _gijiroku_scrape_command(retry_failed=retry_failed))
+def _run_gijiroku_scrape_impl(*, retry_failed: bool = False, name_filter: str = "") -> None:
+    _run_command(
+        "gijiroku scrape",
+        _gijiroku_scrape_command(retry_failed=retry_failed, name_filter=name_filter),
+    )
 
 
 # TSV の URL/system_type 差分だけ robots.txt を再監査する。
@@ -475,15 +480,15 @@ def run_gijiroku_backfill() -> dict[str, object]:
 
 @app.task(bind=True, name="deploy.scraper_runtime.celery.tasks.run_gijiroku_cycle", max_retries=None)
 # 会議録 scrape cycle を実行し、失敗時は Celery retry と retry marker を設定する。
-def run_gijiroku_cycle(self, retry_failed: bool = False) -> dict[str, object]:
+def run_gijiroku_cycle(self, retry_failed: bool = False, name_filter: str = "") -> dict[str, object]:
     # 実際の会議録スクレイピングを起動する Celery タスク。
     # 失敗時は retry marker を置き、beat からの重複投入も同じ待ち時間だけ抑える。
     try:
         celery_runtime.clear_retry_marker("gijiroku")
         _recover_stale_metadata("gijiroku")
-        _run_gijiroku_scrape_impl(retry_failed=bool(retry_failed))
+        _run_gijiroku_scrape_impl(retry_failed=bool(retry_failed), name_filter=str(name_filter or ""))
         celery_runtime.clear_retry_marker("gijiroku")
-        return {"ok": True, "task": "gijiroku_cycle"}
+        return {"ok": True, "task": "gijiroku_cycle", "filter": str(name_filter or "")}
     except Exception as exc:
         delay_seconds = celery_runtime.env_int("SCRAPER_FAIL_SLEEP_SECONDS", 15 * 60, minimum=60)
         celery_runtime.set_retry_marker("gijiroku", delay_seconds)
