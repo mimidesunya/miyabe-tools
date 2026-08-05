@@ -20,6 +20,13 @@ import freshness_metadata
 
 # priority_score が大きいほど先に実行し、0 は今回のキューに載せない。
 STOP_RETURN_CODES = {-15, -2, 130, 143}
+
+# 取得漏れがごく一部だけの失敗は、通常巡回から永久に外す previous_failed ではなく
+# incomplete として扱い、次回サイクルで残りを取りに行く。
+# 1 文書の取得失敗で自治体全体が巡回対象から消えるのを避けるための許容量。
+# 表示側は failed のままなので、部分収録であることは隠さない。
+RESIDUAL_FAILURE_MAX_COUNT = 5
+RESIDUAL_FAILURE_MAX_RATIO = 0.01
 _TASK_STATUS_CACHE: dict[str, dict[str, Any]] = {}
 ProgressReader = Callable[[dict[str, Any]], tuple[int, int]]
 
@@ -56,6 +63,16 @@ def item_progress(item: dict[str, Any]) -> tuple[int, int]:
     return current, total
 
 
+# 取得済みが大半で、残りがごく一部だけの失敗かを判定する。
+def residual_failure_only(item: dict[str, Any]) -> bool:
+    current, total = item_progress(item)
+    if total <= 0 or current <= 0 or current >= total:
+        return False
+    missing = total - current
+    allowance = max(RESIDUAL_FAILURE_MAX_COUNT, int(total * RESIDUAL_FAILURE_MAX_RATIO))
+    return missing <= allowance
+
+
 # 前回結果が、停止ではなく実エラーで失敗した自治体かを判定する。
 def previous_item_failed_with_error(task_name: str, slug: str) -> bool:
     item = task_item(task_name, slug)
@@ -65,6 +82,9 @@ def previous_item_failed_with_error(task_name: str, slug: str) -> bool:
     if str(item.get("index_status") or "").strip() == "failed":
         return True
     if str(item.get("status", "")).strip() != "failed":
+        return False
+    if residual_failure_only(item):
+        # 残り数件だけの取得漏れは incomplete として次回サイクルで拾う。
         return False
     try:
         returncode = int(item.get("returncode"))
