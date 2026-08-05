@@ -1,4 +1,5 @@
 import unittest
+import tempfile
 from pathlib import Path
 from unittest import mock
 
@@ -8,6 +9,18 @@ from tools.gijiroku.scrapers.static_kaigiroku_dir import should_follow_related_m
 
 
 class MinutesRobotsPolicyTest(unittest.TestCase):
+    def test_registry_rewrite_keeps_web_readable_permissions(self) -> None:
+        row = {field: "" for field in audit_minutes_robots.FIELDNAMES}
+        row.update({"jis_code": "00000", "crawl_status": "unresolved"})
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "assembly_minutes_system_urls.tsv"
+            path.write_text("before\n", encoding="utf-8")
+            with mock.patch.object(audit_minutes_robots.os, "chmod") as chmod:
+                audit_minutes_robots.write_rows(path, [row])
+
+        chmod.assert_called_once()
+        self.assertEqual(chmod.call_args.args[1], 0o644)
+
     def test_longer_allow_rule_wins_even_when_written_after_disallow(self) -> None:
         robots = "User-agent: *\nDisallow: /\nAllow: /tenant/\n"
 

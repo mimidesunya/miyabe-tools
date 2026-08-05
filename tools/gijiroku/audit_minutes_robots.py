@@ -264,6 +264,9 @@ def write_rows(path: Path, rows: list[dict[str, str]], *, expected_digest: str |
             writer = csv.DictWriter(handle, fieldnames=FIELDNAMES, delimiter="\t", lineterminator="\n")
             writer.writeheader()
             writer.writerows(rows)
+        # mkstemp は 0600 で作るため、そのまま replace すると PHP/www-data が
+        # 公開状態の判定に使う台帳を読めなくなる。台帳は秘密情報を含まない。
+        os.chmod(temp_name, 0o644)
         os.replace(temp_name, path)
     except Exception:
         try:

@@ -357,7 +357,9 @@ def discover_list_pages(page, target: dict, timeout_ms: int, deadline: float | N
             collect_list_page_entries(page, cell.locator("dd"), year_label, items)
         return list(items.values())
 
-    cells = page.locator("ul.table.table--all > li.table__cell")
+    # 新しい DBSR テンプレート（香川県など）は table--all を付けず
+    # <ul class="table"> を使う。旧テンプレートもこの selector に含まれる。
+    cells = page.locator("ul.table > li.table__cell")
     for cell_index in range(cells.count()):
         ensure_discovery_time(deadline, f"年度一覧 {cell_index + 1}/{cells.count()}")
         cell = cells.nth(cell_index)
@@ -663,11 +665,21 @@ def discover_meeting_items(
     previous_items: list[MeetingItem] | None = None,
     quick_update: bool = False,
     discovery_timeout_seconds: int = DEFAULT_DISCOVERY_TIMEOUT_SECONDS,
+    coverage_report: dict | None = None,
 ) -> list[MeetingItem]:
     deadline = discovery_deadline(discovery_timeout_seconds)
     base_url = str(target["base_url"])
     list_pages = discover_list_pages(page, target, timeout_ms, deadline)
     print(f"[INFO] 会議一覧ページ {len(list_pages)} 件", flush=True)
+    if coverage_report is not None:
+        coverage_report.clear()
+        coverage_report.update(
+            {
+                "list_page_count": len(list_pages),
+                "failed_list_page_count": 0,
+                "limit_reached": False,
+            }
+        )
 
     meetings: list[MeetingItem] = []
     seen_titles: set[tuple[str, str, str]] = set()
@@ -692,6 +704,10 @@ def discover_meeting_items(
         except DiscoveryTimeoutError:
             raise
         except Exception as exc:
+            if coverage_report is not None:
+                coverage_report["failed_list_page_count"] = int(
+                    coverage_report.get("failed_list_page_count") or 0
+                ) + 1
             print(f"[WARN] 会議一覧の確認に失敗: {list_page.title} ({exc})", flush=True)
             continue
 
@@ -713,6 +729,8 @@ def discover_meeting_items(
                 )
             )
             if max_meetings > 0 and len(meetings) >= max_meetings:
+                if coverage_report is not None:
+                    coverage_report["limit_reached"] = True
                 return meetings
 
         for auxiliary_doc in list_page.auxiliary_docs:
@@ -738,6 +756,8 @@ def discover_meeting_items(
                 )
             )
             if max_meetings > 0 and len(meetings) >= max_meetings:
+                if coverage_report is not None:
+                    coverage_report["limit_reached"] = True
                 return meetings
 
     if quick_update and previous_items:
@@ -929,6 +949,21 @@ def main() -> int:
     if args.save_html:
         pages_dir.mkdir(parents=True, exist_ok=True)
 
+    previous_source_coverage = state.get("source_coverage")
+    previous_source_state = str(previous_source_coverage.get("state") or "").strip() \
+        if isinstance(previous_source_coverage, dict) else ""
+    if args.max_meetings <= 0 and index_json.exists() and previous_source_state != "complete":
+        state["source_coverage"] = {
+            "mode": "source_discovery_coverage",
+            "state": "partial_planned",
+            "discovered_count": len(load_previous_meeting_items(index_json)),
+            "list_page_count": 0,
+            "failed_list_page_count": 0,
+            "limit": 0,
+            "updated_at": now_ts(),
+        }
+        gijiroku_storage.save_state(state_path, state)
+
     print(f"[INFO] Target: {target['name']} ({target['slug']}, {target['system_type']})")
     print(f"[INFO] Source URL: {target['source_url']}")
     print(f"[INFO] Base URL: {target['base_url']}")
@@ -947,6 +982,7 @@ def main() -> int:
                 f"[INFO] Quick update listing enabled: previous_index={len(previous_items)}",
                 flush=True,
             )
+        coverage_report: dict[str, int | bool] = {}
         meeting_items = discover_meeting_items(
             page,
             target,
@@ -955,8 +991,34 @@ def main() -> int:
             previous_items=previous_items,
             quick_update=quick_update,
             discovery_timeout_seconds=args.discovery_timeout_seconds,
+            coverage_report=coverage_report,
         )
         print(f"[INFO] 会議候補 {len(meeting_items)} 件")
+        if not meeting_items:
+            raise RuntimeError(
+                "会議候補を1件も取得できませんでした。"
+                "取得元の画面構造変更または一時的な取得エラーとして扱います: "
+                f"{target['source_url']}"
+            )
+
+        limit_reached = bool(coverage_report.get("limit_reached"))
+        failed_list_page_count = max(0, int(coverage_report.get("failed_list_page_count") or 0))
+        if limit_reached:
+            source_coverage_state = "partial_limit"
+        elif failed_list_page_count > 0:
+            source_coverage_state = "partial_error"
+        else:
+            source_coverage_state = "complete"
+        state["source_coverage"] = {
+            "mode": "source_discovery_coverage",
+            "state": source_coverage_state,
+            "discovered_count": len(meeting_items),
+            "list_page_count": max(0, int(coverage_report.get("list_page_count") or 0)),
+            "failed_list_page_count": failed_list_page_count,
+            "limit": max(0, int(args.max_meetings)),
+            "updated_at": now_ts(),
+        }
+        gijiroku_storage.save_state(state_path, state)
 
         index_json.parent.mkdir(parents=True, exist_ok=True)
         index_json.write_text(
@@ -1093,6 +1155,29 @@ def main() -> int:
                 emit_progress(len(meeting_items) - len(work_items) + idx, len(meeting_items), state_path, state)
                 if args.delay_seconds > 0 and idx < len(work_items):
                     time.sleep(args.delay_seconds)
+
+            downloaded_count = 0
+            status_counts: dict[str, int] = {}
+            for plan in planned_items:
+                if gijiroku_storage.existing_output(plan["dest_base"]) is not None:
+                    downloaded_count += 1
+                    continue
+                item_state = state.get("items", {}).get(plan["resume_key"], {})
+                status = str(item_state.get("status") or "").strip() or "not_found"
+                status_counts[status] = status_counts.get(status, 0) + 1
+            validation = gijiroku_storage.apply_classified_scrape_validation(
+                state_path,
+                state,
+                discovered_count=len(meeting_items),
+                downloaded_count=downloaded_count,
+                status_counts=status_counts,
+            )
+            emit_progress(
+                int(validation["progress_current"]),
+                int(validation["progress_total"]),
+                state_path,
+                state,
+            )
 
         browser.close()
 
