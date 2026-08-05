@@ -43,6 +43,10 @@ CATALOG_VERSION_RE = re.compile(
     r"内容現在\s*(?:[：:]\s*)?"
     r"((?:明治|大正|昭和|平成|令和)[0-9０-９元]+年[0-9０-９]+月[0-9０-９]+日)"
 )
+D1W_REIKI_LINK_RE = re.compile(
+    r'''(?:href|src)\s*=\s*["']([^"']*d1w_reiki/[^"']*)["']''',
+    re.I,
+)
 
 
 def emit_progress(current: int, total: int, state_path: Path | None = None) -> None:
@@ -100,6 +104,35 @@ def fetch_catalog_version(source_url: str, session: requests.Session | None = No
     else:
         print("[INFO] catalog content current: not found", flush=True)
     return version
+
+
+def discover_d1_law_base_url(source_url: str, source_html: str) -> str:
+    """入口ページ内の d1w_reiki リンクから実際の静的目次ルートを見つける。"""
+    for href in D1W_REIKI_LINK_RE.findall(source_html):
+        candidate_url = urljoin(source_url, html.unescape(href))
+        try:
+            return d1_parser.derive_d1_law_base_url(candidate_url)
+        except ValueError:
+            continue
+    return d1_parser.derive_d1_law_base_url(source_url)
+
+
+def resolve_d1_law_base_url(source_url: str, session: requests.Session | None = None) -> str:
+    direct_base_url = d1_parser.derive_d1_law_base_url(source_url)
+    if "/d1w_reiki/" in direct_base_url.lower() or d1_parser.is_opensearch_mokuji_source_url(source_url):
+        return direct_base_url
+
+    requester = session or requests
+    try:
+        response = requester.get(source_url, headers={"User-Agent": USER_AGENT}, timeout=15)
+        response.raise_for_status()
+        discovered_base_url = discover_d1_law_base_url(response.url, response_text_auto(response))
+        if discovered_base_url != direct_base_url:
+            print(f"[INFO] Discovered D1-Law base URL: {discovered_base_url}", flush=True)
+        return discovered_base_url
+    except Exception as exc:
+        print(f"[WARN] D1-Law base URL discovery failed; using configured URL: {exc}", flush=True)
+        return direct_base_url
 
 
 def download_file(
@@ -487,7 +520,7 @@ def main():
             f"d1_law.py は system_type={target.get('system_type')!r} を扱えません "
             f"(対応: {sorted(SUPPORTED_D1_SYSTEMS)})"
         )
-    base_url = d1_parser.derive_d1_law_base_url(target["source_url"])
+    base_url = resolve_d1_law_base_url(str(target["source_url"]))
     source_dir = target["source_dir"]
     markdown_dir = target["markdown_dir"]
     html_dir = target["html_dir"]
@@ -522,7 +555,10 @@ def main():
     total_regulations = len(opensearch_entries) if opensearch_entries else len(hno_list)
     source_items = opensearch_entries if opensearch_entries else hno_list
     if total_regulations <= 0:
-        print("[WARN] No regulations found.", flush=True)
+        raise RuntimeError(
+            "No regulations were collected; refusing to mark the target as successfully scraped. "
+            f"source={target['source_url']} base={base_url}"
+        )
 
     previous_manifest_records = reiki_io.load_json(manifest_path, [])
     previous_catalog_version = first_manifest_catalog_version(previous_manifest_records)
