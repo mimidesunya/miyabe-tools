@@ -270,14 +270,24 @@ function homepage_gijiroku_indexed_download_count(string $indexPath, string $dow
     return $downloaded;
 }
 
-function homepage_gijiroku_classified_progress(array $feature): ?array
+function homepage_gijiroku_scrape_state(array $feature): ?array
 {
+    static $cache = [];
     $workDir = trim((string)($feature['work_dir'] ?? ''));
     if ($workDir === '') {
         return null;
     }
     $statePath = rtrim($workDir, DIRECTORY_SEPARATOR . '/\\') . DIRECTORY_SEPARATOR . 'scrape_state.json';
-    $state = read_json_cache_file($statePath, 0);
+    if (!array_key_exists($statePath, $cache)) {
+        $state = read_json_cache_file($statePath, 0);
+        $cache[$statePath] = is_array($state) ? $state : null;
+    }
+    return is_array($cache[$statePath]) ? $cache[$statePath] : null;
+}
+
+function homepage_gijiroku_classified_progress(array $feature): ?array
+{
+    $state = homepage_gijiroku_scrape_state($feature);
     if (!is_array($state) || !is_array($state['validation'] ?? null)) {
         return null;
     }
@@ -293,6 +303,155 @@ function homepage_gijiroku_classified_progress(array $feature): ?array
         'excluded' => max(0, (int)($validation['excluded_count'] ?? 0)),
         'failed' => max(0, (int)($validation['failed_count'] ?? 0)),
         'unknown_missing' => max(0, (int)($validation['unknown_missing_count'] ?? 0)),
+    ];
+}
+
+function homepage_gijiroku_source_coverage(array $feature): ?array
+{
+    $state = homepage_gijiroku_scrape_state($feature);
+    $coverage = is_array($state) && is_array($state['source_coverage'] ?? null)
+        ? $state['source_coverage']
+        : null;
+    if (!is_array($coverage) || trim((string)($coverage['mode'] ?? '')) !== 'source_discovery_coverage') {
+        return null;
+    }
+
+    $coverageState = trim((string)($coverage['state'] ?? ''));
+    if (!in_array($coverageState, ['complete', 'partial_planned', 'partial_limit', 'partial_error'], true)) {
+        return null;
+    }
+    return [
+        'state' => $coverageState,
+        'discovered_count' => max(0, (int)($coverage['discovered_count'] ?? 0)),
+        'list_page_count' => max(0, (int)($coverage['list_page_count'] ?? 0)),
+        'failed_list_page_count' => max(0, (int)($coverage['failed_list_page_count'] ?? 0)),
+        'limit' => max(0, (int)($coverage['limit'] ?? 0)),
+        'updated_at' => trim((string)($coverage['updated_at'] ?? '')),
+    ];
+}
+
+function homepage_gijiroku_acquisition_status(
+    array $feature,
+    string $systemType,
+    bool $hasData,
+    bool $hasError,
+    int $indexedCount,
+    ?array $display
+): array {
+    if (!$hasData) {
+        return ['state' => 'unacquired', 'label' => '未取得', 'detail' => '', 'source_coverage' => null];
+    }
+
+    $systemType = strtolower(trim($systemType));
+    if ($systemType !== 'dbsr') {
+        if ($hasError) {
+            return [
+                'state' => 'partial_error',
+                'label' => '一部検索可（エラー停止）',
+                'detail' => '検索データはありますが、取得処理がエラーになっています。全件取得済みか確認できません。',
+                'source_coverage' => null,
+            ];
+        }
+        return [
+            'state' => 'coverage_unknown',
+            'label' => '検索可（取得範囲未判定）',
+            'detail' => '検索データはありますが、取得元の全一覧を走査済みか確認できる記録がありません。',
+            'source_coverage' => null,
+        ];
+    }
+
+    $sourceCoverage = homepage_gijiroku_source_coverage($feature);
+    $sourceState = is_array($sourceCoverage) ? (string)($sourceCoverage['state'] ?? '') : '';
+    $progress = homepage_gijiroku_classified_progress($feature);
+    $progressIncomplete = is_array($progress)
+        && (int)($progress['total'] ?? 0) > 0
+        && (int)($progress['current'] ?? 0) < (int)($progress['total'] ?? 0);
+    $validationMatchesDiscovery = is_array($progress)
+        && is_array($sourceCoverage)
+        && (int)($sourceCoverage['discovered_count'] ?? 0) > 0
+        && (int)($progress['discovered'] ?? 0) === (int)($sourceCoverage['discovered_count'] ?? 0);
+    $isRunning = is_array($display) && trim((string)($display['class'] ?? '')) === 'task-running';
+
+    if (
+        $isRunning
+        || in_array($sourceState, ['partial_planned', 'partial_limit'], true)
+        || ($sourceState === 'complete' && !$validationMatchesDiscovery)
+    ) {
+        $limit = is_array($sourceCoverage) ? (int)($sourceCoverage['limit'] ?? 0) : 0;
+        if ($isRunning || $sourceState === 'partial_planned') {
+            $detail = '既存データを公開したまま、上限なしの追加取得を実行または再実行待ちです。';
+        } elseif ($sourceState === 'complete' && !$validationMatchesDiscovery) {
+            $detail = '取得元の全一覧走査は終わり、発見した会議録の取得・検証を続けています。';
+        } else {
+            $detail = '取得上限に達した部分データです。次回スクレイピングで上限なしの追加取得対象になります。';
+        }
+        if ($limit > 0 && $sourceState === 'partial_limit') {
+            $detail .= sprintf(' 前回上限: %d件。', $limit);
+        }
+        return [
+            'state' => 'partial_planned',
+            'label' => '一部検索可（追加取得中・予定）',
+            'detail' => $detail,
+            'source_coverage' => $sourceCoverage,
+        ];
+    }
+
+    if ($sourceState === 'partial_error' || $progressIncomplete) {
+        return [
+            'state' => 'partial_error',
+            'label' => '一部検索可（エラー停止）',
+            'detail' => '取得元の一部を取得できず、全件取得が完了していません。修正または再実行が必要です。',
+            'source_coverage' => $sourceCoverage,
+        ];
+    }
+
+    if ($hasError) {
+        $wasComplete = $sourceState === 'complete'
+            && is_array($progress)
+            && homepage_progress_count_is_complete((int)$progress['current'], (int)$progress['total']);
+        return [
+            'state' => $wasComplete ? 'update_error' : 'partial_error',
+            'label' => $wasComplete ? '検索可（更新エラー）' : '一部検索可（エラー停止）',
+            'detail' => $wasComplete
+                ? '前回の全件取得データは検索できますが、最新の更新確認がエラーになっています。'
+                : '取得途中でエラーになり、取得済みの範囲だけ検索できます。',
+            'source_coverage' => $sourceCoverage,
+        ];
+    }
+
+    if (
+        $sourceState === 'complete'
+        && is_array($progress)
+        && homepage_progress_count_is_complete((int)$progress['current'], (int)$progress['total'])
+    ) {
+        $acquiredCount = max(0, (int)($progress['current'] ?? 0));
+        $indexedCount = max(0, $indexedCount);
+        if ($acquiredCount > 0 && $indexedCount < $acquiredCount) {
+            return [
+                'state' => 'index_pending',
+                'label' => '取得完了・検索反映待ち',
+                'detail' => sprintf(
+                    '取得元の全一覧から%d件を取得済みです。現在は%d/%d件を検索でき、残りを検索へ反映中または反映待ちです。',
+                    $acquiredCount,
+                    $indexedCount,
+                    $acquiredCount
+                ),
+                'source_coverage' => $sourceCoverage,
+            ];
+        }
+        return [
+            'state' => 'complete',
+            'label' => '取得完了（検索可）',
+            'detail' => '取得元の全一覧を走査し、見つかった会議録を取得済みです。',
+            'source_coverage' => $sourceCoverage,
+        ];
+    }
+
+    return [
+        'state' => 'coverage_unknown',
+        'label' => '検索可（取得範囲未判定）',
+        'detail' => '検索データはありますが、取得元の全一覧を走査済みか確認できる記録がありません。',
+        'source_coverage' => $sourceCoverage,
     ];
 }
 
@@ -1036,6 +1195,20 @@ function homepage_fetch_indexed_slugs_for_doc_type(string $docType): array
                         'field' => 'slug',
                         'size' => 10000,
                     ],
+                    'aggs' => [
+                        'oldest_sort_date' => [
+                            'min' => [
+                                'field' => 'sort_date',
+                                'format' => 'yyyy-MM-dd',
+                            ],
+                        ],
+                        'newest_sort_date' => [
+                            'max' => [
+                                'field' => 'sort_date',
+                                'format' => 'yyyy-MM-dd',
+                            ],
+                        ],
+                    ],
                 ],
             ],
         ]
@@ -1047,6 +1220,7 @@ function homepage_fetch_indexed_slugs_for_doc_type(string $docType): array
     }
 
     $slugs = [];
+    $dateRanges = [];
     foreach ($buckets as $bucket) {
         if (!is_array($bucket)) {
             continue;
@@ -1055,47 +1229,85 @@ function homepage_fetch_indexed_slugs_for_doc_type(string $docType): array
         $count = max(0, (int)($bucket['doc_count'] ?? 0));
         if ($slug !== '' && $count > 0) {
             $slugs[$slug] = $count;
+            $oldestDate = trim((string)($bucket['oldest_sort_date']['value_as_string'] ?? ''));
+            $newestDate = trim((string)($bucket['newest_sort_date']['value_as_string'] ?? ''));
+            if (
+                preg_match('/^\d{4}-\d{2}-\d{2}$/', $oldestDate) === 1
+                && preg_match('/^\d{4}-\d{2}-\d{2}$/', $newestDate) === 1
+            ) {
+                $dateRanges[$slug] = [
+                    'from' => $oldestDate,
+                    'to' => $newestDate,
+                    'document_count' => $count,
+                ];
+            }
         }
     }
-    return $slugs;
+    return [
+        'counts' => $slugs,
+        'date_ranges' => $dateRanges,
+    ];
 }
 
-function homepage_search_indexed_slug_sets(): array
+function homepage_search_index_metadata(): array
 {
-    static $cachedSets = null;
-    if (is_array($cachedSets)) {
-        return $cachedSets;
+    static $cachedMetadata = null;
+    if (is_array($cachedMetadata)) {
+        return $cachedMetadata;
     }
 
     $cachePath = homepage_search_index_cache_path();
     $cached = read_json_cache_file($cachePath, homepage_search_index_cache_ttl_seconds());
-    if (is_array($cached) && is_array($cached['features'] ?? null)) {
-        $cachedSets = $cached['features'];
-        return $cachedSets;
+    if (
+        is_array($cached)
+        && is_array($cached['features'] ?? null)
+        && is_array($cached['date_ranges'] ?? null)
+    ) {
+        $cachedMetadata = $cached;
+        return $cachedMetadata;
     }
 
     $features = [];
+    $dateRanges = [];
     try {
         foreach (['gijiroku', 'reiki'] as $featureKey) {
             $docType = homepage_feature_search_doc_type($featureKey);
-            $features[$featureKey] = $docType !== null
+            $featureMetadata = $docType !== null
                 ? homepage_fetch_indexed_slugs_for_doc_type($docType)
+                : ['counts' => [], 'date_ranges' => []];
+            $features[$featureKey] = is_array($featureMetadata['counts'] ?? null)
+                ? $featureMetadata['counts']
+                : [];
+            $dateRanges[$featureKey] = is_array($featureMetadata['date_ranges'] ?? null)
+                ? $featureMetadata['date_ranges']
                 : [];
         }
-        write_json_cache_file($cachePath, [
+        $cachedMetadata = [
             'generated_at' => app_now_tokyo(),
             'features' => $features,
-        ]);
-        $cachedSets = $features;
-        return $cachedSets;
+            'date_ranges' => $dateRanges,
+        ];
+        write_json_cache_file($cachePath, $cachedMetadata);
+        return $cachedMetadata;
     } catch (Throwable $error) {
         error_log('[home_api] search index availability check failed: ' . $error->getMessage());
         $staleCached = read_json_cache_file($cachePath, 0);
-        $cachedSets = is_array($staleCached) && is_array($staleCached['features'] ?? null)
-            ? $staleCached['features']
-            : [];
-        return $cachedSets;
+        $cachedMetadata = [
+            'features' => is_array($staleCached) && is_array($staleCached['features'] ?? null)
+                ? $staleCached['features']
+                : [],
+            'date_ranges' => is_array($staleCached) && is_array($staleCached['date_ranges'] ?? null)
+                ? $staleCached['date_ranges']
+                : [],
+        ];
+        return $cachedMetadata;
     }
+}
+
+function homepage_search_indexed_slug_sets(): array
+{
+    $metadata = homepage_search_index_metadata();
+    return is_array($metadata['features'] ?? null) ? $metadata['features'] : [];
 }
 
 function homepage_feature_search_indexed(string $featureKey, string $slug): bool
@@ -1113,6 +1325,58 @@ function homepage_feature_search_indexed(string $featureKey, string $slug): bool
     $sets = homepage_search_indexed_slug_sets();
     $featureSet = is_array($sets[$featureKey] ?? null) ? $sets[$featureKey] : [];
     return isset($featureSet[$slug]) && (int)$featureSet[$slug] > 0;
+}
+
+function homepage_feature_search_indexed_count(string $featureKey, string $slug): int
+{
+    if (homepage_feature_search_doc_type($featureKey) === null) {
+        return 0;
+    }
+
+    $slug = trim($slug);
+    if ($slug === '') {
+        return 0;
+    }
+
+    $sets = homepage_search_indexed_slug_sets();
+    $featureSet = is_array($sets[$featureKey] ?? null) ? $sets[$featureKey] : [];
+    return max(0, (int)($featureSet[$slug] ?? 0));
+}
+
+function homepage_feature_search_coverage(string $featureKey, string $slug): ?array
+{
+    if ($featureKey !== 'gijiroku') {
+        return null;
+    }
+
+    $slug = trim($slug);
+    if ($slug === '') {
+        return null;
+    }
+
+    $metadata = homepage_search_index_metadata();
+    $featureRanges = is_array($metadata['date_ranges'][$featureKey] ?? null)
+        ? $metadata['date_ranges'][$featureKey]
+        : [];
+    $coverage = is_array($featureRanges[$slug] ?? null) ? $featureRanges[$slug] : null;
+    if (!is_array($coverage)) {
+        return null;
+    }
+
+    $from = trim((string)($coverage['from'] ?? ''));
+    $to = trim((string)($coverage['to'] ?? ''));
+    if (
+        preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) !== 1
+        || preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) !== 1
+    ) {
+        return null;
+    }
+
+    return [
+        'from' => $from,
+        'to' => $to,
+        'document_count' => max(0, (int)($coverage['document_count'] ?? 0)),
+    ];
 }
 
 function homepage_feature_card_display(
@@ -1334,11 +1598,7 @@ function homepage_feature_target_codes(string $featureKey): array
         return $cache[$featureKey];
     }
 
-    $index = match ($featureKey) {
-        'gijiroku' => load_system_url_index('municipalities/assembly_minutes_system_urls.tsv'),
-        'reiki' => load_system_url_index('municipalities/reiki_system_urls.tsv'),
-        default => [],
-    };
+    $index = homepage_feature_registry_index($featureKey);
 
     $supportedSystemTypes = homepage_feature_supported_system_types($featureKey);
     $codes = [];
@@ -1396,9 +1656,95 @@ function homepage_feature_supported_system_types(string $featureKey): array
             'd1-law',
             'taikei',
             'g-reiki',
+            'joureikun',
+            'legalcrud',
+            'reiki.html',
+            'reiki_menu',
+            'h-chosonkai',
+            'jourei-v5',
+            'legal-square',
         ], true),
         default => [],
     };
+}
+
+function homepage_feature_registry_index(string $featureKey): array
+{
+    static $cache = [];
+    if (!array_key_exists($featureKey, $cache)) {
+        $cache[$featureKey] = match ($featureKey) {
+            'gijiroku' => load_system_url_index('municipalities/assembly_minutes_system_urls.tsv'),
+            'reiki' => load_system_url_index('municipalities/reiki_system_urls.tsv'),
+            default => [],
+        };
+    }
+    return $cache[$featureKey];
+}
+
+/**
+ * 取得元台帳だけで判定できる状態を返す。
+ * 実行時エラー・公開済み・検索反映待ちは呼び出し側で優先して上書きする。
+ */
+function homepage_feature_registry_state(string $featureKey, string $municipalityCode): array
+{
+    $entry = homepage_feature_registry_index($featureKey)[$municipalityCode] ?? null;
+    if (!is_array($entry)) {
+        return ['registered' => false, 'state' => '', 'label' => '', 'detail' => '', 'system_type' => ''];
+    }
+
+    $sourceUrl = trim((string)($entry['url'] ?? ''));
+    $systemType = trim((string)($entry['system_type'] ?? ''));
+    $crawlStatus = strtolower(trim((string)($entry['crawl_status'] ?? '')));
+    $detail = trim((string)($entry['exclusion_detail'] ?? ''));
+
+    if ($sourceUrl === '' || $crawlStatus === 'unresolved') {
+        return [
+            'registered' => true,
+            'state' => 'source_unresolved',
+            'label' => '取得元未特定',
+            'detail' => $detail !== '' ? $detail : '取得元URLをまだ特定できていません。',
+            'system_type' => $systemType,
+        ];
+    }
+    if (in_array($crawlStatus, ['excluded', 'disabled'], true)) {
+        return [
+            'registered' => true,
+            'state' => 'excluded',
+            'label' => '取得対象外',
+            'detail' => $detail !== '' ? $detail : '取得方針により自動取得の対象外です。',
+            'system_type' => $systemType,
+        ];
+    }
+    if (in_array($crawlStatus, ['review_required', 'review'], true)) {
+        return [
+            'registered' => true,
+            'state' => 'review_required',
+            'label' => '取得可否確認中',
+            'detail' => $detail !== '' ? $detail : '取得可否の確認が必要です。',
+            'system_type' => $systemType,
+        ];
+    }
+
+    $supported = homepage_feature_supported_system_types($featureKey);
+    if ($systemType === '' || ($supported !== [] && !isset($supported[$systemType]))) {
+        return [
+            'registered' => true,
+            'state' => 'unsupported',
+            'label' => '未実装',
+            'detail' => $systemType !== ''
+                ? $systemType . ' 形式の取得処理は未実装です。'
+                : '取得元の形式をまだ判定できていません。',
+            'system_type' => $systemType,
+        ];
+    }
+
+    return [
+        'registered' => true,
+        'state' => 'unacquired',
+        'label' => '未取得',
+        'detail' => '取得元と取得処理は登録済みですが、公開データをまだ取得していません。',
+        'system_type' => $systemType,
+    ];
 }
 
 function homepage_build_feature_runtime_states(
@@ -2180,7 +2526,8 @@ function homepage_collect_visible_features(
     array $featureIcons,
     array $backgroundTaskStatuses,
     array $backgroundTaskSnapshots,
-    array $featureRuntimeStates = []
+    array $featureRuntimeStates = [],
+    bool $includeRegistryStates = false
 ): array {
     $visibleFeatures = [];
     $readyVisibleCount = 0;
@@ -2189,6 +2536,7 @@ function homepage_collect_visible_features(
     foreach ($featureLabels as $featureKey => $label) {
         $targetCodeSet = homepage_feature_target_code_set($featureKey);
         $isPlannedTarget = $municipalityCode !== '' && isset($targetCodeSet[$municipalityCode]);
+        $registryState = homepage_feature_registry_state($featureKey, $municipalityCode);
         $runtimeState = $featureRuntimeStates[$featureKey] ?? null;
         $feature = is_array($runtimeState['feature'] ?? null)
             ? $runtimeState['feature']
@@ -2213,6 +2561,9 @@ function homepage_collect_visible_features(
             ? (bool)$runtimeState['search_indexed']
             : homepage_feature_search_indexed($featureKey, $slug);
         $isSearchBacked = homepage_feature_search_doc_type($featureKey) !== null;
+        $searchIndexedCount = $isSearchBacked
+            ? homepage_feature_search_indexed_count($featureKey, $slug)
+            : 0;
         $isEnabled = $hasData && (!$isSearchBacked || $searchIndexed);
         $display = homepage_feature_card_display(
             $featureKey,
@@ -2232,6 +2583,20 @@ function homepage_collect_visible_features(
                 'progress_total' => null,
             ];
         }
+        if (
+            $includeRegistryStates
+            && !$hasData
+            && $display === null
+            && (bool)($registryState['registered'] ?? false)
+        ) {
+            $display = [
+                'label' => (string)($registryState['label'] ?? ''),
+                'class' => 'task-info',
+                'detail' => (string)($registryState['detail'] ?? ''),
+                'progress_current' => null,
+                'progress_total' => null,
+            ];
+        }
 
         $hasError = homepage_task_display_has_error($display)
             || homepage_task_display_has_error($primaryDisplay)
@@ -2240,46 +2605,113 @@ function homepage_collect_visible_features(
             || homepage_task_display_has_warning($primaryDisplay)
             || homepage_task_display_has_warning($publishDisplay);
         $hasIssue = $hasError || $hasWarning;
+        $acquisition = $featureKey === 'gijiroku'
+            ? homepage_gijiroku_acquisition_status(
+                $feature,
+                (string)($registryState['system_type'] ?? ($feature['system_type'] ?? '')),
+                $hasData,
+                $hasError,
+                $searchIndexedCount,
+                $display
+            )
+            : ['state' => '', 'label' => '', 'detail' => '', 'source_coverage' => null];
+        $acquisitionState = trim((string)($acquisition['state'] ?? ''));
+        $acquisitionDetail = trim((string)($acquisition['detail'] ?? ''));
+        if ($acquisitionDetail !== '' && $hasData) {
+            if (!is_array($display)) {
+                $display = [
+                    'label' => (string)($acquisition['label'] ?? ''),
+                    'class' => 'task-info',
+                    'detail' => $acquisitionDetail,
+                ];
+            } else {
+                $existingDetail = trim((string)($display['detail'] ?? ''));
+                if (!str_contains($existingDetail, $acquisitionDetail)) {
+                    $display['detail'] = $existingDetail !== ''
+                        ? ($existingDetail . "\n" . $acquisitionDetail)
+                        : $acquisitionDetail;
+                }
+            }
+        }
+        if (in_array($acquisitionState, ['partial_error', 'update_error'], true)) {
+            $hasError = true;
+            $hasIssue = true;
+        }
         $needsPublish = !$hasData && homepage_task_display_is_complete($primaryDisplay);
-        if (!$hasData && !$needsPublish && !$hasIssue && !$isPlannedTarget) {
+        $hasRegistryState = $includeRegistryStates && (bool)($registryState['registered'] ?? false);
+        if (!$hasData && !$needsPublish && !$hasIssue && !$isPlannedTarget && !$hasRegistryState) {
             continue;
         }
-        if (!$hasData && !$hasIssue && !$isPlannedTarget && homepage_unpublished_display_should_hide($display)) {
+        if (
+            !$hasData
+            && !$hasIssue
+            && !$isPlannedTarget
+            && !$hasRegistryState
+            && homepage_unpublished_display_should_hide($display)
+        ) {
             continue;
         }
-        if (!$hasData && $display === null && !$isPlannedTarget) {
+        if (!$hasData && $display === null && !$isPlannedTarget && !$hasRegistryState) {
             continue;
         }
 
         // 公開中のデータに加え、enabled の取得予定対象は未着手でも「未公開」として残す。
-        if ($isEnabled) {
+        if ($isEnabled && $featureKey === 'gijiroku' && $acquisitionState !== '') {
+            $statusLabel = (string)($acquisition['label'] ?? '検索可');
+            $statusClass = match ($acquisitionState) {
+                'complete' => 'status-ready',
+                'partial_error', 'update_error' => 'status-error',
+                'partial_planned', 'index_pending' => 'status-needs-build',
+                default => 'status-warning',
+            };
+            $availabilityState = $acquisitionState === 'complete' ? 'ready' : $acquisitionState;
+            $mode = 'link';
+            $readyVisibleCount += 1;
+        } elseif ($isEnabled) {
             $statusLabel = '利用可能';
             $statusClass = 'status-ready';
+            $availabilityState = 'ready';
             $mode = 'link';
             $readyVisibleCount += 1;
         } elseif ($hasData && $isSearchBacked && !$searchIndexed) {
             $statusLabel = '検索準備中';
             $statusClass = 'status-needs-build';
+            $availabilityState = 'search_pending';
             $mode = 'disabled';
         } elseif ($hasData) {
             $statusLabel = '休止中';
             $statusClass = 'status-suspended';
+            $availabilityState = 'suspended';
             $mode = 'disabled';
         } elseif ($hasError) {
-            $statusLabel = 'エラー';
+            $statusLabel = '取得エラー（実装済み）';
             $statusClass = 'status-error';
+            $availabilityState = 'runtime_error';
             $mode = 'disabled';
         } elseif ($hasWarning) {
             $statusLabel = '警告あり';
             $statusClass = 'status-warning';
+            $availabilityState = 'warning';
             $mode = 'disabled';
         } elseif ($needsPublish) {
             $statusLabel = '要反映';
             $statusClass = 'status-needs-build';
+            $availabilityState = 'publish_pending';
+            $mode = 'disabled';
+        } elseif ($hasRegistryState && (string)($registryState['state'] ?? '') !== '') {
+            $availabilityState = (string)$registryState['state'];
+            $statusLabel = (string)($registryState['label'] ?? '未取得');
+            $statusClass = match ($availabilityState) {
+                'excluded', 'review_required' => 'status-excluded',
+                'unsupported' => 'status-unsupported',
+                'source_unresolved' => 'status-unresolved',
+                default => 'status-unacquired',
+            };
             $mode = 'disabled';
         } else {
-            $statusLabel = '未公開';
-            $statusClass = 'status-unpublished';
+            $statusLabel = '未取得';
+            $statusClass = 'status-unacquired';
+            $availabilityState = 'unacquired';
             $mode = 'disabled';
         }
 
@@ -2292,7 +2724,15 @@ function homepage_collect_visible_features(
             'display' => $display,
             'status_label' => $statusLabel,
             'status_class' => $statusClass,
+            'availability_state' => $availabilityState,
+            'system_type' => (string)($registryState['system_type'] ?? ''),
             'mode' => $mode,
+            'acquisition_state' => $acquisitionState,
+            'acquisition_label' => (string)($acquisition['label'] ?? ''),
+            'acquisition_detail' => $acquisitionDetail,
+            'source_coverage' => is_array($acquisition['source_coverage'] ?? null)
+                ? $acquisition['source_coverage']
+                : null,
             'has_error' => $hasError,
             'has_warning' => $hasWarning,
         ];
@@ -2310,7 +2750,7 @@ function homepage_collect_visible_features(
     ];
 }
 
-function homepage_build_context(): array
+function homepage_build_context(bool $includeRegistryStates = false): array
 {
     $municipalities = municipality_catalog();
     $featureLabels = [
@@ -2417,7 +2857,8 @@ function homepage_build_context(): array
             $featureIcons,
             $backgroundTaskStatuses,
             $backgroundTaskSnapshots,
-            is_array($featureRuntimeStates[(string)$slug] ?? null) ? $featureRuntimeStates[(string)$slug] : []
+            is_array($featureRuntimeStates[(string)$slug] ?? null) ? $featureRuntimeStates[(string)$slug] : [],
+            $includeRegistryStates
         );
         if (($summary['visible_features'] ?? []) === []) {
             continue;
@@ -2527,9 +2968,9 @@ function homepage_build_context(): array
     ];
 }
 
-function homepage_build_api_payload(): array
+function homepage_build_api_payload(bool $includeRegistryStates = false): array
 {
-    $context = homepage_build_context();
+    $context = homepage_build_context($includeRegistryStates);
     $municipalities = is_array($context['municipalities'] ?? null) ? $context['municipalities'] : [];
     $displayMunicipalities = is_array($context['displayMunicipalities'] ?? null) ? $context['displayMunicipalities'] : [];
     $backgroundTaskStatuses = is_array($context['backgroundTaskStatuses'] ?? null) ? $context['backgroundTaskStatuses'] : [];
@@ -2559,6 +3000,7 @@ function homepage_build_api_payload(): array
                 continue;
             }
             $feature = is_array($item['feature'] ?? null) ? $item['feature'] : [];
+            $featureKey = (string)($item['feature_key'] ?? '');
             $display = homepage_sanitize_home_card_display(
                 is_array($item['display'] ?? null) ? $item['display'] : null
             );
@@ -2567,15 +3009,27 @@ function homepage_build_api_payload(): array
             $cardHasError = $cardHasError || $featureHasError;
             $cardHasWarning = $cardHasWarning || $featureHasWarning;
             $features[] = [
-                'feature_key' => (string)($item['feature_key'] ?? ''),
+                'feature_key' => $featureKey,
                 'label' => (string)($item['label'] ?? ''),
                 'icon' => (string)($item['icon'] ?? ''),
                 'title' => (string)($item['title'] ?? ''),
                 'status_label' => (string)($item['status_label'] ?? ''),
                 'status_class' => (string)($item['status_class'] ?? ''),
+                'availability_state' => (string)($item['availability_state'] ?? ''),
+                'system_type' => (string)($item['system_type'] ?? ''),
                 'mode' => (string)($item['mode'] ?? 'disabled'),
                 'url' => (string)($feature['url'] ?? ''),
                 'display' => $display,
+                'search_coverage' => homepage_feature_search_coverage(
+                    $featureKey,
+                    (string)($card['slug'] ?? '')
+                ),
+                'acquisition_state' => (string)($item['acquisition_state'] ?? ''),
+                'acquisition_label' => (string)($item['acquisition_label'] ?? ''),
+                'acquisition_detail' => (string)($item['acquisition_detail'] ?? ''),
+                'source_coverage' => is_array($item['source_coverage'] ?? null)
+                    ? $item['source_coverage']
+                    : null,
                 'has_error' => $featureHasError,
                 'has_warning' => $featureHasWarning,
             ];
@@ -2778,6 +3232,87 @@ function homepage_sanitize_api_payload_displays(array $payload): array
 function homepage_api_cache_path(): string
 {
     return data_path('background_tasks/home_api_payload.json');
+}
+
+function homepage_status_api_cache_path(): string
+{
+    return data_path('background_tasks/status_api_payload.json');
+}
+
+function homepage_status_api_cache_refresh_lock_path(): string
+{
+    return data_path('background_tasks/status_api_payload.lock');
+}
+
+function homepage_rebuild_status_api_payload_cache(): array
+{
+    $payload = homepage_build_api_payload(true);
+    write_json_cache_file(homepage_status_api_cache_path(), $payload);
+    return $payload;
+}
+
+function homepage_build_status_api_payload_cached(int $ttlSeconds = 60): array
+{
+    $cached = read_json_cache_file(homepage_status_api_cache_path(), $ttlSeconds);
+    if (is_array($cached)) {
+        if (!headers_sent()) {
+            header('X-Status-Cache: hit');
+        }
+        return $cached;
+    }
+
+    $staleCached = read_json_cache_file(homepage_status_api_cache_path(), 0);
+    if (is_array($staleCached) && PHP_SAPI !== 'cli') {
+        homepage_schedule_status_api_payload_cache_refresh();
+        if (!headers_sent()) {
+            header('X-Status-Cache: stale');
+        }
+        return $staleCached;
+    }
+
+    $payload = homepage_rebuild_status_api_payload_cache();
+    if (!headers_sent()) {
+        header('X-Status-Cache: miss');
+    }
+    return $payload;
+}
+
+function homepage_schedule_status_api_payload_cache_refresh(): void
+{
+    static $scheduled = false;
+    if ($scheduled || PHP_SAPI === 'cli') {
+        return;
+    }
+
+    $lockPath = homepage_status_api_cache_refresh_lock_path();
+    $lockDir = dirname($lockPath);
+    if (!is_dir($lockDir)) {
+        @mkdir($lockDir, 0755, true);
+    }
+    $lockHandle = @fopen($lockPath, 'c');
+    if ($lockHandle === false) {
+        return;
+    }
+    if (!@flock($lockHandle, LOCK_EX | LOCK_NB)) {
+        @fclose($lockHandle);
+        return;
+    }
+
+    $scheduled = true;
+    register_shutdown_function(static function () use ($lockHandle, $lockPath): void {
+        if (function_exists('fastcgi_finish_request')) {
+            @fastcgi_finish_request();
+        }
+        try {
+            homepage_rebuild_status_api_payload_cache();
+        } catch (Throwable $error) {
+            error_log('[status_api] background cache refresh failed: ' . $error->getMessage());
+        } finally {
+            @flock($lockHandle, LOCK_UN);
+            @fclose($lockHandle);
+            @unlink($lockPath);
+        }
+    });
 }
 
 function homepage_api_cache_refresh_lock_path(): string

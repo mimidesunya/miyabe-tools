@@ -568,25 +568,8 @@ function background_task_item_display(array $taskStatus, string $slug): ?array
     }
     if ($status === 'failed') {
         $returncode = $item['returncode'] ?? null;
-        $indexStatus = trim((string)($item['index_status'] ?? ''));
-        $returncodeIsOk = $returncode === null || $returncode === '' || (int)$returncode === 0;
-        if (background_task_item_is_complete($item) && $indexStatus !== 'failed' && $returncodeIsOk) {
-            $completeDetailLines = preg_split('/\R/u', $detail, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-            $completeDetailLines = array_values(array_filter(
-                $completeDetailLines,
-                static fn($line): bool => !str_starts_with(trim((string)$line), '理由 ')
-            ));
-            $completeDetail = implode("\n", $completeDetailLines);
-            return [
-                'label' => '完了',
-                'class' => 'task-done',
-                'detail' => $completeDetail,
-                'progress_current' => $progress['current'],
-                'progress_total' => $progress['total'],
-                'batch_running' => $running,
-                'warning_lines' => $warningLines,
-            ] + background_task_display_freshness_fields($item);
-        }
+        // status=failed は、件数が total に達していて終了コードが 0 でも失敗として表示する。
+        // 後処理や検証で失敗したケースを「完了」に変換すると、実装済みの取得エラーを隠してしまう。
         if ($returncode !== null && $returncode !== '') {
             if ($detail === '') {
                 $detail = '終了コード ' . (string)$returncode;

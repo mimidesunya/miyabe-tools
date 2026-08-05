@@ -147,7 +147,29 @@
     }
 
     function normalizeIssue(value) {
-        return ['all', 'ready', 'issues', 'pending'].includes(value) ? value : 'all';
+        return [
+            'all',
+            'ready',
+            'issues',
+            'errors',
+            'warnings',
+            'pending',
+            'runtime_error',
+            'warning',
+            'unacquired',
+            'excluded',
+            'review_required',
+            'unsupported',
+            'source_unresolved',
+            'publish_pending',
+            'search_pending',
+            'suspended',
+            'partial_planned',
+            'index_pending',
+            'partial_error',
+            'update_error',
+            'coverage_unknown',
+        ].includes(value) ? value : 'all';
     }
 
     function normalizePrefecture(value) {
@@ -180,6 +202,36 @@
         return features.find((feature) => String(feature?.feature_key || '') === key) || null;
     }
 
+    function featureSearchCoverage(card, key = 'gijiroku') {
+        const coverage = featureByKey(card, key)?.search_coverage;
+        if (!coverage || typeof coverage !== 'object') return null;
+        const from = String(coverage.from || '').trim();
+        const to = String(coverage.to || '').trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return null;
+        return {
+            from,
+            to,
+            documentCount: Math.max(0, Number(coverage.document_count || 0)),
+        };
+    }
+
+    function formatCoverageDate(value) {
+        const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!match) return String(value || '');
+        return `${match[1]}年${Number(match[2])}月${Number(match[3])}日`;
+    }
+
+    function searchCoverageText(coverage, options = {}) {
+        if (!coverage) return '';
+        const from = options.compact === true ? coverage.from : formatCoverageDate(coverage.from);
+        const to = options.compact === true ? coverage.to : formatCoverageDate(coverage.to);
+        const range = from === to ? from : `${from}〜${to}`;
+        if (options.includeCount !== false && coverage.documentCount > 0) {
+            return `${range}（${coverage.documentCount}件）`;
+        }
+        return range;
+    }
+
     function hasFeature(card, key) {
         return featureByKey(card, key) !== null;
     }
@@ -193,24 +245,53 @@
         return featureKeys.filter((key) => featureReady(card, key)).length;
     }
 
-    function cardHasIssue(card) {
-        if (card?.has_error === true || card?.has_warning === true) return true;
-        const features = Array.isArray(card?.features) ? card.features : [];
-        return features.some((feature) => feature?.has_error === true || feature?.has_warning === true);
+    function featureAvailabilityState(feature) {
+        const explicit = String(feature?.availability_state || '').trim();
+        if (explicit !== '') return explicit;
+        if (feature?.has_error === true) return 'runtime_error';
+        if (feature?.has_warning === true) return 'warning';
+        return String(feature?.mode || '') === 'link' ? 'ready' : 'unacquired';
     }
 
-    function cardIsPending(card) {
-        const features = Array.isArray(card?.features) ? card.features : [];
-        return features.length > 0 && features.some((feature) => String(feature?.mode || '') !== 'link');
+    function cardHasIssue(card, key = state.feature) {
+        const feature = featureByKey(card, key);
+        return feature?.has_error === true || feature?.has_warning === true;
+    }
+
+    function cardIsPending(card, key = state.feature) {
+        const feature = featureByKey(card, key);
+        return feature !== null && featureAvailabilityState(feature) !== 'ready';
     }
 
     function cardMatchesFilters(card) {
         const prefCode = prefCodeFromCard(card);
         if (state.prefecture !== 'all' && prefCode !== state.prefecture) return false;
         if (!hasFeature(card, state.feature)) return false;
-        if (state.issue === 'ready' && cardReadyCount(card) <= 0) return false;
+        const selectedFeature = featureByKey(card, state.feature);
+        const availabilityState = featureAvailabilityState(selectedFeature);
+        if (state.issue === 'ready' && !featureReady(card, state.feature)) return false;
         if (state.issue === 'issues' && !cardHasIssue(card)) return false;
+        if (state.issue === 'errors' && availabilityState !== 'runtime_error') return false;
+        if (state.issue === 'warnings' && availabilityState !== 'warning') return false;
         if (state.issue === 'pending' && !cardIsPending(card)) return false;
+        const directStates = [
+            'runtime_error',
+            'warning',
+            'unacquired',
+            'excluded',
+            'review_required',
+            'unsupported',
+            'source_unresolved',
+            'publish_pending',
+            'search_pending',
+            'suspended',
+            'partial_planned',
+            'index_pending',
+            'partial_error',
+            'update_error',
+            'coverage_unknown',
+        ];
+        if (directStates.includes(state.issue) && availabilityState !== state.issue) return false;
         const query = state.query.trim().toLowerCase();
         if (query !== '') {
             const haystack = [
@@ -218,6 +299,9 @@
                 card?.prefecture_label,
                 card?.slug,
                 card?.available_summary,
+                selectedFeature?.status_label,
+                selectedFeature?.system_type,
+                selectedFeature?.display?.detail,
             ].join(' ').toLowerCase();
             if (!haystack.includes(query)) return false;
         }
@@ -516,7 +600,9 @@
     function renderFeatureDot(key, card) {
         const feature = featureByKey(card, key);
         if (!feature) return `<span class="service-dot service-dot-empty">${escapeHtml(featureMeta[key].shortLabel)}</span>`;
-        return `<span class="service-dot service-dot-${key}${featureReady(card, key) ? '' : ' service-dot-pending'}">${escapeHtml(featureMeta[key].shortLabel)}</span>`;
+        const availabilityState = featureAvailabilityState(feature).replace(/[^a-z_]/g, '');
+        const label = `${featureMeta[key].label}: ${String(feature?.status_label || '')}`;
+        return `<span class="service-dot service-dot-${key} service-dot-state-${escapeHtml(availabilityState)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${escapeHtml(featureMeta[key].shortLabel)}</span>`;
     }
 
     function renderDetail(card) {
@@ -555,6 +641,11 @@
         const key = String(feature?.feature_key || '');
         const meta = featureMeta[key] || { label: feature?.label || key, color: '#64748b' };
         const detail = String(feature?.display?.detail || '').trim();
+        const systemType = String(feature?.system_type || '').trim();
+        const coverage = key === 'gijiroku'
+            ? featureSearchCoverage({ features: [feature] }, key)
+            : null;
+        const hasSearchableMinutes = key === 'gijiroku' && String(feature?.mode || '') === 'link';
         const action = String(feature?.mode || '') === 'link' && String(feature?.url || '') !== ''
             ? `<a class="feature-open" href="${escapeHtml(feature.url)}">開く</a>`
             : '<span class="feature-open feature-open-disabled">待機</span>';
@@ -565,6 +656,8 @@
                     <span class="status ${escapeHtml(feature?.status_class || '')}">${escapeHtml(feature?.status_label || '')}</span>
                     ${action}
                 </div>
+                ${systemType !== '' ? `<p class="feature-system-type">取得形式: ${escapeHtml(systemType)}</p>` : ''}
+                ${hasSearchableMinutes ? `<p class="feature-search-coverage"><strong>検索できる会議日</strong><span>${coverage ? escapeHtml(searchCoverageText(coverage)) : '日付情報がないため範囲を表示できません'}</span></p>` : ''}
                 ${detail !== '' ? `<p>${escapeHtml(detail).replace(/\n/g, '<br>')}</p>` : ''}
             </div>
         `.trim();
@@ -601,18 +694,42 @@
             `.trim();
         });
         resultList.innerHTML = sections.join('');
+        updateListSelection();
     }
 
     function renderMunicipalityRow(card) {
+        const slug = String(card.slug || '');
+        const coverage = state.feature === 'gijiroku' ? featureSearchCoverage(card) : null;
+        const hasSearchableMinutes = state.feature === 'gijiroku' && featureReady(card, 'gijiroku');
         return `
-            <button class="municipality-row${String(card.slug || '') === state.selectedSlug ? ' is-selected' : ''}" type="button" data-slug="${escapeHtml(card.slug || '')}">
-                <span class="municipality-row-name">${escapeHtml(card.name || '')}</span>
-                <span class="service-dots">
-                    ${renderFeatureDot('gijiroku', card)}
-                    ${renderFeatureDot('reiki', card)}
-                    ${renderFeatureDot('boards', card)}
-                </span>
-            </button>
+            <div class="municipality-index-card${slug === state.selectedSlug ? ' is-selected' : ''}" data-index-slug="${escapeHtml(slug)}">
+                <button class="municipality-row${slug === state.selectedSlug ? ' is-selected' : ''}" type="button" data-slug="${escapeHtml(slug)}" aria-expanded="${slug === state.selectedSlug ? 'true' : 'false'}">
+                    <span class="municipality-row-copy">
+                        <span class="municipality-row-name">${escapeHtml(card.name || '')}</span>
+                    </span>
+                    <span class="service-dots">
+                        ${renderFeatureDot('gijiroku', card)}
+                        ${renderFeatureDot('reiki', card)}
+                        ${renderFeatureDot('boards', card)}
+                    </span>
+                    ${hasSearchableMinutes ? `<span class="municipality-row-range${coverage ? '' : ' is-unknown'}">会議日 ${coverage ? escapeHtml(searchCoverageText(coverage, { includeCount: false, compact: true })) : '日付情報なし'}</span>` : ''}
+                </button>
+            </div>
+        `.trim();
+    }
+
+    function renderMunicipalityInlineDetail(card) {
+        const features = Array.isArray(card?.features) ? card.features : [];
+        const coverage = featureSearchCoverage(card);
+        const hasSearchableMinutes = featureReady(card, 'gijiroku');
+        return `
+            <div class="municipality-inline-detail" data-home-inline-detail>
+                <div class="municipality-inline-statuses">
+                    ${features.map((feature) => `<span>${escapeHtml(feature?.label || '')}: <strong>${escapeHtml(feature?.status_label || '')}</strong></span>`).join('')}
+                </div>
+                ${hasSearchableMinutes ? `<p><strong>検索できる会議日</strong>${coverage ? escapeHtml(searchCoverageText(coverage)) : '日付情報がないため範囲を表示できません'}</p>` : ''}
+                <a href="/search/?slug=${encodeURIComponent(card?.slug || '')}">${escapeHtml(card?.name || '')}の記録を検索 <span aria-hidden="true">→</span></a>
+            </div>
         `.trim();
     }
 
@@ -707,14 +824,26 @@
 
     function updateListSelection() {
         if (!resultList) return;
+        resultList.querySelectorAll('[data-home-inline-detail]').forEach((detail) => detail.remove());
+        resultList.querySelectorAll('.municipality-index-card.is-selected').forEach((card) => {
+            card.classList.remove('is-selected');
+        });
         resultList.querySelectorAll('.municipality-row.is-selected').forEach((row) => {
             row.classList.remove('is-selected');
+            row.setAttribute('aria-expanded', 'false');
         });
         if (state.selectedSlug === '') return;
         const rows = resultList.querySelectorAll('.municipality-row[data-slug]');
         for (const row of rows) {
             if (row.getAttribute('data-slug') === state.selectedSlug) {
                 row.classList.add('is-selected');
+                row.setAttribute('aria-expanded', 'true');
+                const container = row.closest('.municipality-index-card');
+                const card = allCards().find((item) => String(item.slug || '') === state.selectedSlug) || null;
+                if (container && card) {
+                    container.classList.add('is-selected');
+                    container.insertAdjacentHTML('beforeend', renderMunicipalityInlineDetail(card));
+                }
                 break;
             }
         }
@@ -839,7 +968,7 @@
         resultList.addEventListener('click', (event) => {
             const row = event.target.closest?.('[data-slug]');
             if (!row) return;
-            selectCard(row.getAttribute('data-slug'));
+            selectCard(row.getAttribute('data-slug'), { pan: false, openPopup: false });
         });
     }
 

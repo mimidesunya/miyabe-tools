@@ -644,6 +644,41 @@ h1 {
     border: 1px dashed #94a3b8;
 }
 
+.service-dot-state-unacquired,
+.service-dot-state-publish_pending,
+.service-dot-state-search_pending,
+.service-dot-state-warning {
+    color: #78350f;
+    background: #fef3c7;
+    border: 1px dashed #d97706;
+}
+
+.service-dot-state-runtime_error {
+    color: #fff;
+    background: #be123c;
+    border: 1px solid #9f1239;
+}
+
+.service-dot-state-unsupported {
+    color: #fff;
+    background: #7c3aed;
+    border: 1px solid #6d28d9;
+}
+
+.service-dot-state-source_unresolved {
+    color: #475569;
+    background: #f8fafc;
+    border: 1px dotted #64748b;
+}
+
+.service-dot-state-excluded,
+.service-dot-state-review_required,
+.service-dot-state-suspended {
+    color: #334155;
+    background: #e2e8f0;
+    border: 1px solid #94a3b8;
+}
+
 .service-dot-empty {
     color: #94a3b8;
     background: #f1f5f9;
@@ -699,9 +734,21 @@ h1 {
 
 .status-pending,
 .status-unpublished,
-.status-needs-build {
+.status-needs-build,
+.status-unacquired {
     color: #92400e;
     background: rgba(180, 83, 9, 0.10);
+}
+
+.status-unsupported {
+    color: #6d28d9;
+    background: rgba(124, 58, 237, 0.12);
+}
+
+.status-unresolved,
+.status-excluded {
+    color: #475569;
+    background: rgba(100, 116, 139, 0.12);
 }
 
 .status-warning {
@@ -718,6 +765,28 @@ h1 {
 .status-suspended {
     color: #475569;
     background: rgba(100, 116, 139, 0.12);
+}
+
+.feature-system-type {
+    margin: 0;
+    font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+    font-size: 11px !important;
+}
+
+.legend.status-legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    justify-content: stretch;
+    gap: 8px;
+}
+
+.legend.status-legend span {
+    align-items: flex-start;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.42);
+    font-size: 11px;
+    line-height: 1.5;
 }
 
 .feature-open {
@@ -1640,6 +1709,20 @@ h1 em {
     background: transparent;
 }
 
+.feature-search-coverage {
+    display: grid;
+    gap: 3px;
+    margin: 10px 0 0;
+    color: var(--ink);
+    font-size: 12px;
+}
+
+.feature-search-coverage strong {
+    color: var(--muted);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+}
+
 .feature-detail-top {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
@@ -1746,11 +1829,84 @@ h1 em {
     background: rgba(255, 253, 247, 0.34);
 }
 
+.municipality-index-card {
+    min-width: 0;
+    display: grid;
+    align-content: start;
+}
+
+.municipality-row-copy {
+    min-width: 0;
+}
+
+.municipality-row-range {
+    grid-column: 1 / -1;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .municipality-row:hover,
 .municipality-row.is-selected {
     border-color: var(--line);
     color: var(--panel);
     background: var(--blue-deep);
+}
+
+.municipality-row:hover .municipality-row-range,
+.municipality-row.is-selected .municipality-row-range {
+    color: rgba(255, 255, 255, 0.76);
+}
+
+.municipality-inline-detail {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background: #fffdf7;
+    font-size: 11px;
+}
+
+.municipality-inline-statuses {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 12px;
+    color: var(--muted);
+}
+
+.municipality-inline-statuses strong {
+    color: var(--ink);
+}
+
+.municipality-inline-detail p {
+    display: grid;
+    gap: 3px;
+    margin: 0;
+}
+
+.municipality-inline-detail p strong {
+    color: var(--muted);
+    font-size: 9px;
+}
+
+.municipality-inline-detail > a {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 10px;
+    color: #fff;
+    background: var(--blue-deep);
+    font-weight: 900;
+    text-decoration: none;
+}
+
+.municipality-inline-detail > a:hover {
+    background: var(--rose);
 }
 
 .municipality-row.is-selected .service-dot-empty {
