@@ -104,7 +104,13 @@ def recently_completed_successfully(
 
     fallback_finished_at = ""
     for candidate_task_name in [task_name, f"{task_name}_snapshot"]:
-        finished_at = successful_item_finished_at(task_item(candidate_task_name, slug))
+        candidate_item = task_item(candidate_task_name, slug)
+        candidate_current, candidate_total = item_progress(candidate_item)
+        if (candidate_current, candidate_total) != (current_count, total_count):
+            # 以前の件数上限付き実行（例: 25/25）の成功時刻を、後から判明した
+            # 全件数（例: 1675/1675）の成功時刻として流用しない。
+            continue
+        finished_at = successful_item_finished_at(candidate_item)
         if finished_at and not fallback_finished_at:
             fallback_finished_at = finished_at
         finished = freshness_metadata.parse_datetime_text(finished_at)
@@ -163,8 +169,39 @@ def scrape_state_progress(target: dict[str, Any]) -> tuple[int, int]:
         return 0, 0
     validation = payload.get("validation")
     if isinstance(validation, dict) and str(validation.get("mode") or "") == "classified_scrape_result":
-        return item_progress(validation)
-    return item_progress(payload)
+        current_count, total_count = item_progress(validation)
+    else:
+        current_count, total_count = item_progress(payload)
+
+    source_coverage = payload.get("source_coverage")
+    if (
+        isinstance(source_coverage, dict)
+        and str(source_coverage.get("mode") or "") == "source_discovery_coverage"
+        and str(source_coverage.get("state") or "") in {"partial_planned", "partial_limit", "partial_error"}
+    ):
+        # 件数上限や一覧ページの失敗がある実行を「25/25 完了」のように扱わない。
+        # 既存 snapshot よりこの incomplete 候補が優先され、次回バッチへ再投入される。
+        return current_count, max(total_count, current_count + 1)
+
+    system_family = str(target.get("system_family") or target.get("system_type") or "").strip()
+    has_explicit_coverage = (
+        isinstance(source_coverage, dict)
+        and str(source_coverage.get("mode") or "") == "source_discovery_coverage"
+        and str(source_coverage.get("state") or "") == "complete"
+    )
+    if system_family in {"dbsr", "db-search", "kaigiroku-indexphp"} and not has_explicit_coverage:
+        # 旧DBSR成果物は、保存件数と検索件数が一致していても取得元の全一覧を
+        # 走査した記録がない。meetings_index の件数を使って未完了候補にし、
+        # 上限なしの再走査で complete/partial_error を確定させる。
+        try:
+            index_payload = json.loads(Path(str(target.get("index_json_path") or "")).read_text(encoding="utf-8"))
+            if isinstance(index_payload, list):
+                current_count = max(current_count, len(index_payload))
+        except Exception:
+            pass
+        if current_count > 0:
+            return current_count, max(total_count, current_count + 1)
+    return current_count, total_count
 
 
 class PriorityCalculator:
