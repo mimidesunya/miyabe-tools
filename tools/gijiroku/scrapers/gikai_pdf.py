@@ -123,9 +123,11 @@ def crawl_pdf_items(
         visited.add(url)
         try:
             html = request_text(session, url, timeout_ms)
+            # PDF などを掴んだ場合、パーサが AssertionError を投げて
+            # プロセスごと落ちる。解析も同じ try で守る。
+            soup = BeautifulSoup(html, "html.parser")
         except Exception:
             continue
-        soup = BeautifulSoup(html, "html.parser")
         title = page_title(soup)
         page_year_label, page_source_year = extract_year_info(title)
 

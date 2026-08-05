@@ -163,10 +163,32 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# 拡張子のない URL が PDF などを返すことがある。バイナリをそのまま
+# HTML パーサへ渡すと AssertionError でプロセスごと落ちるため、
+# ここで HTML ではない応答を弾く。
+def looks_like_html_response(content_type: str, raw: bytes) -> bool:
+    media_type = str(content_type or "").split(";", 1)[0].strip().lower()
+    if media_type and not (
+        media_type.startswith("text/")
+        or media_type.endswith("+xml")
+        or media_type in {"application/xml", "application/xhtml"}
+    ):
+        return False
+    # Content-Type が text/html でも実体が PDF のサーバがある。
+    head = raw[:1024]
+    if head.startswith((b"%PDF-", b"PK\x03\x04", b"\x89PNG", b"GIF8", b"\xff\xd8\xff", b"\x1f\x8b")):
+        return False
+    return b"\x00" not in head
+
+
 def request_text(session: requests.Session, url: str, timeout_ms: int) -> str:
     response = session.get(url, timeout=max(timeout_ms / 1000.0, 1.0))
     response.raise_for_status()
     raw = response.content
+    if not looks_like_html_response(response.headers.get("Content-Type", ""), raw):
+        raise ValueError(
+            f"HTML ではない応答のため解析を中止します: {response.headers.get('Content-Type', '')!r} {url}"
+        )
     for encoding in ("utf-8", response.apparent_encoding, response.encoding, "cp932"):
         if not encoding:
             continue
@@ -284,8 +306,13 @@ def discover_pdf_items(
     items_by_url: dict[str, PdfMeetingItem] = {}
 
     for page_url in page_urls:
-        page_html = request_text(session, page_url, timeout_ms)
-        soup = BeautifulSoup(page_html, "html.parser")
+        try:
+            page_html = request_text(session, page_url, timeout_ms)
+            soup = BeautifulSoup(page_html, "html.parser")
+        except Exception as exc:
+            # 1 ページの取得・解析失敗で自治体全体を落とさない。
+            print(f"[WARN] 一覧ページを解析できません: {page_url} ({exc})", file=sys.stderr)
+            continue
         title = page_title(soup)
         page_year_label, page_source_year = extract_year_info(title)
         if pages_dir is not None:
@@ -355,7 +382,10 @@ def extract_pdf_text(pdf_bytes: bytes) -> str:
 
 
 def normalize_pdf_text(value: str) -> str:
-    text = value.replace("\u00a0", " ").replace("\r\n", "\n").replace("\r", "\n")
+    # \u58ca\u308c\u305f PDF \u304b\u3089\u5b64\u7acb\u30b5\u30ed\u30b2\u30fc\u30c8\u304c\u6df7\u3058\u308b\u3053\u3068\u304c\u3042\u308b\u3002\u305d\u306e\u307e\u307e\u4fdd\u5b58\u3059\u308b\u3068
+    # \u300csurrogates not allowed\u300d\u3067\u66f8\u304d\u51fa\u3057\u304c\u5931\u6557\u3057\u3001\u4f1a\u8b70\u307e\u308b\u3054\u3068\u53d6\u5f97\u5931\u6557\u306b\u306a\u308b\u3002
+    text = "".join(ch for ch in value if not 0xD800 <= ord(ch) <= 0xDFFF)
+    text = text.replace("\u00a0", " ").replace("\r\n", "\n").replace("\r", "\n")
     compact_chars = r"一-龯々〆ヵヶぁ-んァ-ヴー０-９0-9"
     text = re.sub(rf"(?<=[{compact_chars}])[\t ]+(?=[{compact_chars}])", "", text)
     text = re.sub(r"[ \t]+\n", "\n", text)
