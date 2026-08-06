@@ -617,7 +617,11 @@ def extract_document_rows_from_page(page) -> list[DocumentRow]:
     if rows:
         return rows
 
+    # 同じ 2 つのクラスでも入れ子の向きが逆の取得元がある（山口市は
+    # div.title > div.recordcol）。どちらでも行を拾えるようにする。
     items = page.locator("div.recordcol div.title")
+    if items.count() == 0:
+        items = page.locator("div.title div.recordcol")
     for index in range(items.count()):
         item = items.nth(index)
         anchor = item.locator("a").first
