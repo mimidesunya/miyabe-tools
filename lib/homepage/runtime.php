@@ -520,10 +520,12 @@ function homepage_search_availability_note(int $storedCount, int $indexedCount, 
 
 
 const HOMEPAGE_MINUTES_INDEX_EXCLUSION_REASON = '目次など本文以外は検索の対象外です';
+const HOMEPAGE_REIKI_INDEX_EXCLUSION_REASON = '本文として取り出せなかった資料は検索の対象外です';
 
 
-// 例規集は取得元の走査記録を持たない。差が出る理由も会議録の目次のようには
-// 特定できていないので、件数だけ添える。
+// 例規集は取得元の走査記録を持たない。取得した生ファイルのうち本文として
+// 整形できたものだけが検索に載るため、件数差はそれで説明がつく
+// （札幌市 1106 件中 967 件、旭川市 1126 件中 923 件が本文）。
 function homepage_reiki_acquisition_status(int $storedCount, int $indexedCount): array
 {
     $status = homepage_indexed_shortfall_status($storedCount, $indexedCount);
@@ -533,7 +535,11 @@ function homepage_reiki_acquisition_status(int $storedCount, int $indexedCount):
     return [
         'state' => '',
         'label' => '',
-        'detail' => homepage_search_availability_note($storedCount, $indexedCount),
+        'detail' => homepage_search_availability_note(
+            $storedCount,
+            $indexedCount,
+            HOMEPAGE_REIKI_INDEX_EXCLUSION_REASON
+        ),
         'source_coverage' => null,
     ];
 }
