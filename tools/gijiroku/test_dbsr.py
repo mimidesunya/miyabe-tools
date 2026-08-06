@@ -91,6 +91,16 @@ class FullTextDownloadUrlTest(unittest.TestCase):
         self.assertEqual(
             dbsr.full_text_download_url("https://example.dbsr.jp/index.php/1?Template=doc-one-frame"), ""
         )
+    def test_uppercase_template_is_converted(self) -> None:
+        # Template 名の大文字小文字は取得元によって違う。
+        url = dbsr.full_text_download_url(
+            "https://example.dbsr.jp/index.php/1?Template=Doc-One-Frame&DocumentID=7"
+        )
+        self.assertEqual(
+            url,
+            "https://example.dbsr.jp/index.php/1?Template=download&Download=yes&VoiceType=all&DocumentID=7",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -231,7 +231,8 @@ def find_search_library_url(page, source_url: str) -> str:
     links = page.locator("a")
     for i in range(links.count()):
         href = safe_href(links.nth(i))
-        if "Template=search-library" not in href:
+        # Template 名の大文字小文字は取得元によって違う（Template=List など）。
+        if "template=search-library" not in href.lower():
             continue
         candidates.append(urljoin(page.url, href))
     if candidates:
@@ -402,12 +403,13 @@ def collect_list_page_entries(page, entries, year_label: str, items: dict[str, L
                 continue
             absolute_url = canonicalize_template_url(urljoin(page.url, href))
 
-            if "Template=list" in href and list_url == "":
+            href_lower = href.lower()
+            if "template=list" in href_lower and list_url == "":
                 list_url = absolute_url
                 meeting_group = detect_meeting_group(text, page.title())
                 continue
 
-            if "Template=mokuji" in href:
+            if "template=mokuji" in href_lower:
                 auxiliary_docs.append(
                     {
                         "title": normalize_space(text) or "補助資料",
@@ -1055,7 +1057,7 @@ def document_date_label(page_html: str, meeting_item: MeetingItem) -> str | None
 # 単文表示テンプレートは本文をフレーム内で 1 発言ずつ出すため、文書 URL を
 # 辿っても全文にならない。画面の「全文表示」と同じ download を使う。
 def full_text_download_url(url: str) -> str:
-    if "Template=doc-one-frame" not in url:
+    if "template=doc-one-frame" not in url.lower():
         return ""
     document_id = query_value(url, "DocumentID")
     if document_id == "":
