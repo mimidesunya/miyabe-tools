@@ -352,6 +352,14 @@ function homepage_gijiroku_acquisition_status(
                 'source_coverage' => null,
             ];
         }
+        // 走査記録を持つのは dbsr 系だけだが、検索反映の遅れはどの系統でも起きる。
+        $shortfall = homepage_indexed_shortfall_status(
+            (int)(is_array($display) ? ($display['count_current'] ?? 0) : 0),
+            $indexedCount
+        );
+        if ($shortfall['state'] !== '') {
+            return $shortfall;
+        }
         return [
             'state' => 'coverage_unknown',
             'label' => '検索可（取得範囲未判定）',
