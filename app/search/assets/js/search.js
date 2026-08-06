@@ -328,6 +328,8 @@
         } else if (state.endYear) {
             params.set('end_year', state.endYear);
         }
+        // 「検索結果の内訳」を出すには集計を明示的に要求する必要がある。
+        params.set('include_facets', '1');
         return params;
     }
 
