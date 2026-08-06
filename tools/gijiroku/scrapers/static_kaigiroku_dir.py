@@ -307,9 +307,11 @@ def discover_items(
             if not src:
                 continue
             absolute = normalized_url(urljoin(page_url, src))
+            # frame の中身は同じ 1 ページの続きなので、巡回対象ディレクトリの
+            # 外に置かれていても辿る（同一ホストであることだけ確かめる）。
             if (
                 same_host(start_url, absolute)
-                and should_follow_page(start_url, prefix, absolute)
+                and path_extension(absolute) not in {".pdf", ".jpg", ".png", ".gif", ".css", ".js"}
                 and absolute not in seen_pages
                 and absolute not in queue
             ):
