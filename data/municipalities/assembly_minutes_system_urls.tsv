@@ -823,7 +823,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 18404	https://www.town.minamiechizen.lg.jp/tyougikai/kaigiroku/index.html	独自	enabled			2026-08-02	0cc1a038cc8c5256e83fd3a5278dc5d4cb40f9d36a6964130b0062c93bb9dd01
 18423	https://www.town.echizen.fukui.jp/chousei/04/06/index.html	独自	enabled			2026-08-02	77f1033cbe7d7353c40fd51c30832a90ef4540414f48fb9d4ae7de9fcb38d65e
 18442	https://www.town.fukui-mihama.lg.jp/site/town-council/6535.html	独自	enabled			2026-08-02	40fbb9c98b86832e136908a791eadb5b4933b6363d3519ec3872da48a21aedd3
-18481	https://www.town.takahama.fukui.jp/page/gikai/p007127.html	独自	enabled			2026-08-02	2f2f5393ded9e3af61563050e5117b0da70b6d72c1ffb3af4de48919c300b310
+18481	https://www.kensakusystem.jp/takahama/index.html	kensakusystem	enabled				3185a5349a1f163bdf15ef037a61b6bba3fddb4d4f6f54dcd71dc1d7a7ecc268
 18483	https://ssp.kaigiroku.net/tenant/ohi/SpMinuteSearch.html	kaigiroku.net	enabled				72d2a42791a1482ea8255cd142e28c024732245e7a3df47d9affc53a3348f551
 18501	https://www.town.fukui-wakasa.lg.jp/gyoseijoho/wakasachogikai/1197.html	独自	enabled			2026-08-02	b652ccaae4561ed5291cef16b049646351c594443eeb70a1e3156fe4a18da9d9
 19000	https://kaigiroku.pref.yamanashi.jp/index.php/	kaigiroku-indexphp	enabled				bf7a4dd047ceac046077cf59eab7160a18c346d2a66b7389d8866dcc4760716c
@@ -1127,7 +1127,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 26207	http://www.kensakusystem.jp/joyo/index.html	kensakusystem	enabled			2026-08-02	62a0dc4bb394b4e247a4cf5a76c6db5236d45a820891460f0b84eebab2730197
 26208	http://www.kensakusystem.jp/muko/index.html	kensakusystem	enabled			2026-08-02	537166b90a9bda9fe47b1bf7777ab901c6947b9495c59f8d6788cdc0d8b07e36
 26209	http://www.kensakusystem.jp/nagaokakyo/index.html	kensakusystem	enabled			2026-08-02	ef044ddcca159fec89cfba9b52c4d2967729e98abfc421f5e40d7fad0805e51d
-26210	https://www.city.yawata.kyoto.jp/0000000208.html	独自	enabled			2026-08-02	c11a698d7c0db136f7856e97fbce26f81db7b781376a58e633e503545f624c0c
+26210	https://www.city.yawata.kyoto.dbsr.jp/index.php/	dbsr	enabled				3d6895cf8a8cf176d4c5043cac73aee1664ed5c280f2e05d8f9f5a552d766da9
 26211	https://ssp.kaigiroku.net/tenant/kyotanabe/SpMinuteSearch.html	kaigiroku.net	enabled				70108f5479e6f4f02aa2219f73f37ad87d630541c3fcfa17eb47d067a1270264
 26212	http://www.kensakusystem.jp/kyotango/index.html	kensakusystem	enabled			2026-08-02	7b4f1d26a9c276bbc65d28e607e001e62b7bc81a92cc52f3ce9ce8675504ec73
 26213	https://www.kensakusystem.jp/nantan/index.html	kensakusystem	enabled			2026-08-02	a3c884719084d7dce22919a5cab56c28584cdfe6b9457f6d870edc7da84b28d1
@@ -1772,7 +1772,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 47313	https://ssp.kaigiroku.net/tenant/ginoza/MinuteSearch.html	kaigiroku.net	enabled				030439365b9ef277d1a974501283deac4668e883bd49b175ad27594a8f9bc713
 47314	http://gikai.town.kin.okinawa.jp/kinchou/kensaku/	独自	enabled			2026-08-02	ac7772345d7cb5501fd139efa5926f387c5f300e331b5a5f8fd4c77633ce0963
 47315	https://iegikai.iejima.org/category/kaigiroku/	独自	enabled			2026-08-02	7b4a1edfcd55e41fcb7d08514e71e258e19e9f457715f60ca5b4ee5e019c9e54
-47324	https://www.vill.yomitan.okinawa.jp/gyosei_joho/gikai/kaigioku_gikai/2165.html	独自	enabled			2026-08-02	7b4d271bf856d5faed6e144aa13897e6c8621928f180300f91ac07a3cda283f5
+47324	https://ssp.kaigiroku.net/tenant/yomitan/SpMinuteSearch.html	kaigiroku.net	enabled				31c42bf277ede03e4044dbfd8b8ea77739813d8fcdd46caca0a56eeccfe2d36a
 47325	https://ssp.kaigiroku.net/tenant/kadena/SpMinuteSearch.html	kaigiroku.net	enabled				daf6eba9b8588674daa4dd365e9bdfacbf1ca239b0722e0f4d6593df7e9bdf3e
 47326	https://ssp.kaigiroku.net/tenant/chatan/SpMinuteSearch.html	kaigiroku.net	enabled				56bc86c94eafec193757d8885506cca84be6607905ab2f1e78ce1ee7fde1d2ba
 47327	https://ssp.kaigiroku.net/tenant/kitanakagusuku/SpTop.html	kaigiroku.net	enabled				8def3a1b65410d0ce09459970979ad9bf09a70cdd38e0073b31ccf672d760011
