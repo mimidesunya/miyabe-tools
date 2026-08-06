@@ -643,6 +643,8 @@
         const key = String(feature?.feature_key || '');
         const meta = featureMeta[key] || { label: feature?.label || key, color: '#64748b' };
         const detail = String(feature?.display?.detail || '').trim();
+        // 取得済み件数と検索できる件数の差など、状態の内訳はここにしか入っていない。
+        const acquisitionDetail = String(feature?.acquisition_detail || '').trim();
         const systemType = String(feature?.system_type || '').trim();
         const coverage = key === 'gijiroku'
             ? featureSearchCoverage({ features: [feature] }, key)
@@ -660,6 +662,7 @@
                 </div>
                 ${systemType !== '' ? `<p class="feature-system-type">取得形式: ${escapeHtml(systemType)}</p>` : ''}
                 ${hasSearchableMinutes ? `<p class="feature-search-coverage"><strong>検索できる会議日</strong><span>${coverage ? escapeHtml(searchCoverageText(coverage)) : '日付情報がないため範囲を表示できません'}</span></p>` : ''}
+                ${acquisitionDetail !== '' && !detail.includes(acquisitionDetail) ? `<p class="feature-acquisition-detail">${escapeHtml(acquisitionDetail)}</p>` : ''}
                 ${detail !== '' ? `<p>${escapeHtml(detail).replace(/\n/g, '<br>')}</p>` : ''}
             </div>
         `.trim();
@@ -730,6 +733,10 @@
                     ${features.map((feature) => `<span>${escapeHtml(feature?.label || '')}: <strong>${escapeHtml(feature?.status_label || '')}</strong></span>`).join('')}
                 </div>
                 ${hasSearchableMinutes ? `<p><strong>検索できる会議日</strong>${coverage ? escapeHtml(searchCoverageText(coverage)) : '日付情報がないため範囲を表示できません'}</p>` : ''}
+                ${features
+                    .filter((feature) => String(feature?.acquisition_detail || '').trim() !== '')
+                    .map((feature) => `<p class="municipality-inline-note">${escapeHtml(feature?.label || '')}: ${escapeHtml(String(feature.acquisition_detail).trim())}</p>`)
+                    .join('')}
                 <a href="/search/?slug=${encodeURIComponent(card?.slug || '')}">${escapeHtml(card?.name || '')}の記録を検索 <span aria-hidden="true">→</span></a>
             </div>
         `.trim();
