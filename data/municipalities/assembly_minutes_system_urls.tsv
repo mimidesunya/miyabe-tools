@@ -152,7 +152,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 01610	https://www.shinhidaka-hokkaido.jp/gikai/detail/00000185.html	独自	enabled			2026-08-02	e02fb3636e8a9108b4036261dde7a2a348e95859347d6d38ad4d8f3e65c79e6b
 01631	http://www.town.otofuke.hokkaido.dbsr.jp/index.php/	dbsr	enabled				c9b8b277552a824936a5ddab55602ba70117ceb46ad9caf4f224691553c1c38c
 01632	https://www.shihoro.jp/assembly/news/detail.php?news=278	独自	enabled			2026-08-02	4c8229c8563f8181d6553e680c807b2dfd97e60cab9b14b0786aea7f889323ce
-01633	https://www.kamishihoro.jp/page/00000112	独自	enabled			2026-08-02	bd8b9c6218508d91c810c28028332ce99583908e491d0ec14ef5adb8d3459409
+01633	https://www.kamishihoro.jp/gikai/	独自	enabled				a60c7a2bb99575fc9bfa9e4cd65bff519dc0d2472895aeaf060dc7c4310b0523
 01634	https://www.town.shikaoi.lg.jp/gikai/gijiroku/	static-kaigiroku-dir	enabled			2026-08-02	bf5c93ec1f6ca08acd446d40e4592339996e6db6a9c87568f42b324c2e0c80a5
 01635	https://shintoku-town.jp/gyousei/gikai/kaigiroku/	static-kaigiroku-dir	enabled			2026-08-02	cf1c99af258e3ba9da6d75cba3999c97a1374fdb8c8f5a1d302c6804f923741a
 01636	https://www.town.shimizu.hokkaido.jp/gikai/past/kaigiroku2/index.html	static-kaigiroku-dir	enabled			2026-08-02	cd4b9c0f221f1acfc9a5615e903b026bad3cf47ac4c612362f231d849f12e715
@@ -1614,7 +1614,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 42323			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 42383			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 42391	https://www.sazacho-nagasaki.jp/gikai/list00807.html	独自	enabled			2026-08-02	4bab6333bbf167a1f956dcff104942d6a6f70a713159060e7050753a6fc41bec
-42411	https://official.shinkamigoto.net/goto_chosei.php?wcid=l00003x2	独自	enabled			2026-08-02	7fd0c247cd3ba70ac990976c8b0b8fc259bfd288094457848145892a525dfed8
+42411	https://official.shinkamigoto.net/goto_chosei.php?wcid=l00002x4	独自	enabled				2530de82509ebf525e7616c2f19be5560a09a12242ae74c066912be9abca7f0d
 43000	https://ssp.kaigiroku.net/tenant/prefkumamoto/MinuteSearch.html	kaigiroku.net	enabled				2d49f32a9f83e3df0a6955f8154b57a791644aa6e5addc16b8350a243af5f30d
 43100	https://kumamoto.gijiroku.com/voices/g08v_search.asp	gijiroku.com	enabled			2026-08-02	15710abe5c5a79f6c4d9d22f90aeb25ed0381a5609aecb89cfa0b520a68813b2
 43202	https://www.city.yatsushiro.kumamoto.jp/VOICES/	voices	enabled			2026-08-02	9c77c99d2d3106dcfaf82d1839a3e586fc42ad361c27304ced89007e3342f3b5
