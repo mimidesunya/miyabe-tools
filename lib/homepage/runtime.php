@@ -353,17 +353,19 @@ function homepage_gijiroku_acquisition_status(
             ];
         }
         // 走査記録を持つのは dbsr 系だけだが、検索反映の遅れはどの系統でも起きる。
-        $shortfall = homepage_indexed_shortfall_status(
-            (int)(is_array($display) ? ($display['count_current'] ?? 0) : 0),
-            $indexedCount
-        );
+        $storedCount = (int)(is_array($display) ? ($display['count_current'] ?? 0) : 0);
+        $shortfall = homepage_indexed_shortfall_status($storedCount, $indexedCount);
         if ($shortfall['state'] !== '') {
             return $shortfall;
         }
+        $note = homepage_search_availability_note($storedCount, $indexedCount, HOMEPAGE_MINUTES_INDEX_EXCLUSION_REASON);
         return [
             'state' => 'coverage_unknown',
             'label' => '検索可（取得範囲未判定）',
-            'detail' => '検索データはありますが、取得元の全一覧を走査済みか確認できる記録がありません。',
+            'detail' => trim(
+                '検索データはありますが、取得元の全一覧を走査済みか確認できる記録がありません。'
+                . ($note !== '' ? ' ' . $note : '')
+            ),
             'source_coverage' => null,
         ];
     }
@@ -455,55 +457,85 @@ function homepage_gijiroku_acquisition_status(
         ];
     }
 
-    // 全一覧を走査した記録が無い場合でも、保存済み件数より検索できる件数が
-    // 少ないなら「検索可」と言い切らない。ここを通る対象がもっとも多く、
-    // 取得済みなのに検索できない件数がこれまで表示に出ていなかった。
-    $storedCount = max(0, (int)($progress['current'] ?? 0));
-    $indexedCount = max(0, $indexedCount);
-    if ($storedCount > 0 && $indexedCount < $storedCount) {
-        return [
-            'state' => 'index_pending',
-            'label' => '一部検索可（検索反映待ち）',
-            'detail' => sprintf(
-                '取得済みの%d件のうち%d件を検索できます。残り%d件は検索への反映待ちです。'
-                . '取得元の全一覧を走査済みかは確認できていません。',
-                $storedCount,
-                $indexedCount,
-                $storedCount - $indexedCount
-            ),
-            'source_coverage' => $sourceCoverage,
-        ];
+    $shortfall = homepage_indexed_shortfall_status(
+        (int)($progress['current'] ?? 0),
+        $indexedCount
+    );
+    if ($shortfall['state'] !== '') {
+        $shortfall['source_coverage'] = $sourceCoverage;
+        return $shortfall;
     }
 
+    $note = homepage_search_availability_note((int)($progress['current'] ?? 0), $indexedCount, HOMEPAGE_MINUTES_INDEX_EXCLUSION_REASON);
     return [
         'state' => 'coverage_unknown',
         'label' => '検索可（取得範囲未判定）',
-        'detail' => '検索データはありますが、取得元の全一覧を走査済みか確認できる記録がありません。',
+        'detail' => trim(
+            '検索データはありますが、取得元の全一覧を走査済みか確認できる記録がありません。'
+            . ($note !== '' ? ' ' . $note : '')
+        ),
         'source_coverage' => $sourceCoverage,
     ];
 }
 
 
-// 例規集など、取得元の走査記録を持たない機能向けの状態判定。
-// 保存済み件数と検索できる件数の差だけを見る。
+// 取得したファイルには目次など本文以外も含まれ、検索に載るのは本文だけ。
+// したがって「保存件数 > 検索できる件数」はそれだけでは異常ではない。
+// 1 件も検索できないときだけ反映待ちとして扱う。
 function homepage_indexed_shortfall_status(int $storedCount, int $indexedCount): array
 {
     $storedCount = max(0, $storedCount);
     $indexedCount = max(0, $indexedCount);
-    if ($storedCount > 0 && $indexedCount < $storedCount) {
+    if ($storedCount > 0 && $indexedCount <= 0) {
         return [
             'state' => 'index_pending',
-            'label' => '一部検索可（検索反映待ち）',
+            'label' => '検索反映待ち',
             'detail' => sprintf(
-                '取得済みの%d件のうち%d件を検索できます。残り%d件は検索への反映待ちです。',
-                $storedCount,
-                $indexedCount,
-                $storedCount - $indexedCount
+                '%d件を取得済みですが、まだ検索できません。検索への反映を待っています。',
+                $storedCount
             ),
             'source_coverage' => null,
         ];
     }
     return ['state' => '', 'label' => '', 'detail' => '', 'source_coverage' => null];
+}
+
+
+// 取得件数と検索できる件数の差を一文にする。差が出る理由が分かっている
+// 機能だけ $reason を渡す。
+function homepage_search_availability_note(int $storedCount, int $indexedCount, string $reason = ''): string
+{
+    $storedCount = max(0, $storedCount);
+    $indexedCount = max(0, $indexedCount);
+    if ($storedCount <= 0 || $indexedCount <= 0 || $indexedCount >= $storedCount) {
+        return '';
+    }
+    return sprintf(
+        '取得した%d件のうち%d件を検索できます%s。',
+        $storedCount,
+        $indexedCount,
+        $reason !== '' ? '（' . $reason . '）' : ''
+    );
+}
+
+
+const HOMEPAGE_MINUTES_INDEX_EXCLUSION_REASON = '目次など本文以外は検索の対象外です';
+
+
+// 例規集は取得元の走査記録を持たない。差が出る理由も会議録の目次のようには
+// 特定できていないので、件数だけ添える。
+function homepage_reiki_acquisition_status(int $storedCount, int $indexedCount): array
+{
+    $status = homepage_indexed_shortfall_status($storedCount, $indexedCount);
+    if ($status['state'] !== '') {
+        return $status;
+    }
+    return [
+        'state' => '',
+        'label' => '',
+        'detail' => homepage_search_availability_note($storedCount, $indexedCount),
+        'source_coverage' => null,
+    ];
 }
 
 function homepage_progress_count_is_complete(int $currentCount, int $totalCount): bool
@@ -2667,7 +2699,7 @@ function homepage_collect_visible_features(
             ),
             // 例規集は取得元の走査記録を持たないので、検索反映の遅れだけを見る。
             // 検索対象外の機能（掲示板など）はここへ入れない。
-            'reiki' => homepage_indexed_shortfall_status(
+            'reiki' => homepage_reiki_acquisition_status(
                 (int)(is_array($display) ? ($display['count_current'] ?? 0) : 0),
                 $searchIndexedCount
             ),
