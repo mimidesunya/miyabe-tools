@@ -79,7 +79,7 @@ function status_asset_url(string $relativePath): string
             <span>取得元未特定: 取得元URLをまだ特定できていません</span>
             <span>取得対象外: 取得方針により自動取得しません</span>
             <span>要反映・検索準備中: 取得済みで、公開または検索への反映待ちです</span>
-            <span>取得完了・検索反映待ち: 全件取得済みですが、検索できる件数がまだ追いついていません</span>
+            <span>検索反映待ち: 取得済みですが、検索できる件数がまだ追いついていません</span>
             <span>会議日: 公開検索で実際に検索できる最古〜最新の会議日です。日付を抽出できない資料は「日付情報なし」と表示します</span>
         </div>
 
@@ -106,7 +106,7 @@ function status_asset_url(string $relativePath): string
                         <option value="all">すべて</option>
                         <option value="ready">利用可能</option>
                         <option value="partial_planned">一部検索可（追加取得中・予定）</option>
-                        <option value="index_pending">取得完了・検索反映待ち</option>
+                        <option value="index_pending">検索反映待ち</option>
                         <option value="partial_error">一部検索可（エラー停止）</option>
                         <option value="partial_recent_only">一部検索可（取得元が直近分のみ公開）</option>
                         <option value="update_error">検索可（更新エラー）</option>

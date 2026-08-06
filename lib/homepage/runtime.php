@@ -447,12 +447,55 @@ function homepage_gijiroku_acquisition_status(
         ];
     }
 
+    // 全一覧を走査した記録が無い場合でも、保存済み件数より検索できる件数が
+    // 少ないなら「検索可」と言い切らない。ここを通る対象がもっとも多く、
+    // 取得済みなのに検索できない件数がこれまで表示に出ていなかった。
+    $storedCount = max(0, (int)($progress['current'] ?? 0));
+    $indexedCount = max(0, $indexedCount);
+    if ($storedCount > 0 && $indexedCount < $storedCount) {
+        return [
+            'state' => 'index_pending',
+            'label' => '一部検索可（検索反映待ち）',
+            'detail' => sprintf(
+                '取得済みの%d件のうち%d件を検索できます。残り%d件は検索への反映待ちです。'
+                . '取得元の全一覧を走査済みかは確認できていません。',
+                $storedCount,
+                $indexedCount,
+                $storedCount - $indexedCount
+            ),
+            'source_coverage' => $sourceCoverage,
+        ];
+    }
+
     return [
         'state' => 'coverage_unknown',
         'label' => '検索可（取得範囲未判定）',
         'detail' => '検索データはありますが、取得元の全一覧を走査済みか確認できる記録がありません。',
         'source_coverage' => $sourceCoverage,
     ];
+}
+
+
+// 例規集など、取得元の走査記録を持たない機能向けの状態判定。
+// 保存済み件数と検索できる件数の差だけを見る。
+function homepage_indexed_shortfall_status(int $storedCount, int $indexedCount): array
+{
+    $storedCount = max(0, $storedCount);
+    $indexedCount = max(0, $indexedCount);
+    if ($storedCount > 0 && $indexedCount < $storedCount) {
+        return [
+            'state' => 'index_pending',
+            'label' => '一部検索可（検索反映待ち）',
+            'detail' => sprintf(
+                '取得済みの%d件のうち%d件を検索できます。残り%d件は検索への反映待ちです。',
+                $storedCount,
+                $indexedCount,
+                $storedCount - $indexedCount
+            ),
+            'source_coverage' => null,
+        ];
+    }
+    return ['state' => '', 'label' => '', 'detail' => '', 'source_coverage' => null];
 }
 
 function homepage_progress_count_is_complete(int $currentCount, int $totalCount): bool
@@ -2605,16 +2648,23 @@ function homepage_collect_visible_features(
             || homepage_task_display_has_warning($primaryDisplay)
             || homepage_task_display_has_warning($publishDisplay);
         $hasIssue = $hasError || $hasWarning;
-        $acquisition = $featureKey === 'gijiroku'
-            ? homepage_gijiroku_acquisition_status(
+        $acquisition = match ($featureKey) {
+            'gijiroku' => homepage_gijiroku_acquisition_status(
                 $feature,
                 (string)($registryState['system_type'] ?? ($feature['system_type'] ?? '')),
                 $hasData,
                 $hasError,
                 $searchIndexedCount,
                 $display
-            )
-            : ['state' => '', 'label' => '', 'detail' => '', 'source_coverage' => null];
+            ),
+            // 例規集は取得元の走査記録を持たないので、検索反映の遅れだけを見る。
+            // 検索対象外の機能（掲示板など）はここへ入れない。
+            'reiki' => homepage_indexed_shortfall_status(
+                (int)(is_array($display) ? ($display['count_current'] ?? 0) : 0),
+                $searchIndexedCount
+            ),
+            default => ['state' => '', 'label' => '', 'detail' => '', 'source_coverage' => null],
+        };
         $acquisitionState = trim((string)($acquisition['state'] ?? ''));
         $acquisitionDetail = trim((string)($acquisition['detail'] ?? ''));
         if ($acquisitionDetail !== '' && $hasData) {
@@ -2656,7 +2706,8 @@ function homepage_collect_visible_features(
         }
 
         // 公開中のデータに加え、enabled の取得予定対象は未着手でも「未公開」として残す。
-        if ($isEnabled && $featureKey === 'gijiroku' && $acquisitionState !== '') {
+        // 会議録以外も、検索反映が追いついていない間は「利用可能」と言わない。
+        if ($isEnabled && $acquisitionState !== '') {
             $statusLabel = (string)($acquisition['label'] ?? '検索可');
             $statusClass = match ($acquisitionState) {
                 'complete' => 'status-ready',
