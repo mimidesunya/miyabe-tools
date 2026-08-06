@@ -985,7 +985,14 @@ def update_one(
     update_cutoff = utc_now_iso()
     documents_list = list(documents)
     if not documents_list:
-        raise RuntimeError(f"Incremental update for {doc_type} has no source documents: {','.join(sorted(slugs))}")
+        # 目次しか公開していない取得元では本文が 0 件になる。ここで失敗させると
+        # 取得も index も毎回やり直しになるため、警告に留めて 0 件として扱う。
+        # 検索できる件数が 0 であることは収集状況ページ側に出る。
+        print(
+            f"[WARN] {doc_type} has no indexable documents: {','.join(sorted(slugs))}",
+            file=sys.stderr,
+        )
+        return 0
 
     current_index = single_index_for_alias(client, alias)
     if current_index is None:
