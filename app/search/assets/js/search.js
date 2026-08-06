@@ -367,7 +367,7 @@
 
     function renderFacets(payload = state.lastPayload) {
         if (!payload || payload.status !== 'ok') {
-            refs.facets.innerHTML = '<div class="facet-row"><span>結果</span><strong>未検索</strong></div>';
+            refs.facets.innerHTML = '<div class="facet-row"><span>結果</span><strong>まだ検索していません</strong></div>';
             return;
         }
         const aggs = payload.aggregations || {};
@@ -380,7 +380,7 @@
         }
         refs.facets.innerHTML = rows.length
             ? rows.map(([label, count]) => `<div class="facet-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(count)}</strong></div>`).join('')
-            : '<div class="facet-row"><span>facet</span><strong>なし</strong></div>';
+            : '<div class="facet-row"><span>内訳</span><strong>該当なし</strong></div>';
     }
 
     function renderExcerpt(value) {

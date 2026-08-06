@@ -240,7 +240,7 @@ $boot = [
             </form>
 
             <section class="facet-panel">
-                <h2>絞り込み状況</h2>
+                <h2>検索結果の内訳</h2>
                 <div id="facet-list" class="facet-list"></div>
             </section>
         </aside>
