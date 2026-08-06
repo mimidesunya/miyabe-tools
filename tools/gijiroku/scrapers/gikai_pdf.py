@@ -131,6 +131,22 @@ def crawl_pdf_items(
         title = page_title(soup)
         page_year_label, page_source_year = extract_year_info(title)
 
+        # フレームで組まれた会議録ページ（桜川市など）は、入口ページに
+        # リンクが 1 本も無く中身が frame の中にある。frame は本文の一部
+        # なので、リンク文字列の判定を通さずそのまま辿る。
+        for frame in soup.find_all(["frame", "iframe"]):
+            src = str(frame.get("src", "")).strip()
+            if not src:
+                continue
+            absolute = urljoin(url, src).split("#", 1)[0]
+            if (
+                depth < max_depth
+                and absolute not in visited
+                and _is_followable_html(start_netloc, absolute)
+            ):
+                # frame の中身は同じ 1 ページの続きなので先に処理する。
+                queue.appendleft((absolute, depth + 1))
+
         for anchor in soup.find_all("a", href=True):
             href = str(anchor.get("href", "")).strip()
             if not href or href.lower().startswith(("javascript:", "mailto:", "tel:")):
