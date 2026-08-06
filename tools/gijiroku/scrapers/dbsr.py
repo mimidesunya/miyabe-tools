@@ -658,6 +658,32 @@ def extract_document_rows_from_page(page) -> list[DocumentRow]:
                 held_on=held_on,
             )
         )
+    if rows:
+        return rows
+
+    # 単文表示テンプレート（彦根市・石岡市など）。本文は doc-one-frame の
+    # フレーム内にあり、開催日は .result-title__date に「開催日: YYYY-MM-DD」で入る。
+    items = page.locator(".result-doc")
+    for index in range(items.count()):
+        item = items.nth(index)
+        anchor = item.locator("a.result-title__name").first
+        title = safe_inner_text(anchor)
+        href = safe_href(anchor)
+        if not title or not href:
+            continue
+
+        date_text = safe_inner_text(item.locator(".result-title__date").first)
+        held_on = held_on_from_text(date_text or title)
+        if not held_on:
+            continue
+
+        rows.append(
+            DocumentRow(
+                title=title,
+                url=canonicalize_template_url(urljoin(page.url, href)),
+                held_on=held_on,
+            )
+        )
     return rows
 
 
@@ -1026,6 +1052,26 @@ def document_date_label(page_html: str, meeting_item: MeetingItem) -> str | None
     return None
 
 
+# 単文表示テンプレートは本文をフレーム内で 1 発言ずつ出すため、文書 URL を
+# 辿っても全文にならない。画面の「全文表示」と同じ download を使う。
+def full_text_download_url(url: str) -> str:
+    if "Template=doc-one-frame" not in url:
+        return ""
+    document_id = query_value(url, "DocumentID")
+    if document_id == "":
+        return ""
+    parts = urlsplit(url)
+    query = urlencode(
+        [
+            ("Template", "download"),
+            ("Download", "yes"),
+            ("VoiceType", "all"),
+            ("DocumentID", document_id),
+        ]
+    )
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, query, ""))
+
+
 def fetch_meeting_text(request_context, item: MeetingItem, timeout_ms: int) -> tuple[int, str]:
     if not item.doc_urls:
         return 0, ""
@@ -1033,6 +1079,13 @@ def fetch_meeting_text(request_context, item: MeetingItem, timeout_ms: int) -> t
     sections: list[str] = []
     fragment_count = 0
     for doc_url in item.doc_urls:
+        download_url = full_text_download_url(doc_url)
+        if download_url:
+            text = request_text(request_context, download_url, timeout_ms, referer=doc_url).strip()
+            if text:
+                sections.append(text)
+                fragment_count += 1
+            continue
         page_html = request_text(request_context, doc_url, timeout_ms, referer=item.list_url or item.url)
         body_text = extract_document_body(page_html)
         heading = extract_document_heading(page_html)
@@ -1055,8 +1108,13 @@ def fetch_meeting_text(request_context, item: MeetingItem, timeout_ms: int) -> t
         header_lines.append(item.meeting_group)
     header_lines.append(item.year_label)
 
-    sample_html = request_text(request_context, item.doc_urls[0], timeout_ms, referer=item.list_url or item.url)
-    held_on_label = document_date_label(sample_html, item)
+    sample_url = item.doc_urls[0]
+    if full_text_download_url(sample_url):
+        # download はテキストなので、日付は一覧から拾った開催日を使う。
+        held_on_label = japanese_date_label(item.year_label, item.held_on) or item.held_on
+    else:
+        sample_html = request_text(request_context, sample_url, timeout_ms, referer=item.list_url or item.url)
+        held_on_label = document_date_label(sample_html, item)
     if held_on_label:
         header_lines.append(f"開催日: {held_on_label}")
     header_lines.append(f"Source URL: {item.url}")

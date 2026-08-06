@@ -72,5 +72,25 @@ class BuildFullPeriodDayGroupsTest(unittest.TestCase):
         self.assertEqual(groups[0].doc_urls, ["u1", "u2"])
 
 
+
+class FullTextDownloadUrlTest(unittest.TestCase):
+    def test_doc_one_frame_is_converted(self) -> None:
+        url = dbsr.full_text_download_url(
+            "https://example.dbsr.jp/index.php/3855602?Template=doc-one-frame&VoiceType=onehit&DocumentID=1140"
+        )
+        self.assertEqual(
+            url,
+            "https://example.dbsr.jp/index.php/3855602"
+            "?Template=download&Download=yes&VoiceType=all&DocumentID=1140",
+        )
+
+    def test_other_templates_are_untouched(self) -> None:
+        self.assertEqual(dbsr.full_text_download_url("https://example.dbsr.jp/index.php/1?Template=view&Id=9"), "")
+
+    def test_missing_document_id_is_untouched(self) -> None:
+        self.assertEqual(
+            dbsr.full_text_download_url("https://example.dbsr.jp/index.php/1?Template=doc-one-frame"), ""
+        )
+
 if __name__ == "__main__":
     unittest.main()
