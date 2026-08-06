@@ -167,6 +167,7 @@
             'partial_planned',
             'index_pending',
             'partial_error',
+            'partial_recent_only',
             'update_error',
             'coverage_unknown',
         ].includes(value) ? value : 'all';
@@ -288,6 +289,7 @@
             'partial_planned',
             'index_pending',
             'partial_error',
+            'partial_recent_only',
             'update_error',
             'coverage_unknown',
         ];

@@ -241,6 +241,114 @@ def find_search_library_url(page, source_url: str) -> str:
     return urljoin(base_url, "100000?Template=search-library")
 
 
+# 入口ページの一覧は「直近４年分または12年分」しか出さないテンプレートがある。
+# それ以前の会議は期間を明示した文書一覧からしか辿れない。どの経路で
+# 会議を見つけたかを呼び出し元へ返し、収録範囲の判定に使う。
+DISCOVERY_SOURCE_LIBRARY = "search_library"
+DISCOVERY_SOURCE_RECENT = "recent_fallback"
+DISCOVERY_SOURCE_FULL_PERIOD = "full_period"
+
+
+def detail_search_year_bounds(page) -> tuple[str, str]:
+    """「くわしく検索」の期間指定から、選べる最小年と最大年を返す。"""
+    years: list[int] = []
+    options = page.locator("select[name='TermStartYear'] option")
+    for index in range(options.count()):
+        value = (options.nth(index).get_attribute("value") or "").strip()
+        if value.isdigit():
+            years.append(int(value))
+    if not years:
+        return "", ""
+    return str(min(years)), str(max(years))
+
+
+def full_period_list_url(source_url: str, start_year: str, end_year: str) -> str:
+    """指定期間の文書一覧 URL を組み立てる。
+
+    会議種別（Cabinet）を指定しないと全種別が対象になる。入口ページの
+    「最近の会議録」に出ない古い会議も、この一覧なら辿れる。
+    """
+    base_url = dbsr_index_root(source_url)
+    query = urlencode(
+        [
+            ("Template", "list"),
+            ("ListOrder", "Asc"),
+            ("QueryType", "New"),
+            ("TermStart", f"{start_year}-01-01"),
+            ("TermEnd", f"{end_year}-12-31"),
+        ]
+    )
+    return urljoin(base_url, f"100000?{query}")
+
+
+ERA_STARTS = (
+    ("令和", (2019, 5, 1), 2018),
+    ("平成", (1989, 1, 8), 1988),
+    ("昭和", (1926, 12, 25), 1925),
+)
+
+
+def era_year_label(held_on: str | None) -> str:
+    """開催日から「平成9年」のような年ラベルを作る。"""
+    match = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", str(held_on or ""))
+    if not match:
+        return "不明"
+    year, month, day = int(match.group(1)), int(match.group(2)), int(match.group(3))
+    for era, start, offset in ERA_STARTS:
+        if (year, month, day) >= start:
+            return f"{era}{year - offset}年"
+    return f"{year}年"
+
+
+def meeting_name_from_document_title(title: str) -> str:
+    """文書の表題から会議名だけを取り出す。
+
+    「平成９年第４回定例会（第５日目）　議事日程・名簿」→「平成９年第４回定例会（第５日目）」
+    """
+    normalized = normalize_space(title)
+    match = re.match(r"^(.*?[）)])", normalized)
+    if match:
+        return normalize_space(match.group(1))
+    for suffix in ("議事日程・名簿", "議事日程", "本文", "名簿", "署名", "一般質問", "〔資料〕", "資料"):
+        if normalized.endswith(suffix):
+            return normalize_space(normalized[: -len(suffix)]) or normalized
+    return normalized
+
+
+def build_full_period_day_groups(list_url: str, rows: list[DocumentRow]) -> list[DayDocumentGroup]:
+    """期間指定の文書一覧を、開催日と会議名の単位でまとめる。
+
+    この一覧は会議種別が混ざるため、日付だけでまとめると別々の会議が
+    ひとつに潰れる。表題から会議名を取り出して組にする。
+    """
+    grouped: dict[tuple[str, str], list[DocumentRow]] = {}
+    ordered_keys: list[tuple[str, str]] = []
+    for row in rows:
+        key = (row.held_on, meeting_name_from_document_title(row.title))
+        if key not in grouped:
+            grouped[key] = []
+            ordered_keys.append(key)
+        grouped[key].append(row)
+
+    groups: list[DayDocumentGroup] = []
+    for held_on, meeting_name in ordered_keys:
+        doc_rows = grouped[(held_on, meeting_name)]
+        body_rows = [row for row in doc_rows if "本文" in normalize_space(row.title)]
+        chosen_rows = body_rows or doc_rows
+        suffix = document_suffix(chosen_rows[0].title)
+        groups.append(
+            DayDocumentGroup(
+                title=f"{infer_day_title_from_held_on(held_on)}－{suffix}",
+                year_label=era_year_label(held_on),
+                meeting_group=meeting_name or "会議",
+                list_url=list_url,
+                doc_urls=[row.url for row in chosen_rows],
+                held_on=held_on,
+            )
+        )
+    return groups
+
+
 def held_on_from_text(value: str) -> str | None:
     match = re.search(r"(\d{4})-(\d{2})-(\d{2})", value)
     if match:
@@ -322,7 +430,9 @@ def collect_list_page_entries(page, entries, year_label: str, items: dict[str, L
         )
 
 
-def discover_list_pages(page, target: dict, timeout_ms: int, deadline: float | None = None) -> list[ListPage]:
+def discover_list_pages(
+    page, target: dict, timeout_ms: int, deadline: float | None = None
+) -> tuple[list[ListPage], str]:
     ensure_discovery_time(deadline, "開始ページ")
     page.goto(str(target["source_url"]), wait_until="domcontentloaded", timeout=timeout_ms)
     try:
@@ -346,7 +456,7 @@ def discover_list_pages(page, target: dict, timeout_ms: int, deadline: float | N
             cell = cells.nth(cell_index)
             year_label = safe_inner_text(cell.locator("dt.cell__title").first) or "不明"
             collect_list_page_entries(page, cell.locator("dd.cell__item"), year_label, items)
-        return list(items.values())
+        return list(items.values()), DISCOVERY_SOURCE_LIBRARY
 
     cells = page.locator("div.LibraryTable dl")
     if cells.count() > 0:
@@ -355,7 +465,7 @@ def discover_list_pages(page, target: dict, timeout_ms: int, deadline: float | N
             cell = cells.nth(cell_index)
             year_label = safe_inner_text(cell.locator("dt").first) or "不明"
             collect_list_page_entries(page, cell.locator("dd"), year_label, items)
-        return list(items.values())
+        return list(items.values()), DISCOVERY_SOURCE_LIBRARY
 
     # 新しい DBSR テンプレートは table--all を付けず table 系のクラスを使うが、
     # 自治体によってタグ名が異なる。クラス名は共通なのでタグ名は指定しない。
@@ -379,26 +489,69 @@ def discover_list_pages(page, target: dict, timeout_ms: int, deadline: float | N
             entries = cell.locator(".table__item")
         collect_list_page_entries(page, entries, year_label, items)
 
-    if not items:
-        # search-library ページを持たないテンプレート（あきる野市・大野城市など）は
-        # 入口ページ自体に会議一覧が並ぶ。この形では search-library が 404 になるため、
-        # 入口ページへ戻って年度見出しごとに会議を拾う。
-        ensure_discovery_time(deadline, "入口ページ一覧")
+    if items:
+        return list(items.values()), DISCOVERY_SOURCE_LIBRARY
+
+    # search-library ページを持たないテンプレート（あきる野市・大野城市など）は
+    # 入口ページ自体に会議一覧が並ぶ。この形では search-library が 404 になる。
+    ensure_discovery_time(deadline, "入口ページ")
+    page.goto(str(target["source_url"]), wait_until="domcontentloaded", timeout=timeout_ms)
+    try:
+        page.wait_for_load_state("networkidle", timeout=3_000)
+    except Exception:
+        pass
+
+    # 入口ページの一覧は「直近４年分または12年分」しか出さない。それ以前は
+    # 「くわしく検索」でしか辿れないので、まず期間を最大に広げた文書一覧を試す。
+    start_year, end_year = detail_search_year_bounds(page)
+    if start_year and end_year:
+        full_url = full_period_list_url(str(target["source_url"]), start_year, end_year)
+        ensure_discovery_time(deadline, "全期間一覧")
+        try:
+            page.goto(full_url, wait_until="domcontentloaded", timeout=timeout_ms)
+            try:
+                page.wait_for_load_state("networkidle", timeout=3_000)
+            except Exception:
+                pass
+            has_rows = bool(extract_document_rows_from_page(page))
+        except DiscoveryTimeoutError:
+            raise
+        except Exception:
+            has_rows = False
+        if has_rows:
+            print(f"[INFO] 全期間の文書一覧を使います（{start_year}年〜{end_year}年）", flush=True)
+            return (
+                [
+                    ListPage(
+                        title=f"{start_year}年〜{end_year}年",
+                        year_label=f"{start_year}年〜{end_year}年",
+                        url=full_url,
+                        meeting_group="",
+                        auxiliary_docs=[],
+                    )
+                ],
+                DISCOVERY_SOURCE_FULL_PERIOD,
+            )
         page.goto(str(target["source_url"]), wait_until="domcontentloaded", timeout=timeout_ms)
         try:
             page.wait_for_load_state("networkidle", timeout=3_000)
         except Exception:
             pass
-        groups = page.locator("ul.recent__links")
-        for group_index in range(groups.count()):
-            ensure_discovery_time(deadline, f"入口ページ一覧 {group_index + 1}/{groups.count()}")
-            group = groups.nth(group_index)
-            year_label = safe_inner_text(
-                group.locator("xpath=preceding-sibling::*[contains(@class,'recent__lib-header')][1]")
-            ) or "不明"
-            collect_list_page_entries(page, group.locator("li"), year_label, items)
 
-    return list(items.values())
+    # 全期間一覧が使えないときだけ、入口ページの「最近の会議録」を拾う。
+    # ここで取れるのは直近分だけなので、収録範囲は complete とみなさない。
+    groups = page.locator("ul.recent__links")
+    for group_index in range(groups.count()):
+        ensure_discovery_time(deadline, f"入口ページ一覧 {group_index + 1}/{groups.count()}")
+        group = groups.nth(group_index)
+        year_label = safe_inner_text(
+            group.locator("xpath=preceding-sibling::*[contains(@class,'recent__lib-header')][1]")
+        ) or "不明"
+        collect_list_page_entries(page, group.locator("li"), year_label, items)
+
+    if items:
+        return list(items.values()), DISCOVERY_SOURCE_RECENT
+    return [], DISCOVERY_SOURCE_LIBRARY
 
 
 def list_url_with_origin(list_url: str, origin_base: str) -> str:
@@ -725,7 +878,7 @@ def discover_meeting_items(
 ) -> list[MeetingItem]:
     deadline = discovery_deadline(discovery_timeout_seconds)
     base_url = str(target["base_url"])
-    list_pages = discover_list_pages(page, target, timeout_ms, deadline)
+    list_pages, discovery_source = discover_list_pages(page, target, timeout_ms, deadline)
     print(f"[INFO] 会議一覧ページ {len(list_pages)} 件", flush=True)
     if coverage_report is not None:
         coverage_report.clear()
@@ -734,6 +887,7 @@ def discover_meeting_items(
                 "list_page_count": len(list_pages),
                 "failed_list_page_count": 0,
                 "limit_reached": False,
+                "discovery_source": discovery_source,
             }
         )
 
@@ -767,7 +921,14 @@ def discover_meeting_items(
             print(f"[WARN] 会議一覧の確認に失敗: {list_page.title} ({exc})", flush=True)
             continue
 
-        for group in build_day_groups(list_page, list_url, rows):
+        if discovery_source == DISCOVERY_SOURCE_FULL_PERIOD:
+            # 全期間の一覧は会議種別も年度も混ざるので、表題から会議名を、
+            # 開催日から年ラベルを組み直す。
+            day_groups = build_full_period_day_groups(list_url, rows)
+        else:
+            day_groups = build_day_groups(list_page, list_url, rows)
+
+        for group in day_groups:
             key = (group.year_label, group.meeting_group, group.title)
             if key in seen_titles:
                 continue
@@ -1059,10 +1220,15 @@ def main() -> int:
 
         limit_reached = bool(coverage_report.get("limit_reached"))
         failed_list_page_count = max(0, int(coverage_report.get("failed_list_page_count") or 0))
+        discovery_source = str(coverage_report.get("discovery_source") or "")
         if limit_reached:
             source_coverage_state = "partial_limit"
         elif failed_list_page_count > 0:
             source_coverage_state = "partial_error"
+        elif discovery_source == DISCOVERY_SOURCE_RECENT:
+            # 入口ページの「最近の会議録」は直近４年分または12年分しか出さない。
+            # ここで取れた分を完了とみなすと、部分収録を完了と誤表示することになる。
+            source_coverage_state = "partial_recent_only"
         else:
             source_coverage_state = "complete"
         state["source_coverage"] = {
@@ -1071,6 +1237,7 @@ def main() -> int:
             "discovered_count": len(meeting_items),
             "list_page_count": max(0, int(coverage_report.get("list_page_count") or 0)),
             "failed_list_page_count": failed_list_page_count,
+            "discovery_source": discovery_source,
             "limit": max(0, int(args.max_meetings)),
             "updated_at": now_ts(),
         }

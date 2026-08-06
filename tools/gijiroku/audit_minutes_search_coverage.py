@@ -140,7 +140,7 @@ def main() -> int:
             issues.append("index_pending")
         elif verified_acquired > 0 and indexed_count > verified_acquired:
             issues.append("index_ahead_of_verified")
-        if source_state in {"partial_planned", "partial_limit", "partial_error"}:
+        if source_state in {"partial_planned", "partial_limit", "partial_error", "partial_recent_only"}:
             issues.append(source_state)
         elif source_state != "complete" and saved_file_count > 0:
             issues.append("coverage_unknown")

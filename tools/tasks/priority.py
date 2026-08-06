@@ -197,9 +197,11 @@ def scrape_state_progress(target: dict[str, Any]) -> tuple[int, int]:
     if (
         isinstance(source_coverage, dict)
         and str(source_coverage.get("mode") or "") == "source_discovery_coverage"
-        and str(source_coverage.get("state") or "") in {"partial_planned", "partial_limit", "partial_error"}
+        and str(source_coverage.get("state") or "")
+        in {"partial_planned", "partial_limit", "partial_error", "partial_recent_only"}
     ):
         # 件数上限や一覧ページの失敗がある実行を「25/25 完了」のように扱わない。
+        # 直近分の一覧しか出ない取得元（partial_recent_only）も同じ扱いにする。
         # 既存 snapshot よりこの incomplete 候補が優先され、次回バッチへ再投入される。
         return current_count, max(total_count, current_count + 1)
 
