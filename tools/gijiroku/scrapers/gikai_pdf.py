@@ -54,6 +54,7 @@ from kami_city_pdf import (  # noqa: E402
     emit_progress,
     extract_pdf_text,
     extract_year_info,
+    looks_like_attachment_pdf,
     looks_like_generic_minutes_page,
     now_ts,
     page_title,
@@ -153,7 +154,10 @@ def crawl_pdf_items(
                 continue
             absolute = urljoin(url, href).split("#", 1)[0]
             text = anchor.get_text(" ", strip=True)
-            if urlsplit(absolute).path.lower().endswith(".pdf"):
+            if (
+                urlsplit(absolute).path.lower().endswith(".pdf")
+                or looks_like_attachment_pdf(absolute, text)
+            ):
                 label = clean_label(text) or title
                 year_label, source_year = extract_year_info(label, title)
                 if year_label == "不明":

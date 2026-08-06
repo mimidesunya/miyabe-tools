@@ -54,6 +54,21 @@ MINUTES_PAGE_KEYWORDS = (
     "臨時会",
 )
 GIKAI_PATH_KEYWORDS = ("gikai", "gicho", "gichou", "gityou")
+# 拡張子を URL に出さずに PDF を返す配信エンドポイント。実体は
+# Content-Type: application/pdf なので、URL だけでは PDF と判別できない。
+ATTACHMENT_ENDPOINT_RE = re.compile(r"/UploadFileOutput\.ashx", re.I)
+
+
+def looks_like_attachment_pdf(url: str, anchor_text: str) -> bool:
+    """配信エンドポイント経由の PDF 添付らしいリンクかを判定する。
+
+    誤って HTML ページを PDF として扱わないよう、会議録らしいリンク文字列を
+    持つものだけに限る。
+    """
+    if not ATTACHMENT_ENDPOINT_RE.search(url):
+        return False
+    haystack = normalize_space(anchor_text).lower()
+    return any(keyword.lower() in haystack for keyword in MINUTES_PAGE_KEYWORDS)
 YEAR_OR_LIST_RE = re.compile(r"(20\d{2}|令和[元\d０-９]+|平成[元\d０-９]+|昭和[元\d０-９]+|list\d+|\d{4,6}\.html)", re.I)
 
 

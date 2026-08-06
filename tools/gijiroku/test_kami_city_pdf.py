@@ -39,6 +39,19 @@ class NormalizePdfTextTest(unittest.TestCase):
     def test_normal_text_is_preserved(self) -> None:
         self.assertEqual(kami_city_pdf.normalize_pdf_text("定例会\r\n議事日程"), "定例会\n議事日程")
 
+class AttachmentPdfLinkTest(unittest.TestCase):
+    ASHX = "https://example.lg.jp/common/UploadFileOutput.ashx?c_id=3&id=9324&flid=15063"
+
+    def test_minutes_attachment_is_detected(self) -> None:
+        self.assertTrue(kami_city_pdf.looks_like_attachment_pdf(self.ASHX, "令和7年度 第1回町議会定例会（6月会議）"))
+
+    def test_unrelated_attachment_is_ignored(self) -> None:
+        # 会議録と関係ない添付まで PDF 扱いしない。
+        self.assertFalse(kami_city_pdf.looks_like_attachment_pdf(self.ASHX, "広報紙 8月号"))
+
+    def test_other_urls_are_ignored(self) -> None:
+        self.assertFalse(kami_city_pdf.looks_like_attachment_pdf("https://example.lg.jp/page9324.html", "会議録"))
+
 
 if __name__ == "__main__":
     unittest.main()
