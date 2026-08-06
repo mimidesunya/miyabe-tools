@@ -644,7 +644,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 12441	https://www.town.otaki.chiba.jp/gyousei/gikai/1423.html	独自	enabled			2026-08-02	c8505c20252bff0208f77097f5792958f732ae49d62f7b83b45c48898f8cabf8
 12443			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 12463	https://www.town.kyonan.chiba.jp/site/machigikai/list23.html	独自	enabled			2026-08-02	7522ec250860f686dfc59d750346f56f24906cbc3fd9aee7428c1e6f19c02935
-13000	https://www.record.gikai.metro.tokyo.lg.jp/	独自	enabled			2026-08-02	c1f4b8f85fbaa1fa61c72adf67a4ee47508e997f95d5cf3baac184976b848254
+13000	https://www.record.gikai.metro.tokyo.lg.jp/	dbsr	enabled				ac08249d473f8bad20420ded6ddf8ecfd7a2726623c28e43a67bcb681a9c8b4c
 13101	http://www.city.chiyoda.tokyo.dbsr.jp/index.php/	dbsr	enabled				3b2ac5291c2c98f39260f745e2f83b60e273f0269ae801bd48f308e1e5bba97e
 13102	https://www.kugikai.city.chuo.lg.jp/kaigiroku/index.html	独自	enabled			2026-08-02	8206253c2f55f57b2163ae68ff430026726aff3d716ef76e41c816198f0a7dc6
 13103	https://gikai2.city.minato.tokyo.jp/voices/g07v_search.asp	voices	enabled			2026-08-02	e65e4964cda1bcc98ad16ec16ddea4125fc6f578217fd530252835c4ae4a7138

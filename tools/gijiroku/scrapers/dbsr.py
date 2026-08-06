@@ -589,7 +589,11 @@ def is_disabled(locator) -> bool:
 
 def extract_document_rows_from_page(page) -> list[DocumentRow]:
     rows: list[DocumentRow] = []
+    # 行の中身（.ans-title__name / .ans-title__date）は共通だが、外側の
+    # コンテナ名が取得元によって違う（東京都議会は .result__item）。
     items = page.locator("ul.result-document li.result-document__item")
+    if items.count() == 0:
+        items = page.locator(".result__item")
     for index in range(items.count()):
         item = items.nth(index)
         anchor = item.locator(".ans-title__name a").first
