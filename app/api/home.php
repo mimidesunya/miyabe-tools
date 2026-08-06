@@ -30,6 +30,12 @@ try {
     if (!is_array($payload)) {
         $payload = homepage_build_api_payload_cached();
         $payload = homepage_filter_api_payload_by_prefecture($payload, $prefectureFilter);
+        // 管理DBのカードが古くて使えなかった場合もここへ来る。絞り込み済みの
+        // payload を残しておかないと、毎リクエストで全件から絞り直しになる。
+        homepage_store_filtered_api_payload($filteredCachePath, homepage_sanitize_api_payload_displays($payload));
+        if (!headers_sent()) {
+            header('X-Homepage-Store: file');
+        }
     } elseif (!$fromFilteredCache && !headers_sent()) {
         header('X-Homepage-Store: postgres');
     }
