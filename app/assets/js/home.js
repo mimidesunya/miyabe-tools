@@ -599,12 +599,48 @@
         }).join('');
     }
 
+    // 状態名だけでは何が起きているか読み取れないので、説明をその場で出す。
+    const stateDescriptions = {
+        ready: '画面とデータを公開中です。',
+        complete: '取得元の全一覧を走査し、見つかった記録を取得済みです。',
+        index_pending: '取得済みですが、検索できる件数がまだ追いついていません。',
+        coverage_unknown: '検索できますが、取得元の全一覧を走査済みか確認できる記録がありません。',
+        partial_planned: '取得済み分は検索できます。残りを追加取得する予定です。',
+        partial_error: '取得途中でエラーになり、取得できた分だけ検索できます。',
+        partial_recent_only: '取得元が直近分しか公開していないため、それ以前は取得できていません。',
+        update_error: '前回の全件データは検索できますが、最新の更新確認に失敗しています。',
+        search_pending: '取得済みで、検索への反映を待っています。',
+        publish_pending: '取得済みで、公開または検索への反映を待っています。',
+        index_ahead_of_verified: '検索データが取得記録より多く、整合を確認中です。',
+        unacquired: '取得元と取得方法は登録済みですが、まだ公開データがありません。',
+        runtime_error: '取得処理を実行しましたがエラーになっています。',
+        warning: '取得は済んでいますが警告があります。',
+        unsupported: '取得元は判明していますが、その形式にはまだ対応していません。',
+        source_unresolved: '取得元の URL をまだ特定できていません。',
+        excluded: '取得方針により自動取得しません。',
+        review_required: '自動取得してよいか確認中です。',
+    };
+
+    function featureTooltip(key, feature) {
+        const name = featureMeta[key]?.label || key;
+        const status = String(feature?.status_label || '').trim();
+        const lines = [status !== '' ? `${name}: ${status}` : name];
+        const description = stateDescriptions[featureAvailabilityState(feature)];
+        if (description) lines.push(description);
+        const detail = String(feature?.acquisition_detail || '').trim();
+        if (detail !== '' && detail !== description) lines.push(detail);
+        return lines.join('\n');
+    }
+
     function renderFeatureDot(key, card) {
         const feature = featureByKey(card, key);
-        if (!feature) return `<span class="service-dot service-dot-empty">${escapeHtml(featureMeta[key].shortLabel)}</span>`;
+        if (!feature) {
+            const missing = `${featureMeta[key].label}: 対象外（この自治体では扱っていません）`;
+            return `<span class="service-dot service-dot-empty" title="${escapeHtml(missing)}" aria-label="${escapeHtml(missing)}">${escapeHtml(featureMeta[key].shortLabel)}</span>`;
+        }
         const availabilityState = featureAvailabilityState(feature).replace(/[^a-z_]/g, '');
-        const label = `${featureMeta[key].label}: ${String(feature?.status_label || '')}`;
-        return `<span class="service-dot service-dot-${key} service-dot-state-${escapeHtml(availabilityState)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${escapeHtml(featureMeta[key].shortLabel)}</span>`;
+        const tip = featureTooltip(key, feature);
+        return `<span class="service-dot service-dot-${key} service-dot-state-${escapeHtml(availabilityState)}" title="${escapeHtml(tip)}" aria-label="${escapeHtml(tip)}">${escapeHtml(featureMeta[key].shortLabel)}</span>`;
     }
 
     function renderDetail(card) {
@@ -657,11 +693,11 @@
             <div class="feature-detail feature-detail-${escapeHtml(key)}">
                 <div class="feature-detail-top">
                     <span class="feature-name"><i style="background:${escapeHtml(meta.color)}"></i>${escapeHtml(meta.label)}</span>
-                    <span class="status ${escapeHtml(feature?.status_class || '')}">${escapeHtml(feature?.status_label || '')}</span>
+                    <span class="status ${escapeHtml(feature?.status_class || '')}" title="${escapeHtml(featureTooltip(key, feature))}">${escapeHtml(feature?.status_label || '')}</span>
                     ${action}
                 </div>
                 ${systemType !== '' ? `<p class="feature-system-type">取得形式: ${escapeHtml(systemType)}</p>` : ''}
-                ${hasSearchableMinutes ? `<p class="feature-search-coverage"><strong>検索できる会議日</strong><span>${coverage ? escapeHtml(searchCoverageText(coverage)) : '日付情報がないため範囲を表示できません'}</span></p>` : ''}
+                ${hasSearchableMinutes ? `<p class="feature-search-coverage" title="公開検索で実際に検索できる最古〜最新の会議日です。日付を抽出できない資料は範囲に含まれません。"><strong>検索できる会議日</strong><span>${coverage ? escapeHtml(searchCoverageText(coverage)) : '日付情報がないため範囲を表示できません'}</span></p>` : ''}
                 ${acquisitionDetail !== '' && !detail.includes(acquisitionDetail) ? `<p class="feature-acquisition-detail">${escapeHtml(acquisitionDetail)}</p>` : ''}
                 ${detail !== '' ? `<p>${escapeHtml(detail).replace(/\n/g, '<br>')}</p>` : ''}
             </div>
@@ -717,7 +753,7 @@
                         ${renderFeatureDot('reiki', card)}
                         ${renderFeatureDot('boards', card)}
                     </span>
-                    ${hasSearchableMinutes ? `<span class="municipality-row-range${coverage ? '' : ' is-unknown'}">会議日 ${coverage ? escapeHtml(searchCoverageText(coverage, { includeCount: false, compact: true })) : '日付情報なし'}</span>` : ''}
+                    ${hasSearchableMinutes ? `<span class="municipality-row-range${coverage ? '' : ' is-unknown'}" title="公開検索で実際に検索できる最古〜最新の会議日です。日付を抽出できない資料は範囲に含まれません。">会議日 ${coverage ? escapeHtml(searchCoverageText(coverage, { includeCount: false, compact: true })) : '日付情報なし'}</span>` : ''}
                 </button>
             </div>
         `.trim();
@@ -730,9 +766,12 @@
         return `
             <div class="municipality-inline-detail" data-home-inline-detail>
                 <div class="municipality-inline-statuses">
-                    ${features.map((feature) => `<span>${escapeHtml(feature?.label || '')}: <strong>${escapeHtml(feature?.status_label || '')}</strong></span>`).join('')}
+                    ${features.map((feature) => {
+                        const featureKey = String(feature?.feature_key || '');
+                        return `<span title="${escapeHtml(featureTooltip(featureKey, feature))}">${escapeHtml(feature?.label || '')}: <strong>${escapeHtml(feature?.status_label || '')}</strong></span>`;
+                    }).join('')}
                 </div>
-                ${hasSearchableMinutes ? `<p><strong>検索できる会議日</strong>${coverage ? escapeHtml(searchCoverageText(coverage)) : '日付情報がないため範囲を表示できません'}</p>` : ''}
+                ${hasSearchableMinutes ? `<p title="公開検索で実際に検索できる最古〜最新の会議日です。日付を抽出できない資料は範囲に含まれません。"><strong>検索できる会議日</strong>${coverage ? escapeHtml(searchCoverageText(coverage)) : '日付情報がないため範囲を表示できません'}</p>` : ''}
                 ${features
                     .filter((feature) => String(feature?.acquisition_detail || '').trim() !== '')
                     .map((feature) => `<p class="municipality-inline-note">${escapeHtml(feature?.label || '')}: ${escapeHtml(String(feature.acquisition_detail).trim())}</p>`)
