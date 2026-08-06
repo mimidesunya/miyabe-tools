@@ -506,7 +506,11 @@
     async function runSearch(page = 1) {
         state.query = refs.query.value.trim();
         state.prefCode = normalizePrefCode(refs.pref.value);
-        state.slug = refs.slug.value.trim();
+        // 自治体一覧の読み込み前は select にまだ選択肢が無い。ここでフォーム値を
+        // 読むと、URL で渡された slug が初回検索で消えてしまう。
+        if (!municipalitiesLoading) {
+            state.slug = refs.slug.value.trim();
+        }
         state.startYear = normalizeYear(refs.startYear.value);
         state.endYear = normalizeYear(refs.endYear.value);
         state.startDate = normalizeDate(refs.startDate.value);
