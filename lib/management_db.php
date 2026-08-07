@@ -534,12 +534,14 @@ function management_db_homepage_payload(?string $prefecture): ?array
     }
 
     try {
-        // カードを書き直すのは homepage_rebuild_api_payload_cache() だけで、
-        // 定期実行の入口がない。古いまま返し続けるとスクレイピングの結果が
-        // トップページへ反映されないので、古いときは null を返して
-        // ファイル側の経路に作り直させる。
-        if (management_db_homepage_cards_are_stale($pdo)) {
-            return null;
+        // カードが古くても、ここで null を返してはいけない。ファイル側の
+        // 経路は全自治体分を一度に組み立てるため PHP の memory_limit を
+        // 超えて Fatal error になり、トップページが真っ白になる。
+        // 作り直しはレスポンス完了後に 1 本だけ走らせ、今回は手元の
+        // カードをそのまま返す。
+        if (management_db_homepage_cards_are_stale($pdo)
+            && function_exists('homepage_schedule_api_payload_cache_refresh')) {
+            homepage_schedule_api_payload_cache_refresh();
         }
         $metaRow = $pdo->query('SELECT * FROM homepage_payload_meta WHERE id = 1')->fetch();
         if (!is_array($metaRow)) {
