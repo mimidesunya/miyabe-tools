@@ -1148,7 +1148,7 @@ jis_code	url	system_type
 27140	https://www.city.sakai.lg.jp/reiki/reiki_menu.html	taikei
 27202	https://en3-jg.d1-law.com/kishiwada/d1w_reiki/reiki.html	d1-law
 27203	https://www1.g-reiki.net/toyonaka/reiki_menu.html	g-reiki
-27204	https://www1.g-reiki.net/city.ikeda/reiki_menu.html	g-reiki
+27204	https://en3-jg.d1-law.com/ikeda-city/d1w_reiki/reiki.html	d1-law
 27205	https://www2.city.suita.osaka.jp/reiki/d1w_reiki/reiki.html	d1-law
 27206	https://www.city.izumiotsu.lg.jp/section/reiki/reiki_menu.html	taikei
 27207	https://www.city.takatsuki.osaka.jp/bunsyo/reiki_int/reiki_menu.html	taikei
@@ -1178,7 +1178,7 @@ jis_code	url	system_type
 27231	https://www1.g-reiki.net/osakasayama/reiki_menu.html	g-reiki
 27232	https://www.city.hannan.lg.jp/section/reiki_int/reiki_menu.html	taikei
 27301	https://www1.g-reiki.net/shimamotocho/reiki_menu.html	g-reiki
-27321	https://www.town.toyono.osaka.jp/reiki/d1w_reiki/reiki.html	d1-law
+27321	https://www.town.toyono.osaka.jp/reiki_int/reiki_menu.html	taikei
 27322	https://en3-jg.d1-law.com/nose/d1w_reiki/reiki.html	d1-law
 27341	https://en3-jg.d1-law.com/tadaoka/d1w_reiki/reiki.html	d1-law
 27361	https://www.town.kumatori.lg.jp/section/reiki_int/reiki_menu.html	taikei
@@ -1575,7 +1575,7 @@ jis_code	url	system_type
 41000	https://www1.g-reiki.net/pref.saga/reiki_menu.html	g-reiki
 41201	https://www1.g-reiki.net/city.saga/reiki_menu.html	g-reiki
 41202	https://www1.g-reiki.net/karatsu/reiki_menu.html	g-reiki
-41203	https://www.city.tosu.lg.jp/reiki/reiki_menu.html	taikei
+41203	https://www1.g-reiki.net/city.tosu/reiki_menu.html	g-reiki
 41204	https://www1.g-reiki.net/city.taku/reiki_menu.html	g-reiki
 41205	https://www1.g-reiki.net/imari/reiki_menu.html	g-reiki
 41206	https://www.city.takeo.lg.jp/reiki/reiki_menu.html	taikei
