@@ -714,6 +714,10 @@ set -eu
     enqueue_output = enqueue_scraping_cycles(config, dest_dir)
     return "\n".join(part for part in (prepare_output, reconcile_output, restart_output, verify_output, enqueue_output) if part)
 
+# 全自治体分の payload を一度に組み立てるため、PHP 既定の 128M では足りない。
+PREWARM_MEMORY_LIMIT = "1024M"
+
+
 def prewarm_runtime_caches(config, dest_dir, *, timeout_seconds: int = 180):
     """Builds homepage / cross-search caches inside the php container after deploy."""
     prewarm_cmd = f"""
@@ -727,7 +731,7 @@ if command -v timeout >/dev/null 2>&1; then
     fi
   }}
   trap cleanup_prewarm INT TERM HUP EXIT
-  timeout -k 30s {max(1, int(timeout_seconds))}s docker compose exec -T -u www-data php php /var/www/lib/prewarm_runtime_caches.php &
+  timeout -k 30s {max(1, int(timeout_seconds))}s docker compose exec -T -u www-data php php -d memory_limit={PREWARM_MEMORY_LIMIT} /var/www/lib/prewarm_runtime_caches.php &
   prewarm_pid=$!
   while kill -0 "$prewarm_pid" >/dev/null 2>&1; do
     sleep 30
@@ -743,7 +747,7 @@ if command -v timeout >/dev/null 2>&1; then
   fi
   exit "${{status:-0}}"
 fi
-docker compose exec -T -u www-data php php /var/www/lib/prewarm_runtime_caches.php
+docker compose exec -T -u www-data php php -d memory_limit={PREWARM_MEMORY_LIMIT} /var/www/lib/prewarm_runtime_caches.php
 """
     return ssh_exec(config, prewarm_cmd, stream=True, timeout_seconds=max(30, int(timeout_seconds) + 90))
 
