@@ -299,6 +299,26 @@ def discover_items(
                 )
                 items_by_url.setdefault(page_url, item)
 
+        # フレームで組まれた会議録（桜川市など）は入口ページにリンクが無く、
+        # 目次も本文も frame の中にある。frame は本文の一部なのでラベル判定を
+        # 通さずに辿る。
+        for frame in soup.find_all(["frame", "iframe"]):
+            src = str(frame.get("src", "")).strip()
+            if not src:
+                continue
+            absolute = normalized_url(urljoin(page_url, src))
+            # frame の中身は同じ 1 ページの続きなので、巡回対象ディレクトリの
+            # 外に置かれていても辿る（同一ホストであることだけ確かめる）。
+            if (
+                same_host(start_url, absolute)
+                and path_extension(absolute) not in {".pdf", ".jpg", ".png", ".gif", ".css", ".js"}
+                and absolute not in seen_pages
+                and absolute not in queue
+            ):
+                # frame の中身は同じ 1 ページの続きなので、他のページより
+                # 先に処理する。末尾へ積むとページ上限に阻まれて本文へ届かない。
+                queue.insert(0, absolute)
+
         content = soup.select_one("main") or soup.select_one("#main") or soup.select_one("#content") or soup.body or soup
         current_group: str | None = None
         for node in content.descendants:

@@ -1,7 +1,9 @@
 playwright==1.50.0
 requests>=2.31.0
 beautifulsoup4>=4.12.0
-pypdf>=4.0.0
+# AES 暗号化 PDF の展開に cryptography が要る。無いと
+# 「cryptography>=3.1 is required for AES algorithm」で取得が失敗する。
+pypdf[crypto]>=4.0.0
 sudachipy>=0.6
 sudachidict_core
 celery[redis]>=5.4,<6

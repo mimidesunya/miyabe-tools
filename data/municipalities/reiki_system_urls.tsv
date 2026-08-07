@@ -607,7 +607,7 @@ jis_code	url	system_type
 12217	https://krg018.legal-square.com/HAS-Shohin/page/SJSrbLogin.jsf	legal-square
 12218	https://www.city.katsuura.lg.jp/reiki/reiki_int/reiki_taikei/taikei_default.html	taikei
 12219	https://www1.g-reiki.net/city.ichihara.chiba/reiki_menu.html	g-reiki
-12220	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A80073B5A	d1-law
+12220	https://www1.g-reiki.net/city.nagareyama.chiba/reiki_menu.html	g-reiki
 12221	https://www1.g-reiki.net/yachiyo-city/reiki_menu.html	g-reiki
 12222	https://www1.g-reiki.net/city.abiko.chiba/reiki_menu.html	g-reiki
 12223	https://www.city.kamogawa.lg.jp/reiki/reiki_menu.html	taikei
@@ -742,7 +742,7 @@ jis_code	url	system_type
 14401	https://www.town.aikawa.kanagawa.jp/section/reiki_int/reiki_menu.html	taikei
 14402	http://www.town.kiyokawa.kanagawa.jp/section/d1w_reiki/reiki.html	d1-law
 15000	https://www1.g-reiki.net/pref.niigata/index.html	g-reiki
-15100	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A803552FE	d1-law
+15100	https://www1.g-reiki.net/city.niigata/reiki_menu.html	g-reiki
 15202	https://www.city.nagaoka.niigata.jp/shisei/cate03/jyourei/reiki/	taikei
 15204	https://krr182.legal-square.com/HAS-Shohin/page/SJSrbLogin.jsf	legal-square
 15205	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A8035768F	d1-law
@@ -1099,7 +1099,7 @@ jis_code	url	system_type
 25000	https://www.pref.shiga.lg.jp/site/jourei/reiki_int/reiki_menu.html	taikei
 25201	https://www1.g-reiki.net/city.otsu/reiki_menu.html	g-reiki
 25202	https://www.city.hikone.lg.jp/section/reiki_int/	独自
-25203	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A85A2034D	d1-law
+25203	https://www1.g-reiki.net/city.nagahama/reiki_menu.html	g-reiki
 25204	https://www1.g-reiki.net/city.omihachiman/reiki_menu.html	g-reiki
 25206	https://www1.g-reiki.net/kusatsu/reiki_menu.html	g-reiki
 25207	https://www2.city.moriyama.lg.jp/reiki_int/reiki_menu.html	taikei
@@ -1148,7 +1148,7 @@ jis_code	url	system_type
 27140	https://www.city.sakai.lg.jp/reiki/reiki_menu.html	taikei
 27202	https://en3-jg.d1-law.com/kishiwada/d1w_reiki/reiki.html	d1-law
 27203	https://www1.g-reiki.net/toyonaka/reiki_menu.html	g-reiki
-27204	https://www1.g-reiki.net/city.ikeda/reiki_menu.html	g-reiki
+27204	https://en3-jg.d1-law.com/ikeda-city/d1w_reiki/reiki.html	d1-law
 27205	https://www2.city.suita.osaka.jp/reiki/d1w_reiki/reiki.html	d1-law
 27206	https://www.city.izumiotsu.lg.jp/section/reiki/reiki_menu.html	taikei
 27207	https://www.city.takatsuki.osaka.jp/bunsyo/reiki_int/reiki_menu.html	taikei
@@ -1178,7 +1178,7 @@ jis_code	url	system_type
 27231	https://www1.g-reiki.net/osakasayama/reiki_menu.html	g-reiki
 27232	https://www.city.hannan.lg.jp/section/reiki_int/reiki_menu.html	taikei
 27301	https://www1.g-reiki.net/shimamotocho/reiki_menu.html	g-reiki
-27321	https://www.town.toyono.osaka.jp/reiki/d1w_reiki/reiki.html	d1-law
+27321	https://www.town.toyono.osaka.jp/reiki_int/reiki_menu.html	taikei
 27322	https://en3-jg.d1-law.com/nose/d1w_reiki/reiki.html	d1-law
 27341	https://en3-jg.d1-law.com/tadaoka/d1w_reiki/reiki.html	d1-law
 27361	https://www.town.kumatori.lg.jp/section/reiki_int/reiki_menu.html	taikei
@@ -1575,7 +1575,7 @@ jis_code	url	system_type
 41000	https://www1.g-reiki.net/pref.saga/reiki_menu.html	g-reiki
 41201	https://www1.g-reiki.net/city.saga/reiki_menu.html	g-reiki
 41202	https://www1.g-reiki.net/karatsu/reiki_menu.html	g-reiki
-41203	https://www.city.tosu.lg.jp/reiki/reiki_menu.html	taikei
+41203	https://www1.g-reiki.net/city.tosu/reiki_menu.html	g-reiki
 41204	https://www1.g-reiki.net/city.taku/reiki_menu.html	g-reiki
 41205	https://www1.g-reiki.net/imari/reiki_menu.html	g-reiki
 41206	https://www.city.takeo.lg.jp/reiki/reiki_menu.html	taikei
@@ -1715,7 +1715,7 @@ jis_code	url	system_type
 46208	https://www.city.kagoshima-izumi.lg.jp/reiki_int/reiki_menu.html	taikei
 46210	https://www.city.ibusuki.lg.jp/reiki_int/reiki_menu.html	taikei
 46213	https://www1.g-reiki.net/city.nishinoomote/reiki_menu.html	g-reiki
-46214	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A91BBB383	d1-law
+46214	https://www1.g-reiki.net/city.tarumizu/reiki_menu.html	g-reiki
 46215	https://www1.g-reiki.net/city.satsumasendai/reiki_menu.html	g-reiki
 46216	http://www.city.hioki.kagoshima.jp/reiki/reiki_menu.html	taikei
 46217	https://krr247.legal-square.com/HAS-Shohin/page/SJSrbLogin.jsf	legal-square
@@ -1723,7 +1723,7 @@ jis_code	url	system_type
 46219	http://www.city.ichikikushikino.lg.jp/reiki/reiki.html	reiki.html
 46220	https://www.city.minamisatsuma.lg.jp/reiki_int/reiki_menu.html	taikei
 46221	https://www1.g-reiki.net/city.shibushi/reiki_menu.html	g-reiki
-46222	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A91BBB3DC	d1-law
+46222	https://www1.g-reiki.net/city.amami/reiki_menu.html	g-reiki
 46223	https://www1.g-reiki.net/city.minamikyushu/reiki_menu.html	g-reiki
 46224	https://www1.g-reiki.net/isa/reiki_menu.html	g-reiki
 46225	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A91BBB3DF	d1-law

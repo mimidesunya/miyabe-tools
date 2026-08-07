@@ -54,6 +54,7 @@ from kami_city_pdf import (  # noqa: E402
     emit_progress,
     extract_pdf_text,
     extract_year_info,
+    looks_like_attachment_pdf,
     looks_like_generic_minutes_page,
     now_ts,
     page_title,
@@ -123,11 +124,29 @@ def crawl_pdf_items(
         visited.add(url)
         try:
             html = request_text(session, url, timeout_ms)
+            # PDF などを掴んだ場合、パーサが AssertionError を投げて
+            # プロセスごと落ちる。解析も同じ try で守る。
+            soup = BeautifulSoup(html, "html.parser")
         except Exception:
             continue
-        soup = BeautifulSoup(html, "html.parser")
         title = page_title(soup)
         page_year_label, page_source_year = extract_year_info(title)
+
+        # フレームで組まれた会議録ページ（桜川市など）は、入口ページに
+        # リンクが 1 本も無く中身が frame の中にある。frame は本文の一部
+        # なので、リンク文字列の判定を通さずそのまま辿る。
+        for frame in soup.find_all(["frame", "iframe"]):
+            src = str(frame.get("src", "")).strip()
+            if not src:
+                continue
+            absolute = urljoin(url, src).split("#", 1)[0]
+            if (
+                depth < max_depth
+                and absolute not in visited
+                and _is_followable_html(start_netloc, absolute)
+            ):
+                # frame の中身は同じ 1 ページの続きなので先に処理する。
+                queue.appendleft((absolute, depth + 1))
 
         for anchor in soup.find_all("a", href=True):
             href = str(anchor.get("href", "")).strip()
@@ -135,7 +154,10 @@ def crawl_pdf_items(
                 continue
             absolute = urljoin(url, href).split("#", 1)[0]
             text = anchor.get_text(" ", strip=True)
-            if urlsplit(absolute).path.lower().endswith(".pdf"):
+            if (
+                urlsplit(absolute).path.lower().endswith(".pdf")
+                or looks_like_attachment_pdf(absolute, text)
+            ):
                 label = clean_label(text) or title
                 year_label, source_year = extract_year_info(label, title)
                 if year_label == "不明":

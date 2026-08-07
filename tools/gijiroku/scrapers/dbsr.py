@@ -231,7 +231,8 @@ def find_search_library_url(page, source_url: str) -> str:
     links = page.locator("a")
     for i in range(links.count()):
         href = safe_href(links.nth(i))
-        if "Template=search-library" not in href:
+        # Template 名の大文字小文字は取得元によって違う（Template=List など）。
+        if "template=search-library" not in href.lower():
             continue
         candidates.append(urljoin(page.url, href))
     if candidates:
@@ -239,6 +240,114 @@ def find_search_library_url(page, source_url: str) -> str:
 
     base_url = dbsr_index_root(source_url)
     return urljoin(base_url, "100000?Template=search-library")
+
+
+# 入口ページの一覧は「直近４年分または12年分」しか出さないテンプレートがある。
+# それ以前の会議は期間を明示した文書一覧からしか辿れない。どの経路で
+# 会議を見つけたかを呼び出し元へ返し、収録範囲の判定に使う。
+DISCOVERY_SOURCE_LIBRARY = "search_library"
+DISCOVERY_SOURCE_RECENT = "recent_fallback"
+DISCOVERY_SOURCE_FULL_PERIOD = "full_period"
+
+
+def detail_search_year_bounds(page) -> tuple[str, str]:
+    """「くわしく検索」の期間指定から、選べる最小年と最大年を返す。"""
+    years: list[int] = []
+    options = page.locator("select[name='TermStartYear'] option")
+    for index in range(options.count()):
+        value = (options.nth(index).get_attribute("value") or "").strip()
+        if value.isdigit():
+            years.append(int(value))
+    if not years:
+        return "", ""
+    return str(min(years)), str(max(years))
+
+
+def full_period_list_url(source_url: str, start_year: str, end_year: str) -> str:
+    """指定期間の文書一覧 URL を組み立てる。
+
+    会議種別（Cabinet）を指定しないと全種別が対象になる。入口ページの
+    「最近の会議録」に出ない古い会議も、この一覧なら辿れる。
+    """
+    base_url = dbsr_index_root(source_url)
+    query = urlencode(
+        [
+            ("Template", "list"),
+            ("ListOrder", "Asc"),
+            ("QueryType", "New"),
+            ("TermStart", f"{start_year}-01-01"),
+            ("TermEnd", f"{end_year}-12-31"),
+        ]
+    )
+    return urljoin(base_url, f"100000?{query}")
+
+
+ERA_STARTS = (
+    ("令和", (2019, 5, 1), 2018),
+    ("平成", (1989, 1, 8), 1988),
+    ("昭和", (1926, 12, 25), 1925),
+)
+
+
+def era_year_label(held_on: str | None) -> str:
+    """開催日から「平成9年」のような年ラベルを作る。"""
+    match = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", str(held_on or ""))
+    if not match:
+        return "不明"
+    year, month, day = int(match.group(1)), int(match.group(2)), int(match.group(3))
+    for era, start, offset in ERA_STARTS:
+        if (year, month, day) >= start:
+            return f"{era}{year - offset}年"
+    return f"{year}年"
+
+
+def meeting_name_from_document_title(title: str) -> str:
+    """文書の表題から会議名だけを取り出す。
+
+    「平成９年第４回定例会（第５日目）　議事日程・名簿」→「平成９年第４回定例会（第５日目）」
+    """
+    normalized = normalize_space(title)
+    match = re.match(r"^(.*?[）)])", normalized)
+    if match:
+        return normalize_space(match.group(1))
+    for suffix in ("議事日程・名簿", "議事日程", "本文", "名簿", "署名", "一般質問", "〔資料〕", "資料"):
+        if normalized.endswith(suffix):
+            return normalize_space(normalized[: -len(suffix)]) or normalized
+    return normalized
+
+
+def build_full_period_day_groups(list_url: str, rows: list[DocumentRow]) -> list[DayDocumentGroup]:
+    """期間指定の文書一覧を、開催日と会議名の単位でまとめる。
+
+    この一覧は会議種別が混ざるため、日付だけでまとめると別々の会議が
+    ひとつに潰れる。表題から会議名を取り出して組にする。
+    """
+    grouped: dict[tuple[str, str], list[DocumentRow]] = {}
+    ordered_keys: list[tuple[str, str]] = []
+    for row in rows:
+        key = (row.held_on, meeting_name_from_document_title(row.title))
+        if key not in grouped:
+            grouped[key] = []
+            ordered_keys.append(key)
+        grouped[key].append(row)
+
+    groups: list[DayDocumentGroup] = []
+    for held_on, meeting_name in ordered_keys:
+        doc_rows = grouped[(held_on, meeting_name)]
+        body_rows = [row for row in doc_rows if "本文" in normalize_space(row.title)]
+        chosen_rows = body_rows or doc_rows
+        suffix = document_suffix(chosen_rows[0].title)
+        groups.append(
+            DayDocumentGroup(
+                title=f"{infer_day_title_from_held_on(held_on)}－{suffix}",
+                year_label=era_year_label(held_on),
+                meeting_group=meeting_name or "会議",
+                list_url=list_url,
+                doc_urls=[row.url for row in chosen_rows],
+                held_on=held_on,
+            )
+        )
+    return groups
 
 
 def held_on_from_text(value: str) -> str | None:
@@ -294,12 +403,13 @@ def collect_list_page_entries(page, entries, year_label: str, items: dict[str, L
                 continue
             absolute_url = canonicalize_template_url(urljoin(page.url, href))
 
-            if "Template=list" in href and list_url == "":
+            href_lower = href.lower()
+            if "template=list" in href_lower and list_url == "":
                 list_url = absolute_url
                 meeting_group = detect_meeting_group(text, page.title())
                 continue
 
-            if "Template=mokuji" in href:
+            if "template=mokuji" in href_lower:
                 auxiliary_docs.append(
                     {
                         "title": normalize_space(text) or "補助資料",
@@ -307,6 +417,10 @@ def collect_list_page_entries(page, entries, year_label: str, items: dict[str, L
                     }
                 )
 
+        if not list_url and auxiliary_docs:
+            # 一覧を持たず目次だけの取得元がある（富山県）。目次ページに
+            # 本文リンクが並ぶので、目次をそのまま一覧として扱う。
+            list_url = str(auxiliary_docs[0].get("url") or "")
         if not list_url:
             continue
 
@@ -322,7 +436,9 @@ def collect_list_page_entries(page, entries, year_label: str, items: dict[str, L
         )
 
 
-def discover_list_pages(page, target: dict, timeout_ms: int, deadline: float | None = None) -> list[ListPage]:
+def discover_list_pages(
+    page, target: dict, timeout_ms: int, deadline: float | None = None
+) -> tuple[list[ListPage], str]:
     ensure_discovery_time(deadline, "開始ページ")
     page.goto(str(target["source_url"]), wait_until="domcontentloaded", timeout=timeout_ms)
     try:
@@ -346,7 +462,7 @@ def discover_list_pages(page, target: dict, timeout_ms: int, deadline: float | N
             cell = cells.nth(cell_index)
             year_label = safe_inner_text(cell.locator("dt.cell__title").first) or "不明"
             collect_list_page_entries(page, cell.locator("dd.cell__item"), year_label, items)
-        return list(items.values())
+        return list(items.values()), DISCOVERY_SOURCE_LIBRARY
 
     cells = page.locator("div.LibraryTable dl")
     if cells.count() > 0:
@@ -355,18 +471,117 @@ def discover_list_pages(page, target: dict, timeout_ms: int, deadline: float | N
             cell = cells.nth(cell_index)
             year_label = safe_inner_text(cell.locator("dt").first) or "不明"
             collect_list_page_entries(page, cell.locator("dd"), year_label, items)
-        return list(items.values())
+        return list(items.values()), DISCOVERY_SOURCE_LIBRARY
 
-    cells = page.locator("ul.table.table--all > li.table__cell")
+    # 新しい DBSR テンプレートは table--all を付けず table 系のクラスを使うが、
+    # 自治体によってタグ名が異なる。クラス名は共通なのでタグ名は指定しない。
+    #   香川県など:   ul.table  > li.table__cell      > dt.table__header + dd.table__item
+    #   かほく市など: div.table > section.table__cell > h3.table__header + ul.table__item
+    #                 （会議は ul.table__item > li.table__sub-item に入れ子になる）
+    cells = page.locator(".table > .table__cell")
+    if cells.count() == 0:
+        cells = page.locator(".table__cell")
     for cell_index in range(cells.count()):
         ensure_discovery_time(deadline, f"年度一覧 {cell_index + 1}/{cells.count()}")
         cell = cells.nth(cell_index)
-        year_label = safe_inner_text(cell.locator("dt.table__header:not(.visually-hidden)").first)
+        year_label = safe_inner_text(cell.locator(".table__header:not(.visually-hidden)").first)
         if not year_label:
-            year_label = safe_inner_text(cell.locator("dt.table__header").first) or "不明"
-        collect_list_page_entries(page, cell.locator("dd.table__item"), year_label, items)
+            year_label = safe_inner_text(cell.locator(".table__header").first) or "不明"
+        # 入れ子テンプレートでは table__item が年度のまとまりなので、
+        # そのまま渡すと 1 年度 = 1 会議に潰れてしまう。会議単位の
+        # table__sub-item があるときはそちらを会議として数える。
+        entries = cell.locator(".table__sub-item")
+        if entries.count() == 0:
+            entries = cell.locator(".table__item")
+        collect_list_page_entries(page, entries, year_label, items)
 
-    return list(items.values())
+    if items:
+        return list(items.values()), DISCOVERY_SOURCE_LIBRARY
+
+    # search-library ページを持たないテンプレート（あきる野市・大野城市など）は
+    # 入口ページ自体に会議一覧が並ぶ。この形では search-library が 404 になる。
+    ensure_discovery_time(deadline, "入口ページ")
+    page.goto(str(target["source_url"]), wait_until="domcontentloaded", timeout=timeout_ms)
+    try:
+        page.wait_for_load_state("networkidle", timeout=3_000)
+    except Exception:
+        pass
+
+    # 入口ページの一覧は「直近４年分または12年分」しか出さない。それ以前は
+    # 「くわしく検索」でしか辿れないので、まず期間を最大に広げた文書一覧を試す。
+    start_year, end_year = detail_search_year_bounds(page)
+    if start_year and end_year:
+        full_url = full_period_list_url(str(target["source_url"]), start_year, end_year)
+        ensure_discovery_time(deadline, "全期間一覧")
+        try:
+            page.goto(full_url, wait_until="domcontentloaded", timeout=timeout_ms)
+            try:
+                page.wait_for_load_state("networkidle", timeout=3_000)
+            except Exception:
+                pass
+            has_rows = bool(extract_document_rows_from_page(page))
+        except DiscoveryTimeoutError:
+            raise
+        except Exception:
+            has_rows = False
+        if has_rows:
+            print(f"[INFO] 全期間の文書一覧を使います（{start_year}年〜{end_year}年）", flush=True)
+            return (
+                [
+                    ListPage(
+                        title=f"{start_year}年〜{end_year}年",
+                        year_label=f"{start_year}年〜{end_year}年",
+                        url=full_url,
+                        meeting_group="",
+                        auxiliary_docs=[],
+                    )
+                ],
+                DISCOVERY_SOURCE_FULL_PERIOD,
+            )
+        page.goto(str(target["source_url"]), wait_until="domcontentloaded", timeout=timeout_ms)
+        try:
+            page.wait_for_load_state("networkidle", timeout=3_000)
+        except Exception:
+            pass
+
+    # 全期間一覧が使えないときだけ、入口ページの「最近の会議録」を拾う。
+    # ここで取れるのは直近分だけなので、収録範囲は complete とみなさない。
+    groups = page.locator("ul.recent__links")
+    for group_index in range(groups.count()):
+        ensure_discovery_time(deadline, f"入口ページ一覧 {group_index + 1}/{groups.count()}")
+        group = groups.nth(group_index)
+        year_label = safe_inner_text(
+            group.locator("xpath=preceding-sibling::*[contains(@class,'recent__lib-header')][1]")
+        ) or "不明"
+        collect_list_page_entries(page, group.locator("li"), year_label, items)
+
+    if items:
+        return list(items.values()), DISCOVERY_SOURCE_RECENT
+
+    # 入口ページに会議一覧へのリンクが直接並ぶ取得元がある（宇佐市・多摩市）。
+    # search-library 側に一覧が無いだけなので、入口ページのリンクを拾う。
+    links = page.locator("a[href*='Template=list' i]")
+    for index in range(links.count()):
+        ensure_discovery_time(deadline, f"入口ページのリンク {index + 1}/{links.count()}")
+        link = links.nth(index)
+        href = safe_href(link)
+        if not href:
+            continue
+        list_url = canonicalize_template_url(urljoin(page.url, href))
+        if list_url in items:
+            continue
+        text = safe_inner_text(link)
+        meeting_group = detect_meeting_group(text, page.title())
+        items[list_url] = ListPage(
+            title=meeting_group or text,
+            year_label=normalize_space(text) or "不明",
+            url=list_url,
+            meeting_group=meeting_group,
+            auxiliary_docs=[],
+        )
+    if items:
+        return list(items.values()), DISCOVERY_SOURCE_RECENT
+    return [], DISCOVERY_SOURCE_LIBRARY
 
 
 def list_url_with_origin(list_url: str, origin_base: str) -> str:
@@ -402,10 +617,18 @@ def is_disabled(locator) -> bool:
 
 def extract_document_rows_from_page(page) -> list[DocumentRow]:
     rows: list[DocumentRow] = []
+    # 行の中身（.ans-title__name / .ans-title__date）は共通だが、外側の
+    # コンテナ名が取得元によって違う（東京都議会は .result__item）。
     items = page.locator("ul.result-document li.result-document__item")
+    if items.count() == 0:
+        items = page.locator(".result__item")
     for index in range(items.count()):
         item = items.nth(index)
+        # 見出しのクラスが入れ物に付く取得元と、リンクそのものに付く
+        # 取得元がある（八王子市は a.ans-title__name）。
         anchor = item.locator(".ans-title__name a").first
+        if anchor.count() == 0:
+            anchor = item.locator("a.ans-title__name").first
         title = safe_inner_text(anchor)
         href = safe_href(anchor)
         if not title or not href:
@@ -426,7 +649,10 @@ def extract_document_rows_from_page(page) -> list[DocumentRow]:
     if rows:
         return rows
 
-    items = page.locator("div.recordcol div.title")
+    # ハイフン区切りのクラス名を使う取得元（広島県など）。
+    #   div.result-list > div.result-document
+    #     > span.result-document-date + a
+    items = page.locator(".result-document:not(.result-document__item)")
     for index in range(items.count()):
         item = items.nth(index)
         anchor = item.locator("a").first
@@ -435,7 +661,119 @@ def extract_document_rows_from_page(page) -> list[DocumentRow]:
         if not title or not href:
             continue
 
+        date_text = safe_inner_text(item.locator(".result-document-date").first)
+        held_on = held_on_from_text(date_text or title)
+        if not held_on:
+            continue
+
+        rows.append(
+            DocumentRow(
+                title=title,
+                url=canonicalize_template_url(urljoin(page.url, href)),
+                held_on=held_on,
+            )
+        )
+    if rows:
+        return rows
+
+    # 同じ 2 つのクラスでも入れ子の向きが逆の取得元がある（山口市は
+    # div.title > div.recordcol）。どちらでも行を拾えるようにする。
+    items = page.locator("div.recordcol div.title")
+    if items.count() == 0:
+        items = page.locator("div.title div.recordcol")
+    for index in range(items.count()):
+        item = items.nth(index)
+        anchor = item.locator("a").first
+        title = safe_inner_text(anchor)
+        href = safe_href(anchor)
+        if not title or not href:
+            continue
+
+        # 開催日をクラスなしの span で出す取得元がある（桜井市など）。
+        # span.date が無いときは行全体の文字列から拾う。
         date_text = safe_inner_text(item.locator("span.date").first)
+        if not date_text:
+            date_text = safe_inner_text(item)
+        held_on = held_on_from_text(date_text or title)
+        if not held_on:
+            continue
+
+        rows.append(
+            DocumentRow(
+                title=title,
+                url=canonicalize_template_url(urljoin(page.url, href)),
+                held_on=held_on,
+            )
+        )
+    if rows:
+        return rows
+
+    # ここまでのどのクラス構成にも当てはまらないテンプレート向けの受け皿。
+    # 取得元ごとにクラス名や入れ子が違っても、文書リンクと同じ行に開催日が
+    # 出る点は共通なので、リンクを起点に行を組み立てる。
+    anchors = page.locator("a[href*='Template=doc-one-frame' i], a[href*='Template=document' i]")
+    seen_urls: set[str] = set()
+    for index in range(anchors.count()):
+        anchor = anchors.nth(index)
+        href = safe_href(anchor)
+        title = safe_inner_text(anchor)
+        if not href or not title:
+            continue
+        absolute = canonicalize_template_url(urljoin(page.url, href))
+        if absolute in seen_urls:
+            continue
+        # 直近の親 2 階層までを行とみなして開催日を探す。
+        row_text = ""
+        for depth in ("xpath=..", "xpath=../.."):
+            row_text = safe_inner_text(anchor.locator(depth).first)
+            if held_on_from_text(row_text):
+                break
+        held_on = held_on_from_text(row_text) or held_on_from_text(title)
+        if not held_on:
+            continue
+        seen_urls.add(absolute)
+        rows.append(DocumentRow(title=title, url=absolute, held_on=held_on))
+    if rows:
+        return rows
+
+    # 文書一覧が document-list 形式のテンプレート（あきる野市・大野城市など）。
+    # 表題に西暦が入らないので、開催日は .document-list__date の <time> から取る。
+    items = page.locator(".document-list")
+    for index in range(items.count()):
+        item = items.nth(index)
+        anchor = item.locator(".document-list__title a").first
+        title = safe_inner_text(anchor)
+        href = safe_href(anchor)
+        if not title or not href:
+            continue
+
+        date_text = safe_inner_text(item.locator(".document-list__date").first)
+        held_on = held_on_from_text(date_text or title)
+        if not held_on:
+            continue
+
+        rows.append(
+            DocumentRow(
+                title=title,
+                url=canonicalize_template_url(urljoin(page.url, href)),
+                held_on=held_on,
+            )
+        )
+    if rows:
+        return rows
+
+    # 単文表示テンプレート（彦根市・石岡市など）。本文は doc-one-frame の
+    # フレーム内にあり、開催日は .result-title__date に「開催日: YYYY-MM-DD」で入る。
+    items = page.locator(".result-doc")
+    for index in range(items.count()):
+        item = items.nth(index)
+        anchor = item.locator("a.result-title__name").first
+        title = safe_inner_text(anchor)
+        href = safe_href(anchor)
+        if not title or not href:
+            continue
+
+        date_text = safe_inner_text(item.locator(".result-title__date").first)
         held_on = held_on_from_text(date_text or title)
         if not held_on:
             continue
@@ -663,11 +1001,22 @@ def discover_meeting_items(
     previous_items: list[MeetingItem] | None = None,
     quick_update: bool = False,
     discovery_timeout_seconds: int = DEFAULT_DISCOVERY_TIMEOUT_SECONDS,
+    coverage_report: dict | None = None,
 ) -> list[MeetingItem]:
     deadline = discovery_deadline(discovery_timeout_seconds)
     base_url = str(target["base_url"])
-    list_pages = discover_list_pages(page, target, timeout_ms, deadline)
+    list_pages, discovery_source = discover_list_pages(page, target, timeout_ms, deadline)
     print(f"[INFO] 会議一覧ページ {len(list_pages)} 件", flush=True)
+    if coverage_report is not None:
+        coverage_report.clear()
+        coverage_report.update(
+            {
+                "list_page_count": len(list_pages),
+                "failed_list_page_count": 0,
+                "limit_reached": False,
+                "discovery_source": discovery_source,
+            }
+        )
 
     meetings: list[MeetingItem] = []
     seen_titles: set[tuple[str, str, str]] = set()
@@ -692,10 +1041,21 @@ def discover_meeting_items(
         except DiscoveryTimeoutError:
             raise
         except Exception as exc:
+            if coverage_report is not None:
+                coverage_report["failed_list_page_count"] = int(
+                    coverage_report.get("failed_list_page_count") or 0
+                ) + 1
             print(f"[WARN] 会議一覧の確認に失敗: {list_page.title} ({exc})", flush=True)
             continue
 
-        for group in build_day_groups(list_page, list_url, rows):
+        if discovery_source == DISCOVERY_SOURCE_FULL_PERIOD:
+            # 全期間の一覧は会議種別も年度も混ざるので、表題から会議名を、
+            # 開催日から年ラベルを組み直す。
+            day_groups = build_full_period_day_groups(list_url, rows)
+        else:
+            day_groups = build_day_groups(list_page, list_url, rows)
+
+        for group in day_groups:
             key = (group.year_label, group.meeting_group, group.title)
             if key in seen_titles:
                 continue
@@ -713,6 +1073,8 @@ def discover_meeting_items(
                 )
             )
             if max_meetings > 0 and len(meetings) >= max_meetings:
+                if coverage_report is not None:
+                    coverage_report["limit_reached"] = True
                 return meetings
 
         for auxiliary_doc in list_page.auxiliary_docs:
@@ -738,6 +1100,8 @@ def discover_meeting_items(
                 )
             )
             if max_meetings > 0 and len(meetings) >= max_meetings:
+                if coverage_report is not None:
+                    coverage_report["limit_reached"] = True
                 return meetings
 
     if quick_update and previous_items:
@@ -789,6 +1153,26 @@ def document_date_label(page_html: str, meeting_item: MeetingItem) -> str | None
     return None
 
 
+# 単文表示テンプレートは本文をフレーム内で 1 発言ずつ出すため、文書 URL を
+# 辿っても全文にならない。画面の「全文表示」と同じ download を使う。
+def full_text_download_url(url: str) -> str:
+    if "template=doc-one-frame" not in url.lower():
+        return ""
+    document_id = query_value(url, "DocumentID")
+    if document_id == "":
+        return ""
+    parts = urlsplit(url)
+    query = urlencode(
+        [
+            ("Template", "download"),
+            ("Download", "yes"),
+            ("VoiceType", "all"),
+            ("DocumentID", document_id),
+        ]
+    )
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, query, ""))
+
+
 def fetch_meeting_text(request_context, item: MeetingItem, timeout_ms: int) -> tuple[int, str]:
     if not item.doc_urls:
         return 0, ""
@@ -796,6 +1180,13 @@ def fetch_meeting_text(request_context, item: MeetingItem, timeout_ms: int) -> t
     sections: list[str] = []
     fragment_count = 0
     for doc_url in item.doc_urls:
+        download_url = full_text_download_url(doc_url)
+        if download_url:
+            text = request_text(request_context, download_url, timeout_ms, referer=doc_url).strip()
+            if text:
+                sections.append(text)
+                fragment_count += 1
+            continue
         page_html = request_text(request_context, doc_url, timeout_ms, referer=item.list_url or item.url)
         body_text = extract_document_body(page_html)
         heading = extract_document_heading(page_html)
@@ -818,8 +1209,13 @@ def fetch_meeting_text(request_context, item: MeetingItem, timeout_ms: int) -> t
         header_lines.append(item.meeting_group)
     header_lines.append(item.year_label)
 
-    sample_html = request_text(request_context, item.doc_urls[0], timeout_ms, referer=item.list_url or item.url)
-    held_on_label = document_date_label(sample_html, item)
+    sample_url = item.doc_urls[0]
+    if full_text_download_url(sample_url):
+        # download はテキストなので、日付は一覧から拾った開催日を使う。
+        held_on_label = japanese_date_label(item.year_label, item.held_on) or item.held_on
+    else:
+        sample_html = request_text(request_context, sample_url, timeout_ms, referer=item.list_url or item.url)
+        held_on_label = document_date_label(sample_html, item)
     if held_on_label:
         header_lines.append(f"開催日: {held_on_label}")
     header_lines.append(f"Source URL: {item.url}")
@@ -929,6 +1325,21 @@ def main() -> int:
     if args.save_html:
         pages_dir.mkdir(parents=True, exist_ok=True)
 
+    previous_source_coverage = state.get("source_coverage")
+    previous_source_state = str(previous_source_coverage.get("state") or "").strip() \
+        if isinstance(previous_source_coverage, dict) else ""
+    if args.max_meetings <= 0 and index_json.exists() and previous_source_state != "complete":
+        state["source_coverage"] = {
+            "mode": "source_discovery_coverage",
+            "state": "partial_planned",
+            "discovered_count": len(load_previous_meeting_items(index_json)),
+            "list_page_count": 0,
+            "failed_list_page_count": 0,
+            "limit": 0,
+            "updated_at": now_ts(),
+        }
+        gijiroku_storage.save_state(state_path, state)
+
     print(f"[INFO] Target: {target['name']} ({target['slug']}, {target['system_type']})")
     print(f"[INFO] Source URL: {target['source_url']}")
     print(f"[INFO] Base URL: {target['base_url']}")
@@ -947,6 +1358,7 @@ def main() -> int:
                 f"[INFO] Quick update listing enabled: previous_index={len(previous_items)}",
                 flush=True,
             )
+        coverage_report: dict[str, int | bool] = {}
         meeting_items = discover_meeting_items(
             page,
             target,
@@ -955,8 +1367,40 @@ def main() -> int:
             previous_items=previous_items,
             quick_update=quick_update,
             discovery_timeout_seconds=args.discovery_timeout_seconds,
+            coverage_report=coverage_report,
         )
         print(f"[INFO] 会議候補 {len(meeting_items)} 件")
+        if not meeting_items:
+            raise RuntimeError(
+                "会議候補を1件も取得できませんでした。"
+                "取得元の画面構造変更または一時的な取得エラーとして扱います: "
+                f"{target['source_url']}"
+            )
+
+        limit_reached = bool(coverage_report.get("limit_reached"))
+        failed_list_page_count = max(0, int(coverage_report.get("failed_list_page_count") or 0))
+        discovery_source = str(coverage_report.get("discovery_source") or "")
+        if limit_reached:
+            source_coverage_state = "partial_limit"
+        elif failed_list_page_count > 0:
+            source_coverage_state = "partial_error"
+        elif discovery_source == DISCOVERY_SOURCE_RECENT:
+            # 入口ページの「最近の会議録」は直近４年分または12年分しか出さない。
+            # ここで取れた分を完了とみなすと、部分収録を完了と誤表示することになる。
+            source_coverage_state = "partial_recent_only"
+        else:
+            source_coverage_state = "complete"
+        state["source_coverage"] = {
+            "mode": "source_discovery_coverage",
+            "state": source_coverage_state,
+            "discovered_count": len(meeting_items),
+            "list_page_count": max(0, int(coverage_report.get("list_page_count") or 0)),
+            "failed_list_page_count": failed_list_page_count,
+            "discovery_source": discovery_source,
+            "limit": max(0, int(args.max_meetings)),
+            "updated_at": now_ts(),
+        }
+        gijiroku_storage.save_state(state_path, state)
 
         index_json.parent.mkdir(parents=True, exist_ok=True)
         index_json.write_text(
@@ -1093,6 +1537,29 @@ def main() -> int:
                 emit_progress(len(meeting_items) - len(work_items) + idx, len(meeting_items), state_path, state)
                 if args.delay_seconds > 0 and idx < len(work_items):
                     time.sleep(args.delay_seconds)
+
+            downloaded_count = 0
+            status_counts: dict[str, int] = {}
+            for plan in planned_items:
+                if gijiroku_storage.existing_output(plan["dest_base"]) is not None:
+                    downloaded_count += 1
+                    continue
+                item_state = state.get("items", {}).get(plan["resume_key"], {})
+                status = str(item_state.get("status") or "").strip() or "not_found"
+                status_counts[status] = status_counts.get(status, 0) + 1
+            validation = gijiroku_storage.apply_classified_scrape_validation(
+                state_path,
+                state,
+                discovered_count=len(meeting_items),
+                downloaded_count=downloaded_count,
+                status_counts=status_counts,
+            )
+            emit_progress(
+                int(validation["progress_current"]),
+                int(validation["progress_total"]),
+                state_path,
+                state,
+            )
 
         browser.close()
 

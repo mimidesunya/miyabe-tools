@@ -328,6 +328,8 @@
         } else if (state.endYear) {
             params.set('end_year', state.endYear);
         }
+        // 「検索結果の内訳」を出すには集計を明示的に要求する必要がある。
+        params.set('include_facets', '1');
         return params;
     }
 
@@ -367,7 +369,7 @@
 
     function renderFacets(payload = state.lastPayload) {
         if (!payload || payload.status !== 'ok') {
-            refs.facets.innerHTML = '<div class="facet-row"><span>結果</span><strong>未検索</strong></div>';
+            refs.facets.innerHTML = '<div class="facet-row"><span>結果</span><strong>まだ検索していません</strong></div>';
             return;
         }
         const aggs = payload.aggregations || {};
@@ -380,7 +382,7 @@
         }
         refs.facets.innerHTML = rows.length
             ? rows.map(([label, count]) => `<div class="facet-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(count)}</strong></div>`).join('')
-            : '<div class="facet-row"><span>facet</span><strong>なし</strong></div>';
+            : '<div class="facet-row"><span>内訳</span><strong>該当なし</strong></div>';
     }
 
     function renderExcerpt(value) {
@@ -506,7 +508,11 @@
     async function runSearch(page = 1) {
         state.query = refs.query.value.trim();
         state.prefCode = normalizePrefCode(refs.pref.value);
-        state.slug = refs.slug.value.trim();
+        // 自治体一覧の読み込み前は select にまだ選択肢が無い。ここでフォーム値を
+        // 読むと、URL で渡された slug が初回検索で消えてしまう。
+        if (!municipalitiesLoading) {
+            state.slug = refs.slug.value.trim();
+        }
         state.startYear = normalizeYear(refs.startYear.value);
         state.endYear = normalizeYear(refs.endYear.value);
         state.startDate = normalizeDate(refs.startDate.value);

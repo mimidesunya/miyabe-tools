@@ -330,6 +330,32 @@ def warn_invalid_minutes_date(candidate: str, *, year: int | None, month: int, d
     )
 
 
+def accept_minutes_date(
+    candidate: str,
+    year: int,
+    month: int,
+    day: int,
+    source: str,
+    today: date | None = None,
+) -> tuple[str, int, int, int] | None:
+    """会議録の開催日として妥当なときだけ採用する。"""
+    try:
+        value = date(year, month, day)
+    except ValueError:
+        warn_invalid_minutes_date(candidate, year=year, month=month, day=day, source=source)
+        return None
+    # 会議録は開催後に公開されるので、未来の日付は抽出の誤り。
+    # そのまま入れると新しい順の先頭に居座り続ける。
+    if value > (today or date.today()):
+        print(
+            f"[WARN] future minutes date skipped candidate={candidate!r} "
+            f"date={value.isoformat()} source={source}",
+            file=sys.stderr,
+        )
+        return None
+    return value.isoformat(), year, month, day
+
+
 def extract_held_on(
     text: str,
     title: str,
@@ -340,50 +366,39 @@ def extract_held_on(
     source_label = source_hint or title
     explicit_match = re.search(r"(?im)^Held-On:\s*(\d{4})-(\d{2})-(\d{2})\s*$", text)
     if explicit_match:
-        year = int(explicit_match.group(1))
-        month = int(explicit_match.group(2))
-        day = int(explicit_match.group(3))
-        try:
-            return date(year, month, day).isoformat(), year, month, day
-        except ValueError:
-            warn_invalid_minutes_date(
-                explicit_match.group(0),
-                year=year,
-                month=month,
-                day=day,
-                source=source_label,
-            )
+        accepted = accept_minutes_date(
+            explicit_match.group(0),
+            int(explicit_match.group(1)),
+            int(explicit_match.group(2)),
+            int(explicit_match.group(3)),
+            source_label,
+        )
+        if accepted is not None:
+            return accepted
     for match in MINUTES_DATE_PATTERN.finditer(joined_head_text(text, limit=20)):
         gregorian_year = era_to_gregorian(match.group(1), match.group(2))
-        month = int(to_ascii_digits(match.group(4)))
-        day = int(to_ascii_digits(match.group(5)))
         if gregorian_year is None:
             continue
-        try:
-            return date(gregorian_year, month, day).isoformat(), gregorian_year, month, day
-        except ValueError:
-            warn_invalid_minutes_date(
-                match.group(0),
-                year=gregorian_year,
-                month=month,
-                day=day,
-                source=source_label,
-            )
-            continue
+        accepted = accept_minutes_date(
+            match.group(0),
+            gregorian_year,
+            int(to_ascii_digits(match.group(4))),
+            int(to_ascii_digits(match.group(5))),
+            source_label,
+        )
+        if accepted is not None:
+            return accepted
     match = FILE_DATE_PATTERN.search(title)
     if match and source_year is not None:
-        month = int(match.group(1))
-        day = int(match.group(2))
-        try:
-            return date(source_year, month, day).isoformat(), source_year, month, day
-        except ValueError:
-            warn_invalid_minutes_date(
-                match.group(0),
-                year=source_year,
-                month=month,
-                day=day,
-                source=source_label,
-            )
+        accepted = accept_minutes_date(
+            match.group(0),
+            source_year,
+            int(match.group(1)),
+            int(match.group(2)),
+            source_label,
+        )
+        if accepted is not None:
+            return accepted
     return None, source_year, None, None
 
 
@@ -437,10 +452,16 @@ def minutes_source_numbers_from_url(source_url: str) -> tuple[int | None, int | 
     return source_year, source_fino
 
 
+# 目次だけの文書は短い（実測で最大 24,000 文字弱）。一方、本文の冒頭に
+# 目次を載せる会議録があり、そちらは数万〜数十万文字になる。本文中の
+# 手がかりだけで目次と決めると、本文まるごと検索対象から外れてしまう。
+TOC_TEXT_MAX_LENGTH = 30_000
+
+
 def classify_doc_type(title: str, text: str, *, ext: str = "") -> str:
     if normalize_space(title).endswith("目次"):
         return "toc"
-    if "会議録目次" in joined_head_text(text, limit=6):
+    if "会議録目次" in joined_head_text(text, limit=6) and len(text) <= TOC_TEXT_MAX_LENGTH:
         return "toc"
     if ext.lower() in {".html", ".htm"} and looks_like_minutes_listing_page(text):
         return "aux"

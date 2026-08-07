@@ -932,6 +932,9 @@ function load_system_url_index(string $relativePath): array
         $index[$code] = [
             'url' => trim((string)($row['url'] ?? '')),
             'system_type' => trim((string)($row['system_type'] ?? '')),
+            'crawl_status' => trim((string)($row['crawl_status'] ?? '')),
+            'exclusion_reason' => trim((string)($row['exclusion_reason'] ?? '')),
+            'exclusion_detail' => trim((string)($row['exclusion_detail'] ?? '')),
         ];
     }
     $cache[$key] = $index;

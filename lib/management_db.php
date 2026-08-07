@@ -506,6 +506,26 @@ function management_db_homepage_meta_payload(): ?array
     }
 }
 
+function management_db_homepage_cards_max_age_seconds(): int
+{
+    return 900;
+}
+
+function management_db_homepage_cards_are_stale(PDO $pdo): bool
+{
+    // homepage_payload_meta.updated_at は task status の更新でも動くため、
+    // 鮮度の判断には使えない。カード自体の更新時刻を見る。
+    $updatedAt = $pdo->query('SELECT max(updated_at) FROM homepage_municipality_cards')->fetchColumn();
+    if (!is_string($updatedAt) || trim($updatedAt) === '') {
+        return true;
+    }
+    $timestamp = strtotime($updatedAt);
+    if ($timestamp === false) {
+        return true;
+    }
+    return (time() - $timestamp) > management_db_homepage_cards_max_age_seconds();
+}
+
 function management_db_homepage_payload(?string $prefecture): ?array
 {
     $pdo = management_db_pdo();
@@ -514,6 +534,15 @@ function management_db_homepage_payload(?string $prefecture): ?array
     }
 
     try {
+        // カードが古くても、ここで null を返してはいけない。ファイル側の
+        // 経路は全自治体分を一度に組み立てるため PHP の memory_limit を
+        // 超えて Fatal error になり、トップページが真っ白になる。
+        // 作り直しはレスポンス完了後に 1 本だけ走らせ、今回は手元の
+        // カードをそのまま返す。
+        if (management_db_homepage_cards_are_stale($pdo)
+            && function_exists('homepage_schedule_api_payload_cache_refresh')) {
+            homepage_schedule_api_payload_cache_refresh();
+        }
         $metaRow = $pdo->query('SELECT * FROM homepage_payload_meta WHERE id = 1')->fetch();
         if (!is_array($metaRow)) {
             return null;

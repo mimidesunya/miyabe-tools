@@ -1,4 +1,5 @@
 import unittest
+import tempfile
 from pathlib import Path
 from unittest import mock
 
@@ -8,6 +9,18 @@ from tools.gijiroku.scrapers.static_kaigiroku_dir import should_follow_related_m
 
 
 class MinutesRobotsPolicyTest(unittest.TestCase):
+    def test_registry_rewrite_keeps_web_readable_permissions(self) -> None:
+        row = {field: "" for field in audit_minutes_robots.FIELDNAMES}
+        row.update({"jis_code": "00000", "crawl_status": "unresolved"})
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "assembly_minutes_system_urls.tsv"
+            path.write_text("before\n", encoding="utf-8")
+            with mock.patch.object(audit_minutes_robots.os, "chmod") as chmod:
+                audit_minutes_robots.write_rows(path, [row])
+
+        chmod.assert_called_once()
+        self.assertEqual(chmod.call_args.args[1], 0o644)
+
     def test_longer_allow_rule_wins_even_when_written_after_disallow(self) -> None:
         robots = "User-agent: *\nDisallow: /\nAllow: /tenant/\n"
 
@@ -240,13 +253,31 @@ class MinutesRobotsPolicyTest(unittest.TestCase):
         )
 
     def test_registered_review_required_target_is_not_scrapeable(self) -> None:
-        all_targets = gijiroku_targets.iter_gijiroku_targets()
-        scrapeable = gijiroku_targets.iter_scrapeable_gijiroku_targets()
+        review_target = {
+            "url": "https://example.test/minutes/",
+            "system_type": "独自",
+            "crawl_status": gijiroku_targets.CRAWL_STATUS_REVIEW_REQUIRED,
+            "exclusion_reason": "robots_unreachable",
+            "exclusion_detail": "robots.txt / HTTP 403",
+            "policy_checked_at": "2026-08-02",
+            "policy_fingerprint": "fingerprint",
+        }
+        with (
+            mock.patch.object(
+                gijiroku_targets,
+                "load_local_minutes_url_index",
+                return_value={"00000": review_target},
+            ),
+            mock.patch.object(gijiroku_targets, "load_municipality_master_index", return_value={}),
+            mock.patch.object(gijiroku_targets, "load_municipality_homepage_index", return_value={}),
+        ):
+            all_targets = gijiroku_targets.iter_gijiroku_targets()
+            scrapeable = gijiroku_targets.iter_scrapeable_gijiroku_targets()
 
-        self.assertIn("47000", {target["code"] for target in all_targets})
-        self.assertNotIn("47000", {target["code"] for target in scrapeable})
-        with self.assertRaises(gijiroku_targets.CrawlPolicyBlockedError):
-            gijiroku_targets.load_gijiroku_target("47000")
+            self.assertIn("00000", {target["code"] for target in all_targets})
+            self.assertNotIn("00000", {target["code"] for target in scrapeable})
+            with self.assertRaises(gijiroku_targets.CrawlPolicyBlockedError):
+                gijiroku_targets.load_gijiroku_target("00000")
 
 
 if __name__ == "__main__":

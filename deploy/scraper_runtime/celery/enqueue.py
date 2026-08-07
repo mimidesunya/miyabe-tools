@@ -23,6 +23,10 @@ TASK_CHOICES = {
 }
 
 
+# 前回失敗分の再試行と自治体絞り込みを受け付ける周期タスク。
+CYCLE_TASKS = {"gijiroku-cycle", "reiki-cycle"}
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Celery queue にスクレイパ task を投入します。")
     parser.add_argument(
@@ -33,12 +37,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--filter",
         default="",
-        help="旧互換オプション。OpenSearch rebuild では無視されます",
+        help="gijiroku-cycle / reiki-cycle の自治体絞り込み、または旧 rebuild 互換オプション",
     )
     parser.add_argument(
         "--slug",
         default="",
         help="*-index task で更新する自治体 slug",
+    )
+    parser.add_argument(
+        "--retry-failed",
+        action="store_true",
+        help="周期タスクで前回失敗対象を一度だけ再試行する",
     )
     return parser
 
@@ -49,6 +58,13 @@ def main() -> int:
     kwargs = {}
     if args.task.endswith("-rebuild"):
         kwargs["name_filter"] = args.filter.strip()
+    if args.task in CYCLE_TASKS and args.filter.strip():
+        kwargs["name_filter"] = args.filter.strip()
+    if args.retry_failed:
+        if args.task not in CYCLE_TASKS:
+            print("--retry-failed is only valid for " + " / ".join(sorted(CYCLE_TASKS)), file=sys.stderr)
+            return 2
+        kwargs["retry_failed"] = True
     if args.task.endswith("-index"):
         slug = args.slug.strip()
         if slug == "":
@@ -65,6 +81,7 @@ def main() -> int:
                 "task_id": result.id,
                 "filter": kwargs.get("name_filter", ""),
                 "slug": kwargs.get("slug", ""),
+                "retry_failed": bool(kwargs.get("retry_failed", False)),
             },
             ensure_ascii=False,
         )
