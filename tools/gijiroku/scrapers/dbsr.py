@@ -553,6 +553,30 @@ def discover_list_pages(
 
     if items:
         return list(items.values()), DISCOVERY_SOURCE_RECENT
+
+    # 入口ページに会議一覧へのリンクが直接並ぶ取得元がある（宇佐市・多摩市）。
+    # search-library 側に一覧が無いだけなので、入口ページのリンクを拾う。
+    links = page.locator("a[href*='Template=list' i]")
+    for index in range(links.count()):
+        ensure_discovery_time(deadline, f"入口ページのリンク {index + 1}/{links.count()}")
+        link = links.nth(index)
+        href = safe_href(link)
+        if not href:
+            continue
+        list_url = canonicalize_template_url(urljoin(page.url, href))
+        if list_url in items:
+            continue
+        text = safe_inner_text(link)
+        meeting_group = detect_meeting_group(text, page.title())
+        items[list_url] = ListPage(
+            title=meeting_group or text,
+            year_label=normalize_space(text) or "不明",
+            url=list_url,
+            meeting_group=meeting_group,
+            auxiliary_docs=[],
+        )
+    if items:
+        return list(items.values()), DISCOVERY_SOURCE_RECENT
     return [], DISCOVERY_SOURCE_LIBRARY
 
 
