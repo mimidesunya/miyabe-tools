@@ -621,6 +621,33 @@ def extract_document_rows_from_page(page) -> list[DocumentRow]:
     if rows:
         return rows
 
+    # ハイフン区切りのクラス名を使う取得元（広島県など）。
+    #   div.result-list > div.result-document
+    #     > span.result-document-date + a
+    items = page.locator(".result-document:not(.result-document__item)")
+    for index in range(items.count()):
+        item = items.nth(index)
+        anchor = item.locator("a").first
+        title = safe_inner_text(anchor)
+        href = safe_href(anchor)
+        if not title or not href:
+            continue
+
+        date_text = safe_inner_text(item.locator(".result-document-date").first)
+        held_on = held_on_from_text(date_text or title)
+        if not held_on:
+            continue
+
+        rows.append(
+            DocumentRow(
+                title=title,
+                url=canonicalize_template_url(urljoin(page.url, href)),
+                held_on=held_on,
+            )
+        )
+    if rows:
+        return rows
+
     # 同じ 2 つのクラスでも入れ子の向きが逆の取得元がある（山口市は
     # div.title > div.recordcol）。どちらでも行を拾えるようにする。
     items = page.locator("div.recordcol div.title")
