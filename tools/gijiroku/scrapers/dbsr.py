@@ -680,6 +680,34 @@ def extract_document_rows_from_page(page) -> list[DocumentRow]:
     if rows:
         return rows
 
+    # ここまでのどのクラス構成にも当てはまらないテンプレート向けの受け皿。
+    # 取得元ごとにクラス名や入れ子が違っても、文書リンクと同じ行に開催日が
+    # 出る点は共通なので、リンクを起点に行を組み立てる。
+    anchors = page.locator("a[href*='Template=doc-one-frame' i], a[href*='Template=document' i]")
+    seen_urls: set[str] = set()
+    for index in range(anchors.count()):
+        anchor = anchors.nth(index)
+        href = safe_href(anchor)
+        title = safe_inner_text(anchor)
+        if not href or not title:
+            continue
+        absolute = canonicalize_template_url(urljoin(page.url, href))
+        if absolute in seen_urls:
+            continue
+        # 直近の親 2 階層までを行とみなして開催日を探す。
+        row_text = ""
+        for depth in ("xpath=..", "xpath=../.."):
+            row_text = safe_inner_text(anchor.locator(depth).first)
+            if held_on_from_text(row_text):
+                break
+        held_on = held_on_from_text(row_text) or held_on_from_text(title)
+        if not held_on:
+            continue
+        seen_urls.add(absolute)
+        rows.append(DocumentRow(title=title, url=absolute, held_on=held_on))
+    if rows:
+        return rows
+
     # 文書一覧が document-list 形式のテンプレート（あきる野市・大野城市など）。
     # 表題に西暦が入らないので、開催日は .document-list__date の <time> から取る。
     items = page.locator(".document-list")
