@@ -417,6 +417,10 @@ def collect_list_page_entries(page, entries, year_label: str, items: dict[str, L
                     }
                 )
 
+        if not list_url and auxiliary_docs:
+            # 一覧を持たず目次だけの取得元がある（富山県）。目次ページに
+            # 本文リンクが並ぶので、目次をそのまま一覧として扱う。
+            list_url = str(auxiliary_docs[0].get("url") or "")
         if not list_url:
             continue
 
