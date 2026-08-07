@@ -158,7 +158,7 @@ def _metadata_reconcile_command(task_name: str) -> list[str]:
 
 
 # 例規集一括スクレイパを remote 用オプション付きで起動するコマンドを作る。
-def _reiki_scrape_command() -> list[str]:
+def _reiki_scrape_command(*, retry_failed: bool = False, name_filter: str = "") -> list[str]:
     command = _python_command() + ["tools/reiki/scrape_all_reiki.py"]
     if celery_runtime.env_bool("SCRAPER_REIKI_CHECK_UPDATES", True):
         command.append("--check-updates")
@@ -188,6 +188,10 @@ def _reiki_scrape_command() -> list[str]:
     )
     if not _scraper_build_search_index():
         command.append("--no-build-index")
+    if retry_failed:
+        command.append("--retry-failed")
+    if name_filter.strip():
+        command.extend(["--filter", name_filter.strip()])
     return command
 
 
@@ -446,8 +450,11 @@ def _run_reiki_backfill_impl() -> None:
 
 
 # 例規集 scrape cycle の実処理を起動する。
-def _run_reiki_scrape_impl() -> None:
-    _run_command("reiki scrape", _reiki_scrape_command())
+def _run_reiki_scrape_impl(*, retry_failed: bool = False, name_filter: str = "") -> None:
+    _run_command(
+        "reiki scrape",
+        _reiki_scrape_command(retry_failed=retry_failed, name_filter=name_filter),
+    )
 
 
 # stale running が残っている場合だけ、次回実行前にメタ情報を復旧する。
@@ -533,15 +540,15 @@ def run_reiki_backfill() -> dict[str, object]:
 
 @app.task(bind=True, name="deploy.scraper_runtime.celery.tasks.run_reiki_cycle", max_retries=None)
 # 例規集 scrape cycle を実行し、失敗時は Celery retry と retry marker を設定する。
-def run_reiki_cycle(self) -> dict[str, object]:
+def run_reiki_cycle(self, retry_failed: bool = False, name_filter: str = "") -> dict[str, object]:
     # 実際の例規集スクレイピングを起動する Celery タスク。
     # 会議録と同じ失敗時クールダウンで、連続失敗時の負荷を抑える。
     try:
         celery_runtime.clear_retry_marker("reiki")
         _recover_stale_metadata("reiki")
-        _run_reiki_scrape_impl()
+        _run_reiki_scrape_impl(retry_failed=bool(retry_failed), name_filter=str(name_filter or ""))
         celery_runtime.clear_retry_marker("reiki")
-        return {"ok": True, "task": "reiki_cycle"}
+        return {"ok": True, "task": "reiki_cycle", "filter": str(name_filter or "")}
     except Exception as exc:
         delay_seconds = celery_runtime.env_int("SCRAPER_FAIL_SLEEP_SECONDS", 15 * 60, minimum=60)
         celery_runtime.set_retry_marker("reiki", delay_seconds)
