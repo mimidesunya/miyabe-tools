@@ -362,13 +362,16 @@ def _run_index_update_impl(kind: str, slug: str) -> None:
     message = ""
     indexed_count = 0
     try:
-        if progress_total <= 0:
-            raise RuntimeError(f"{kind} index update {slug} has no source documents")
         indexed_count = _run_index_update_command_with_status(kind, slug, state, progress_total)
-        if indexed_count <= 0:
-            raise RuntimeError(f"{kind} index update {slug} produced no index documents")
+        # 検索に載る本文が 0 件でも失敗にしない。目次しか公開していない
+        # 取得元では起こりうるし、失敗にすると毎回やり直しの対象になる。
+        # 検索できる件数が 0 であることは収集状況ページ側に出る。
         ok = True
-        message = "インデックス更新完了"
+        message = (
+            "インデックス更新完了"
+            if indexed_count > 0
+            else "検索に載る本文がありません（インデックス0件）"
+        )
     except Exception as exc:
         message = str(exc)
         raise

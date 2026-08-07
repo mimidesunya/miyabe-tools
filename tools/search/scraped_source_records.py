@@ -452,10 +452,16 @@ def minutes_source_numbers_from_url(source_url: str) -> tuple[int | None, int | 
     return source_year, source_fino
 
 
+# 目次だけの文書は短い（実測で最大 24,000 文字弱）。一方、本文の冒頭に
+# 目次を載せる会議録があり、そちらは数万〜数十万文字になる。本文中の
+# 手がかりだけで目次と決めると、本文まるごと検索対象から外れてしまう。
+TOC_TEXT_MAX_LENGTH = 30_000
+
+
 def classify_doc_type(title: str, text: str, *, ext: str = "") -> str:
     if normalize_space(title).endswith("目次"):
         return "toc"
-    if "会議録目次" in joined_head_text(text, limit=6):
+    if "会議録目次" in joined_head_text(text, limit=6) and len(text) <= TOC_TEXT_MAX_LENGTH:
         return "toc"
     if ext.lower() in {".html", ".htm"} and looks_like_minutes_listing_page(text):
         return "aux"
