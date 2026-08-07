@@ -596,7 +596,11 @@ def extract_document_rows_from_page(page) -> list[DocumentRow]:
         items = page.locator(".result__item")
     for index in range(items.count()):
         item = items.nth(index)
+        # 見出しのクラスが入れ物に付く取得元と、リンクそのものに付く
+        # 取得元がある（八王子市は a.ans-title__name）。
         anchor = item.locator(".ans-title__name a").first
+        if anchor.count() == 0:
+            anchor = item.locator("a.ans-title__name").first
         title = safe_inner_text(anchor)
         href = safe_href(anchor)
         if not title or not href:
