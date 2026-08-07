@@ -634,7 +634,11 @@ def extract_document_rows_from_page(page) -> list[DocumentRow]:
         if not title or not href:
             continue
 
+        # 開催日をクラスなしの span で出す取得元がある（桜井市など）。
+        # span.date が無いときは行全体の文字列から拾う。
         date_text = safe_inner_text(item.locator("span.date").first)
+        if not date_text:
+            date_text = safe_inner_text(item)
         held_on = held_on_from_text(date_text or title)
         if not held_on:
             continue
