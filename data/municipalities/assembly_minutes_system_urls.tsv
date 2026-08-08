@@ -589,7 +589,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 11442	https://ssp.kaigiroku.net/tenant/miyashiro/SpMinuteSearch.html	kaigiroku.net	enabled				0ec88f42405d9e3157a74e5085d067048429a951587df5338e9cc1c95f19dc2c
 11464	https://ssp.kaigiroku.net/tenant/sugito/MinuteSearch.html	kaigiroku.net	enabled				faf2877ba21ecace0cb9e8e9a844c9b4c34a1a5cc6df83e94568838b1120acaf
 11465	http://www.town.matsubushi.saitama.dbsr.jp/index.php/	dbsr	enabled				d13ebdefd7462882132565671fac7e550b49fbc4a6dc8610de4a407d2a5d8b5e
-12000	https://pref-chiba.gijiroku.com/	gijiroku.com	enabled			2026-08-02	0f81ddd55f0fca010b83da3aa6ae0b17a7bc253febc5288f1ed054bacb4d7e93
+12000	https://pref-chiba.gijiroku.com/kaigiroku/	gijiroku.com	enabled			2026-08-02	bc8854cae9c0dbfa9fd8a89085a3da90999e8c62e3c269549349b70676cf4805
 12100	http://www.city.chiba.chiba.dbsr.jp/index.php/	dbsr	enabled				f474195357b0b7022f477dbd1307050cdb9f8e900348c834c1b0a3baead883dd
 12202	https://ssp.kaigiroku.net/tenant/choshi/SpMinuteSearch.html	kaigiroku.net	enabled				a19aac8dde0cbb19d7ba5e729f8ece5ac96b62b20214124be2371e14167c929e
 12203	https://ssp.kaigiroku.net/tenant/ichikawa/SpTop.html	kaigiroku.net	enabled				290ba7adebb5dbf41fe16d733299325b09c32df5457f88ac6780e5dda44d1ee8
@@ -1034,7 +1034,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 23220	https://inazawa.gijiroku.com/voices/index.html	gijiroku.com	enabled			2026-08-02	ce7282876e91c03f2bf6af22483856a7a0873f5cd42fb494bf62ad824ca9da1f
 23221	https://www.city.shinshiro.aichi.dbsr.jp/index.php/	dbsr	enabled				2c2ce7abe650a8ec67eb7c65027c4fc8322114ca09f15b2254704a86a0ec33fc
 23222	http://www.kensakusystem.jp/tokai/index.html	kensakusystem	enabled			2026-08-02	c9747b4bfb9a663772317673ecdbfff880e8b870b172237bfe2a92dbc72b20b2
-23223	https://obu.gijiroku.com/	gijiroku.com	enabled			2026-08-02	0795614e7e9bd9d7c40cefc5f3458500f8e7d208dc7eaaabcc78629cc9e51bb0
+23223	https://obu.gijiroku.com/voices/	gijiroku.com	enabled			2026-08-02	e3fc636465bab093d48b53741597a6ecade90a452423953a5c0cdd40e017dfdb
 23224	https://ssp.kaigiroku.net/tenant/chita/SpMinuteSearch.html	kaigiroku.net	enabled				005ae37eeca456331d6c59a949ff83bb0e2fadd374a6063c34233b80a50eceec
 23225	http://www.kensakusystem.jp/chiryu/index.html	kensakusystem	enabled			2026-08-02	1904b6b0702ae017c01e1f37d58f50df995d33bcf06ecdd4dd465fbf50d62a86
 23226	https://ssp.kaigiroku.net/tenant/owariasahi/SpMinuteSearch.html	kaigiroku.net	enabled				4c8d42af376966c8a5570d187959fcc82bb8a198d958e4a32cfb38c9dde16400
