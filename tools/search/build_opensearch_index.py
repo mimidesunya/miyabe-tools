@@ -263,6 +263,34 @@ def preferred_reiki_sidecar(files: dict[str, Path], key: str) -> Path | None:
     return files.get(key) or files.get(Path(key).name)
 
 
+DOCUMENT_KINDS_FILENAME = "document_kinds.json"
+
+
+def write_document_kind_counts(target: dict[str, Any], kinds: dict[str, int], counted_at: str) -> None:
+    """取得したファイルの種別内訳を取得元ごとに残す。
+
+    保存件数と検索できる件数の差が、目次しか公開されていないためなのか、
+    検索への反映がまだなのかを収集状況ページで区別するために使う。
+    """
+    work_dir = Path(str(target.get("work_dir") or ""))
+    if not work_dir.is_dir():
+        return
+    payload = {
+        "version": 1,
+        "counted_at": counted_at,
+        "total": sum(kinds.values()),
+        "indexable": int(kinds.get("minutes", 0)),
+        "kinds": dict(sorted(kinds.items())),
+    }
+    path = work_dir / DOCUMENT_KINDS_FILENAME
+    try:
+        temporary = path.with_suffix(".json.tmp")
+        temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        temporary.replace(path)
+    except Exception as exc:
+        print(f"[WARN] failed to write {path}: {exc}", file=sys.stderr)
+
+
 def iter_minutes_documents(
     limit: int = 0,
     slugs: set[str] | None = None,
@@ -295,14 +323,21 @@ def iter_minutes_documents(
             print(f"[WARN] failed to enumerate minutes files dir={downloads_dir}: {exc}", file=sys.stderr)
             continue
 
+        # 取得できたのが目次だけの取得元がある。件数だけでは「反映待ち」と
+        # 区別できないので、種別ごとの内訳を残して収集状況ページで使う。
+        kind_counts: dict[str, int] = {}
+        truncated = False
         for file_path in source_files:
             try:
                 record = build_minutes_record(file_path, downloads_dir, meta_map, indexed_at)
             except Exception as exc:
+                kind_counts["unreadable"] = kind_counts.get("unreadable", 0) + 1
                 if strict:
                     raise RuntimeError(f"failed to parse minutes file={file_path}: {exc}") from exc
                 print(f"[WARN] failed to parse minutes file={file_path}: {exc}", file=sys.stderr)
                 continue
+            kind = "unreadable" if record is None else str(record.doc_type or "unknown")
+            kind_counts[kind] = kind_counts.get(kind, 0) + 1
             if record is None or record.doc_type != "minutes":
                 if strict and record is None:
                     raise RuntimeError(f"minutes file did not produce an indexable record: {file_path}")
@@ -341,7 +376,14 @@ def iter_minutes_documents(
             yield f"minutes:{meta['slug']}:{local_id}", compact_document(document)
             emitted += 1
             if limit > 0 and emitted >= limit:
-                return
+                truncated = True
+                break
+
+        # 途中で打ち切ったときの内訳は取得元の実態を表さないので残さない。
+        if not truncated:
+            write_document_kind_counts(target, kind_counts, indexed_at)
+        if truncated:
+            return
 
 
 def iter_reiki_documents(

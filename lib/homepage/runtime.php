@@ -285,6 +285,47 @@ function homepage_gijiroku_scrape_state(array $feature): ?array
     return is_array($cache[$statePath]) ? $cache[$statePath] : null;
 }
 
+// 取得したファイルの種別内訳。index 構築時に取得元ごとへ書き出している。
+// 目次しか公開していない取得元を「反映待ち」と取り違えないために使う。
+function homepage_gijiroku_document_kinds(array $feature): ?array
+{
+    static $cache = [];
+    $workDir = trim((string)($feature['work_dir'] ?? ''));
+    if ($workDir === '') {
+        return null;
+    }
+    $path = rtrim($workDir, DIRECTORY_SEPARATOR . '/\\') . DIRECTORY_SEPARATOR . 'document_kinds.json';
+    if (!array_key_exists($path, $cache)) {
+        $kinds = read_json_cache_file($path, 0);
+        $cache[$path] = is_array($kinds) ? $kinds : null;
+    }
+    return is_array($cache[$path]) ? $cache[$path] : null;
+}
+
+// 取得はできているのに検索に載る本文が 1 件も無い取得元がある。
+// 目次だけを公開している場合で、待っても検索できるようにはならない。
+function homepage_gijiroku_body_missing_status(array $feature): array
+{
+    $kinds = homepage_gijiroku_document_kinds($feature);
+    if (!is_array($kinds)) {
+        return ['state' => '', 'label' => '', 'detail' => '', 'source_coverage' => null];
+    }
+    $total = max(0, (int)($kinds['total'] ?? 0));
+    $indexable = max(0, (int)($kinds['indexable'] ?? 0));
+    if ($total <= 0 || $indexable > 0) {
+        return ['state' => '', 'label' => '', 'detail' => '', 'source_coverage' => null];
+    }
+    $tocCount = max(0, (int)($kinds['kinds']['toc'] ?? 0));
+    return [
+        'state' => 'body_not_published',
+        'label' => '本文なし（目次のみ公開）',
+        'detail' => $tocCount >= $total
+            ? sprintf('取得元が公開しているのは目次だけで、検索できる本文はありません。目次%d件を取得済みです。', $tocCount)
+            : sprintf('取得した%d件から本文を取り出せませんでした。検索できる本文はありません。', $total),
+        'source_coverage' => null,
+    ];
+}
+
 function homepage_gijiroku_classified_progress(array $feature): ?array
 {
     $state = homepage_gijiroku_scrape_state($feature);
@@ -436,6 +477,13 @@ function homepage_gijiroku_acquisition_status(
     ) {
         $acquiredCount = max(0, (int)($progress['current'] ?? 0));
         $indexedCount = max(0, $indexedCount);
+        if ($acquiredCount > 0 && $indexedCount <= 0) {
+            $bodyMissing = homepage_gijiroku_body_missing_status($feature);
+            if ($bodyMissing['state'] !== '') {
+                $bodyMissing['source_coverage'] = $sourceCoverage;
+                return $bodyMissing;
+            }
+        }
         if ($acquiredCount > 0 && $indexedCount < $acquiredCount) {
             return [
                 'state' => 'index_pending',
@@ -455,6 +503,14 @@ function homepage_gijiroku_acquisition_status(
             'detail' => '取得元の全一覧を走査し、見つかった会議録を取得済みです。',
             'source_coverage' => $sourceCoverage,
         ];
+    }
+
+    if ((int)($progress['current'] ?? 0) > 0 && $indexedCount <= 0) {
+        $bodyMissing = homepage_gijiroku_body_missing_status($feature);
+        if ($bodyMissing['state'] !== '') {
+            $bodyMissing['source_coverage'] = $sourceCoverage;
+            return $bodyMissing;
+        }
     }
 
     $shortfall = homepage_indexed_shortfall_status(
@@ -2759,6 +2815,8 @@ function homepage_collect_visible_features(
                 'complete' => 'status-ready',
                 'partial_error', 'update_error' => 'status-error',
                 'partial_planned', 'index_pending' => 'status-needs-build',
+                // 本文が公開されていないのは取得元の都合で、待っても変わらない。
+                'body_not_published' => 'status-excluded',
                 default => 'status-warning',
             };
             $availabilityState = $acquisitionState === 'complete' ? 'ready' : $acquisitionState;
