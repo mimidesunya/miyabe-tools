@@ -405,7 +405,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 07502	https://www.vill.tamakawa.fukushima.jp/gikai/	独自	enabled			2026-08-02	eb7290f13e36d685aee4a15bb6fa1d865741053217e0a1098dd66d1ed126c9b6
 07503	https://ssp.kaigiroku.net/tenant/hirata/SpMinuteSearch.html	kaigiroku.net	enabled				7bd968a3d14d3302b1aadf419d90d15ed3fcd6e4280a0c964aa5dc0b2dbe39f1
 07504	https://www.town.asakawa.fukushima.jp/gikai/kiroku/	独自	enabled			2026-08-02	69dfcb9870b124e20c697ac03881bd6b36c37665400e3e24835f274da01bd3e2
-07505	https://www.town.furudono.fukushima.jp/gikai/kaigiroku/	static-kaigiroku-dir	enabled			2026-08-02	adcb7a3c891cd6f0362dec72980fcc141c585505f2540f9ba5a20fc016e3cfc8
+07505	https://ssp.kaigiroku.net/tenant/furudono/MinuteSearch.html	kaigiroku.net	enabled				c2ddf7995caed472a6c682e704aec693517c4ad4305eda81c1c0e9d6ab3abd2a
 07521			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 07522			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 07541	https://www.town.hirono.fukushima.jp/faq/gikai/1001696/1002743.html	独自	enabled			2026-08-02	07f3747aeaf2bd808132119b6a46f5f405cb298e7afa85264e189af13f831ede
@@ -488,7 +488,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 09384	https://ssp.kaigiroku.net/tenant/shioya/SpMinuteSearch.html	kaigiroku.net	enabled				7e15fdd120f05e0bd2843b22616c98b08226e077939066ded8017cb36ac97d46
 09386	https://ssp.kaigiroku.net/tenant/takanezawa/SpMinuteSearch.html	kaigiroku.net	enabled				b26482ace9993e02aacfa0232f3a26c638b06ca6ee1028ba095bbc6ad36923b6
 09407	https://ssp.kaigiroku.net/tenant/nasu/MinuteSearch.html	kaigiroku.net	enabled				42a2b014c3e311ef480e9b712b940bcd270363bd8aae050dccbf52ed9d0ca62b
-09411	https://www.town.tochigi-nakagawa.lg.jp/05gikai/kaigiroku/index.html	static-kaigiroku-dir	enabled			2026-08-02	c59b39bcd51e4779b7b90fee72059bd20a7ad2f1491a8ebd80d8bdab7fd256b0
+09411			unresolved	source_url_unresolved	登録URLが404。移転先の会議録一覧を未特定		f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 10000	https://www07.gijiroku.com/voices/g07v_search.asp	gijiroku.com	enabled			2026-08-02	207949935cc672c8b8ff171ac17487f87bc68a8edaad151bc576312fabd7b868
 10201	http://www.city.maebashi.gunma.dbsr.jp/index.php/	dbsr	enabled				53982f8590c2c6d7d9fc8133e5bb6eef16e874a882299ad02634bfdbaf5d47ce
 10202	http://takasaki.gijiroku.com/voices/g08v_search.asp	gijiroku.com	enabled			2026-08-02	597d365f32cb18ed9b8799a238dca6ef92da0bc54938775010f5ce1f40c52f4a
@@ -658,7 +658,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 13111	https://www.gikai-ota-tokyo.jp/ota/g08v_search.asp	voices	enabled			2026-08-02	a295385f34636d67a494fade8fd30b20c42d0a18df1e8360f512ee31b7aa33bb
 13112	http://kugi.city.setagaya.tokyo.jp/voices/index.html	voices	enabled			2026-08-02	88f2ac80e1e7b294c82518813e090300f62246f7de96f19674dabbbf972893b3
 13113	https://ssp.kaigiroku.net/tenant/shibuya/SpMinuteSearch.html	kaigiroku.net	enabled				ad202655bdffaa5018419d40456df569ec9fe6840d77087cdd17967a8eb1f5fb
-13114	https://kugikai-nakano.jp/search.html	独自	enabled			2026-08-02	438644ec6d7dc8d5a99aa978a6a394c799659291a7302f3bcfb638259d020422
+13114	https://smart.discussvision.net/smart/tenant/nakano/WebView/rd/council_1.html	discussvision	enabled				9960c7a8e9fef9d3801d0722f1f9c55623e1d9f8747ecde4c22f173ef2852c0f
 13115	https://suginami.gijiroku.com/voices/voices/g08v_search.asp	gijiroku.com	enabled			2026-08-02	9a19f594919f9189714c29e65b818713a6c788529a5cd9f1bb5768606f69cd80
 13116	http://www.kensakusystem.jp/toshima/index.html	kensakusystem	enabled			2026-08-02	2d02f74af82af6ba0de32dcef16c6b35def145433fe16b7b7ee367c2b8b28f7f
 13117	https://ssp.kaigiroku.net/tenant/kita/SpMinuteSearch.html	kaigiroku.net	enabled				a186692633c188d369f255bd3da5dba7206d2683148a67d7c5df0d9f845567bb
@@ -1618,7 +1618,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 43000	https://ssp.kaigiroku.net/tenant/prefkumamoto/MinuteSearch.html	kaigiroku.net	enabled				2d49f32a9f83e3df0a6955f8154b57a791644aa6e5addc16b8350a243af5f30d
 43100	https://kumamoto.gijiroku.com/voices/g08v_search.asp	gijiroku.com	enabled			2026-08-02	15710abe5c5a79f6c4d9d22f90aeb25ed0381a5609aecb89cfa0b520a68813b2
 43202	https://www.city.yatsushiro.kumamoto.jp/VOICES/	voices	enabled			2026-08-02	9c77c99d2d3106dcfaf82d1839a3e586fc42ad361c27304ced89007e3342f3b5
-43203	https://www.city.hitoyoshi.lg.jp/shisei/gikaijyoho/kaigiroku/2435435	独自	enabled			2026-08-02	cc5c6aa472a83f411b974ca4c1d6415254f0837c2cfc46f2b238881c13240a4d
+43203	https://www.kensakusystem.jp/hitoyoshi/index.html	kensakusystem	enabled				6653d864b7f5c3efa43294180b9b5006b198e4a7b2b79e9397e5bf021fd6389e
 43204	https://www.city.arao.kumamoto.dbsr.jp/index.php/	dbsr	enabled				d9d924c275e5a9a2b8ae160d7fd74a1c9485d5bf30732f3749d6042e6fc9d92d
 43205	http://www.kensakusystem.jp/minamata/index.html	kensakusystem	enabled			2026-08-02	ce6eae441df2e0625965b8164ada6da7c39e1a6cd374690ca36951ee26e2e10d
 43206	http://tamana.gijiroku.com/voices/g08v_search.asp	gijiroku.com	enabled			2026-08-02	242c10d9f34da6e641a4a6728c3577fc03309d273b43afd2534dda1ec81427bc
@@ -1751,7 +1751,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 46533	https://www.town.wadomari.lg.jp/gikai/wadomaricho/gikai/gikaigijiroku/r7/r7_1_01.html	static-kaigiroku-dir	enabled			2026-08-02	0d4fa32e07e7c85ff1cc3c3be5e954cf37cca6e3088ff9898564465c9f110820
 46534	https://www.town.china.lg.jp/chosei/gikai/2152.html	独自	enabled			2026-08-02	1f3c9868592c207bf3f1791eb8b02621368b649144ba5411e5ec856a2e4d3594
 46535			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
-47000	https://www2.pref.okinawa.jp/oki/Gikairep1.nsf/	独自	enabled	robots_unreachable	"https://www2.pref.okinawa.jp/robots.txt / ConnectionError: HTTPSConnectionPool(host='www2.pref.okinawa.jp', port=443): Max retries exceeded with url: /robots.txt (Caused by NameResolutionError(""HTTPSConnection(host='www2.pref.okinawa.jp', port=443): Failed to resolve 'www2.pref.okinawa.jp' ([Errno 11001] getaddrinfo failed)""))"	2026-08-02	165941a3d0f97bcb4dc219166b96d640b107f19fb987a3aa9af41a3c7c0d163e
+47000	https://ssp.kaigiroku.net/tenant/prefokinawa/MinuteSearch.html	kaigiroku.net	enabled				b7e3e0cc1ea9aada8df98c1d6c284272db730849e3adc63b217eda10ffa63dc8
 47201	https://naha.gijiroku.com/kaigiroku/voices/g07v_search.asp	gijiroku.com	enabled			2026-08-02	ff3ac741010ef174765c4c3c8fc2322383c42b2aa749ef57bab19725f94d8b3a
 47205	https://ssp.kaigiroku.net/tenant/ginowan/SpMinuteSearch.html	kaigiroku.net	enabled				62c9886db6a7ad95cdcdbe434c99e38801a08072a705fbfa0e2cacbf5bcce060
 47207	https://ssp.kaigiroku.net/tenant/ishigaki/MinuteSearch.html	kaigiroku.net	enabled				a8d5ceef1119d855eee21ff4d2e94e139b437981d11305c90078163aaebbe5fa
