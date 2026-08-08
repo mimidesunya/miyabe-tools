@@ -743,7 +743,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 14402	http://www.kensakusystem.jp/kiyokawa/index.html	kensakusystem	enabled			2026-08-02	1397b27c6d8f640090599b86a4c76834f4e369d29f70e8d0d429f3015d999e60
 15000	https://ssp.kaigiroku.net/tenant/prefniigata/MinuteSearch.html	kaigiroku.net	enabled				6582de4e54a357210c43765823ae77d94176f0e9f93612b366d479ce58eea68c
 15100	https://www06.gijiroku.com/niigata/g08v_search.asp	gijiroku.com	enabled			2026-08-02	1bc9c381589005ce1c5bf47210e26a8126d40f1f2480df78e3345376bcc4e9f3
-15202	https://www09.gijiroku.com/voices2/	gijiroku.com	enabled			2026-08-02	1f8e359162719cf384a6e16f372e7624ec2c0f2ec6ca712858cbbca54ab1de99
+15202	https://www09.gijiroku.com/nagaoka/	gijiroku.com	enabled				93213763d1efe8fc58a0eeb5f1e9db74f593a68c7f4008f3b4d38255220022d9
 15204	http://www.kensakusystem.jp/sanjo/index.html	kensakusystem	enabled			2026-08-02	4bbba1a5134385e2ecf2ef927638701a331c50c73992cb6c1569064d4f9aefea
 15205	http://www.kensakusystem.jp/kashiwazaki/index.html	kensakusystem	enabled			2026-08-02	efd38c0612690b56139cffbb845d41e92482e6c0614442b6bba82b9ee9d2f440
 15206	https://www.shibata-shigikai.jp/voices/g08v_search.asp	voices	enabled			2026-08-02	ff1b3269df7d6ad17f49967e7a30b6cbe3f9ec2fd2c8734ddf588ac8bbaa276e

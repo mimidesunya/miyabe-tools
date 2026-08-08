@@ -392,7 +392,13 @@ def discover_meeting_items(
     meetings: list[MeetingItem] = []
     year_pages: list[tuple[str, str]] = []
 
-    for section_path in ["g08v_viewh.asp", "g08v_views.asp"]:
+    # 本会議と委員会でページが分かれている取得元（g08v_viewh / g08v_views）、
+    # 1 ページにまとめている取得元（g08v_view、八尾市など）、入口ページに
+    # 会議種別ごとの年度一覧を並べる取得元（index.asp、新潟市など）がある。
+    # 無いページは 404 になるだけなので、どの名前も順に開く。年度リンクは
+    # FYY と TYY の両方を持つものだけを拾うので、入口ページを見ても
+    # 関係ないリンクは混ざらない。
+    for section_path in ["g08v_viewh.asp", "g08v_views.asp", "g08v_view.asp", "index.asp"]:
         section_url = urljoin(base_url, section_path)
         page.goto(section_url, wait_until="domcontentloaded", timeout=timeout_ms)
         try:
