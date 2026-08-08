@@ -382,7 +382,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 07364			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 07367	https://www.town.tadami.lg.jp/parliament/minutes/index.html	独自	enabled			2026-08-02	8d658d7eea6ffb0ca2f063985c4f3cb108197ecfc1888ec3ef94f3f0e3047bd3
 07368	https://www.town.minamiaizu.lg.jp/official/soshikikarasagasu/gikaijimukyoku/minamiaizumachigikai/2/izennnokaigiroku/766.html	独自	enabled			2026-08-02	9ccbbf6c208c4b536f581f692f2645657804c139c6cf272e8d6dee9fc5dbb7e3
-07402	https://www.kensakusystem.jp/kitashiobara-vod/index.html	kensakusystem	enabled			2026-08-02	35561bd80289f2482a05b11ea7aa4ccb8732f67a0a29e2e179826bcae87260f9
+07402	https://www.kensakusystem.jp/kitashiobara-vod/index.html	kensakusystem	excluded	video_only	録画映像のみ公開で会議録本文なし（kensakusystem の -vod 版）	2026-08-02	35561bd80289f2482a05b11ea7aa4ccb8732f67a0a29e2e179826bcae87260f9
 07405			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 07407	https://www.town.bandai.fukushima.jp/site/gikai/teieri-record.html	独自	enabled			2026-08-02	cde6d5fe2141860b8b870e112ce9dda7442e11b89bfd0afc937da11eb236b415
 07408			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
@@ -1385,7 +1385,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 34215	https://www.city.etajima.hiroshima.jp/cms/categories/articles/178	独自	enabled			2026-08-02	b1dacd415cb601af0dd54bf4e2f2f658bc838e509484a2ad1f3e5ad8592efb11
 34302	https://www.town.fuchu.hiroshima.jp/site/assembly/list158.html	独自	enabled	robots_unreachable	https://www.town.fuchu.hiroshima.jp/robots.txt / HTTP 403	2026-08-02	2f8329b342764ad7e8271ff5fc843f5b77d2362f65e09a8252dcd0bf1ca2440d
 34304	https://www.town.kaita.lg.jp/site/gikai/15804.html	独自	enabled	robots_unreachable	https://www.town.kaita.lg.jp/robots.txt / HTTP 403	2026-08-02	3d9faed2affb483839d8056051a2ea3f40bc2281f798c72e7e26acf37a01989c
-34307	http://www.kensakusystem.jp/kumano-vod/index.html	kensakusystem	enabled			2026-08-02	7977baba92c2b921c0e8d33a28d4a04d58ba5c5f8b52f28d470be67154d22b97
+34307	http://www.kensakusystem.jp/kumano-vod/index.html	kensakusystem	excluded	video_only	録画映像のみ公開で会議録本文なし（kensakusystem の -vod 版）	2026-08-02	7977baba92c2b921c0e8d33a28d4a04d58ba5c5f8b52f28d470be67154d22b97
 34309	https://www.town.saka.lg.jp/2017/05/30/29/	独自	enabled			2026-08-02	fc16cfc407a47f326f7776e2fada6082c7b4f3fbe770ec45499262e01dea6228
 34368	https://www.akiota.jp/site/gikai/list26.html	独自	enabled			2026-08-02	0708bbe17733ed5ba4e9d14e4bc2b8f60f6988e868f33935e14ab661c5023872
 34369	https://www.town.kitahiroshima.lg.jp/site/gikai/list98.html	独自	enabled			2026-08-02	fa96e4eac8e87cbed0eb7fa5cc5b154cff43c46240e7fa4747bd7c413fc88dce
