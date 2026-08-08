@@ -436,6 +436,196 @@ def collect_list_page_entries(page, entries, year_label: str, items: dict[str, L
         )
 
 
+def collect_template_list_links(
+    page, items: dict[str, ListPage], deadline: float | None, label: str
+) -> int:
+    """いま開いているページから会議一覧（Template=list）へのリンクを集める。"""
+    added = 0
+    links = page.locator("a[href*='Template=list' i]")
+    total = links.count()
+    # 一覧リンクが数百並ぶ取得元があるので、ページ全体で変わらない値は
+    # ループの外で 1 回だけ取る。
+    page_url = page.url
+    page_title = page.title()
+    for index in range(total):
+        ensure_discovery_time(deadline, f"{label} {index + 1}/{total}")
+        link = links.nth(index)
+        href = safe_href(link)
+        if not href:
+            continue
+        list_url = canonicalize_template_url(urljoin(page_url, href))
+        if list_url in items:
+            continue
+        text = safe_inner_text(link)
+        meeting_group = detect_meeting_group(text, page_title)
+        items[list_url] = ListPage(
+            title=meeting_group or text,
+            year_label=normalize_space(text) or "不明",
+            url=list_url,
+            meeting_group=meeting_group,
+            auxiliary_docs=[],
+        )
+        added += 1
+    return added
+
+
+# 入口ページに会議一覧を置かず、閲覧メニューや会議名検索の先に置く
+# テンプレートがある。どれも一覧へ辿り着く中継ページなので順に開く。
+MENU_TEMPLATE_SELECTOR = ", ".join(
+    (
+        "a[href*='Template=perusal-' i]",
+        "a[href*='Template=search-top' i]",
+        "a[href*='Template=search-meeting' i]",
+        "a[href*='Template=search-document' i]",
+    )
+)
+
+
+def select_every_search_condition(form, deadline: float | None) -> None:
+    """絞り込み条件をすべて選ぶ。
+
+    会議種別をチェックボックスで選ばせる形（福岡市など）と、複数選択の
+    リストで選ばせる形（鹿児島県など）がある。単一選択のときは既定の
+    「選択なし」がそのまま全件を指すので触らない。
+    """
+    boxes = form.locator("input[type='checkbox']")
+    try:
+        total = boxes.count()
+    except Exception:
+        total = 0
+    for box_index in range(total):
+        ensure_discovery_time(deadline, f"検索条件 {box_index + 1}/{total}")
+        try:
+            boxes.nth(box_index).check(timeout=2_000)
+        except Exception:
+            continue
+
+    selects = form.locator("select[multiple]")
+    try:
+        total = selects.count()
+    except Exception:
+        total = 0
+    for select_index in range(total):
+        ensure_discovery_time(deadline, f"検索条件の一覧 {select_index + 1}/{total}")
+        select = selects.nth(select_index)
+        options = select.locator("option")
+        values: list[str] = []
+        for option_index in range(options.count()):
+            value = (options.nth(option_index).get_attribute("value") or "").strip()
+            if value:
+                values.append(value)
+        if not values:
+            continue
+        try:
+            select.select_option(values, timeout=5_000)
+        except Exception:
+            continue
+
+
+def submit_all_conditions_search(
+    page, menu_url: str, timeout_ms: int, deadline: float | None, items: dict[str, ListPage]
+) -> bool:
+    """検索フォームしか入口が無い取得元で、条件をすべて選んで送信する。
+
+    送信結果の URL は別のセッションから開いても同じ一覧が返るので、
+    そのまま全期間の会議一覧として扱える。
+    """
+    forms = page.locator("form")
+    try:
+        total_forms = forms.count()
+    except Exception:
+        return False
+
+    # 送信先が一覧と分かるフォームを先に試す。取得元によっては送信先が
+    # 入口 URL のままで、Template は hidden 側に入っている。
+    order: list[int] = []
+    for index in range(total_forms):
+        form = forms.nth(index)
+        try:
+            if form.locator("input[type='checkbox'], select").count() == 0:
+                continue
+        except Exception:
+            continue
+        if "template=list" in (form.get_attribute("action") or "").lower():
+            order.insert(0, index)
+        else:
+            order.append(index)
+
+    for index in order:
+        ensure_discovery_time(deadline, "検索フォームの送信")
+        if page.url != menu_url:
+            try:
+                page.goto(menu_url, wait_until="domcontentloaded", timeout=timeout_ms)
+            except DiscoveryTimeoutError:
+                raise
+            except Exception:
+                return False
+        form = page.locator("form").nth(index)
+        select_every_search_condition(form, deadline)
+        try:
+            form.locator("input[type='submit'], button[type='submit']").first.click(timeout=timeout_ms)
+            page.wait_for_load_state("domcontentloaded", timeout=timeout_ms)
+        except Exception:
+            continue
+        # 「ことばで探す」のように一覧へ繋がらないフォームもあるので、
+        # 実際に文書の行が出たときだけ会議一覧として採用する。
+        if not extract_document_rows_from_page(page):
+            continue
+        list_url = canonicalize_template_url(page.url)
+        # 送信結果を後から開き直せない取得元がある（国分寺市など）。
+        # 一覧として控えても会議を辿れないので、開き直せるものだけ使う。
+        try:
+            page.goto(list_url, wait_until="domcontentloaded", timeout=timeout_ms)
+        except DiscoveryTimeoutError:
+            raise
+        except Exception:
+            continue
+        if not extract_document_rows_from_page(page):
+            continue
+        if list_url not in items:
+            items[list_url] = ListPage(
+                title=normalize_space(page.title()) or "会議録一覧",
+                year_label="全期間",
+                url=list_url,
+                meeting_group="",
+                auxiliary_docs=[],
+            )
+        return True
+    return False
+
+
+def discover_via_menu_pages(
+    page, timeout_ms: int, deadline: float | None, items: dict[str, ListPage]
+) -> str:
+    """閲覧メニュー・会議名検索を順に開いて会議一覧を探す。"""
+    entry_url = page.url
+    menu_urls: list[str] = []
+    links = page.locator(MENU_TEMPLATE_SELECTOR)
+    for index in range(links.count()):
+        href = safe_href(links.nth(index))
+        if not href:
+            continue
+        menu_url = canonicalize_template_url(urljoin(entry_url, href))
+        if menu_url not in menu_urls:
+            menu_urls.append(menu_url)
+
+    source = DISCOVERY_SOURCE_LIBRARY
+    for menu_index, menu_url in enumerate(menu_urls):
+        ensure_discovery_time(deadline, f"メニュー {menu_index + 1}/{len(menu_urls)}")
+        try:
+            page.goto(menu_url, wait_until="domcontentloaded", timeout=timeout_ms)
+        except DiscoveryTimeoutError:
+            raise
+        except Exception:
+            continue
+        if collect_template_list_links(page, items, deadline, "メニューのリンク"):
+            continue
+        if submit_all_conditions_search(page, menu_url, timeout_ms, deadline, items):
+            # 全条件での検索結果なので、収録範囲は全期間とみなせる。
+            source = DISCOVERY_SOURCE_FULL_PERIOD
+    return source
+
+
 def discover_list_pages(
     page, target: dict, timeout_ms: int, deadline: float | None = None
 ) -> tuple[list[ListPage], str]:
@@ -496,6 +686,12 @@ def discover_list_pages(
         collect_list_page_entries(page, entries, year_label, items)
 
     if items:
+        return list(items.values()), DISCOVERY_SOURCE_LIBRARY
+
+    # 年度ごとのまとまりを組まず、会議一覧へのリンクをそのまま並べる
+    # search-library がある（小金井市・福岡県など）。構造セレクタでは
+    # 何も拾えないので、ページ内の一覧リンクを直接集める。
+    if collect_template_list_links(page, items, deadline, "検索ページのリンク"):
         return list(items.values()), DISCOVERY_SOURCE_LIBRARY
 
     # search-library ページを持たないテンプレート（あきる野市・大野城市など）は
@@ -560,27 +756,14 @@ def discover_list_pages(
 
     # 入口ページに会議一覧へのリンクが直接並ぶ取得元がある（宇佐市・多摩市）。
     # search-library 側に一覧が無いだけなので、入口ページのリンクを拾う。
-    links = page.locator("a[href*='Template=list' i]")
-    for index in range(links.count()):
-        ensure_discovery_time(deadline, f"入口ページのリンク {index + 1}/{links.count()}")
-        link = links.nth(index)
-        href = safe_href(link)
-        if not href:
-            continue
-        list_url = canonicalize_template_url(urljoin(page.url, href))
-        if list_url in items:
-            continue
-        text = safe_inner_text(link)
-        meeting_group = detect_meeting_group(text, page.title())
-        items[list_url] = ListPage(
-            title=meeting_group or text,
-            year_label=normalize_space(text) or "不明",
-            url=list_url,
-            meeting_group=meeting_group,
-            auxiliary_docs=[],
-        )
-    if items:
+    if collect_template_list_links(page, items, deadline, "入口ページのリンク"):
         return list(items.values()), DISCOVERY_SOURCE_RECENT
+
+    # 入口ページにも一覧が無く、閲覧メニューや会議名検索の先にしか
+    # 一覧を置かない取得元がある（碧南市・福岡市など）。
+    menu_source = discover_via_menu_pages(page, timeout_ms, deadline, items)
+    if items:
+        return list(items.values()), menu_source
     return [], DISCOVERY_SOURCE_LIBRARY
 
 
