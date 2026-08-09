@@ -192,7 +192,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 02204	https://www.city.kuroishi.aomori.jp/shisei/gikai/gikai_kaigiroku.html#R07	独自	enabled			2026-08-02	239f5b1ad6a99f3222c3ed20b3fc74d28788388677e7a153221e894cb7fff93c
 02205	https://www.city.goshogawara.lg.jp/gikai/7-1kaigiroku.html	独自	enabled			2026-08-02	bdb9f3f021e84606131c48b831180b50aef22035159ab3432db6c3869fb0ef45
 02206	https://ssp.kaigiroku.net/tenant/towada/SpMinuteSearch.html	kaigiroku.net	enabled				c585b65c76ca1c2f25703f412ddb1a2595c5e16397c740794bc5c6348aa100a8
-02207	https://www.city.misawa.lg.jp/index.cfm/10,56459,40,203,html	独自	enabled			2026-08-02	b764a9c9b0d5430a9a6113217233e824db3119446826f5cea538f7667244340a
+02207			unresolved	source_url_unresolved	登録URLは農業委員会総会の議事録。議会会議録の公開先を未特定		f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 02208	https://ssp.kaigiroku.net/tenant/mutsu/MinuteSearch.html	kaigiroku.net	enabled				5a0c91fac6b4db6923015a66df964421893c9e3ff78948e51723126764ab75f3
 02209	https://www.city.tsugaru.aomori.jp/joho/mokuteki/administration/shigikai/kaigiroku/5573.html	独自	enabled			2026-08-02	072a665e112845c2bcba2a67dc01f5be5c409475e2312526a61898e6fb42b108
 02210	https://www.city.hirakawa.lg.jp/jouhou/gikai/nittei/kaigiroku.html	独自	enabled			2026-08-02	f37e767878082e2462d9fc310a13e15a89f96128fb922e90f595078dafda4cdf
@@ -1737,7 +1737,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 46490	https://www.town.kinko.lg.jp/gikai-h/chose/gikai/kaigiroku/kaigiroku.html	独自	enabled			2026-08-02	27a2831f5613571febe2120932bbae3c115fba3cdedd7441000d3f14a0050709
 46491			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 46492	https://ssp.kaigiroku.net/tenant/kimotsuki/MinuteSearch.html	kaigiroku.net	enabled				28dbeb48b8930a52ae3a490628500e51b4c6e3ef8a03cf6e932920b264782902
-46501	https://town.nakatane.kagoshima.jp/sinkou/machinojoho/nogyo/nogyoinkai/gijiroku.html	独自	enabled			2026-08-02	487c9420095cccb3af538252f64bdb3f32e1d0069b1f324998bde5a0e3bfcee5
+46501			unresolved	source_url_unresolved	登録URLは農業委員会総会の議事録。議会会議録の公開先を未特定		f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 46502	http://www.town.minamitane.kagoshima.jp/industry/assembly/minutes.html	独自	enabled			2026-08-02	4daeb934e6159dfd4af42d88f3fda7b8b3630d01273b8272019ad55f2d01a2b1
 46505	https://www.town.yakushima.kagoshima.jp/gyosei/gikai/2/index.html	独自	enabled			2026-08-02	4ef9bc70d26248297c1b87754c7d66a8675267e8077aa1967db87f5de0d14819
 46523	https://www.vill.yamato.lg.jp/hpkanri/sonse/yamatosongikai/kaigiroku/kaigiroku.html	独自	enabled			2026-08-02	27635f501fcdbb189767d067d73235a7eadac5dfd8e662c12673fdf0b84e1047
