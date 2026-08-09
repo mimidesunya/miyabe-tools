@@ -138,7 +138,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 01564	https://www.town.ozora.hokkaido.jp/machinoshirase/chogikai/6/3744.html	独自	enabled			2026-08-02	ae4b97b9c627d007c8683ed11820b9a8affcff7a752d8fc6098884e9e2d90188
 01571	https://www.town.toyoura.hokkaido.jp/hotnews/detail/00006367.html	独自	enabled			2026-08-02	589071680114c876ef85d03b876d571ec1b96b8e55802a80acddfd7db113bb97
 01575	https://www.town.sobetsu.lg.jp/shinchaku/2020/02/post-274.html	独自	enabled			2026-08-02	a397437ffd11c02a2005ebe1745525c976e9b1f806451dde5dbb7bdc0ae666c0
-01578	https://www.town.shiraoi.hokkaido.jp/docs/7397.html	独自	enabled			2026-08-02	e64df123acaf5472b7eda9b12bda3bbd05410d3a43314ce1d10ad0bd7d1d48a4
+01578	https://www.town.shiraoi.hokkaido.jp/docs/page2014063000011.html	独自	enabled				a09fc51720786e2852669a7b231f207fdd933d5b566b298022d831b63a8b282e
 01581	https://ssp.kaigiroku.net/tenant/atsuma/SpMinuteSearch.html	kaigiroku.net	enabled				5bb2ad2b473df5a3b1bc2d926e558b5d1ec12b10196fca34d3334640a48d099e
 01584	http://www.town.toyako.hokkaido.jp/town_administration/town_council/toc006/	独自	enabled	robots_unreachable	http://www.town.toyako.hokkaido.jp/robots.txt / HTTP 403	2026-08-02	bb5729f491c0edab755cab36d902025c312d93eefc4c8873bdb1d646a293a327
 01585	https://www.town.abira.lg.jp/gyosei/kaigiroku	独自	enabled			2026-08-02	b13d93c83ff5ae7bc9f1b2c161b0b4733b7ae5c2fc984eab720420a796d2ca85
@@ -389,7 +389,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 07421	https://www.town.aizubange.fukushima.jp/site/gikai/9700.html	site-gikai-pdf	enabled			2026-08-02	4e60585c3480fa42944b43ea4ccc07cb6115cb3df40a0bdfcc7cc50191fe96b0
 07422			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 07423	https://www.town.yanaizu.fukushima.jp/docs/2025121500022/	独自	enabled			2026-08-02	3cfe893fb64abc14914e227c34d3fc110b71bf49c72a94da7b886afc3136798b
-07444	https://www.town.mishima.fukushima.jp/soshiki/gikai/7023.html	独自	enabled	robots_unreachable	https://www.town.mishima.fukushima.jp/robots.txt / HTTP 403	2026-08-02	a676b8b73d098deb79444c410371c81cb4bb2cff6de746e92fc7b02ec71bc44b
+07444	https://www.town.mishima.fukushima.jp/soshiki/gikai/	独自	enabled	robots_unreachable	https://www.town.mishima.fukushima.jp/robots.txt / HTTP 403		4aeb48027fc3b457dd29534d12370b1d9bbbc217eb17e2ecad047e9ba8bc40cc
 07445			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 07446			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 07447			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
