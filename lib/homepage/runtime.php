@@ -302,6 +302,42 @@ function homepage_gijiroku_document_kinds(array $feature): ?array
     return is_array($cache[$path]) ? $cache[$path] : null;
 }
 
+// 取得件数と検索できる件数の差を説明する。
+//
+// 種別内訳が残っている取得元では、差の理由が「本文でないものを除いた」のか
+// 「本文はあるが検索へ反映されていない」のかを言い分けられる。内訳が無い
+// 取得元だけ、従来どおり一般的な理由を添える。
+function homepage_gijiroku_availability_note(array $feature, int $storedCount, int $indexedCount): string
+{
+    $indexedCount = max(0, $indexedCount);
+    $kinds = homepage_gijiroku_document_kinds($feature);
+    if (is_array($kinds)) {
+        $total = max(0, (int)($kinds['total'] ?? 0));
+        $indexable = max(0, (int)($kinds['indexable'] ?? 0));
+        if ($total > 0 && $indexable > $indexedCount) {
+            return sprintf(
+                '取得した%d件のうち本文は%d件ですが、いま検索できるのは%d件です。残りは検索への反映待ちです。',
+                $total,
+                $indexable,
+                $indexedCount
+            );
+        }
+        if ($total > $indexable && $indexable > 0) {
+            return sprintf(
+                '取得した%d件のうち本文%d件を検索できます（%s）。',
+                $total,
+                $indexable,
+                HOMEPAGE_MINUTES_INDEX_EXCLUSION_REASON
+            );
+        }
+        if ($total > 0 && $total === $indexable) {
+            return '';
+        }
+    }
+    return homepage_search_availability_note($storedCount, $indexedCount, HOMEPAGE_MINUTES_INDEX_EXCLUSION_REASON);
+}
+
+
 // 取得はできているのに検索に載る本文が 1 件も無い取得元がある。
 // 目次だけを公開している場合で、待っても検索できるようにはならない。
 function homepage_gijiroku_body_missing_status(array $feature): array
@@ -399,7 +435,7 @@ function homepage_gijiroku_acquisition_status(
         if ($shortfall['state'] !== '') {
             return $shortfall;
         }
-        $note = homepage_search_availability_note($storedCount, $indexedCount, HOMEPAGE_MINUTES_INDEX_EXCLUSION_REASON);
+        $note = homepage_gijiroku_availability_note($feature, $storedCount, $indexedCount);
         return [
             'state' => 'coverage_unknown',
             'label' => '検索可（取得範囲未判定）',
@@ -522,7 +558,7 @@ function homepage_gijiroku_acquisition_status(
         return $shortfall;
     }
 
-    $note = homepage_search_availability_note((int)($progress['current'] ?? 0), $indexedCount, HOMEPAGE_MINUTES_INDEX_EXCLUSION_REASON);
+    $note = homepage_gijiroku_availability_note($feature, (int)($progress['current'] ?? 0), $indexedCount);
     return [
         'state' => 'coverage_unknown',
         'label' => '検索可（取得範囲未判定）',

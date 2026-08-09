@@ -140,6 +140,16 @@ def main() -> int:
             issues.append("index_pending")
         elif verified_acquired > 0 and indexed_count > verified_acquired:
             issues.append("index_ahead_of_verified")
+        # 走査記録を持たない取得元でも検索反映は遅れる。取得したファイルの
+        # うち本文が何件かは index 構築時の内訳に残るので、それと突き合わせる。
+        # 内訳が無い取得元は、保存件数との大きな開きだけを手掛かりにする。
+        kinds = read_json(Path(target["work_dir"]) / "document_kinds.json")
+        indexable = int_value(kinds.get("indexable")) if isinstance(kinds, dict) else 0
+        if isinstance(kinds, dict) and indexable > indexed_count:
+            if "index_pending" not in issues:
+                issues.append("index_pending")
+        elif not kinds and saved_file_count >= 20 and indexed_count * 2 < saved_file_count:
+            issues.append("index_far_behind_saved")
         if source_state in {"partial_planned", "partial_limit", "partial_error", "partial_recent_only"}:
             issues.append(source_state)
         elif source_state != "complete" and saved_file_count > 0:
@@ -151,6 +161,7 @@ def main() -> int:
             "name": str(target.get("name") or ""),
             "system": str(target.get("system_family") or target.get("system_type") or ""),
             "saved_files": saved_file_count,
+            "indexable": indexable if isinstance(kinds, dict) else None,
             "verified_acquired": verified_acquired,
             "indexed": indexed_count,
             "delta": (verified_acquired - indexed_count) if verified_acquired > 0 else None,
@@ -175,6 +186,7 @@ def main() -> int:
         "name",
         "system",
         "saved_files",
+        "indexable",
         "verified_acquired",
         "indexed",
         "delta",
