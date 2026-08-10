@@ -2865,9 +2865,17 @@ function homepage_collect_visible_features(
             $mode = 'link';
             $readyVisibleCount += 1;
         } elseif ($hasData && $isSearchBacked && !$searchIndexed) {
-            $statusLabel = '検索準備中';
-            $statusClass = 'status-needs-build';
-            $availabilityState = 'search_pending';
+            // 取得元が本文を公開していない場合、待っても検索できるようには
+            // ならない。「準備中」と言うと反映を待てば使えると読めてしまう。
+            if ($acquisitionState === 'body_not_published') {
+                $statusLabel = (string)($acquisition['label'] ?? '本文なし（目次のみ公開）');
+                $statusClass = 'status-excluded';
+                $availabilityState = 'body_not_published';
+            } else {
+                $statusLabel = '検索準備中';
+                $statusClass = 'status-needs-build';
+                $availabilityState = 'search_pending';
+            }
             $mode = 'disabled';
         } elseif ($hasData) {
             $statusLabel = '休止中';
