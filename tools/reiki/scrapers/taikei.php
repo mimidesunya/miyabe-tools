@@ -8,7 +8,11 @@ declare(strict_types=1);
 // まず再開・更新確認用の crawl manifest を保持し、その後、各例規を他の
 // 例規集スクレイパと同じ source/html/markdown/json ディレクトリ構成へ正規化する。
 const TAIKEI_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36';
-const TAIKEI_SLEEP_USEC = 120000;
+// 例規 1 件ごとの間隔。0.12 秒（毎秒 8 件）では 429 を招き、取得が
+// 途中で止まっていた。取得元は自治体の本番サイトなので余裕を持たせる。
+const TAIKEI_SLEEP_USEC = 600000;
+// 429 を一度でも受けた取得元は、そのあと間隔を広げて続ける。
+const TAIKEI_SLEEP_AFTER_RATE_LIMIT_USEC = 3000000;
 const TAIKEI_FETCH_MAX_ATTEMPTS = 4;
 const TAIKEI_FETCH_RETRY_BASE_USEC = 750000;
 // 429 用。通常の一時エラーより長く空け、上限も高くする。
@@ -131,6 +135,7 @@ function main(array $argv): void
     $skipped = 0;
     $parsed = 0;
     $reused = 0;
+    $failed = 0;
     $manifests = [];
     $processedWork = 0;
 
@@ -168,7 +173,22 @@ function main(array $argv): void
                 $reused++;
             }
         } else {
-            $fetchedHtml = fetch_url((string)$record['detail_url']);
+            // 1 件が取れないだけで走査全体を落とすと、その回で取れたはずの
+            // 残りも取り逃がす。取得済みは manifest に残し、失敗した例規は
+            // 次回の resume で拾い直す。
+            try {
+                $fetchedHtml = fetch_url((string)$record['detail_url']);
+            } catch (RuntimeException $exception) {
+                $failed++;
+                fwrite(STDERR, sprintf(
+                    "Warning: skipping %s: %s
+",
+                    (string)$record['detail_url'],
+                    $exception->getMessage()
+                ));
+                throttled_sleep();
+                continue;
+            }
             $fetchedHash = sha256_string($fetchedHtml);
 
             if (!$force && $existingSourcePath !== null && $sourceHash === $fetchedHash) {
@@ -818,6 +838,7 @@ function fetch_retry_delay_usec(int $attempt, int $status = 0): int
     // 長く待つ。数秒で戻ると同じ制限に当たり直し、途中で例外になって
     // 取得が丸ごと止まる（長浜市が 535/1440 で落ちた）。
     if ($status === 429) {
+        rate_limited_seen(true);
         return min(TAIKEI_FETCH_RATE_LIMIT_MAX_USEC, TAIKEI_FETCH_RATE_LIMIT_BASE_USEC * max(1, $attempt));
     }
     return min(5_000_000, TAIKEI_FETCH_RETRY_BASE_USEC * max(1, $attempt));
@@ -1753,7 +1774,18 @@ function ensure_dir(string $path): void
 
 function throttled_sleep(): void
 {
-    usleep(TAIKEI_SLEEP_USEC);
+    usleep(rate_limited_seen() ? TAIKEI_SLEEP_AFTER_RATE_LIMIT_USEC : TAIKEI_SLEEP_USEC);
+}
+
+
+// 429 を受けたかどうかを覚えておき、以後の間隔を決めるのに使う。
+function rate_limited_seen(bool $mark = false): bool
+{
+    static $seen = false;
+    if ($mark) {
+        $seen = true;
+    }
+    return $seen;
 }
 
 function emit_progress(int $current, int $total, string $statePath = ''): void
