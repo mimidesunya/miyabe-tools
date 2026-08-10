@@ -104,3 +104,65 @@ class FullTextDownloadUrlTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RecentOnlyListLinksTest(unittest.TestCase):
+    def _items(self, urls):
+        return {
+            url: dbsr.ListPage(
+                title="", year_label="", url=url, meeting_group="", auxiliary_docs=[]
+            )
+            for url in urls
+        }
+
+    def test_links_limited_to_two_years_are_recent_only(self) -> None:
+        # 福岡県は直近 2 年分の期間つきリンクしか並べない。
+        items = self._items([
+            "https://example.dbsr.jp/index.php/1?Template=list&TermStart=2026-01-01&TermEnd=2026-12-31",
+            "https://example.dbsr.jp/index.php/2?Template=list&TermStart=2025-02-04&TermEnd=2025-03-25",
+        ])
+        self.assertTrue(dbsr.list_links_cover_recent_years_only(items))
+
+    def test_links_spanning_many_years_are_not_recent_only(self) -> None:
+        items = self._items([
+            "https://example.dbsr.jp/index.php/1?Template=list&TermStartYear=1998&TermEndYear=1998",
+            "https://example.dbsr.jp/index.php/2?Template=list&TermStartYear=2026&TermEndYear=2026",
+        ])
+        self.assertFalse(dbsr.list_links_cover_recent_years_only(items))
+
+    def test_links_without_a_period_are_left_alone(self) -> None:
+        # 期間を持たないリンクが混ざると全期間かどうかは判断できない。
+        items = self._items([
+            "https://example.dbsr.jp/index.php/1?Template=list&TermStart=2026-01-01&TermEnd=2026-12-31",
+            "https://example.dbsr.jp/index.php/2?Template=list&CabinetName=t",
+        ])
+        self.assertFalse(dbsr.list_links_cover_recent_years_only(items))
+
+
+class WidenedPeriodListPagesTest(unittest.TestCase):
+    def _items(self, urls):
+        return {
+            url: dbsr.ListPage(
+                title="", year_label="", url=url, meeting_group="", auxiliary_docs=[]
+            )
+            for url in urls
+        }
+
+    def test_period_is_widened_and_grouped_per_cabinet(self) -> None:
+        items = self._items([
+            "https://example.dbsr.jp/index.php/1?Template=list&CabinetName=t&TermStart=2026-02-20&TermEnd=2026-03-24",
+            "https://example.dbsr.jp/index.php/1?Template=list&CabinetName=t&TermStart=2025-02-04&TermEnd=2025-03-25",
+            "https://example.dbsr.jp/index.php/1?Template=list&CabinetName=r&TermStart=2025-05-16&TermEnd=2025-05-20",
+        ])
+        pages = dbsr.widened_period_list_pages(items)
+        # 会議種別ごとに 1 本へまとめる。
+        self.assertEqual(len(pages), 2)
+        for page in pages:
+            self.assertIn("TermStart=1970-01-01", page.url)
+            self.assertEqual(page.year_label, "全期間")
+
+    def test_links_without_a_period_cannot_be_widened(self) -> None:
+        items = self._items([
+            "https://example.dbsr.jp/index.php/1?Template=list&CabinetName=t",
+        ])
+        self.assertEqual(dbsr.widened_period_list_pages(items), [])

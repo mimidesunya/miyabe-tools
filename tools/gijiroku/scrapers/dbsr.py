@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import datetime
 import html
 import json
 import re
@@ -481,6 +482,67 @@ def collect_template_list_links(
     return added
 
 
+RECENT_ONLY_YEAR_SPAN = 4
+
+
+def list_links_cover_recent_years_only(items: dict[str, ListPage]) -> bool:
+    """集めた一覧リンクが直近数年しか指していないかを見る。
+
+    期間を URL に持つ取得元では、そこに書かれた年の幅で判断できる。
+    期間を持たないリンクが混ざっていれば、全期間かどうかは判断できない
+    ので、狭いとは決めつけない。
+    """
+    years: set[int] = set()
+    for list_url in items:
+        found = re.findall(r"Term(?:Start|End)(?:Year)?=(\d{4})", list_url)
+        if not found:
+            return False
+        years.update(int(value) for value in found)
+    if not years:
+        return False
+    return (max(years) - min(years)) < RECENT_ONLY_YEAR_SPAN
+
+
+# 会議録が始まる前まで遡れば、その取得元の全期間になる。
+WIDENED_PERIOD_START = "1970-01-01"
+
+
+def widened_period_list_pages(items: dict[str, ListPage]) -> list[ListPage]:
+    """直近しか指していない一覧リンクを、全期間を指す形に組み替える。
+
+    期間は URL の TermStart / TermEnd で決まるので、そこだけ広げれば同じ
+    会議種別のまま古い会議録まで辿れる。種別（CabinetName）ごとに 1 本に
+    まとめる。広げられる形のリンクが無ければ空を返す。
+    """
+    by_cabinet: dict[str, str] = {}
+    today = datetime.date.today().isoformat()
+    for list_url in items:
+        parts = urlsplit(list_url)
+        query = dict(cleaned_query_pairs(list_url))
+        if "TermStart" not in query and "TermEnd" not in query:
+            continue
+        query["TermStart"] = WIDENED_PERIOD_START
+        query["TermEnd"] = today
+        cabinet = query.get("CabinetName", "")
+        if cabinet in by_cabinet:
+            continue
+        widened = urlunsplit(
+            (parts.scheme, parts.netloc, parts.path, urlencode(sorted(query.items())), "")
+        )
+        by_cabinet[cabinet] = canonicalize_template_url(widened)
+
+    return [
+        ListPage(
+            title=f"全期間（{cabinet or '全種別'}）",
+            year_label="全期間",
+            url=url,
+            meeting_group="",
+            auxiliary_docs=[],
+        )
+        for cabinet, url in sorted(by_cabinet.items())
+    ]
+
+
 # 入口ページに会議一覧を置かず、閲覧メニューや会議名検索の先に置く
 # テンプレートがある。どれも一覧へ辿り着く中継ページなので順に開く。
 MENU_TEMPLATE_SELECTOR = ", ".join(
@@ -648,7 +710,19 @@ def discover_via_menu_pages(
             raise
         except Exception:
             continue
-        if collect_template_list_links(page, items, deadline, "メニューのリンク"):
+        # 直近数年分しか並べないメニューがある（福岡県の search-top）。
+        # それを拾って満足すると古い会議録に辿り着けない。期間つきの
+        # リンクなら期間だけ広げれば同じ経路で全期間を辿れる。
+        added = collect_template_list_links(page, items, deadline, "メニューのリンク")
+        if added:
+            if not list_links_cover_recent_years_only(items):
+                continue
+            widened = widened_period_list_pages(items)
+            if widened:
+                print("[INFO] 直近分の一覧しか無いので、期間を全期間へ広げます", flush=True)
+                items.clear()
+                items.update({page_item.url: page_item for page_item in widened})
+                return DISCOVERY_SOURCE_FULL_PERIOD
             continue
         if submit_all_conditions_search(page, menu_url, timeout_ms, deadline, items):
             # 全条件での検索結果なので、収録範囲は全期間とみなせる。
@@ -722,6 +796,17 @@ def discover_list_pages(
     # search-library がある（小金井市・福岡県など）。構造セレクタでは
     # 何も拾えないので、ページ内の一覧リンクを直接集める。
     if collect_template_list_links(page, items, deadline, "検索ページのリンク"):
+        # ただし直近数年分しか並べない取得元がある（福岡県）。その分だけ
+        # 取って完了と記録すると、公開されている古い会議録が抜けたまま
+        # 「全部取れた」ように見える。期間指定つきのリンクしか無いときは、
+        # 検索フォームから全期間を出せないか先に試す。
+        if list_links_cover_recent_years_only(items):
+            widened = widened_period_list_pages(items)
+            if widened:
+                print("[INFO] 直近分の一覧しか無いので、期間を全期間へ広げます", flush=True)
+                return widened, DISCOVERY_SOURCE_FULL_PERIOD
+            print("[INFO] 直近分の会議一覧しか見つかりませんでした", flush=True)
+            return list(items.values()), DISCOVERY_SOURCE_RECENT
         return list(items.values()), DISCOVERY_SOURCE_LIBRARY
 
     # search-library ページを持たないテンプレート（あきる野市・大野城市など）は
