@@ -528,7 +528,9 @@ def widened_period_list_pages(items: dict[str, ListPage]) -> list[ListPage]:
             continue
         query["TermStart"] = WIDENED_PERIOD_START
         query["TermEnd"] = today
-        cabinet = query.get("CabinetName", "")
+        # 会議種別は取得元によって CabinetName（名前）と Cabinet（番号）に
+        # 分かれる。どちらで区切っているかを見て、種別ごとに 1 本ずつ作る。
+        cabinet = query.get("CabinetName", query.get("Cabinet", ""))
         if cabinet in by_cabinet:
             continue
         widened = urlunsplit(
@@ -546,6 +548,18 @@ def widened_period_list_pages(items: dict[str, ListPage]) -> list[ListPage]:
         )
         for cabinet, url in sorted(by_cabinet.items())
     ]
+
+
+def recent_or_widened(items: dict[str, ListPage]) -> tuple[list[ListPage], str]:
+    """直近分しか無い一覧なら、期間を広げた一覧に差し替えて返す。"""
+    if list_links_cover_recent_years_only(items):
+        widened = widened_period_list_pages(items)
+        if widened:
+            print("[INFO] 直近分の一覧しか無いので、期間を全期間へ広げます", flush=True)
+            return widened, DISCOVERY_SOURCE_FULL_PERIOD
+        print("[INFO] 直近分の会議一覧しか見つかりませんでした", flush=True)
+        return list(items.values()), DISCOVERY_SOURCE_RECENT
+    return list(items.values()), DISCOVERY_SOURCE_RECENT
 
 
 # 入口ページに会議一覧を置かず、閲覧メニューや会議名検索の先に置く
@@ -806,12 +820,7 @@ def discover_list_pages(
         # 「全部取れた」ように見える。期間指定つきのリンクしか無いときは、
         # 検索フォームから全期間を出せないか先に試す。
         if list_links_cover_recent_years_only(items):
-            widened = widened_period_list_pages(items)
-            if widened:
-                print("[INFO] 直近分の一覧しか無いので、期間を全期間へ広げます", flush=True)
-                return widened, DISCOVERY_SOURCE_FULL_PERIOD
-            print("[INFO] 直近分の会議一覧しか見つかりませんでした", flush=True)
-            return list(items.values()), DISCOVERY_SOURCE_RECENT
+            return recent_or_widened(items)
         return list(items.values()), DISCOVERY_SOURCE_LIBRARY
 
     # search-library ページを持たないテンプレート（あきる野市・大野城市など）は
@@ -872,12 +881,12 @@ def discover_list_pages(
         collect_list_page_entries(page, group.locator("li"), year_label, items)
 
     if items:
-        return list(items.values()), DISCOVERY_SOURCE_RECENT
+        return recent_or_widened(items)
 
     # 入口ページに会議一覧へのリンクが直接並ぶ取得元がある（宇佐市・多摩市）。
     # search-library 側に一覧が無いだけなので、入口ページのリンクを拾う。
     if collect_template_list_links(page, items, deadline, "入口ページのリンク"):
-        return list(items.values()), DISCOVERY_SOURCE_RECENT
+        return recent_or_widened(items)
 
     # 入口ページにも一覧が無く、閲覧メニューや会議名検索の先にしか
     # 一覧を置かない取得元がある（碧南市・福岡市など）。
@@ -1014,7 +1023,12 @@ def extract_document_rows_from_page(page) -> list[DocumentRow]:
     # ここまでのどのクラス構成にも当てはまらないテンプレート向けの受け皿。
     # 取得元ごとにクラス名や入れ子が違っても、文書リンクと同じ行に開催日が
     # 出る点は共通なので、リンクを起点に行を組み立てる。
-    anchors = page.locator("a[href*='Template=doc-one-frame' i], a[href*='Template=document' i]")
+    # 文書を開くテンプレート名は取得元で違う。1 発言ずつ出す doc-one-frame、
+    # 全文を出す doc-all-frame（泉南市）、document のいずれか。
+    anchors = page.locator(
+        "a[href*='Template=doc-one-frame' i], a[href*='Template=doc-all-frame' i], "
+        "a[href*='Template=document' i]"
+    )
     seen_urls: set[str] = set()
     for index in range(anchors.count()):
         anchor = anchors.nth(index)
