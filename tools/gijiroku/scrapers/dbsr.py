@@ -255,13 +255,21 @@ DISCOVERY_SOURCE_FULL_PERIOD = "full_period"
 
 
 def detail_search_year_bounds(page) -> tuple[str, str]:
-    """「くわしく検索」の期間指定から、選べる最小年と最大年を返す。"""
+    """「くわしく検索」の期間指定から、選べる最小年と最大年を返す。
+
+    入口ページが遅れて別ページへ移る取得元（鳥取県）では、読んでいる
+    最中に DOM が入れ替わる。年が読めなくても後続の経路で会議一覧へ
+    辿れるので、ここで探索ごと止めない。
+    """
     years: list[int] = []
-    options = page.locator("select[name='TermStartYear'] option")
-    for index in range(options.count()):
-        value = (options.nth(index).get_attribute("value") or "").strip()
-        if value.isdigit():
-            years.append(int(value))
+    try:
+        options = page.locator("select[name='TermStartYear'] option")
+        for index in range(options.count()):
+            value = (options.nth(index).get_attribute("value") or "").strip()
+            if value.isdigit():
+                years.append(int(value))
+    except Exception:
+        return "", ""
     if not years:
         return "", ""
     return str(min(years)), str(max(years))
