@@ -1010,7 +1010,9 @@ def collect_list_page_documents(
         if stop_after_known_page and page_is_known:
             break
 
-        next_button = page.locator("nav.pagination button[aria-label='次のページ']").first
+        # ページ送りを nav で囲む取得元と ul のまま置く取得元がある
+        # （宮崎市など）。クラス名は共通なのでタグ名は指定しない。
+        next_button = page.locator(".pagination button[aria-label='次のページ']").first
         if next_button.count() > 0 and not is_disabled(next_button):
             try:
                 next_button.click(timeout=timeout_ms)
@@ -1024,7 +1026,7 @@ def collect_list_page_documents(
                 break
 
         next_url = ""
-        links = page.locator("div.pagination a")
+        links = page.locator(".pagination a")
         for index in range(links.count()):
             link = links.nth(index)
             text = safe_inner_text(link)
