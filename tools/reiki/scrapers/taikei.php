@@ -11,6 +11,10 @@ const TAIKEI_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit
 const TAIKEI_SLEEP_USEC = 120000;
 const TAIKEI_FETCH_MAX_ATTEMPTS = 4;
 const TAIKEI_FETCH_RETRY_BASE_USEC = 750000;
+// 429 用。通常の一時エラーより長く空け、上限も高くする。
+const TAIKEI_FETCH_RATE_LIMIT_BASE_USEC = 20000000;
+const TAIKEI_FETCH_RATE_LIMIT_MAX_USEC = 120000000;
+const TAIKEI_FETCH_RATE_LIMIT_MAX_ATTEMPTS = 8;
 const TAIKEI_LIKE_SYSTEM_TYPES = ['taikei' => true, 'g-reiki' => true];
 
 main($argv);
@@ -621,7 +625,7 @@ function fetch_url(string $url): string
         $lastStatus = 0;
         $lastError = '';
 
-        for ($attempt = 1; $attempt <= TAIKEI_FETCH_MAX_ATTEMPTS; $attempt++) {
+        for ($attempt = 1; $attempt <= TAIKEI_FETCH_RATE_LIMIT_MAX_ATTEMPTS; $attempt++) {
             [$body, $status, $error] = curl_fetch($url, $verifySsl);
             if (($body === false || $status >= 400) && $verifySsl && should_retry_insecure($error)) {
                 warn_retry_insecure();
@@ -635,7 +639,7 @@ function fetch_url(string $url): string
 
             $lastStatus = $status;
             $lastError = $error;
-            if ($attempt >= TAIKEI_FETCH_MAX_ATTEMPTS || !should_retry_fetch($status, $error)) {
+            if ($attempt >= fetch_max_attempts($status) || !should_retry_fetch($status, $error)) {
                 break;
             }
 
@@ -649,7 +653,7 @@ function fetch_url(string $url): string
     $lastStatus = 0;
     $lastError = '';
 
-    for ($attempt = 1; $attempt <= TAIKEI_FETCH_MAX_ATTEMPTS; $attempt++) {
+    for ($attempt = 1; $attempt <= TAIKEI_FETCH_RATE_LIMIT_MAX_ATTEMPTS; $attempt++) {
         [$body, $status, $error] = stream_fetch($url, $verifySsl);
         if ($body === false && $verifySsl && should_retry_insecure($error)) {
             warn_retry_insecure();
@@ -663,7 +667,7 @@ function fetch_url(string $url): string
 
         $lastStatus = $status;
         $lastError = $error;
-        if ($attempt >= TAIKEI_FETCH_MAX_ATTEMPTS || !should_retry_fetch($status, $error)) {
+        if ($attempt >= fetch_max_attempts($status) || !should_retry_fetch($status, $error)) {
             break;
         }
 
@@ -785,7 +789,7 @@ function format_fetch_failure(int $status, string $error): string
 
 function wait_for_fetch_retry(string $url, int $attempt, int $status, string $error): void
 {
-    $delayUsec = fetch_retry_delay_usec($attempt);
+    $delayUsec = fetch_retry_delay_usec($attempt, $status);
     fwrite(
         STDERR,
         sprintf(
@@ -794,14 +798,28 @@ function wait_for_fetch_retry(string $url, int $attempt, int $status, string $er
             format_fetch_failure($status, $error),
             $delayUsec / 1000000,
             $attempt + 1,
-            TAIKEI_FETCH_MAX_ATTEMPTS
+            fetch_max_attempts($status)
         )
     );
     usleep($delayUsec);
 }
 
-function fetch_retry_delay_usec(int $attempt): int
+// 429 は待てば通ることが多い。通常の一時エラーより粘って、取得全体が
+// 途中の 1 ページで止まらないようにする。
+function fetch_max_attempts(int $status): int
 {
+    return $status === 429 ? TAIKEI_FETCH_RATE_LIMIT_MAX_ATTEMPTS : TAIKEI_FETCH_MAX_ATTEMPTS;
+}
+
+
+function fetch_retry_delay_usec(int $attempt, int $status = 0): int
+{
+    // 429 は「速すぎる」と取得元が言っている合図なので、通信のゆらぎより
+    // 長く待つ。数秒で戻ると同じ制限に当たり直し、途中で例外になって
+    // 取得が丸ごと止まる（長浜市が 535/1440 で落ちた）。
+    if ($status === 429) {
+        return min(TAIKEI_FETCH_RATE_LIMIT_MAX_USEC, TAIKEI_FETCH_RATE_LIMIT_BASE_USEC * max(1, $attempt));
+    }
     return min(5_000_000, TAIKEI_FETCH_RETRY_BASE_USEC * max(1, $attempt));
 }
 
