@@ -136,9 +136,14 @@ def main() -> int:
         source_state = str(coverage.get("state") or "unknown").strip() or "unknown"
         verified_acquired = int_value(validation.get("progress_current")) if source_state == "complete" else 0
         issues: list[str] = []
-        if verified_acquired > indexed_count:
+        # 取得したファイルには目次も混ざり、検索に載るのは本文だけ。件数差
+        # だけでは反映待ちと言えないので、1 件も検索できないときに限る。
+        # 種別の内訳が残っている取得元は、この下で本文の件数と突き合わせる。
+        if verified_acquired > 0 and indexed_count <= 0:
             issues.append("index_pending")
-        elif verified_acquired > 0 and indexed_count > verified_acquired:
+        elif verified_acquired > 0 and indexed_count > max(verified_acquired, saved_file_count):
+            # validation は最後の走査で確認した件数で、累計の取得数ではない。
+            # 取得済みファイルより多く検索できるときだけ、取りすぎを疑う。
             issues.append("index_ahead_of_verified")
         # 走査記録を持たない取得元でも検索反映は遅れる。取得したファイルの
         # うち本文が何件かは index 構築時の内訳に残るので、それと突き合わせる。
