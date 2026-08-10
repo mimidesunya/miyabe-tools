@@ -1187,7 +1187,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 27381	https://www.town.taishi.osaka.jp/busyo/gikai_jimu/taishichougikai/kaigirokunoetsuran/index.html	独自	enabled			2026-08-02	221d99b631d0a13973b510dbbf75e990e1aad47b671a5b8b37389675c83f0ec7
 27382	https://www.town.kanan.osaka.jp/gyoseijoho/gikai/1/7996.html	独自	enabled			2026-08-02	fbf626560141603b9ec3915b6b7b1fcc369e7c84320e863966e6783724e9aac5
 27383	https://www.vill.chihayaakasaka.osaka.jp/kakuka/gikai/2_1/kaigiroku/11364.html	独自	enabled			2026-08-02	e77160cc2f7dc76749684b8da3193b1243c0c3252dc6c7f4bb996d30507e46c4
-28000	https://www.kensakusystem.jp//hyogopref/index.html	kensakusystem	enabled			2026-08-02	97fe51f43d2f876c56581549862ab4ecb681f7d0e650a17f845cf8cfefec7365
+28000	https://www.kensakusystem.jp//hyogopref/index.html	kensakusystem-cgi	enabled		旧型 CGI（See.exe / Search2.exe）で他の kensakusystem と構造が異なる		1d76de0a2f23084838408b7ea904fc9a1a679bc466d33db1133572ff30e79b60
 28100	http://www.city.kobe.hyogo.dbsr.jp/index.php/	dbsr	enabled				0f405384a64478c9595eb72b57b94b332193b8c71745e6a615b55b239fbddb49
 28201	http://himeji.gijiroku.com/voices/g08v_search.asp	gijiroku.com	enabled			2026-08-02	61d7f4f1010fa4182e83232c0754bed53572262b2caa6163b92f47841eafc3fb
 28202	https://ssp.kaigiroku.net/tenant/amagasaki/SpMinuteSearch.html	kaigiroku.net	enabled				39c04c4db6dac5b728672e181c4c901381c1b129c5ed8ae8446e589bbbe23928

@@ -62,6 +62,10 @@ class ListPage:
     url: str
     meeting_group: str
     auxiliary_docs: list[dict[str, str]]
+    # 検索フォームを送らないと一覧が出ず、その結果 URL を開き直せない
+    # 取得元がある（国分寺市など。CSRF トークンがセッションに紐づく）。
+    # その場で読み切った行をここに載せ、後段は再訪問せずに使う。
+    documents: list["DocumentRow"] | None = None
 
 
 @dataclass
@@ -572,23 +576,41 @@ def submit_all_conditions_search(
         if not extract_document_rows_from_page(page):
             continue
         list_url = canonicalize_template_url(page.url)
-        # 送信結果を後から開き直せない取得元がある（国分寺市など）。
-        # 一覧として控えても会議を辿れないので、開き直せるものだけ使う。
+        title = normalize_space(page.title()) or "会議録一覧"
+        # 送信結果を後から開き直せる取得元（福岡市など）は、URL だけ控えて
+        # 後段に任せる。開き直すと結果が消える取得元（国分寺市など。CSRF
+        # トークンがセッションに紐づく）は、この場で最後まで読み切る。
+        documents: list[DocumentRow] | None = None
         try:
             page.goto(list_url, wait_until="domcontentloaded", timeout=timeout_ms)
+            reopened = bool(extract_document_rows_from_page(page))
         except DiscoveryTimeoutError:
             raise
         except Exception:
-            continue
-        if not extract_document_rows_from_page(page):
-            continue
+            reopened = False
+        if not reopened:
+            try:
+                page.goto(menu_url, wait_until="domcontentloaded", timeout=timeout_ms)
+                form = page.locator("form").nth(index)
+                select_every_search_condition(form, deadline)
+                form.locator("input[type='submit'], button[type='submit']").first.click(timeout=timeout_ms)
+                page.wait_for_load_state("domcontentloaded", timeout=timeout_ms)
+                documents = collect_document_rows_from_open_list(page, timeout_ms, deadline)
+            except DiscoveryTimeoutError:
+                raise
+            except Exception:
+                documents = None
+            if not documents:
+                continue
+
         if list_url not in items:
             items[list_url] = ListPage(
-                title=normalize_space(page.title()) or "会議録一覧",
+                title=title,
                 year_label="全期間",
                 url=list_url,
                 meeting_group="",
                 auxiliary_docs=[],
+                documents=documents,
             )
         return True
     return False
@@ -986,7 +1008,24 @@ def collect_list_page_documents(
         page.wait_for_load_state("networkidle", timeout=3_000)
     except Exception:
         pass
+    return collect_document_rows_from_open_list(
+        page,
+        timeout_ms,
+        deadline,
+        known_urls=known_urls,
+        stop_after_known_page=stop_after_known_page,
+    )
 
+
+def collect_document_rows_from_open_list(
+    page,
+    timeout_ms: int,
+    deadline: float | None = None,
+    *,
+    known_urls: set[str] | None = None,
+    stop_after_known_page: bool = False,
+) -> list[DocumentRow]:
+    """いま開いている一覧を、ページ送りの終わりまで読む。"""
     collected: list[DocumentRow] = []
     seen_urls: set[str] = set()
     seen_page_signatures: set[tuple[str, int]] = set()
@@ -1215,14 +1254,18 @@ def discover_meeting_items(
         )
         try:
             list_url = list_url_with_origin(list_page.url, base_url)
-            rows = collect_list_page_documents(
-                page,
-                list_url,
-                timeout_ms,
-                known_urls=known_urls_by_list_url.get(list_url),
-                stop_after_known_page=quick_update,
-                deadline=deadline,
-            )
+            if list_page.documents is not None:
+                # 開き直せない一覧は探索時に読み切ってある。
+                rows = list_page.documents
+            else:
+                rows = collect_list_page_documents(
+                    page,
+                    list_url,
+                    timeout_ms,
+                    known_urls=known_urls_by_list_url.get(list_url),
+                    stop_after_known_page=quick_update,
+                    deadline=deadline,
+                )
         except DiscoveryTimeoutError:
             raise
         except Exception as exc:
