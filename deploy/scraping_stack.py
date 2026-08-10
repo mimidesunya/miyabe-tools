@@ -156,8 +156,11 @@ def build_scraping_compose(
                     "SCRAPER_REIKI_CHECK_UPDATES": "1",
                     "SCRAPER_REIKI_PARALLEL": "3",
                     "SCRAPER_REIKI_INDEX_PARALLEL": "1",
-                    "SCRAPER_REIKI_PER_HOST_PARALLEL": "3",
-                    "SCRAPER_REIKI_PER_HOST_START_INTERVAL": "2",
+                    # 例規集は 1 ホストに多数の自治体が同居する
+                    # （www1.g-reiki.net だけで 514 件）。同じホストへ
+                    # 並べて当てると 429 を招き、取得が途中で止まる。
+                    "SCRAPER_REIKI_PER_HOST_PARALLEL": "1",
+                    "SCRAPER_REIKI_PER_HOST_START_INTERVAL": "5",
                 },
                 "extra_hosts": ["host.docker.internal:host-gateway"],
                 "volumes": [
