@@ -97,6 +97,14 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# 会議録を「令和8年」のように年だけのリンクで年度別に分ける取得元がある
+# （河内町など）。リンク文字列にも URL にも会議録を示す語が無いので通常の
+# 判定では 1 段目で行き止まりになる。入口 URL は台帳にその自治体の会議録の
+# 入口として登録されたものなので、そこに並ぶ年リンクだけは会議録の年度別
+# ページとみなして辿る。2 段目より深くは通常どおり判定する。
+YEAR_ONLY_LINK = re.compile(r"^(?:令和|平成|昭和)\s*(?:\d+|元)\s*年(?:度)?$")
+
+
 def _is_followable_html(start_netloc: str, url: str) -> bool:
     parts = urlsplit(url)
     if parts.netloc != start_netloc:
@@ -179,7 +187,10 @@ def crawl_pdf_items(
                 depth < max_depth
                 and absolute not in visited
                 and _is_followable_html(start_netloc, absolute)
-                and looks_like_generic_minutes_page(text, absolute)
+                and (
+                    looks_like_generic_minutes_page(text, absolute)
+                    or (depth == 0 and YEAR_ONLY_LINK.match(clean_label(text)))
+                )
             ):
                 queue.append((absolute, depth + 1))
 
