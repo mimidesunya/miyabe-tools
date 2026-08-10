@@ -233,13 +233,18 @@ def dbsr_index_root(source_url: str) -> str:
 
 def find_search_library_url(page, source_url: str) -> str:
     candidates: list[str] = []
-    links = page.locator("a")
-    for i in range(links.count()):
-        href = safe_href(links.nth(i))
-        # Template 名の大文字小文字は取得元によって違う（Template=List など）。
-        if "template=search-library" not in href.lower():
-            continue
-        candidates.append(urljoin(page.url, href))
+    # 入口ページが読み終える前に別ページへ移る取得元がある（鳥取県）。
+    # リンクを読めなくても下の推測 URL で先へ進めるので、ここで止めない。
+    try:
+        links = page.locator("a")
+        for i in range(links.count()):
+            href = safe_href(links.nth(i))
+            # Template 名の大文字小文字は取得元によって違う（Template=List など）。
+            if "template=search-library" not in href.lower():
+                continue
+            candidates.append(urljoin(page.url, href))
+    except Exception:
+        candidates = []
     if candidates:
         return candidates[0]
 
