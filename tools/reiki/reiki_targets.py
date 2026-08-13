@@ -90,6 +90,9 @@ def load_local_reiki_url_index() -> dict[str, dict[str, str]]:
             index[code] = {
                 "url": str(row.get("url", "")).strip(),
                 "system_type": str(row.get("system_type", "")).strip(),
+                "crawl_status": str(row.get("crawl_status", "")).strip(),
+                "exclusion_reason": str(row.get("exclusion_reason", "")).strip(),
+                "exclusion_detail": str(row.get("exclusion_detail", "")).strip(),
             }
     return index
 
@@ -228,6 +231,12 @@ def iter_reiki_targets(expected_system: str | None = None) -> list[dict]:
 
         source_url = str(url_entry.get("url", "")).strip()
         if source_url == "":
+            continue
+
+        # 閲覧にログインが要る取得元などは走査しても取れない。毎回試して
+        # 失敗させると、取得エラーとして記録が積み上がってしまう。
+        crawl_status = str(url_entry.get("crawl_status", "")).strip()
+        if crawl_status not in ("", "enabled"):
             continue
 
         master_entry = master_index.get(code)

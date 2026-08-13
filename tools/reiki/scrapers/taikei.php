@@ -1273,6 +1273,13 @@ function iter_reiki_targets(?string $expectedSystem = null, bool $configuredOnly
             continue;
         }
 
+        // 閲覧にログインが要る取得元などは、走査しても取れないと分かっている。
+        // 毎回試して失敗させると「取得エラー」として記録が積み上がる。
+        $crawlStatus = trim((string)($urlEntry['crawl_status'] ?? ''));
+        if ($crawlStatus !== '' && $crawlStatus !== 'enabled') {
+            continue;
+        }
+
         $slug = taikei_implicit_municipality_slug($code, $masterIndex[$code] ?? []);
         $entry = ['code' => $code];
         $targets[] = build_reiki_target_entry($slug, $entry, $urlEntry, $masterIndex[$code] ?? []);
