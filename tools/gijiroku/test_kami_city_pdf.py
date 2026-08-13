@@ -55,3 +55,20 @@ class AttachmentPdfLinkTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class QueryNamesAPdfTest(unittest.TestCase):
+    def test_pdf_named_in_the_query_is_recognised(self) -> None:
+        # 上天草市は /dl?q=…filelib_….pdf でファイルを配る。
+        url = "https://www.city.kamiamakusa.kumamoto.jp/dl?q=83923_filelib_666f9d.pdf"
+        self.assertTrue(kami_city_pdf.query_names_a_pdf(url))
+        self.assertTrue(kami_city_pdf.looks_like_attachment_pdf(url, "令和5年11月30日 上天草市議会会議録"))
+
+    def test_query_without_a_pdf_is_not_one(self) -> None:
+        url = "https://example.lg.jp/dl?q=83923_filelib_666f9d.xlsx"
+        self.assertFalse(kami_city_pdf.query_names_a_pdf(url))
+
+    def test_unrelated_link_text_is_still_rejected(self) -> None:
+        # 拡張子だけでは判断しない。会議録らしい文字列を伴うものに限る。
+        url = "https://example.lg.jp/dl?q=1_filelib_x.pdf"
+        self.assertFalse(kami_city_pdf.looks_like_attachment_pdf(url, "入札公告"))

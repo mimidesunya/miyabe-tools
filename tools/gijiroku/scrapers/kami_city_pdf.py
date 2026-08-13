@@ -65,10 +65,22 @@ def looks_like_attachment_pdf(url: str, anchor_text: str) -> bool:
     誤って HTML ページを PDF として扱わないよう、会議録らしいリンク文字列を
     持つものだけに限る。
     """
-    if not ATTACHMENT_ENDPOINT_RE.search(url):
+    if not ATTACHMENT_ENDPOINT_RE.search(url) and not query_names_a_pdf(url):
         return False
     haystack = normalize_space(anchor_text).lower()
     return any(keyword.lower() in haystack for keyword in MINUTES_PAGE_KEYWORDS)
+
+
+def query_names_a_pdf(url: str) -> bool:
+    """パスではなくクエリでファイル名を渡す配信 URL かを見る。
+
+    /dl?q=…filelib_….pdf のように、拡張子がクエリ側にしか出ない取得元が
+    ある（上天草市など）。パス末尾だけを見ると PDF と気づけない。
+    """
+    parts = urlsplit(url)
+    if parts.query == "":
+        return False
+    return ".pdf" in parts.query.lower()
 YEAR_OR_LIST_RE = re.compile(r"(20\d{2}|令和[元\d０-９]+|平成[元\d０-９]+|昭和[元\d０-９]+|list\d+|\d{4,6}\.html)", re.I)
 
 
