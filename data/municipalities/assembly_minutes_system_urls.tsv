@@ -349,7 +349,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 06364	https://www.town.mamurogawa.yamagata.jp/chosei/gikai/2/4737.html	独自	enabled			2026-08-02	20701e24f0881575f871d6cf30548cc44f68efdb5429a269efea09bbc1f0e119
 06365	https://www.vill.ohkura.yamagata.jp/gyoseijoho/okurasongikai/2301.html	独自	enabled			2026-08-02	a345c7da2efce357d997d6ab706a05176e1f4bc6573289381ef10b654de19249
 06366			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
-06367	https://smart.discussvision.net/smart/tenant/tozawa/WebView/rd/council_1.html	discussvision	enabled			2026-08-02	e2e2d4cf6c45409a6332db3b90ccd257b8609e7d58512b958244081fcbdfac1b
+06367	https://smart.discussvision.net/smart/tenant/tozawa/WebView/rd/council_1.html	discussvision	excluded	video_only	議会中継（録画映像）のみ公開で会議録本文なし		e2e2d4cf6c45409a6332db3b90ccd257b8609e7d58512b958244081fcbdfac1b
 06381	https://www.town.takahata.yamagata.dbsr.jp/index.php/	dbsr	enabled				1af9039875cdd47036cca69788c05861dfcc6e8708a2a5ccf798e4a9e8809f10
 06382	https://www.town.kawanishi.yamagata.jp/gikai/kaigiroku/	static-kaigiroku-dir	enabled			2026-08-02	d9e30397a270c0d6b6add36209aff6fe177e3bc5b42eebe83a7352ae11718250
 06401	https://www.town.oguni.yamagata.dbsr.jp/index.php/	dbsr	enabled				9b0c96b5b021a32150d8e810f56217c9fdd2b8812a9424e3c2b9cee8e8126ba0
@@ -658,7 +658,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 13111	https://www.gikai-ota-tokyo.jp/ota/g08v_search.asp	voices	enabled			2026-08-02	a295385f34636d67a494fade8fd30b20c42d0a18df1e8360f512ee31b7aa33bb
 13112	http://kugi.city.setagaya.tokyo.jp/voices/index.html	voices	enabled			2026-08-02	88f2ac80e1e7b294c82518813e090300f62246f7de96f19674dabbbf972893b3
 13113	https://ssp.kaigiroku.net/tenant/shibuya/SpMinuteSearch.html	kaigiroku.net	enabled				ad202655bdffaa5018419d40456df569ec9fe6840d77087cdd17967a8eb1f5fb
-13114	https://smart.discussvision.net/smart/tenant/nakano/WebView/rd/council_1.html	discussvision	enabled				9960c7a8e9fef9d3801d0722f1f9c55623e1d9f8747ecde4c22f173ef2852c0f
+13114	https://kugikai-nakano.jp/search.html	独自	enabled				438644ec6d7dc8d5a99aa978a6a394c799659291a7302f3bcfb638259d020422
 13115	https://suginami.gijiroku.com/voices/voices/g08v_search.asp	gijiroku.com	enabled			2026-08-02	9a19f594919f9189714c29e65b818713a6c788529a5cd9f1bb5768606f69cd80
 13116	http://www.kensakusystem.jp/toshima/index.html	kensakusystem	enabled			2026-08-02	2d02f74af82af6ba0de32dcef16c6b35def145433fe16b7b7ee367c2b8b28f7f
 13117	https://ssp.kaigiroku.net/tenant/kita/SpMinuteSearch.html	kaigiroku.net	enabled				a186692633c188d369f255bd3da5dba7206d2683148a67d7c5df0d9f845567bb
@@ -700,7 +700,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 13308	https://www.town.okutama.tokyo.jp/gyosei/8/okutamachogikai/kaigiroku/3406.html	独自	enabled			2026-08-02	5496a9affb4700452bca15e6edf37b097973758658fc303c182d366c96ab68c9
 13361			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 13362	https://www.toshimamura.org/about/assembly.html	独自	enabled			2026-08-02	8318cf731e36ebb4ccd4213861a5fb8ab08f499d05434097d136cae6166b357e
-13363	https://smart.discussvision.net/smart/tenant/niijima/WebView/rd/council.html	discussvision	enabled			2026-08-02	84502d3bfe71ae417a2306bb2dc96e0735f2d44f52f92da16d83d13a98a2b9b6
+13363	https://smart.discussvision.net/smart/tenant/niijima/WebView/rd/council.html	discussvision	excluded	video_only	議会中継（録画映像）のみ公開で会議録本文なし		84502d3bfe71ae417a2306bb2dc96e0735f2d44f52f92da16d83d13a98a2b9b6
 13364			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 13381			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 13382			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
@@ -927,7 +927,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 20543	https://www.vill.takayama.nagano.jp/gikai/kaigiroku/	独自	enabled			2026-08-02	50c06860361d95488959173be272b1dbb68877202c9e1550e40cac2968768570
 20561	https://www.town.yamanouchi.nagano.jp/soshiki/gikai_jimukyoku/gyomu/gikai/520.html	独自	enabled			2026-08-02	a5c2b8950956ead058151c6724b4f5714b5a42212e94126a8e8e150660a97dca
 20562	https://www.vill.kijimadaira.lg.jp/categories/kubun/gyousei/gikai/kaigiroku/	独自	enabled			2026-08-02	69d1702c16914b25f73295d17cdb91c3c48b7557104f03a9e78870dd5b71b41e
-20563	https://smart.discussvision.net/smart/tenant/nozawaonsen/WebView/rd/council.html	discussvision	enabled			2026-08-02	eee31661fd87071ac25b6130bbfc15705c58692ff2f4a3b01d73f75b2e35ed41
+20563	https://smart.discussvision.net/smart/tenant/nozawaonsen/WebView/rd/council.html	discussvision	excluded	video_only	議会中継（録画映像）のみ公開で会議録本文なし		eee31661fd87071ac25b6130bbfc15705c58692ff2f4a3b01d73f75b2e35ed41
 20583	https://www.town.shinano.lg.jp/docs/750.html	独自	enabled			2026-08-02	d33a8209da552adf92df160ad4d2e091515b7e646a9f1ea4b26d48015843085a
 20588	https://www.vill.ogawa.nagano.jp/docs/64436.html	独自	enabled			2026-08-02	758ff3ed27b3517bac5a46d85605c283db69d416e01d33a97156619724e6d342
 20590	https://www.town.iizuna.nagano.jp/gikai/kaigiroku/	独自	enabled			2026-08-02	9c647dce2d37d0e5cba29f59adae6b0248c5595e9e99b28adecfaa17f92f12c8
@@ -1436,7 +1436,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 36404	http://www.town.itano.tokushima.jp/bunya/gikai/	独自	enabled				0a9c18f5a9de8640114fc86aaa061ba95d540112f3ef68c7fc78e32d6a805a4a
 36405			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 36468			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
-36489	https://smart.discussvision.net/smart/tenant/higashimiyoshi/WebView/rd/council.html	discussvision	enabled			2026-08-02	62775542aa04da40d0e2cffaa94c5b1ef0342a8106eccb34cf6f158862064b4b
+36489	https://smart.discussvision.net/smart/tenant/higashimiyoshi/WebView/rd/council.html	discussvision	excluded	video_only	議会中継（録画映像）のみ公開で会議録本文なし		62775542aa04da40d0e2cffaa94c5b1ef0342a8106eccb34cf6f158862064b4b
 37000	https://www.pref.kagawa.dbsr.jp/index.php/	dbsr	enabled				14fbef761b2d620ed52f78418aa35b9c16622433b238ae7ae5dca0994cb1caaf
 37201	https://ssp.kaigiroku.net/tenant/takamatsu/SpMinuteSearch.html	kaigiroku.net	enabled				b794ba0d4a07bf631efa31ade8f3266fa0289d1d851f60e5cac85a98d9fecc3e
 37202	https://ssp.kaigiroku.net/tenant/marugame/MinuteSearch.html	kaigiroku.net	enabled				199bd231e165799d85e1c803145327830038b3e35472a9e061acdbf1475a72ea
@@ -1730,7 +1730,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 46303			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 46304	https://www.tokara.jp/gikaireport/	独自	enabled			2026-08-02	6b78e91b0733cbf33824aebdde93f1112a884d5b87d86e0a3562043a32302a7c
 46392	https://www.satsuma-net.jp/machinosugata/gikai/2/1/index.html	独自	enabled			2026-08-02	0a1a51599b26cd897af57e29b1710c6b6990b389237c0e986272640c3a74702b
-46404	http://smart.discussvision.net/smart/tenant/nagashima/WebView/rd/council_1.html	discussvision	enabled			2026-08-02	6bf1dec6782a00d51d6e774db909f2477df9e2726ab4989f79e32d1ee0894214
+46404	http://smart.discussvision.net/smart/tenant/nagashima/WebView/rd/council_1.html	discussvision	excluded	video_only	議会中継（録画映像）のみ公開で会議録本文なし		6bf1dec6782a00d51d6e774db909f2477df9e2726ab4989f79e32d1ee0894214
 46452			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 46468	https://www.town.kagoshima-osaki.lg.jp/gj_shomu/machiannai/chogikai/kaigiroku/kaigiroku.html	独自	enabled			2026-08-02	646094f51d8b27f0591a26f1cedd53505078b6b52010f22978783f8439175c6c
 46482	https://www.higashikushira.com/docs/2018012400051/	独自	enabled			2026-08-02	4dae92871451ef6a823b6984a5a5e2aee2d4167d87d66ee78680ff65ab6cff31
