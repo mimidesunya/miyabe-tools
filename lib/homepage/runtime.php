@@ -1866,6 +1866,21 @@ function homepage_feature_registry_index(string $featureKey): array
  * 取得元台帳だけで判定できる状態を返す。
  * 実行時エラー・公開済み・検索反映待ちは呼び出し側で優先して上書きする。
  */
+// 台帳で「取得しない」と決めた取得元は、走らせない以上エラーも出ない。
+// 過去に残った失敗記録より、台帳の判断を優先して表示する。
+function homepage_registry_state_overrides_error(array $registryState): bool
+{
+    if (!($registryState['registered'] ?? false)) {
+        return false;
+    }
+    return in_array(
+        (string)($registryState['state'] ?? ''),
+        ['excluded', 'unsupported', 'source_unresolved', 'review_required'],
+        true
+    );
+}
+
+
 function homepage_feature_registry_state(string $featureKey, string $municipalityCode): array
 {
     $entry = homepage_feature_registry_index($featureKey)[$municipalityCode] ?? null;
@@ -2882,7 +2897,7 @@ function homepage_collect_visible_features(
             $statusClass = 'status-suspended';
             $availabilityState = 'suspended';
             $mode = 'disabled';
-        } elseif ($hasError) {
+        } elseif ($hasError && !homepage_registry_state_overrides_error($registryState)) {
             $statusLabel = '取得エラー（実装済み）';
             $statusClass = 'status-error';
             $availabilityState = 'runtime_error';
