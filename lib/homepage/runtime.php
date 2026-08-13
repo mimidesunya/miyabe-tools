@@ -1319,6 +1319,17 @@ function homepage_task_display_has_error(?array $display): bool
     return trim((string)($display['class'] ?? '')) === 'task-failed';
 }
 
+// 走査は最後まで通ったのに、取得元から会議録が 1 件も見つからなかった状態。
+// 取得処理の失敗とは区別する（やり直しても結果は変わらない）。
+function homepage_task_display_found_nothing(?array $display): bool
+{
+    if (!is_array($display)) {
+        return false;
+    }
+    return str_contains((string)($display['detail'] ?? ''), '会議録を見つけられませんでした');
+}
+
+
 function homepage_task_display_has_warning(?array $display): bool
 {
     if (!is_array($display)) {
@@ -2898,9 +2909,17 @@ function homepage_collect_visible_features(
             $availabilityState = 'suspended';
             $mode = 'disabled';
         } elseif ($hasError && !homepage_registry_state_overrides_error($registryState)) {
-            $statusLabel = '取得エラー（実装済み）';
-            $statusClass = 'status-error';
-            $availabilityState = 'runtime_error';
+            // 走査は通ったが取得元に会議録が見当たらない場合がある。実装が
+            // その形式に届いていないという話で、直せば取れる不具合ではない。
+            if (homepage_task_display_found_nothing($display) || homepage_task_display_found_nothing($primaryDisplay)) {
+                $statusLabel = '未対応（会議録を見つけられず）';
+                $statusClass = 'status-unsupported';
+                $availabilityState = 'not_found';
+            } else {
+                $statusLabel = '取得エラー（実装済み）';
+                $statusClass = 'status-error';
+                $availabilityState = 'runtime_error';
+            }
             $mode = 'disabled';
         } elseif ($hasWarning) {
             $statusLabel = '警告あり';

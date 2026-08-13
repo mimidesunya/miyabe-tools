@@ -249,7 +249,10 @@ def scrape_completion_error(target: dict, progress: dict | None) -> str:
         failed_count = validation_int(validation, "failed_count")
         unknown_missing_count = validation_int(validation, "unknown_missing_count")
         if discovered_count <= 0:
-            return "取得対象件数が0件です"
+            # 走査自体は最後まで通っていて、取得元に会議録が見当たらない。
+            # 取得処理の失敗として毎回やり直しても結果は変わらないので、
+            # 「この形式にはまだ届いていない」と伝わる言い方にする。
+            return "この取得元からは会議録を見つけられませんでした"
         if failed_count > 0:
             return f"取得失敗: {failed_count}件"
         if unknown_missing_count > 0:

@@ -108,6 +108,7 @@ function status_asset_url(string $relativePath): string
                         <option value="partial_planned">一部検索可（追加取得中・予定）</option>
                         <option value="index_pending">検索反映待ち</option>
                         <option value="body_not_published">本文なし（目次のみ公開）</option>
+                        <option value="not_found">未対応（会議録を見つけられず）</option>
                         <option value="partial_error">一部検索可（エラー停止）</option>
                         <option value="partial_recent_only">一部検索可（取得元が直近分のみ公開）</option>
                         <option value="update_error">検索可（更新エラー）</option>
