@@ -15,7 +15,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 01213	https://kra014.legal-square.com/HAS-Shohin/page/SJSrbLogin.jsf	legal-square	enabled		
 01214	https://www.city.wakkanai.hokkaido.jp/data/reiki/reiki.html	reiki.html	enabled		
 01215	https://lg.joureikun.jp/bibai_city/reiki/	joureikun	enabled		
-01216	http://houmu.h-chosonkai.gr.jp/~reikidb/data/6/43/reiki_menu.html	h-chosonkai	enabled		
+01216	http://houmu.h-chosonkai.gr.jp/~reikidb/data/6/43/reiki_menu.html	taikei	enabled		
 01217	https://en3-jg.d1-law.com/ebetsu-shi/d1w_reiki/reiki.htm	d1-law	enabled		
 01218	https://www.city.akabira.hokkaido.jp/reiki_int/reiki_menu.html	taikei	enabled		
 01219	https://mombetsu.jp/reiki/reiki_menu.html	taikei	enabled		
@@ -36,55 +36,55 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 01235	https://en3-jg.d1-law.com/ishikari/d1w_reiki/reiki.html	d1-law	enabled		
 01236	https://www.city.hokuto.hokkaido.jp/reiki_int/reiki_menu.html	taikei	enabled		
 01303	http://houmu.h-chosonkai.gr.jp/~reikidb/data/124/30/reiki.html	h-chosonkai	enabled		
-01304	http://houmu.h-chosonkai.gr.jp/~reikidb/data/100/40/reiki_menu.html	h-chosonkai	enabled		
-01331	http://houmu.h-chosonkai.gr.jp/~reikidb/data/183/83/reiki_menu.html	h-chosonkai	enabled		
-01332	http://houmu.h-chosonkai.gr.jp/~reikidb/data/171/54/reiki_menu.html	h-chosonkai	enabled		
-01333	http://houmu.h-chosonkai.gr.jp/~reikidb/data/99/50/reiki_menu.html	h-chosonkai	enabled		
-01334	http://houmu.h-chosonkai.gr.jp/~reikidb/data/58/51/reiki_menu.html	h-chosonkai	enabled		
-01337	http://houmu.h-chosonkai.gr.jp/~reikidb/data/142/57/reiki_menu.html	h-chosonkai	enabled		
-01343	http://houmu.h-chosonkai.gr.jp/~reikidb/data/84/49/reiki_menu.html	h-chosonkai	enabled		
+01304	http://houmu.h-chosonkai.gr.jp/~reikidb/data/100/40/reiki_menu.html	taikei	enabled		
+01331	http://houmu.h-chosonkai.gr.jp/~reikidb/data/183/83/reiki_menu.html	taikei	enabled		
+01332	http://houmu.h-chosonkai.gr.jp/~reikidb/data/171/54/reiki_menu.html	taikei	enabled		
+01333	http://houmu.h-chosonkai.gr.jp/~reikidb/data/99/50/reiki_menu.html	taikei	enabled		
+01334	http://houmu.h-chosonkai.gr.jp/~reikidb/data/58/51/reiki_menu.html	taikei	enabled		
+01337	http://houmu.h-chosonkai.gr.jp/~reikidb/data/142/57/reiki_menu.html	taikei	enabled		
+01343	http://houmu.h-chosonkai.gr.jp/~reikidb/data/84/49/reiki_menu.html	taikei	enabled		
 01345			unresolved	source_url_unresolved	h-chosonkai の data/194/65/reiki_menu.html が404。移転先を未特定
 01346			unresolved	source_url_unresolved	h-chosonkai の data/197/54/reiki_menu.html が404。移転先を未特定
 01347	http://houmu.h-chosonkai.gr.jp/~reikidb/data/42/49/reiki.html	h-chosonkai	enabled		
-01361	http://houmu.h-chosonkai.gr.jp/~reikidb/data/28/34/reiki_menu.html	h-chosonkai	enabled		
+01361	http://houmu.h-chosonkai.gr.jp/~reikidb/data/28/34/reiki_menu.html	taikei	enabled		
 01362	http://houmu.h-chosonkai.gr.jp/~reikidb/data/54/52/reiki.html	h-chosonkai	enabled		
-01363	http://houmu.h-chosonkai.gr.jp/~reikidb/data/10/54/reiki_menu.html	h-chosonkai	enabled		
+01363	http://houmu.h-chosonkai.gr.jp/~reikidb/data/10/54/reiki_menu.html	taikei	enabled		
 01364	http://houmu.h-chosonkai.gr.jp/~reikidb/data/46/26/reiki.html	h-chosonkai	enabled		
 01367			unresolved	source_url_unresolved	h-chosonkai の data/39/48/reiki.html が404。移転先を未特定
-01370	http://houmu.h-chosonkai.gr.jp/~reikidb/data/18/58/reiki_menu.html	h-chosonkai	enabled		
+01370	http://houmu.h-chosonkai.gr.jp/~reikidb/data/18/58/reiki_menu.html	taikei	enabled		
 01371	http://houmu.h-chosonkai.gr.jp/~reikidb/data/106/57/reiki.html	h-chosonkai	enabled		
 01391			unresolved	source_url_unresolved	h-chosonkai の data/90/41/reiki_menu.html が404。移転先を未特定
-01392	http://houmu.h-chosonkai.gr.jp/~reikidb/data/104/51/reiki_menu.html	h-chosonkai	enabled		
+01392	http://houmu.h-chosonkai.gr.jp/~reikidb/data/104/51/reiki_menu.html	taikei	enabled		
 01393	http://houmu.h-chosonkai.gr.jp/~reikidb/data/73/5/reiki.html	h-chosonkai	enabled		
-01394	http://houmu.h-chosonkai.gr.jp/~reikidb/data/203/21/reiki_menu.html	h-chosonkai	enabled		
+01394	http://houmu.h-chosonkai.gr.jp/~reikidb/data/203/21/reiki_menu.html	taikei	enabled		
 01395	https://en3-jg.d1-law.com/niseko/d1w_reiki/reiki.html	d1-law	enabled		
 01396	https://www1.g-reiki.net/vill.makkari/reiki_menu.html	g-reiki	enabled		
 01397	https://en3-jg.d1-law.com/rusutsu/d1w_reiki/reiki.htm	d1-law	enabled		
-01398	http://houmu.h-chosonkai.gr.jp/~reikidb/data/63/37/reiki_menu.html	h-chosonkai	enabled		
+01398	http://houmu.h-chosonkai.gr.jp/~reikidb/data/63/37/reiki_menu.html	taikei	enabled		
 01399	https://www1.g-reiki.net/kyougoku/reiki_menu.html	g-reiki	enabled		
-01400	http://houmu.h-chosonkai.gr.jp/~reikidb/data/69/67/reiki_menu.html	h-chosonkai	enabled		
-01401	http://houmu.h-chosonkai.gr.jp/~reikidb/data/65/59/reiki_menu.html	h-chosonkai	enabled		
+01400	http://houmu.h-chosonkai.gr.jp/~reikidb/data/69/67/reiki_menu.html	taikei	enabled		
+01401	http://houmu.h-chosonkai.gr.jp/~reikidb/data/65/59/reiki_menu.html	taikei	enabled		
 01402	https://www.town.iwanai.hokkaido.jp/d1w_reiki/reiki.html	d1-law	enabled		
 01403	http://houmu.h-chosonkai.gr.jp/~reikidb/data/131/42/reiki.html	h-chosonkai	enabled		
 01404	http://houmu.h-chosonkai.gr.jp/~reikidb/data/57/23/reiki.html	h-chosonkai	enabled		
-01405	http://houmu.h-chosonkai.gr.jp/~reikidb/data/94/46/reiki_menu.html	h-chosonkai	enabled		
+01405	http://houmu.h-chosonkai.gr.jp/~reikidb/data/94/46/reiki_menu.html	taikei	enabled		
 01406			unresolved	source_url_unresolved	h-chosonkai の data/173/59/reiki.htm が404。移転先を未特定
 01407	http://houmu.h-chosonkai.gr.jp/~reikidb/data/146/39/reiki.html	h-chosonkai	enabled		
 01408	http://www.town.yoichi.hokkaido.jp/reikishu/reiki_taikei/r_taikei_03_01.html	taikei	enabled		
-01409	http://houmu.h-chosonkai.gr.jp/~reikidb/data/2/36/reiki_menu.html	h-chosonkai	enabled		
+01409	http://houmu.h-chosonkai.gr.jp/~reikidb/data/2/36/reiki_menu.html	taikei	enabled		
 01423	http://houmu.h-chosonkai.gr.jp/~reikidb/data/144/53/reiki.html	h-chosonkai	enabled		
 01424	http://houmu.h-chosonkai.gr.jp/~reikidb/data/135/52/reiki.html	h-chosonkai	enabled		
 01425	http://houmu.h-chosonkai.gr.jp/~reikidb/data/53/37/reiki.html	h-chosonkai	enabled		
 01427	https://www1.g-reiki.net/town.yuni/reiki_menu.html	g-reiki	enabled		
 01428	https://www1.g-reiki.net/maoi.naganuma/reiki_menu.html	g-reiki	enabled		
 01429	https://www1.g-reiki.net/town.kuriyama/reiki_menu.html	g-reiki	enabled		
-01430	http://houmu.h-chosonkai.gr.jp/~reikidb/data/118/57/reiki_menu.html	h-chosonkai	enabled		
-01431	http://houmu.h-chosonkai.gr.jp/~reikidb/data/23/50/reiki_menu.html	h-chosonkai	enabled		
+01430	http://houmu.h-chosonkai.gr.jp/~reikidb/data/118/57/reiki_menu.html	taikei	enabled		
+01431	http://houmu.h-chosonkai.gr.jp/~reikidb/data/23/50/reiki_menu.html	taikei	enabled		
 01432	http://houmu.h-chosonkai.gr.jp/~reikidb/data/102/45/reiki.html	h-chosonkai	enabled		
 01433			unresolved	source_url_unresolved	h-chosonkai の data/193/44/reiki.html が404。移転先を未特定
 01434	http://houmu.h-chosonkai.gr.jp/~reikidb/data/115/46/reiki.html	h-chosonkai	enabled		
 01436	https://www1.g-reiki.net/town.uryu/reiki_menu.html	g-reiki	enabled		
-01437	http://houmu.h-chosonkai.gr.jp/~reikidb/data/176/59/reiki_menu.html	h-chosonkai	enabled		
+01437	http://houmu.h-chosonkai.gr.jp/~reikidb/data/176/59/reiki_menu.html	taikei	enabled		
 01438	http://houmu.h-chosonkai.gr.jp/~reikidb/data/149/50/reiki.html	h-chosonkai	enabled		
 01452	http://houmu.h-chosonkai.gr.jp/~reikidb/data/110/33/reiki.html	h-chosonkai	enabled		
 01453	https://www.town.higashikagura.lg.jp/reiki_int/reiki_menu.html	taikei	enabled		
@@ -109,12 +109,12 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 01482	http://houmu.h-chosonkai.gr.jp/~reikidb/data/48/44/reiki.html	h-chosonkai	enabled		
 01483	http://www.town.tomamae.lg.jp/reiki/reiki_menu.html	taikei	enabled		
 01484	http://houmu.h-chosonkai.gr.jp/~reikidb/data/153/57/reiki.html	h-chosonkai	enabled		
-01485	http://houmu.h-chosonkai.gr.jp/~reikidb/data/96/13/reiki_menu.html	h-chosonkai	enabled		
+01485	http://houmu.h-chosonkai.gr.jp/~reikidb/data/96/13/reiki_menu.html	taikei	enabled		
 01486	http://houmu.h-chosonkai.gr.jp/~reikidb/data/34/54/reiki.html	h-chosonkai	enabled		
 01487	http://houmu.h-chosonkai.gr.jp/~reikidb/data/121/54/reiki.html	h-chosonkai	enabled		
 01511	https://www.vill.sarufutsu.hokkaido.jp/contents/reiki/reiki.html	reiki.html	enabled		
 01512	https://www1.g-reiki.net/hamatonbetsu/reiki_menu.html	g-reiki	enabled		
-01513	http://houmu.h-chosonkai.gr.jp/~reikidb/data/139/55/reiki_menu.html	h-chosonkai	enabled		
+01513	http://houmu.h-chosonkai.gr.jp/~reikidb/data/139/55/reiki_menu.html	taikei	enabled		
 01514	http://houmu.h-chosonkai.gr.jp/~reikidb/data/27/53/reiki.html	h-chosonkai	enabled		
 01516	http://houmu.h-chosonkai.gr.jp/~reikidb/data/134/54/reiki.html	h-chosonkai	enabled		
 01517	http://houmu.h-chosonkai.gr.jp/~reikidb/data/210/50/reiki.html	h-chosonkai	enabled		
@@ -124,25 +124,25 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 01543	http://bousai.town.bihoro.hokkaido.jp/reiki/reiki_menu.html	taikei	enabled		
 01544	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A79F4AC94	d1-law	enabled		
 01545			unresolved	source_url_unresolved	h-chosonkai の data/95/52/reiki_menu.html が404。移転先を未特定
-01546	http://houmu.h-chosonkai.gr.jp/~reikidb/data/66/58/reiki_menu.html	h-chosonkai	enabled		
+01546	http://houmu.h-chosonkai.gr.jp/~reikidb/data/66/58/reiki_menu.html	taikei	enabled		
 01547	http://houmu.h-chosonkai.gr.jp/~reikidb/data/76/54/reiki.html	h-chosonkai	enabled		
 01549	http://houmu.h-chosonkai.gr.jp/~reikidb/data/74/53/reiki.html	h-chosonkai	enabled		
-01550	http://houmu.h-chosonkai.gr.jp/~reikidb/data/40/59/reiki_menu.html	h-chosonkai	enabled		
+01550	http://houmu.h-chosonkai.gr.jp/~reikidb/data/40/59/reiki_menu.html	taikei	enabled		
 01552	https://www.town.saroma.hokkaido.jp/reiki_int/reiki_menu.html	taikei	enabled		
 01555	https://engaru.jp/reiki/reiki_menu.html	taikei	enabled		
-01559	http://houmu.h-chosonkai.gr.jp/~reikidb/data/199/57/reiki_menu.html	h-chosonkai	enabled		
-01560	http://houmu.h-chosonkai.gr.jp/~reikidb/data/112/79/reiki_menu.html	h-chosonkai	enabled		
+01559	http://houmu.h-chosonkai.gr.jp/~reikidb/data/199/57/reiki_menu.html	taikei	enabled		
+01560	http://houmu.h-chosonkai.gr.jp/~reikidb/data/112/79/reiki_menu.html	taikei	enabled		
 01561	https://public.joureikun.jp/okoppe_town/reiki/	joureikun	enabled		
 01562	http://houmu.h-chosonkai.gr.jp/~reikidb/data/147/47/reiki.html	h-chosonkai	enabled		
-01563	http://houmu.h-chosonkai.gr.jp/~reikidb/data/36/62/reiki_menu.html	h-chosonkai	enabled		
+01563	http://houmu.h-chosonkai.gr.jp/~reikidb/data/36/62/reiki_menu.html	taikei	enabled		
 01564	https://www.town.ozora.hokkaido.jp/section/reiki_int/reiki_menu.html	taikei	enabled		
 01571			unresolved	source_url_unresolved	h-chosonkai の data/132/75/reiki_menu.html が404。移転先を未特定
-01575	http://houmu.h-chosonkai.gr.jp/~reikidb/data/107/43/reiki_menu.html	h-chosonkai	enabled		
+01575	http://houmu.h-chosonkai.gr.jp/~reikidb/data/107/43/reiki_menu.html	taikei	enabled		
 01578	https://www.town.shiraoi.hokkaido.jp/reiki_int/reiki_menu.html	taikei	enabled		
-01581	http://houmu.h-chosonkai.gr.jp/~reikidb/data/12/50/reiki_menu.html	h-chosonkai	enabled		
+01581	http://houmu.h-chosonkai.gr.jp/~reikidb/data/12/50/reiki_menu.html	taikei	enabled		
 01584	http://houmu.h-chosonkai.gr.jp/~reikidb/data/126/40/reiki.html	h-chosonkai	enabled		
 01585	http://houmu.h-chosonkai.gr.jp/~reikidb/data/7/60/reiki.html	h-chosonkai	enabled		
-01586	http://houmu.h-chosonkai.gr.jp/~reikidb/data/189/43/reiki_menu.html	h-chosonkai	enabled		
+01586	http://houmu.h-chosonkai.gr.jp/~reikidb/data/189/43/reiki_menu.html	taikei	enabled		
 01601	https://www.town.hidaka.hokkaido.jp/reiki/reiki.html	reiki.html	enabled		
 01602	http://houmu.h-chosonkai.gr.jp/~reikidb/data/167/46/reiki.html	h-chosonkai	enabled		
 01604	https://www.niikappu.jp/reiki/	taikei	enabled		
@@ -175,7 +175,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 01665	http://houmu.h-chosonkai.gr.jp/~reikidb/data/122/47/reiki.html	h-chosonkai	enabled		
 01667	http://houmu.h-chosonkai.gr.jp/~reikidb/data/120/57/reiki.html	h-chosonkai	enabled		
 01668	https://www1.g-reiki.net/town.shiranuka/reiki_menu.html	g-reiki	enabled		
-01691	http://houmu.h-chosonkai.gr.jp/~reikidb/data/174/59/reiki_menu.html	h-chosonkai	enabled		
+01691	http://houmu.h-chosonkai.gr.jp/~reikidb/data/174/59/reiki_menu.html	taikei	enabled		
 01692	http://houmu.h-chosonkai.gr.jp/~reikidb/data/138/63/reiki.html	h-chosonkai	enabled		
 01693			unresolved	source_url_unresolved	h-chosonkai の data/88/50/reiki_menu.html が404。移転先を未特定
 01694	https://www1.g-reiki.net/rausu-town/reiki_menu.html	g-reiki	enabled		
