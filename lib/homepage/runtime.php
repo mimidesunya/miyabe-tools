@@ -1326,7 +1326,11 @@ function homepage_task_display_found_nothing(?array $display): bool
     if (!is_array($display)) {
         return false;
     }
-    return str_contains((string)($display['detail'] ?? ''), '会議録を見つけられませんでした');
+    $detail = (string)($display['detail'] ?? '');
+    // 以前の走査は「取得対象件数が0件です」と書いていた。次の走査で
+    // 書き換わるまでの間も、同じ状態として扱う。
+    return str_contains($detail, '会議録を見つけられませんでした')
+        || str_contains($detail, '取得対象件数が0件です');
 }
 
 
