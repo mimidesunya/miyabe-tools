@@ -64,7 +64,9 @@ function main(array $argv): void
     ensure_dir($imageDir);
     ensure_dir($markdownDir);
     echo "Crawling {$target['name']} reiki taxonomy...\n";
-    $crawl = crawl_taxonomy((string)$target['entry_url']);
+    // 走査する取得元が決まってから、目次の入口を確かめる。台帳を読むだけの
+    // 場面で解決すると、全国分の入口ページへ一斉に当たることになる。
+    $crawl = crawl_taxonomy(derive_taikei_entry_url((string)$target['source_url']));
     $records = array_values($crawl['records']);
     usort($records, static fn(array $a, array $b): int => strcmp((string)$a['code'], (string)$b['code']));
 
@@ -1242,7 +1244,7 @@ function build_reiki_target_entry(string $slug, array $entry, array $urlEntry, a
         'code' => $code,
         'system_type' => $systemType,
         'source_url' => trim((string)($urlEntry['url'] ?? '')),
-        'entry_url' => derive_taikei_entry_url(trim((string)($urlEntry['url'] ?? ''))),
+        'entry_url' => derive_taikei_entry_url(trim((string)($urlEntry['url'] ?? '')), false),
         'data_root' => build_data_path("reiki/{$slug}"),
         'work_root' => dirname($sourceDir),
         'source_dir' => $sourceDir,
@@ -1370,7 +1372,37 @@ function default_slug_for_system(string $expectedSystem): string
     throw new RuntimeException("No municipality found for system_type={$expectedSystem}");
 }
 
-function derive_taikei_entry_url(string $sourceUrl): string
+// 中継ページに並ぶ「体系目次」「五十音順目次」から、走査の入口を選ぶ。
+// 体系目次を優先する（分野ごとに辿れて、重複が少ない）。
+function find_reiki_index_link(string $sourceUrl): string
+{
+    try {
+        $html = fetch_url($sourceUrl);
+    } catch (Throwable $exception) {
+        return '';
+    }
+    $best = '';
+    if (preg_match_all('#<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>#si', $html, $matches, PREG_SET_ORDER) < 1) {
+        return '';
+    }
+    foreach ($matches as $match) {
+        $text = trim(preg_replace('#\s+#u', ' ', strip_tags($match[2])));
+        $href = resolve_url($sourceUrl, html_entity_decode($match[1], ENT_QUOTES, 'UTF-8'));
+        if ($text === '' || $href === '') {
+            continue;
+        }
+        if (str_contains($text, '体系')) {
+            return $href;
+        }
+        if ($best === '' && (str_contains($text, '目次') || str_contains($text, '五十音'))) {
+            $best = $href;
+        }
+    }
+    return $best;
+}
+
+
+function derive_taikei_entry_url(string $sourceUrl, bool $mayFetch = true): string
 {
     $sourceUrl = trim($sourceUrl);
     if ($sourceUrl === '') {
@@ -1386,11 +1418,19 @@ function derive_taikei_entry_url(string $sourceUrl): string
     if (str_contains($lowerPath, '/reiki_taikei/')) {
         return $sourceUrl;
     }
+    // 体系目次と五十音目次への入口だけを置く中継ページがある。例規への
+    // リンクを持たないので、そのまま走査すると 0 件で終わる（四日市市・
+    // 春日井市・京都市など）。綴りは reiki_menu / reiki-menu / reiki.html
+    // と揺れるうえ目次の場所も取得元によって違うので、まずページに書かれた
+    // 目次リンクを使い、読めないときだけ既定の場所へ読み替える。
     if (
         str_ends_with($lowerPath, '/')
-        || preg_match('#/(reiki_menu|index)\.html?$#i', $path) === 1
+        || preg_match('#/(reiki[_-]?menu|reiki|index)\.html?$#i', $path) === 1
     ) {
-        return resolve_url($sourceUrl, 'reiki_taikei/taikei_default.html');
+        // 台帳を読むだけの場面（対象一覧の組み立て）では取りに行かない。
+        // 全国分の入口ページを一度に叩くことになり 429 を招く。
+        $mokuji = $mayFetch ? find_reiki_index_link($sourceUrl) : '';
+        return $mokuji !== '' ? $mokuji : resolve_url($sourceUrl, 'reiki_taikei/taikei_default.html');
     }
 
     return $sourceUrl;
