@@ -286,6 +286,12 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False):
         for hno in re.findall(r"OpenResDataWin\('([^']+)'\)", content):
             hno_set.add(hno)
 
+        # 例規を JavaScript ではなく普通のリンクで並べる取得元がある
+        # （京都市・留寿都村）。H…/H…_j.html の形なので、ディレクトリ名を
+        # そのまま例規 ID として拾う。
+        for hno in re.findall(r'href="([A-Za-z0-9]+)/\1_j\.html"', content):
+            hno_set.add(hno)
+
     return sorted(hno_set)
 
 
