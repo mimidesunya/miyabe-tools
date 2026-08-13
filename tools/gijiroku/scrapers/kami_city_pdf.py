@@ -65,6 +65,8 @@ def looks_like_attachment_pdf(url: str, anchor_text: str) -> bool:
     誤って HTML ページを PDF として扱わないよう、会議録らしいリンク文字列を
     持つものだけに限る。
     """
+    if anchor_text_names_a_pdf(url, anchor_text):
+        return True
     if not ATTACHMENT_ENDPOINT_RE.search(url) and not query_names_a_pdf(url):
         return False
     haystack = normalize_space(anchor_text).lower()
@@ -81,6 +83,20 @@ def query_names_a_pdf(url: str) -> bool:
     if parts.query == "":
         return False
     return ".pdf" in parts.query.lower()
+
+
+# ファイル名を URL のどこにも出さず、リンク文字列だけで示す配信口がある
+# （上士幌町の /dl.php?up_code=… に「…会議録.pdf」と添える形）。
+DOWNLOAD_ENDPOINT_RE = re.compile(r"/(?:dl|download|file)\.(?:php|aspx?|cgi|do)\b", re.I)
+
+
+def anchor_text_names_a_pdf(url: str, anchor_text: str) -> bool:
+    """配信口へのリンクで、文字列側がファイル名を名乗っているかを見る。"""
+    if not DOWNLOAD_ENDPOINT_RE.search(url):
+        return False
+    return normalize_space(anchor_text).lower().endswith(".pdf")
+
+
 YEAR_OR_LIST_RE = re.compile(r"(20\d{2}|令和[元\d０-９]+|平成[元\d０-９]+|昭和[元\d０-９]+|list\d+|\d{4,6}\.html)", re.I)
 
 

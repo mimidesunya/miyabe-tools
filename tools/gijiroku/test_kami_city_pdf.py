@@ -72,3 +72,21 @@ class QueryNamesAPdfTest(unittest.TestCase):
         # 拡張子だけでは判断しない。会議録らしい文字列を伴うものに限る。
         url = "https://example.lg.jp/dl?q=1_filelib_x.pdf"
         self.assertFalse(kami_city_pdf.looks_like_attachment_pdf(url, "入札公告"))
+
+
+class AnchorTextNamesAPdfTest(unittest.TestCase):
+    def test_download_endpoint_with_a_pdf_label(self) -> None:
+        # 上士幌町は /dl.php?up_code=… にファイル名を文字列で添える。
+        url = "https://www.kamishihoro.jp/dl.php?up_code=11145"
+        label = "令和6年第6回上士幌町議会定例会会議録.pdf"
+        self.assertTrue(kami_city_pdf.anchor_text_names_a_pdf(url, label))
+        self.assertTrue(kami_city_pdf.looks_like_attachment_pdf(url, label))
+
+    def test_label_without_a_pdf_suffix_is_not_one(self) -> None:
+        url = "https://www.kamishihoro.jp/dl.php?up_code=11145"
+        self.assertFalse(kami_city_pdf.anchor_text_names_a_pdf(url, "会議録を開く"))
+
+    def test_ordinary_page_link_is_untouched(self) -> None:
+        self.assertFalse(
+            kami_city_pdf.anchor_text_names_a_pdf("https://example.lg.jp/entry/1", "資料.pdf")
+        )
