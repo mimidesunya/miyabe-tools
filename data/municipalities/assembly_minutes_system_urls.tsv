@@ -59,7 +59,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 01394	https://www.town.rankoshi.hokkaido.jp/administration/town/detail.html?content=301	独自	enabled			2026-08-02	f062673395f0e23b4765b8f0a066ca0737a1d6a54d03ae3c412bcdf1ea0a4334
 01395	https://www.town.niseko.lg.jp/chosei/gikai/kaigi/	独自	enabled			2026-08-02	592e65558c5abf2e9459ff81c3da94e28864e4199c5835e7a338f7cf8a91c447
 01396	https://www.vill.makkari.lg.jp/songikai/kaigiroku/	static-kaigiroku-dir	enabled			2026-08-02	df1f720596d70b10d7f4fd6630bb5ee1bab2adaaee43f1d7d598a89c24989db0
-01397	https://www.vill.rusutsu.lg.jp/hotnews/detail/00004391.html	独自	enabled			2026-08-02	2f032c15ecbb1854cce61326fc27c6e32cd5f3658111c63aa0b1c4a8324c17cf
+01397			unresolved	source_url_unresolved	登録URLは農業委員会総会の議事録。議会会議録の公開先を未特定		f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 01398			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 01399			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 01400	https://ssp.kaigiroku.net/tenant/kutchan/SpTop.html	kaigiroku.net	enabled				306c6f6ae9867c079f4597a4bd35b513aa862d1c757d8cf924aae3e3e2e7bee7
@@ -76,7 +76,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 01424	https://www.town.naie.hokkaido.jp/gikai/g_kaigiroku/	static-kaigiroku-dir	enabled			2026-08-02	ccbbd5ed95d167d404ed9cb8462cbee975f71d93d6f64ee7f80bd1e60ef6bd2f
 01425	https://town.kamisunagawa.hokkaido.jp/gikai_jimukyoku/kekka/index.html	独自	enabled			2026-08-02	e66eb83088a42af6187182c9b9f122ca56b6f02eefc7e83313a13f222cd33cf2
 01427			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
-01428	https://www.maoi-net.jp/kanko_nogyo/nogyoiinkai/nittei.html	独自	enabled			2026-08-02	c164313d03eec343f6f2a24017b6d7155ab7084a6d04555aabab63538e101070
+01428			unresolved	source_url_unresolved	登録URLは農業委員会の議事録。議会会議録の公開先を未特定		f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 01429	https://www.town.kuriyama.hokkaido.jp/site/gikai/7389.html	site-gikai-pdf	enabled	robots_unreachable	https://www.town.kuriyama.hokkaido.jp/robots.txt / HTTP 403	2026-08-02	cece6633403a9c93d21b056f7138261cde0517320b26c56e562734825b8ff68c
 01430			unresolved	source_url_unresolved	登録URLは農業委員会総会の議事録。議会会議録の公開先を未特定		f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 01431			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
@@ -109,7 +109,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 01482	https://www.town.obira.hokkaido.jp/hotnews/detail/00004061.html	独自	enabled			2026-08-02	85736d3531dda4574d342175f27b1ecf4376c9c15f9aafe2f30c1a175441df69
 01483			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 01484	https://www.town.haboro.lg.jp/gikai-iinkai/gikai/gijiroku/	static-kaigiroku-dir	enabled			2026-08-02	5b030169a5382b72a415e228bdccffac2337c11ab96f4db4090e8b8e13cb2060
-01485	https://www.vill.shosanbetsu.lg.jp/topics/gikaijimu/20200401.html	独自	enabled			2026-08-02	a6851607de2687e12171763b485d59ccbeb8bd1bbf42fea6730a4841c5341b5b
+01485	https://www.vill.shosanbetsu.lg.jp/topics/gikaijimu/	独自	enabled				52acf07d016cd48aac8d90916a07d6e70f46f26b53c50fbd3e4eee940954db51
 01486	https://www.town.embetsu.hokkaido.jp/docs/4088.html	独自	enabled			2026-08-02	05a84e8c0c5033fc97d08d3d309684d1884d97ead2a96375bf1edfc6abbefbf6
 01487			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 01511			unresolved	source_url_unresolved	登録URLは農業委員会総会の議事録。議会会議録の公開先を未特定		f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
