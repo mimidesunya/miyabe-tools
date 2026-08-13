@@ -258,8 +258,19 @@ def classified_scrape_summary(
     eligible = downloaded + failed + unknown_missing
 
     warning_lines: list[str] = []
-    if excluded > 0:
-        warning_lines.append(f"会議録本体ではない候補を除外 {excluded}件")
+    # 本文が取り出せなかった PDF は、目次や名簿を除いたのとは事情が違う。
+    # 会議録そのものなのに紙を画像で貼った PDF で、待っても本文にならない。
+    empty_pdf = int(counts.get("empty_pdf_text", 0))
+    other_excluded = excluded - empty_pdf
+    if empty_pdf > 0:
+        if downloaded == 0 and other_excluded == 0:
+            warning_lines.append(
+                f"取得元の PDF {empty_pdf}件はすべて文字情報を持たず、本文を取り出せません"
+            )
+        else:
+            warning_lines.append(f"文字情報のない PDF を除外 {empty_pdf}件")
+    if other_excluded > 0:
+        warning_lines.append(f"会議録本体ではない候補を除外 {other_excluded}件")
     if failed > 0:
         warning_lines.append(f"取得エラー {failed}件")
     if unknown_missing > 0:
