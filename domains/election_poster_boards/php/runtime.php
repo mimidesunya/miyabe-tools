@@ -4,6 +4,7 @@ declare(strict_types=1);
 $posterBoardsSharedLib = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'lib';
 require_once $posterBoardsSharedLib . DIRECTORY_SEPARATOR . 'municipalities.php';
 unset($posterBoardsSharedLib);
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'municipality_feature.php';
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
@@ -79,7 +80,7 @@ function poster_boards_open_users_pdo(): PDO
 function poster_boards_open_boards_pdo(string $slug): PDO
 {
     $slug = get_slug($slug);
-    $feature = municipality_feature($slug, 'boards') ?? [];
+    $feature = poster_boards_municipality_feature($slug) ?? [];
     $path = trim((string)($feature['db_path'] ?? ''));
     if ($path === '') {
         $path = data_path("boards/{$slug}/boards.sqlite");
@@ -90,7 +91,7 @@ function poster_boards_open_boards_pdo(string $slug): PDO
 function poster_boards_open_tasks_pdo(string $slug): PDO
 {
     $slug = get_slug($slug);
-    $feature = municipality_feature($slug, 'boards') ?? [];
+    $feature = poster_boards_municipality_feature($slug) ?? [];
     $tasksPath = trim((string)($feature['tasks_db_path'] ?? ''));
     if ($tasksPath === '') {
         $tasksPath = data_path("boards/{$slug}/tasks.sqlite");
@@ -109,7 +110,7 @@ function poster_boards_open_boards_with_tasks_pdo(string $slug): PDO
     $slug = get_slug($slug);
     $pdo = poster_boards_open_boards_pdo($slug);
 
-    $feature = municipality_feature($slug, 'boards') ?? [];
+    $feature = poster_boards_municipality_feature($slug) ?? [];
     $tasksPath = trim((string)($feature['tasks_db_path'] ?? ''));
     if ($tasksPath === '') {
         $tasksPath = data_path("boards/{$slug}/tasks.sqlite");

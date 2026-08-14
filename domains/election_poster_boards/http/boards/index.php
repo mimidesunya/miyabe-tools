@@ -13,14 +13,14 @@ $requestedSlug = $_GET['slug'] ?? null;
 redirect_to_canonical_boards_slug_if_needed(is_string($requestedSlug) ? $requestedSlug : null);
 $slug = get_slug();
 $requestSlug = municipality_public_slug($slug);
-$municipality = municipality_entry($slug);
+$municipality = poster_boards_municipality_entry($slug);
 if ($municipality === null) {
     http_response_code(404);
     echo '自治体が見つかりません。';
     exit;
 }
 
-$switcherItems = municipality_switcher_items('boards');
+$switcherItems = poster_boards_municipality_switcher_items();
 $pageTitle = (string)($municipality['boards']['title'] ?? ($municipality['name'] . ' ポスター掲示場'));
 ?><!DOCTYPE html>
 <html lang="ja">

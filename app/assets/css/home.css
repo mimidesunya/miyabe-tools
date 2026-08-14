@@ -364,10 +364,6 @@ h1 {
     background: var(--amber);
 }
 
-.legend-dot-boards {
-    background: var(--green);
-}
-
 .legend-dot-pending {
     background: #e2e8f0;
     border: 1px dashed #94a3b8;
@@ -504,10 +500,6 @@ h1 {
     background: var(--amber);
 }
 
-.map-pin-dot-boards {
-    background: var(--green);
-}
-
 .map-pin-dot.is-pending {
     color: #475569;
     background: #e2e8f0;
@@ -566,11 +558,6 @@ h1 {
 .popup-service-reiki {
     color: var(--amber);
     background: rgba(180, 83, 9, 0.10);
-}
-
-.popup-service-boards {
-    color: var(--green);
-    background: rgba(21, 128, 61, 0.10);
 }
 
 .popup-service.is-pending {
@@ -632,10 +619,6 @@ h1 {
 
 .service-dot-reiki {
     background: var(--amber);
-}
-
-.service-dot-boards {
-    background: var(--green);
 }
 
 .service-dot-pending {
@@ -1530,14 +1513,14 @@ h1 em {
 .feature-domain-switch {
     min-width: 0;
     display: grid;
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: 1fr;
 }
 
 .feature-domain-group {
     min-width: 0;
     display: grid;
     grid-template-rows: 24px 1fr;
-    border-right: 1px solid var(--line);
+    border-right: 0;
 }
 
 .feature-domain-group > span {
@@ -1558,7 +1541,6 @@ h1 em {
 }
 
 .feature-switch-documents { grid-template-columns: repeat(2, 1fr); }
-.feature-switch-election { grid-template-columns: 1fr; }
 
 .feature-switch button {
     min-height: 0;
@@ -1583,7 +1565,6 @@ h1 em {
 
 .feature-switch button[data-feature-filter="gijiroku"]::before { background: var(--blue); }
 .feature-switch button[data-feature-filter="reiki"]::before { background: var(--amber); }
-.feature-switch button[data-feature-filter="boards"]::before { background: var(--green); }
 
 .feature-switch button:hover,
 .feature-switch button.is-active {

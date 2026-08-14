@@ -20,11 +20,10 @@
     const runningSummaryList = document.querySelector('[data-running-summary-list]');
     const runningList = document.querySelector('[data-running-list]');
 
-    const featureKeys = ['gijiroku', 'reiki', 'boards'];
+    const featureKeys = ['gijiroku', 'reiki'];
     const featureMeta = {
         gijiroku: { label: '会議録', shortLabel: '会', color: '#2563eb' },
         reiki: { label: '例規集', shortLabel: '例', color: '#b45309' },
-        boards: { label: '選挙ポスター掲示場', shortLabel: '掲', color: '#15803d' },
     };
     const detailedMarkerMinZoom = 7;
 
@@ -142,8 +141,7 @@
 
     function normalizeFeature(value) {
         if (value === 'minutes') return 'gijiroku';
-        if (value === 'poster' || value === 'posters') return 'boards';
-        return ['gijiroku', 'reiki', 'boards'].includes(value) ? value : defaultFeature;
+        return featureKeys.includes(value) ? value : defaultFeature;
     }
 
     function normalizeIssue(value) {
@@ -588,7 +586,7 @@
 
     function renderStats() {
         if (!statbar) return;
-        const stats = ['all', 'gijiroku', 'reiki', 'boards'].map(statForFeature);
+        const stats = ['all', 'gijiroku', 'reiki'].map(statForFeature);
         statbar.innerHTML = stats.map((stat, index) => {
             const ratio = stat.total > 0 ? Math.min(100, Math.round((stat.ready / stat.total) * 100)) : 0;
             const denominator = stat.target && stat.target > stat.total ? stat.target : stat.total;
@@ -669,7 +667,6 @@
                 <div class="service-dots">
                     ${renderFeatureDot('gijiroku', card)}
                     ${renderFeatureDot('reiki', card)}
-                    ${renderFeatureDot('boards', card)}
                 </div>
             </div>
             <div class="detail-features">
@@ -757,7 +754,6 @@
                     <span class="service-dots">
                         ${renderFeatureDot('gijiroku', card)}
                         ${renderFeatureDot('reiki', card)}
-                        ${renderFeatureDot('boards', card)}
                     </span>
                     ${hasSearchableMinutes ? `<span class="municipality-row-range${coverage ? '' : ' is-unknown'}" title="公開検索で実際に検索できる最古〜最新の会議日です。日付を抽出できない資料は範囲に含まれません。">会議日 ${coverage ? escapeHtml(searchCoverageText(coverage, { includeCount: false, compact: true })) : '日付情報なし'}</span>` : ''}
                 </button>
@@ -915,13 +911,31 @@
         renderDetail(cards.find((card) => String(card.slug || '') === state.selectedSlug));
     }
 
+    function documentCatalogPayload(payload) {
+        const cards = (Array.isArray(payload?.municipalities) ? payload.municipalities : [])
+            .map((card) => ({
+                ...card,
+                features: (Array.isArray(card?.features) ? card.features : [])
+                    .filter((feature) => featureKeys.includes(String(feature?.feature_key || ''))),
+            }))
+            .filter((card) => card.features.length > 0);
+
+        return {
+            ...payload,
+            display_municipality_count: cards.length,
+            feature_summaries: (Array.isArray(payload?.feature_summaries) ? payload.feature_summaries : [])
+                .filter((summary) => featureKeys.includes(String(summary?.feature_key || ''))),
+            municipalities: cards,
+        };
+    }
+
     function renderPayload(payload) {
-        state.payload = payload;
+        state.payload = documentCatalogPayload(payload);
         if (loadingPanel) loadingPanel.remove();
-        if (municipalityCountElement) municipalityCountElement.textContent = `自治体マスタ: ${Number(payload?.municipality_count || 0)}`;
-        if (generatedAtElement) generatedAtElement.textContent = `更新: ${String(payload?.generated_at || '不明')}`;
-        if (taskSummariesElement) taskSummariesElement.innerHTML = renderFeatureSummaries(payload?.feature_summaries);
-        renderProcessingStatus(payload);
+        if (municipalityCountElement) municipalityCountElement.textContent = `自治体マスタ: ${Number(state.payload?.municipality_count || 0)}`;
+        if (generatedAtElement) generatedAtElement.textContent = `更新: ${String(state.payload?.generated_at || '不明')}`;
+        if (taskSummariesElement) taskSummariesElement.innerHTML = renderFeatureSummaries(state.payload?.feature_summaries);
+        renderProcessingStatus(state.payload);
         syncControls();
         ensureSelection();
         // 視点の自動リセットは初回描画だけ。定期更新では現在の表示位置を保つ。

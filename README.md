@@ -64,7 +64,7 @@ OpenSearch の index はスクレイピング済みファイルから再構築�
 
 ## トップページ
 
-トップページは `/api/home.php` の結果から Leaflet で自治体対応マップを描画します。実行状態の正本は PostgreSQL の管理テーブルです。描画方式・API・表示ルールの詳細は [doc/home-page.md](doc/home-page.md) を参照してください。
+トップページは `/api/home.php` の結果から会議録・例規集だけの自治体対応マップを描画します。選挙ポスター掲示場は自治体一覧へ混ぜず、独立した `/boards/` で提供します。実行状態の正本は PostgreSQL の管理テーブルです。描画方式・API・表示ルールの詳細は [doc/home-page.md](doc/home-page.md) を参照してください。
 
 ## 検索基盤
 

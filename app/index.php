@@ -96,18 +96,12 @@ function home_h(?string $value): string
                 <span class="coverage-count" data-home-display-count>表示自治体: 0</span>
             </div>
             <div class="toolbar">
-                <div class="feature-domain-switch" aria-label="表示する領域と機能">
+                <div class="feature-domain-switch" aria-label="表示する自治体文書">
                     <div class="feature-domain-group">
                         <span>自治体文書</span>
                         <div class="feature-switch feature-switch-documents" role="group" aria-label="自治体文書">
                             <button type="button" class="is-active" data-feature-filter="gijiroku">会議録</button>
                             <button type="button" data-feature-filter="reiki">例規集</button>
-                        </div>
-                    </div>
-                    <div class="feature-domain-group feature-domain-group-election">
-                        <span>選挙支援</span>
-                        <div class="feature-switch feature-switch-election" role="group" aria-label="選挙支援">
-                            <button type="button" data-feature-filter="boards">ポスター掲示場</button>
                         </div>
                     </div>
                 </div>
@@ -142,7 +136,6 @@ function home_h(?string $value): string
                         <div class="legend" aria-label="凡例">
                             <span><i class="legend-dot legend-dot-minutes"></i>会議録</span>
                             <span><i class="legend-dot legend-dot-reiki"></i>例規集</span>
-                            <span><i class="legend-dot legend-dot-boards"></i>選挙ポスター掲示場</span>
                             <span><i class="legend-dot legend-dot-pending"></i>準備中</span>
                         </div>
                     </div>

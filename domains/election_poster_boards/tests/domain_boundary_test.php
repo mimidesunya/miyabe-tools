@@ -10,6 +10,7 @@ function expect_value(bool $condition, string $message): void
 
 $root = dirname(__DIR__, 3);
 require_once $root . '/lib/municipalities.php';
+require_once dirname(__DIR__) . '/php/municipality_feature.php';
 
 $feature = poster_boards_normalize_municipality_feature(
     '99999-test-shi',

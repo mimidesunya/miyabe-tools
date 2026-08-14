@@ -3,12 +3,6 @@ declare(strict_types=1);
 
 // 自治体マスタ、config.json、実データ配置を突き合わせて公開用の自治体カタログを組み立てる。
 
-require_once dirname(__DIR__)
-    . DIRECTORY_SEPARATOR . 'domains'
-    . DIRECTORY_SEPARATOR . 'election_poster_boards'
-    . DIRECTORY_SEPARATOR . 'php'
-    . DIRECTORY_SEPARATOR . 'municipality_feature.php';
-
 function app_utc_timezone(): DateTimeZone
 {
     static $timezone = null;
@@ -177,6 +171,10 @@ function municipality_catalog_cache_is_compatible(array $cached): bool
 {
     foreach ($cached as $entry) {
         if (!is_array($entry)) {
+            return false;
+        }
+        // 掲示場は独立ドメインで組み立てる。旧キャッシュの feature を共有カタログへ戻さない。
+        if (array_key_exists('boards', $entry)) {
             return false;
         }
         $publicSlug = trim((string)($entry['public_slug'] ?? ''));
@@ -602,9 +600,6 @@ function municipality_feature_metadata_item_has_data(array $item): bool
 function municipality_feature_live_has_data(string $feature, array $featureConfig): bool
 {
     switch ($feature) {
-        case 'boards':
-            return poster_boards_feature_has_live_data($featureConfig);
-
         case 'reiki':
             $htmlDir = trim((string)($featureConfig['clean_html_dir'] ?? ''));
             return $htmlDir !== '' && directory_contains_matching_file(
@@ -747,14 +742,6 @@ function normalize_municipality_entry(string $slug, array $entry): array
     $nameRomaji = trim((string)($entry['name_romaji'] ?? $masterEntry['name_romaji'] ?? ''));
     $publicSlug = $slug;
 
-    $boardsConfig = is_array($entry['boards'] ?? null) ? $entry['boards'] : [];
-    $boardsFeature = poster_boards_normalize_municipality_feature(
-        $slug,
-        $publicSlug,
-        $name,
-        $boardsConfig
-    );
-
     $reikiConfig = is_array($entry['reiki'] ?? null) ? $entry['reiki'] : [];
     $reikiSkipDetection = !empty($reikiConfig['skip_detection']);
     $reikiSourceRelative = normalize_data_relative_path(trim((string)($reikiConfig['source_dir'] ?? $reikiConfig['data_dir'] ?? "reiki/{$slug}/source")));
@@ -801,7 +788,6 @@ function normalize_municipality_entry(string $slug, array $entry): array
         'name_kana' => $nameKana,
         'full_name' => $fullName,
         'name_romaji' => $nameRomaji,
-        'boards' => $boardsFeature,
         'reiki' => [
             'enabled' => $reikiEnabled,
             'has_data' => $reikiDetected,
@@ -1133,29 +1119,6 @@ function redirect_to_canonical_query_slug_if_needed(?string $input = null): void
     $query = $_GET;
     $query['slug'] = $canonical;
     $location = $path . '?' . http_build_query($query);
-    header('Location: ' . $location, true, 302);
-    exit;
-}
-
-function redirect_to_canonical_boards_slug_if_needed(?string $input = null, string $suffix = ''): void
-{
-    $canonical = requested_canonical_slug($input);
-    if ($canonical === null) {
-        return;
-    }
-
-    $suffix = ltrim($suffix, '/');
-    $location = '/boards/' . rawurlencode($canonical) . '/';
-    if ($suffix !== '') {
-        $location .= $suffix;
-    }
-    if (!empty($_GET)) {
-        $query = $_GET;
-        unset($query['slug']);
-        if ($query !== []) {
-            $location .= '?' . http_build_query($query);
-        }
-    }
     header('Location: ' . $location, true, 302);
     exit;
 }

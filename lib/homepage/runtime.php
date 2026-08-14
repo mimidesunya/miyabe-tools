@@ -2992,19 +2992,27 @@ function homepage_collect_visible_features(
     ];
 }
 
-function homepage_build_context(bool $includeRegistryStates = false): array
+function homepage_document_feature_labels(): array
 {
-    $municipalities = municipality_catalog();
-    $featureLabels = [
-        'boards' => '選挙ポスター掲示場',
+    return [
         'gijiroku' => '会議録',
         'reiki' => '例規集',
     ];
-    $featureIcons = [
-        'boards' => '🗳️',
+}
+
+function homepage_document_feature_icons(): array
+{
+    return [
         'gijiroku' => '🏛️',
         'reiki' => '⚖️',
     ];
+}
+
+function homepage_build_context(bool $includeRegistryStates = false): array
+{
+    $municipalities = municipality_catalog();
+    $featureLabels = homepage_document_feature_labels();
+    $featureIcons = homepage_document_feature_icons();
     $backgroundTaskStatuses = [
         'gijiroku' => homepage_normalize_task_status_items(load_background_task_status('gijiroku')),
         'reiki' => homepage_normalize_task_status_items(load_background_task_status('reiki')),
@@ -3090,8 +3098,7 @@ function homepage_build_context(bool $includeRegistryStates = false): array
 
     $displayMunicipalities = [];
     foreach ($municipalities as $slug => $municipality) {
-        // カード表示可否は visible_features を作った結果だけで決める。
-        // ポスター掲示場・会議録・例規集の三つがすべて非表示なら、自治体カード自体も出さない。
+        // 自治体文書（会議録・例規集）がどちらも非表示なら、自治体カード自体も出さない。
         $summary = homepage_collect_visible_features(
             $municipality,
             (string)$slug,
@@ -3447,8 +3454,65 @@ function homepage_overlay_live_status(array $payload, bool $includeTaskStatusPay
     return $payload;
 }
 
+function homepage_filter_document_catalog_payload(array $payload): array
+{
+    $allowedFeatures = array_fill_keys(array_keys(homepage_document_feature_labels()), true);
+
+    foreach (['feature_summaries', 'task_state_summaries', 'running_tasks'] as $listKey) {
+        if (!is_array($payload[$listKey] ?? null)) {
+            continue;
+        }
+        $payload[$listKey] = array_values(array_filter(
+            $payload[$listKey],
+            static function ($item) use ($allowedFeatures): bool {
+                return is_array($item)
+                    && isset($allowedFeatures[trim((string)($item['feature_key'] ?? ''))]);
+            }
+        ));
+    }
+
+    if (!is_array($payload['municipalities'] ?? null)) {
+        return $payload;
+    }
+
+    $municipalities = [];
+    foreach ($payload['municipalities'] as $card) {
+        if (!is_array($card) || !is_array($card['features'] ?? null)) {
+            continue;
+        }
+        $features = array_values(array_filter(
+            $card['features'],
+            static function ($feature) use ($allowedFeatures): bool {
+                return is_array($feature)
+                    && isset($allowedFeatures[trim((string)($feature['feature_key'] ?? ''))]);
+            }
+        ));
+        if ($features === []) {
+            continue;
+        }
+
+        $availableLabels = [];
+        foreach ($features as $feature) {
+            if ((string)($feature['mode'] ?? '') === 'link') {
+                $availableLabels[] = (string)($feature['label'] ?? '');
+            }
+        }
+        $card['features'] = $features;
+        $card['feature_count'] = count($features);
+        $card['ready_visible_count'] = count($availableLabels);
+        $card['available_summary'] = implode('・', array_filter($availableLabels));
+        $municipalities[] = $card;
+    }
+
+    $payload['municipalities'] = $municipalities;
+    $payload['display_municipality_count'] = count($municipalities);
+    $payload['prefectures'] = homepage_prefecture_options_from_cards($municipalities);
+    return $payload;
+}
+
 function homepage_sanitize_api_payload_displays(array $payload): array
 {
+    $payload = homepage_filter_document_catalog_payload($payload);
     unset($payload['task_state_summaries'], $payload['running_tasks']);
 
     if (!is_array($payload['municipalities'] ?? null)) {

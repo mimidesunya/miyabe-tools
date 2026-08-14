@@ -69,6 +69,7 @@ try {
     }
     if (is_array($stalePayload)) {
         $stalePayload = homepage_filter_api_payload_by_prefecture($stalePayload, $prefectureFilter);
+        $stalePayload = homepage_sanitize_api_payload_displays($stalePayload);
         $encoded = json_encode(
             $stalePayload,
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE

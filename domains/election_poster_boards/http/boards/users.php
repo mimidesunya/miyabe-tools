@@ -102,9 +102,9 @@ if ($slug === '') {
 }
 $requestSlug = municipality_public_slug($slug);
 
-$municipality = municipality_entry($slug);
+$municipality = poster_boards_municipality_entry($slug);
 $municipalityName = (string)($municipality['name'] ?? $slug);
-$switcherItems = municipality_switcher_items('boards');
+$switcherItems = poster_boards_municipality_switcher_items();
 $pdo = poster_boards_open_tasks_pdo($slug);
 $me = poster_boards_current_user();
 $users = [];
@@ -282,7 +282,7 @@ if (!poster_boards_is_admin($me)) {
       <a href="/boards/list.php?slug=<?php echo h($requestSlug); ?>">一覧</a>
       <select aria-label="自治体切り替え" onchange="if (this.value) { window.location.href = this.value; }">
         <?php foreach ($switcherItems as $item): ?>
-          <?php $switchMunicipality = municipality_entry((string)$item['slug']); ?>
+          <?php $switchMunicipality = poster_boards_municipality_entry((string)$item['slug']); ?>
           <?php $switchUrl = (string)($switchMunicipality['boards']['users_url'] ?? ''); ?>
           <?php if (!$item['enabled']): ?>
             <option value="" disabled><?php echo h($item['name']); ?> (準備中)</option>

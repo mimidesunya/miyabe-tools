@@ -21,7 +21,7 @@ if (!$slug && isset($_SERVER['HTTP_REFERER'])) {
 }
 // スラッグのバリデーション
 if ($slug && preg_match('/^[a-z0-9_-]+$/', $slug)) {
-    if (municipality_entry($slug) !== null) {
+    if (poster_boards_municipality_entry($slug) !== null) {
         $_SESSION['login_return_slug'] = $slug;
     }
 }

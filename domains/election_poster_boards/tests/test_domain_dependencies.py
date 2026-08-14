@@ -5,6 +5,15 @@ from pathlib import Path
 
 
 class DomainDependencyTest(unittest.TestCase):
+    def test_shared_municipality_catalog_does_not_build_poster_board_features(self) -> None:
+        repository_root = Path(__file__).resolve().parents[3]
+        shared_catalog = (repository_root / "lib" / "municipalities.php").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("election_poster_boards", shared_catalog)
+        self.assertNotIn("poster_boards_", shared_catalog)
+        self.assertIn("array_key_exists('boards', $entry)", shared_catalog)
+
     def test_runtime_does_not_depend_on_municipal_document_services(self) -> None:
         domain_root = Path(__file__).resolve().parents[1]
         code_files = [

@@ -8,7 +8,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'php' . DIRECTORY_SEPARATOR . 'runtime.php';
 
 $slug = get_slug();
-$municipality = municipality_entry($slug);
+$municipality = poster_boards_municipality_entry($slug);
 if ($municipality === null) {
     http_response_code(404);
     exit;
