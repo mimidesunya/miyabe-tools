@@ -824,9 +824,9 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
             "exclude:mcp/dist/",
         ],
         "data/boards/": [
-            "exclude:tasks.sqlite",      # server-created: task progress
-            "exclude:users.sqlite",      # server-created: shared LINE users
-            "exclude:boards.sqlite",     # managed separately; never overwrite remote edits
+            "exclude:tasks.sqlite*",      # server-created: task progress and SQLite sidecars
+            "exclude:users.sqlite*",      # server-created: shared LINE users and SQLite sidecars
+            "exclude:boards.sqlite*",     # managed separately; never overwrite remote edits or sidecars
         ],
     }
     rsync_delete_excluded = {

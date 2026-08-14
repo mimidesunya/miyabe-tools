@@ -31,6 +31,14 @@ class DomainDependencyTest(unittest.TestCase):
                     f"{path.relative_to(domain_root)} depends on {dependency}",
                 )
 
+    def test_deploy_protects_sqlite_sidecars(self) -> None:
+        repository_root = Path(__file__).resolve().parents[3]
+        deploy_source = (repository_root / "deploy" / "deploy.py").read_text(
+            encoding="utf-8"
+        )
+        for database_name in ("boards.sqlite", "tasks.sqlite", "users.sqlite"):
+            self.assertIn(f'"exclude:{database_name}*"', deploy_source)
+
 
 if __name__ == "__main__":
     unittest.main()

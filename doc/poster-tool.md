@@ -26,8 +26,9 @@
 - 初期TSV: `dev/boards/data/{slug}/data.tsv`
 
 `users.sqlite` は全自治体で共有、`boards.sqlite` / `tasks.sqlite` は自治体ごとに分離されます。  
-`tasks.sqlite` はリモートサーバー上でのみ生成され、デプロイ時に転送・削除されません（rsync exclude）。  
-`boards.sqlite` もデプロイ時は転送されません。初回のみ手動で配置してください。
+`tasks.sqlite` はリモートサーバー上でのみ生成され、デプロイ時に WAL / SHM を含めて転送・削除されません（rsync exclude）。
+
+`boards.sqlite` と `users.sqlite` も WAL / SHM を含めてデプロイ対象外です。`boards.sqlite` は初回のみ手動で配置してください。
 本番でも `data/boards` はサービスディレクトリ配下に置いたまま運用します。
 旧 `data/users.sqlite` は移行期間中だけ読み取り互換を持ち、デプロイ時に新配置へ非破壊コピーします。
 
