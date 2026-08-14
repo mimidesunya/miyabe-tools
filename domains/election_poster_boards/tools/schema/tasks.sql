@@ -50,7 +50,7 @@ COMMIT;
 -- 使用上の注意 ---------------------------------------------------------------
 -- このデータベースは自治体（スラッグ）ごとに作成されます。
 -- クエリを実行する前に、共有ユーザーデータベースをアタッチしてください:
---   ATTACH DATABASE '/var/www/data/users.sqlite' AS users;
+--   ATTACH DATABASE '/var/www/data/boards/users.sqlite' AS users;
 -- 
 -- その後、ユーザー情報と結合して取得できます:
 --   SELECT ts.*, u.name, u.avatar

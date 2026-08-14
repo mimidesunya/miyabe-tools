@@ -49,6 +49,7 @@ services:
       - ./data:/var/www/data
       - ./work:/var/www/work
       - ./lib:/var/www/lib
+      - ./domains:/var/www/domains:ro
       - ./docker/php/zz-www-overrides.conf:/usr/local/etc/php-fpm.d/zz-www-overrides.conf:ro
     depends_on:
       opensearch:

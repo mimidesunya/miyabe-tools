@@ -5,7 +5,7 @@
 
 ## 目的
 
-Miyabe Tools は、ポスター掲示場管理、会議録収集、例規集収集、統合検索、公開 API、MCP 連携を持つ自治体調査ツール群です。
+Miyabe Tools は、独立した選挙ポスター掲示場支援と、会議録・例規集の収集・検索・公開 API・MCP 連携を同居させたツール群です。
 特に `tools.miya.be` の中核は、自治体文書を集めることだけではなく、人間と AI が同じデータを検索し、全文確認し、原典へ戻れる状態を保つことです。
 
 チーム全体の優先順位は次の順です。
@@ -24,6 +24,7 @@ Miyabe Tools は、ポスター掲示場管理、会議録収集、例規集収�
 | --- | --- | --- |
 | Codex Orchestrator | タスク受付、影響範囲確認、実装統合、最終確認 | `AGENTS.md`, `README.md`, `doc/` |
 | Product & Data Steward | 公開機能、自治体マスタ、データ意味論、公開可否判断 | `data/municipalities/`, `doc/municipality-master.md`, `doc/multi-municipality.md` |
+| Election Poster Boards Agent | 掲示場マップ、進捗、LINE認証、掲示場SQLite | `domains/election_poster_boards/`, `app/boards/`, `app/line/`, `data/boards/` |
 | Crawler Agent | 会議録・例規集の収集、差分取得、取得元保持 | `tools/gijiroku/`, `tools/reiki/`, `work/`, `data/reiki/` |
 | ETL & Normalization Agent | slug、自治体コード、日付、本文、重複、文字化けの整理 | `tools/municipality_slugs.py`, `tools/search/scraped_source_records.py`, `lib/municipalities.php` |
 | Search Index Agent | OpenSearch mapping、index rebuild/update、alias 切替、検索品質 | `tools/search/`, `lib/opensearch_search.php`, `app/search/` |
@@ -45,6 +46,7 @@ Miyabe Tools は、ポスター掲示場管理、会議録収集、例規集収�
 - MCP: `docker/mcp/`, `doc/mcp.md`, `nginx/`
 - Search: `tools/search/`, `lib/opensearch_search.php`
 - Crawler: `tools/gijiroku/`, `tools/reiki/`, `deploy/scraper_runtime/`
+- Election poster boards: `domains/election_poster_boards/`, `app/boards/`, `app/line/`, `data/boards/`
 - Data master: `data/municipalities/`, `tools/municipality_slugs.py`
 - Operations: `docker-compose.yml`, `deploy/`, `doc/status-architecture.md`
 
@@ -64,6 +66,17 @@ Miyabe Tools は、ポスター掲示場管理、会議録収集、例規集収�
 - `data/municipalities/municipality_master.tsv` と派生ファイルが矛盾していない。
 - URL で受け取った slug が canonical slug へ解決される。
 - 公開画面に出る件数や状態表示が、管理テーブルの状態と一致する。
+
+## Election Poster Boards Agent
+
+選挙ポスター掲示場の位置情報と作業進捗を扱います。この領域は自治体文書検索から独立しています。
+
+- HTTP実装・認証・SQLite・保守ツールの正本は `domains/election_poster_boards/` に置く。
+- `app/boards/` と `app/line/` は既存公開URLの互換アダプターに限定する。
+- 実行時データは `data/boards/` に閉じ、会議録・例規集の保存先やOpenSearchへ投入しない。
+- 共有してよいのは自治体コード、名称、canonical slug、共通サイトアセットだけとする。
+- `boards.sqlite`、`tasks.sqlite`、`users.sqlite` のデプロイ保護と移行手順を壊さない。
+- 「掲示板」ではなく「選挙ポスター掲示場」と表記し、一般の掲示板機能と誤認させない。
 
 ## Crawler Agent
 
@@ -236,6 +249,7 @@ MCP は、公開 API の読み取り専用ラッパーとして維持します�
 | --- | --- | --- |
 | 検索結果がおかしい | Search Index Agent | ETL, Data QA |
 | 特定自治体を追加したい | Product & Data Steward | Crawler, ETL, Search |
+| 選挙ポスター掲示場を追加・変更したい | Election Poster Boards Agent | Product, Operations, Data QA |
 | 会議録 scraper を増やしたい | Crawler Agent | ETL, Data QA, Operations |
 | 例規集 scraper を修正したい | Crawler Agent | ETL, Search |
 | API field を追加したい | API & OpenAPI Agent | Search, MCP, Docs |
@@ -250,6 +264,7 @@ MCP は、公開 API の読み取り専用ラッパーとして維持します�
 
 - 影響範囲を UI/API/MCP/Search/Crawler/Data/Ops に分類した。
 - 変更した領域の既存仕様を確認した。
+- 掲示場変更なら自治体文書API・OpenSearchへ依存を持ち込んでいない。
 - 会議録 `minutes` と例規集 `reiki` の切替を壊していない。
 - `/api/search` と `/api/document` への影響を確認した。
 - OpenAPI に影響する場合は `app/openapi.json` と `app/openapi.yaml` を更新した。

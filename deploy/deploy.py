@@ -615,13 +615,14 @@ if [ -d {shared_data_dir}/gijiroku ]; then find {shared_data_dir}/gijiroku -type
     ssh_exec(config, permission_cmd)
 
 def ensure_remote_service_data_permissions(config, dest_dir):
-    """Ensures service-local boards data and shared user DB remain writable."""
+    """Ensures service-local poster-board data remains writable."""
     web_group = str(config.get('web_group', 'www-data')).strip() or 'www-data'
     permission_cmd = f"""
 mkdir -p {dest_dir}/data {dest_dir}/data/boards
 chgrp {web_group} {dest_dir}/data {dest_dir}/data/boards
 chmod 2775 {dest_dir}/data {dest_dir}/data/boards
 if [ -d {dest_dir}/data/boards ]; then find {dest_dir}/data/boards -type d -exec chgrp {web_group} {{}} + -exec chmod 2775 {{}} +; fi
+if [ -f {dest_dir}/data/boards/users.sqlite ]; then chgrp {web_group} {dest_dir}/data/boards/users.sqlite && chmod 664 {dest_dir}/data/boards/users.sqlite; fi
 if [ -f {dest_dir}/data/users.sqlite ]; then chgrp {web_group} {dest_dir}/data/users.sqlite && chmod 664 {dest_dir}/data/users.sqlite; fi
 if [ -f {dest_dir}/data/config.json ]; then chgrp {web_group} {dest_dir}/data/config.json && chmod 664 {dest_dir}/data/config.json; fi
 """
@@ -634,6 +635,7 @@ def migrate_remote_data_layout(config, dest_dir, shared_data_dir):
 mkdir -p {dest_dir}/data {dest_dir}/data/boards {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery
 if [ -f {shared_data_dir}/config.json ] && [ ! -f {dest_dir}/data/config.json ]; then cp -a {shared_data_dir}/config.json {dest_dir}/data/config.json; fi
 if [ -f {shared_data_dir}/users.sqlite ] && [ ! -f {dest_dir}/data/users.sqlite ]; then cp -a {shared_data_dir}/users.sqlite {dest_dir}/data/users.sqlite; fi
+if [ -f {dest_dir}/data/users.sqlite ] && [ ! -f {dest_dir}/data/boards/users.sqlite ]; then cp -a {dest_dir}/data/users.sqlite {dest_dir}/data/boards/users.sqlite; fi
 if [ -d {dest_dir}/data/reiki ]; then rsync -a --ignore-existing {dest_dir}/data/reiki/ {shared_data_dir}/reiki/; fi
 if [ -d {dest_dir}/data/gijiroku ]; then rsync -a --ignore-existing {dest_dir}/data/gijiroku/ {shared_data_dir}/gijiroku/; fi
 """
@@ -777,7 +779,7 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
     # Ensure remote directories exist
     ssh_exec(
         config,
-        f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/src {dest_dir}/nginx {dest_dir}/docker/php {dest_dir}/deploy/scraper_runtime {dest_dir}/tools {dest_dir}/data {dest_dir}/data/boards {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {dest_dir}/work {dest_dir}/work/celery {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery"
+        f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/domains {dest_dir}/src {dest_dir}/nginx {dest_dir}/docker/php {dest_dir}/deploy/scraper_runtime {dest_dir}/tools {dest_dir}/data {dest_dir}/data/boards {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {dest_dir}/work {dest_dir}/work/celery {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery"
     )
 
     # Use rsync for better handling of large number of files
@@ -793,7 +795,7 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
         # rsync --delete が消し切れないため、コード同期前に remote 側だけ掃除する。
         ssh_exec(
             config,
-            f"find {dest_dir}/tools {dest_dir}/deploy/scraper_runtime -type d -name __pycache__ -prune -exec rm -rf {{}} + 2>/dev/null || true",
+            f"find {dest_dir}/tools {dest_dir}/domains {dest_dir}/deploy/scraper_runtime -type d -name __pycache__ -prune -exec rm -rf {{}} + 2>/dev/null || true",
         )
     
     # Sync each directory separately for better error handling and progress tracking.
@@ -804,6 +806,7 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
     dirs_to_sync = [
         ("app/", f"{dest_dir}/app/"),
         ("lib/", f"{dest_dir}/lib/"),
+        ("domains/", f"{dest_dir}/domains/"),
         ("nginx/", f"{dest_dir}/nginx/"),
         ("docker/", f"{dest_dir}/docker/"),
         ("deploy/scraper_runtime/", f"{dest_dir}/deploy/scraper_runtime/"),
@@ -822,7 +825,8 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
         ],
         "data/boards/": [
             "exclude:tasks.sqlite",      # server-created: task progress
-            "protect:boards.sqlite",     # prevent --delete; normal transfer/overwrite OK
+            "exclude:users.sqlite",      # server-created: shared LINE users
+            "exclude:boards.sqlite",     # managed separately; never overwrite remote edits
         ],
     }
     rsync_delete_excluded = {
@@ -836,7 +840,7 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
         config,
         ssh_base,
         "data/users.sqlite",
-        f"{dest_dir}/data/users.sqlite",
+        f"{dest_dir}/data/boards/users.sqlite",
         dry_run=dry_run,
         required=False,
         ignore_existing_remote=True,
@@ -1149,6 +1153,7 @@ services:
       - {shared_data_dir}/work:/var/www/work
       - ./app:/var/www/html
       - ./lib:/var/www/lib
+      - ./domains:/var/www/domains:ro
       - ./docker/php/zz-www-overrides.conf:/usr/local/etc/php-fpm.d/zz-www-overrides.conf:ro
     depends_on:
       opensearch:

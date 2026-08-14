@@ -3,6 +3,12 @@ declare(strict_types=1);
 
 // 自治体マスタ、config.json、実データ配置を突き合わせて公開用の自治体カタログを組み立てる。
 
+require_once dirname(__DIR__)
+    . DIRECTORY_SEPARATOR . 'domains'
+    . DIRECTORY_SEPARATOR . 'election_poster_boards'
+    . DIRECTORY_SEPARATOR . 'php'
+    . DIRECTORY_SEPARATOR . 'municipality_feature.php';
+
 function app_utc_timezone(): DateTimeZone
 {
     static $timezone = null;
@@ -597,8 +603,7 @@ function municipality_feature_live_has_data(string $feature, array $featureConfi
 {
     switch ($feature) {
         case 'boards':
-            $dbPath = trim((string)($featureConfig['db_path'] ?? ''));
-            return $dbPath !== '' && is_file($dbPath);
+            return poster_boards_feature_has_live_data($featureConfig);
 
         case 'reiki':
             $htmlDir = trim((string)($featureConfig['clean_html_dir'] ?? ''));
@@ -743,12 +748,12 @@ function normalize_municipality_entry(string $slug, array $entry): array
     $publicSlug = $slug;
 
     $boardsConfig = is_array($entry['boards'] ?? null) ? $entry['boards'] : [];
-    $boardsDbRelative = normalize_data_relative_path(trim((string)($boardsConfig['db_path'] ?? "boards/{$slug}/boards.sqlite")));
-    $boardsTasksDbRelative = normalize_data_relative_path(trim((string)($boardsConfig['tasks_db_path'] ?? "boards/{$slug}/tasks.sqlite")));
-    $boardsDbPath = data_path($boardsDbRelative);
-    $boardsTasksDbPath = data_path($boardsTasksDbRelative);
-    $boardsDetected = is_file($boardsDbPath);
-    $boardsEnabled = feature_enabled_value($boardsConfig['enabled'] ?? null, $boardsDetected);
+    $boardsFeature = poster_boards_normalize_municipality_feature(
+        $slug,
+        $publicSlug,
+        $name,
+        $boardsConfig
+    );
 
     $reikiConfig = is_array($entry['reiki'] ?? null) ? $entry['reiki'] : [];
     $reikiSkipDetection = !empty($reikiConfig['skip_detection']);
@@ -796,19 +801,7 @@ function normalize_municipality_entry(string $slug, array $entry): array
         'name_kana' => $nameKana,
         'full_name' => $fullName,
         'name_romaji' => $nameRomaji,
-        'boards' => [
-            'enabled' => $boardsEnabled,
-            'has_data' => $boardsDetected,
-            'title' => trim((string)($boardsConfig['title'] ?? "{$name} ポスター掲示場")),
-            'description' => trim((string)($boardsConfig['description'] ?? '選挙ポスター掲示場の位置確認と作業状況共有')),
-            'url' => "/boards/{$publicSlug}/",
-            'list_url' => '/boards/list.php?slug=' . rawurlencode($publicSlug),
-            'users_url' => '/boards/users.php?slug=' . rawurlencode($publicSlug),
-            'db_path_rel' => normalize_data_relative_path($boardsDbRelative),
-            'tasks_db_path_rel' => normalize_data_relative_path($boardsTasksDbRelative),
-            'db_path' => $boardsDbPath,
-            'tasks_db_path' => $boardsTasksDbPath,
-        ],
+        'boards' => $boardsFeature,
         'reiki' => [
             'enabled' => $reikiEnabled,
             'has_data' => $reikiDetected,

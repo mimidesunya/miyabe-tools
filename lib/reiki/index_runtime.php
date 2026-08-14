@@ -27,7 +27,7 @@ $featureAvailable = municipality_feature_enabled($slug, 'reiki');
 $switcherItems = municipality_switcher_items('reiki');
 $cleanHtmlDir = (string)($reikiFeature['clean_html_dir'] ?? '');
 $classificationDir = (string)($reikiFeature['classification_dir'] ?? '');
-// 保存先は掲示板と同じ canonical slug へ統一したので、既定画像 URL も slug から決め打ちできる。
+// 保存先は選挙ポスター掲示場と同じ canonical slug へ統一したので、既定画像 URL も slug から決め打ちできる。
 $reikiImageUrl = (string)($reikiFeature['image_url'] ?? ('/data/reiki/' . rawurlencode($slug) . '/images'));
 $pageTitle = (string)($reikiFeature['title'] ?? ($municipality['name'] . '例規集 AI評価ビューア'));
 $clearUrl = '/reiki/?slug=' . rawurlencode($requestSlug);

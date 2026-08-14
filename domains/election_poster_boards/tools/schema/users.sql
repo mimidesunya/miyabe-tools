@@ -1,5 +1,5 @@
 -- LINEユーザー管理用の共有SQLiteスキーマ（全自治体で共有）
--- このデータベースは /var/www/data/users.sqlite に一度だけ作成します。
+-- このデータベースは /var/www/data/boards/users.sqlite に一度だけ作成します。
 
 BEGIN IMMEDIATE;
 
@@ -24,5 +24,5 @@ COMMIT;
 -- 各自治体の tasks.sqlite は ATTACH DATABASE を使用してユーザーを参照します。
 -- 
 -- tasks.sqlite のクエリでこのデータベースをアタッチする方法:
---   ATTACH DATABASE '/var/www/data/users.sqlite' AS users;
+--   ATTACH DATABASE '/var/www/data/boards/users.sqlite' AS users;
 -- その後、 users.users テーブルとして参照します。

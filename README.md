@@ -11,15 +11,16 @@
 一覧と各文書の概要は [doc/README.md](doc/README.md) を参照してください。
 
 - ツール別: [ポスター支援ツール](doc/poster-tool.md) / [例規集ツール](doc/reiki.md) / [会議録ツール](doc/gijiroku.md) / [MCP連携](doc/mcp.md)
-- 設計・運用: [複数自治体対応](doc/multi-municipality.md) / [トップページ](doc/home-page.md) / [実行状態管理の設計](doc/status-architecture.md) / [リモートスクレイピング](doc/remote-scraping.md) / [仮想開発チーム](doc/virtual-development-team.md)
+- 設計・運用: [ドメイン境界](doc/domain-boundaries.md) / [複数自治体対応](doc/multi-municipality.md) / [トップページ](doc/home-page.md) / [実行状態管理の設計](doc/status-architecture.md) / [リモートスクレイピング](doc/remote-scraping.md) / [仮想開発チーム](doc/virtual-development-team.md)
 - 自治体マスタ・URL調査: [自治体マスタ](doc/municipality-master.md) / [公式ホームページ一覧](doc/local-government-homepages.md) / [会議録URL調査](doc/assembly-minutes-url-survey.md) / [例規集URL調査](doc/reiki-url-survey.md)
 
 ## ディレクトリ構成
 
-- `app/` — 公開 Web 画面と API（PHP）。`app/api/` が公開 API、`app/boards/`・`app/reiki/`・`app/gijiroku/`・`app/search/`・`app/status/` が各画面
+- `domains/` — 独立した業務領域。`election_poster_boards/` が選挙ポスター掲示場のHTTP実装、認証、SQLite、保守ツールを所有
+- `app/` — 公開 Web 入口と API（PHP）。`app/boards/`・`app/line/` はURL互換アダプター、`app/api/` は会議録・例規集の公開 API
 - `lib/` — PHP 共通ライブラリ（自治体レジストリ、OpenSearch 検索、実行状態管理など）。`lib/python/` は PHP から呼ぶ補助 Python
 - `tools/` — 本番系 Python パイプライン。`tools/gijiroku/`・`tools/reiki/` がスクレイパ、`tools/search/` が OpenSearch index 構築、`tools/tasks/` がバッチ実行基盤。直下の `municipality_slugs.py` などは各パイプライン共通のモジュール
-- `dev/` — 開発・単発作業用スクリプト（掲示場データ取込、自治体マスタ生成、保守作業など）。本番デプロイには含めない
+- `dev/` — 開発・単発作業用スクリプト。`dev/boards/` のコマンドは掲示場ドメインへの互換入口と元データ置場
 - `deploy/` — デプロイとリモートスクレイピング環境の構築。`deploy/scraper_runtime/` は Celery ランタイム
 - `docker/` — 各サービスの Dockerfile（php / nginx / mcp / scraper）
 - `nginx/` — 公開側 nginx 設定
@@ -110,7 +111,7 @@ python tools/search/build_opensearch_index.py --mode update --doc-type minutes -
 
 ## リモート配置
 
-本番デプロイではサービスディレクトリ配下の `data` をそのまま `/var/www/data` にマウントし、`data/boards`・`data/users.sqlite`・`data/config.json` は従来どおりその場所に置きます。  
+本番デプロイではサービスディレクトリ配下の `data` をそのまま `/var/www/data` にマウントし、掲示場データと共有LINEユーザーDBは `data/boards/`、設定は `data/config.json` に置きます。旧 `data/users.sqlite` はデプロイ時に `data/boards/users.sqlite` へ非破壊コピーされ、移行期間中は読み取り互換も維持します。
 容量の大きい `data/reiki` と `data/gijiroku` だけを `/mnt/big/miyabe-tools/reiki` と `/mnt/big/miyabe-tools/gijiroku` から重ねて見せます。  
 これらはリモート側でスクレイパが生成する前提で、`deploy.sh` ではローカル開発環境から同期しません。
 次回デプロイ時には旧 `src` と旧検索用 SQLite ファイルをリモート側でも削除します。

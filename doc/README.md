@@ -2,7 +2,7 @@
 
 ## ツール別ガイド
 
-- [poster-tool.md](poster-tool.md) — ポスター支援ツール。掲示場マップ、作業進捗の共有、LINE ログイン連携
+- [poster-tool.md](poster-tool.md) — 選挙ポスター掲示場ドメイン。マップ、作業進捗、LINE ログイン、SQLite移行
 - [gijiroku.md](gijiroku.md) — 会議録ツール。スクレイプ成果物から OpenSearch index を作る流れと画面・API
 - [reiki.md](reiki.md) — 例規集ツール。保存済み HTML / Markdown / JSON からの index 作成と画面・API
 - [mcp.md](mcp.md) — MCP 連携。`/mcp` エンドポイント、ツール定義、設定項目
@@ -11,6 +11,7 @@
 ## 設計・運用
 
 - [multi-municipality.md](multi-municipality.md) — 複数自治体対応の共通設計。slug 正規化、URL ルール、自治体追加手順
+- [domain-boundaries.md](domain-boundaries.md) — 自治体文書と選挙ポスター掲示場の所有範囲、許可する共有、互換入口
 - [home-page.md](home-page.md) — トップページ（自治体マップ）の描画方式と表示ルール
 - [status-architecture.md](status-architecture.md) — 実行状態管理。PostgreSQL 正本のテーブル構成、表示ルール、移行手順
 - [remote-scraping.md](remote-scraping.md) — リモートスクレイピング運用。事前同期、Celery 巡回、再起動・停止手順

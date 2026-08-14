@@ -1,5 +1,4 @@
 <?php
-require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'session.php';
-session_destroy();
-header('Location: /');
-exit;
+declare(strict_types=1);
+
+require dirname(__DIR__, 2) . '/domains/election_poster_boards/http/line/logout.php';

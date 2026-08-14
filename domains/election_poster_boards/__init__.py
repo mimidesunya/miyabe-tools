@@ -1,0 +1,1 @@
+"""Election poster-board domain."""

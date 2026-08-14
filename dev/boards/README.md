@@ -1,23 +1,21 @@
-# 選挙掲示板データベースツール
+# 選挙ポスター掲示場データ（互換入口）
 
-このディレクトリには、選挙ポスター掲示板データベースの初期化、データインポート、および管理のためのツールが含まれています。
+実装の正本は `domains/election_poster_boards/` へ移動しました。
+このディレクトリには、既存コマンドを壊さないためのPythonラッパーと、
+自治体ごとの入力TSVだけを残しています。
 
 ## ディレクトリ構成
 
 ```
 dev/boards/
-├── boards.sql              # boards.sqlite のスキーマ（掲示板位置情報）
-├── tasks.sql               # tasks.sqlite のスキーマ（タスク状態追跡）
-├── users.sql               # users.sqlite のスキーマ（ユーザー管理）
-├── init_db.py              # データベース初期化スクリプト (boards.sqlite, tasks.sqlite)
-├── init_users_db.py        # ユーザーデータベース初期化スクリプト
-├── import_tsv.py           # TSVデータの再インポート（タスク履歴を保持）
-├── geocode_boards.py       # Google Maps APIを使用したジオコーディング
-├── migrate_users.py        # ユーザーデータの移行ツール
-└── data/                   # 自治体ごとのデータディレクトリ
+├── *.py                    # domains/election_poster_boards/tools への互換入口
+└── data/                   # 自治体ごとの入力データ
     └── {slug}/
-        └── data.tsv        # 掲示板データTSV
+        └── data.tsv        # 選挙ポスター掲示場データTSV
 ```
+
+新しい手順やスキーマは `doc/poster-tool.md` と
+`domains/election_poster_boards/README.md` を参照してください。
 
 ## 使い方
 
@@ -44,7 +42,7 @@ python dev/boards/init_db.py 14130-kawasaki-shi
 
 ### 2. データの再インポート (import_tsv.py)
 
-タスクの進捗状況（`tasks.sqlite`）を保持したまま、掲示板データ（`boards.sqlite`）のみを更新します。
+タスクの進捗状況（`tasks.sqlite`）を保持したまま、掲示場データ（`boards.sqlite`）のみを更新します。
 座標の修正や住所の変更などを反映させる場合に便利です。
 
 ```bash
@@ -79,7 +77,7 @@ python dev/boards/init_users_db.py
 
 `dev/boards/data/{slug}/data.tsv` は以下のカラムを持つタブ区切りテキストです：
 
-1. `id`: 掲示板番号 (必須)
+1. `id`: 掲示場番号 (必須)
 2. `address`: 住所 (必須)
 3. `latitude`: 緯度 (オプション)
 4. `longitude`: 経度 (オプション)

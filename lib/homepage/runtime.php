@@ -2826,7 +2826,7 @@ function homepage_collect_visible_features(
                 $display
             ),
             // 例規集は取得元の走査記録を持たないので、検索反映の遅れだけを見る。
-            // 検索対象外の機能（掲示板など）はここへ入れない。
+            // 検索対象外の機能（選挙ポスター掲示場など）はここへ入れない。
             'reiki' => homepage_reiki_acquisition_status(
                 (int)(is_array($display) ? ($display['count_current'] ?? 0) : 0),
                 $searchIndexedCount
@@ -2945,6 +2945,11 @@ function homepage_collect_visible_features(
                 default => 'status-unacquired',
             };
             $mode = 'disabled';
+        } elseif ($isPlannedTarget) {
+            $statusLabel = '未公開';
+            $statusClass = 'status-unacquired';
+            $availabilityState = 'unacquired';
+            $mode = 'disabled';
         } else {
             $statusLabel = '未取得';
             $statusClass = 'status-unacquired';
@@ -2991,7 +2996,7 @@ function homepage_build_context(bool $includeRegistryStates = false): array
 {
     $municipalities = municipality_catalog();
     $featureLabels = [
-        'boards' => '掲示板',
+        'boards' => '選挙ポスター掲示場',
         'gijiroku' => '会議録',
         'reiki' => '例規集',
     ];

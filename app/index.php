@@ -64,13 +64,15 @@ function home_h(?string $value): string
                 <p class="eyebrow"><span>01</span> 全国横断検索</p>
                 <h1>全国の<em>会議録・例規集</em>を横断検索</h1>
                 <p class="intro-lead">
-                    自治体が公開する会議録・例規集・ポスター掲示場の情報を収集し、
+                    自治体が公開する会議録・例規集を収集し、
                     ひとつの検索窓で全国をまとめて検索できます。
                     ClaudeやChatGPTなどのAIからもMCPで直接使えます。
+                    選挙ポスター掲示場の作業支援は、文書検索とは独立したサービスです。
                 </p>
                 <div class="map-intro-actions" aria-label="関連ページ">
                     <a class="primary-link" href="/search/">記録を検索する <span aria-hidden="true">→</span></a>
                     <a href="/api-guide/">AIから使う（MCP） <span aria-hidden="true">↗</span></a>
+                    <a href="/boards/">選挙ポスター掲示場 <span aria-hidden="true">↗</span></a>
                     <a href="#coverage-map">地図から探す <span aria-hidden="true">↓</span></a>
                 </div>
             </div>
@@ -94,10 +96,20 @@ function home_h(?string $value): string
                 <span class="coverage-count" data-home-display-count>表示自治体: 0</span>
             </div>
             <div class="toolbar">
-                <div class="feature-switch" role="group" aria-label="表示する機能">
-                    <button type="button" class="is-active" data-feature-filter="gijiroku">会議録</button>
-                    <button type="button" data-feature-filter="reiki">例規集</button>
-                    <button type="button" data-feature-filter="boards">掲示板</button>
+                <div class="feature-domain-switch" aria-label="表示する領域と機能">
+                    <div class="feature-domain-group">
+                        <span>自治体文書</span>
+                        <div class="feature-switch feature-switch-documents" role="group" aria-label="自治体文書">
+                            <button type="button" class="is-active" data-feature-filter="gijiroku">会議録</button>
+                            <button type="button" data-feature-filter="reiki">例規集</button>
+                        </div>
+                    </div>
+                    <div class="feature-domain-group feature-domain-group-election">
+                        <span>選挙支援</span>
+                        <div class="feature-switch feature-switch-election" role="group" aria-label="選挙支援">
+                            <button type="button" data-feature-filter="boards">ポスター掲示場</button>
+                        </div>
+                    </div>
                 </div>
                 <label class="control-field" for="home-prefecture-filter">
                     <span>都道府県</span>
@@ -130,7 +142,7 @@ function home_h(?string $value): string
                         <div class="legend" aria-label="凡例">
                             <span><i class="legend-dot legend-dot-minutes"></i>会議録</span>
                             <span><i class="legend-dot legend-dot-reiki"></i>例規集</span>
-                            <span><i class="legend-dot legend-dot-boards"></i>掲示板</span>
+                            <span><i class="legend-dot legend-dot-boards"></i>選挙ポスター掲示場</span>
                             <span><i class="legend-dot legend-dot-pending"></i>準備中</span>
                         </div>
                     </div>

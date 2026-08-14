@@ -24,7 +24,7 @@
     const featureMeta = {
         gijiroku: { label: '会議録', shortLabel: '会', color: '#2563eb' },
         reiki: { label: '例規集', shortLabel: '例', color: '#b45309' },
-        boards: { label: '掲示板', shortLabel: '掲', color: '#15803d' },
+        boards: { label: '選挙ポスター掲示場', shortLabel: '掲', color: '#15803d' },
     };
     const detailedMarkerMinZoom = 7;
 

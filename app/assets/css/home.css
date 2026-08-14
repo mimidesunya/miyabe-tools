@@ -1527,12 +1527,38 @@ h1 em {
     background: rgba(255, 253, 247, 0.38);
 }
 
+.feature-domain-switch {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+}
+
+.feature-domain-group {
+    min-width: 0;
+    display: grid;
+    grid-template-rows: 24px 1fr;
+    border-right: 1px solid var(--line);
+}
+
+.feature-domain-group > span {
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+}
+
 .feature-switch {
     min-width: 0;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
     gap: 0;
 }
+
+.feature-switch-documents { grid-template-columns: repeat(2, 1fr); }
+.feature-switch-election { grid-template-columns: 1fr; }
 
 .feature-switch button {
     min-height: 0;
@@ -1555,8 +1581,9 @@ h1 em {
     background: var(--blue);
 }
 
-.feature-switch button:nth-child(2)::before { background: var(--amber); }
-.feature-switch button:nth-child(3)::before { background: var(--green); }
+.feature-switch button[data-feature-filter="gijiroku"]::before { background: var(--blue); }
+.feature-switch button[data-feature-filter="reiki"]::before { background: var(--amber); }
+.feature-switch button[data-feature-filter="boards"]::before { background: var(--green); }
 
 .feature-switch button:hover,
 .feature-switch button.is-active {
@@ -2113,10 +2140,9 @@ h1 em {
         border-bottom: 1px solid var(--ink);
     }
 
-    .feature-switch {
+    .feature-domain-switch {
         grid-column: 1 / -1;
-        min-height: 56px;
-        grid-template-columns: repeat(3, 1fr);
+        min-height: 76px;
         border-bottom: 1px solid var(--ink);
     }
 
