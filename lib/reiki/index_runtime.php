@@ -39,6 +39,16 @@ $featureNotice = $featureAvailable ? '' : ($municipality['name'] . 'の例規集
 $q = trim((string)($_GET['q'] ?? ''));
 $preparedQuery = japanese_search_prepare_query($q);
 $file = $featureAvailable ? trim((string)($_GET['file'] ?? '')) : '';
+// file はそのまま clean_html_dir 配下のパスへ連結されるため、ディレクトリを
+// またぐ入力は拒否する（パストラバーサルによる任意ファイル読み出しの防止）。
+if ($file !== '' && (
+    strpbrk($file, "/\\") !== false
+    || str_contains($file, '..')
+    || $file !== basename($file)
+    || str_starts_with($file, '.')
+)) {
+    $file = '';
+}
 $sort = trim((string)($_GET['sort'] ?? 'date'));
 $direction = trim((string)($_GET['dir'] ?? '')); 
 $hasClassFilterParam = array_key_exists('class', $_GET);
