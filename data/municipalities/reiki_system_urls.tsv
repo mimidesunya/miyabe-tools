@@ -50,7 +50,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 01362	http://houmu.h-chosonkai.gr.jp/~reikidb/data/54/52/reiki.html	h-chosonkai	enabled		
 01363	http://houmu.h-chosonkai.gr.jp/~reikidb/data/10/54/reiki_menu.html	taikei	enabled		
 01364	http://houmu.h-chosonkai.gr.jp/~reikidb/data/46/26/reiki.html	h-chosonkai	enabled		
-01367			unresolved	source_url_unresolved	h-chosonkai の data/39/48/reiki.html が404。移転先を未特定
+01367	http://houmu.h-chosonkai.gr.jp/~reikidb/data/39/50/reiki.html	h-chosonkai	enabled		
 01370	http://houmu.h-chosonkai.gr.jp/~reikidb/data/18/58/reiki_menu.html	taikei	enabled		
 01371	http://houmu.h-chosonkai.gr.jp/~reikidb/data/106/57/reiki.html	h-chosonkai	enabled		
 01391			unresolved	source_url_unresolved	h-chosonkai の data/90/41/reiki_menu.html が404。移転先を未特定
@@ -81,7 +81,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 01430	http://houmu.h-chosonkai.gr.jp/~reikidb/data/118/57/reiki_menu.html	taikei	enabled		
 01431	http://houmu.h-chosonkai.gr.jp/~reikidb/data/23/50/reiki_menu.html	taikei	enabled		
 01432	http://houmu.h-chosonkai.gr.jp/~reikidb/data/102/45/reiki.html	h-chosonkai	enabled		
-01433			unresolved	source_url_unresolved	h-chosonkai の data/193/44/reiki.html が404。移転先を未特定
+01433	http://houmu.h-chosonkai.gr.jp/~reikidb/data/193/46/reiki.html	h-chosonkai	enabled		
 01434	http://houmu.h-chosonkai.gr.jp/~reikidb/data/115/46/reiki.html	h-chosonkai	enabled		
 01436	https://www1.g-reiki.net/town.uryu/reiki_menu.html	g-reiki	enabled		
 01437	http://houmu.h-chosonkai.gr.jp/~reikidb/data/176/59/reiki_menu.html	taikei	enabled		
@@ -98,7 +98,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 01461	https://www.town.nakafurano.lg.jp/reiki_int/reiki_menu.html	taikei	enabled		
 01462	http://houmu.h-chosonkai.gr.jp/~reikidb/data/188/10/reiki.html	h-chosonkai	enabled		
 01463	http://houmu.h-chosonkai.gr.jp/~reikidb/data/92/51/reiki.html	h-chosonkai	enabled		
-01464			unresolved	source_url_unresolved	h-chosonkai の data/212/2/reiki.html が404。移転先を未特定
+01464	http://houmu.h-chosonkai.gr.jp/~reikidb/data/212/4/reiki.html	h-chosonkai	enabled		
 01465	http://houmu.h-chosonkai.gr.jp/~reikidb/data/75/51/reiki.html	h-chosonkai	enabled		
 01468			unresolved	source_url_unresolved	h-chosonkai の data/93/7/reiki_menu.html が404。移転先を未特定
 01469	http://houmu.h-chosonkai.gr.jp/~reikidb/data/165/47/reiki.html	h-chosonkai	enabled		
