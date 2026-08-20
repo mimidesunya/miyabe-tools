@@ -125,10 +125,12 @@ if (!preg_match('/^[a-z0-9_-]+$/', $returnSlug) || (!empty($allowed) && !in_arra
     $returnSlug = !empty($allowed) ? $allowed[0] : '';
 }
 
-if ($returnSlug === '') {
-    die('リダイレクトに失敗しました: 有効なスラッグが見つかりません。');
+// ログイン直後はアカウント情報ページを表示し、そこからマップへ進んでもらう
+$profileUrl = '/line/profile.php';
+if ($returnSlug !== '') {
+    $profileUrl .= '?slug=' . rawurlencode($returnSlug);
 }
 
-header('Location: /boards/' . $returnSlug . '/');
+header('Location: ' . $profileUrl);
 exit;
 ?>
