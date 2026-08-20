@@ -234,3 +234,29 @@ php dev/gijiroku/organize_minutes_data.php --slug 14130-kawasaki-shi
 `--headful` は他スクリプトとの互換のため受理しますが、取得処理自体はブラウザ描画を使いません。
 
 公開 URL の `slug` は `自治体コード-ローマ字名称` に統一します。既存 slug や自治体コードだけの指定も alias として受け付けます。
+
+## 未調査自治体の会議録システム再探索（discover_minutes_urls.py）
+
+`assembly_minutes_system_urls.tsv` で `crawl_status=unresolved` かつ URL 空（＝App Mints で
+拾えず未調査）の自治体について、`municipality_homepages.csv` の公式ホームページを起点に
+`議会` / `会議録` 系リンクと市政ハブを最大3階層まで辿り、既知の会議録ベンダを URL の指紋で
+判定して候補を出す。**正本 TSV は書き換えない**。候補は `work/gijiroku/discovery_*.csv` に出力する。
+
+```bash
+# 未調査全件（ホームページがある対象）を対象に、まず件数制限で試す
+python tools/gijiroku/discover_minutes_urls.py --limit 30
+
+# 特定コードだけ
+python tools/gijiroku/discover_minutes_urls.py --codes 01202 02202
+```
+
+- `confidence=high`: 既知ベンダ（kaigiroku.net / dbsr / gijiroku.com(voices) / kensakusystem /
+  amivoice / discussvision / voicetechno / kaigiroku-indexphp）の URL を指紋一致で特定。
+  そのまま既存スクレイパへ寄せられる。
+- `confidence=low`: 自治体サイト内の会議録らしいページに到達したがベンダ未特定。
+  独自 / site-gikai-pdf / static-kaigiroku-dir のどれかを人手で判定する。
+- `confidence=none`: 会議録システムを特定できず。個別調査へ回す。
+
+反映は `doc/assembly-minutes-url-survey.md` の手順に従い、内容を確認してから TSV を更新する。
+新規 URL は robots 差分監査が済むまで自動取得されない（`enabled` にしない限り）。連続アクセスを
+避けるため `--page-delay` / `--muni-delay` を小さくしすぎないこと。
