@@ -785,7 +785,20 @@
 
     function renderFeatureSummaries(featureSummaries) {
         const summaries = Array.isArray(featureSummaries) ? featureSummaries.filter((item) => item) : [];
-        return summaries.map((item) => `<span>${escapeHtml(item.text || '')}</span>`).join('');
+        return summaries.map((item) => {
+            // 上部の統計カードと同じ算出に揃える。サーバーの available_count は
+            // 登録レジストリ基準、カードは公開データ基準で数え方が異なり、
+            // 同じ画面で数字がずれるため、ここではカード側の数字に統一する。
+            const key = String(item?.feature_key || '');
+            if (key === 'gijiroku' || key === 'reiki') {
+                const stat = statForFeature(key);
+                const denominator = stat.target && stat.target > stat.total ? stat.target : stat.total;
+                const icon = item?.icon ? `${item.icon} ` : '';
+                const text = `${icon}${item?.label || stat.label}: 対象 ${denominator} / 検索可能 ${stat.ready}`;
+                return `<span>${escapeHtml(text)}</span>`;
+            }
+            return `<span>${escapeHtml(item.text || '')}</span>`;
+        }).join('');
     }
 
     function renderTaskDisplay(display) {
