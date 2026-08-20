@@ -1,2 +1,5 @@
 sudachipy>=0.6
 sudachidict_core
+google-api-python-client>=2.100
+google-auth>=2.23
+google-auth-oauthlib>=1.1
