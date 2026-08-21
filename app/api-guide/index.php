@@ -88,6 +88,10 @@ function api_guide_asset_url(string $relativePath): string
         <section class="docs-section">
             <h2>ChatGPTにつなぐ</h2>
             <p>
+                ChatGPTでは、自治体マップはプラグイン「日本自治体会議録例規集横断調査」として登録します。
+                名前は違いますが、本サイトと同じサービスです。
+            </p>
+            <p>
                 ChatGPTのMCP機能は、契約の種類と管理者の設定によって使える範囲が違います。
                 メニューが見当たらなくても、操作を間違えたとは限りません。
             </p>

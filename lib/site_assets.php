@@ -79,3 +79,28 @@ function site_render_brand(string $href = '/'): string
         . '</span>'
         . '</span>';
 }
+
+// ChatGPTのプラグイン名がサイト名と異なるため、審査や利用者が同一サービスだと
+// 確認できるよう、規約・プライバシー・サポートの各ページで名称の対応を明示する。
+function site_render_service_identity(): string
+{
+    return '<section class="docs-section">' . "
+"
+        . '            <h2>サービスの名称</h2>' . "
+"
+        . '            <p>' . "
+"
+        . '                本サイト「自治体マップ」（<a href="https://tools.miya.be/">https://tools.miya.be/</a>）は、宮部たつひこが運営しています。' . "
+"
+        . '                本サイトの検索機能をChatGPTから利用するためのプラグイン' . "
+"
+        . '                「日本自治体会議録例規集横断調査」も、同じ運営者による同一のサービスです。' . "
+"
+        . '                プラグインは本サイトのMCPサーバー（<code>https://tools.miya.be/mcp</code>）に接続しており、' . "
+"
+        . '                本ページの内容はプラグインの利用にもそのまま適用されます。' . "
+"
+        . '            </p>' . "
+"
+        . '        </section>';
+}

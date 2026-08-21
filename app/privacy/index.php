@@ -56,6 +56,8 @@ function privacy_asset_url(string $relativePath): string
             <p>制定日: 2026年5月18日</p>
         </section>
 
+        <?php echo site_render_service_identity(); ?>
+
         <section class="docs-section">
             <h2>取得する情報</h2>
             <p>

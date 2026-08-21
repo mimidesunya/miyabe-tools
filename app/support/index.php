@@ -54,6 +54,8 @@ function support_asset_url(string $relativePath): string
             </p>
         </section>
 
+        <?php echo site_render_service_identity(); ?>
+
         <section class="docs-section">
             <h2>連絡方法</h2>
             <p>

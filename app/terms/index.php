@@ -55,6 +55,8 @@ function terms_asset_url(string $relativePath): string
             <p>制定日: 2026年8月21日</p>
         </section>
 
+        <?php echo site_render_service_identity(); ?>
+
         <section class="docs-section">
             <h2>提供する内容</h2>
             <p>
