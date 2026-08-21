@@ -45,6 +45,8 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . 'lib.php';
             <nav aria-label="サイト内ページ">
                 <a href="/">自治体マップ</a>
                 <a href="/privacy/">プライバシー</a>
+                <a href="/terms/">利用規約</a>
+                <a href="/support/">サポート</a>
                 <a href="/tatsuhiko-map/admin.php">管理</a>
             </nav>
             <span>位置情報は宮部たつひこ本人の操作で公開・非公開が切り替わります。</span>

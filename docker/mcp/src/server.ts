@@ -254,6 +254,89 @@ const searchInputSchema = {
   include_body_highlight: z.boolean().optional().describe("false の場合、本文ハイライト生成を抑制します。")
 };
 
+// 会議録と例規集で意味を持つフィールドが違い、API側の項目も増えうる。
+// 常に入るものだけ必須にし、残りは任意にして検証で落ちないようにする。
+const documentCommonShape = {
+  id: z.string().describe("文書ID。get_municipal_document にそのまま渡せる。"),
+  doc_type: z.string().describe("minutes は会議録、reiki は例規集。"),
+  slug: z.string().optional().describe("自治体のcanonical slug。例: 14130-kawasaki-shi。"),
+  municipality_code: z.string().optional().describe("全国地方公共団体コード。"),
+  pref_code: z.string().optional().describe("都道府県コード。"),
+  pref_name: z.string().optional().describe("都道府県名。"),
+  municipality_name: z.string().optional().describe("自治体名。"),
+  title: z.string().optional().describe("文書のタイトル。"),
+  title_highlight: z.string().optional().describe("タイトル中の一致箇所を示した文字列。"),
+  excerpt: z.string().optional().describe("本文中の該当箇所の抜粋。[[[ ]]] で囲まれた部分が一致箇所。"),
+  score: z.number().optional().describe("検索スコア。関連度順のときの並び順に対応する。"),
+  body_length: z.number().optional().describe("本文全体の文字数。"),
+  source_url: z.string().optional().describe("取得元（自治体側）のURL。"),
+  detail_url: z.string().optional().describe("本サービスの詳細ページのパス。"),
+  api_document_url: z.string().optional().describe("本文取得APIのパス。"),
+  source_file: z.string().optional().describe("取得元のファイルパス。"),
+  source_system: z.string().optional().describe("取得元システムの種別。例: dbsr、kaigiroku.net。"),
+  updated_at: z.string().optional().describe("索引の更新日時。"),
+  sort_date: z.string().optional().describe("並び替えに使う日付。"),
+  local_id: z.string().optional().describe("自治体内での文書ID。"),
+  filename: z.string().optional().describe("取得元のファイル名。"),
+  assembly_name: z.string().optional().describe("議会名。会議録で入る。"),
+  meeting_name: z.string().optional().describe("会議名。会議録で入る。"),
+  year_label: z.string().optional().describe("年度の表記。"),
+  held_on: z.string().optional().describe("開催日。会議録で入る。"),
+  ordinance_no: z.string().optional().describe("例規番号。例規集で入る。"),
+  category: z.string().optional().describe("分類。例規集で入る。"),
+  promulgated_on: z.string().optional().describe("公布日。例規集で入る。"),
+  enforced_on: z.string().optional().describe("施行日。例規集で入る。"),
+  amended_on: z.string().optional().describe("最終改正日。例規集で入る。")
+};
+
+const facetBucketSchema = z.object({
+  key: z.string().describe("集計キー。"),
+  count: z.number().describe("該当件数。")
+});
+
+const searchOutputSchema = {
+  status: z.string().describe("ok または error。"),
+  error: z.string().optional().describe("エラーメッセージ。正常時は空文字。"),
+  doc_type: z.string().describe("minutes は会議録、reiki は例規集。"),
+  query: z.string().describe("実際に検索へ渡された検索語。"),
+  page: z.number().describe("現在のページ番号。"),
+  per_page: z.number().describe("1ページあたりの件数。"),
+  total: z.number().describe("ヒット総数。total_relation が gte のときは下限値。"),
+  total_relation: z.string().optional().describe("eq は総数が確定、gte は total 以上あることを示す。"),
+  has_more: z.boolean().optional().describe("次のページがあるか。"),
+  took_ms: z.number().optional().describe("検索にかかった時間（ミリ秒）。"),
+  index_alias: z.string().optional().describe("検索に使った索引の別名。"),
+  items: z.array(z.object(documentCommonShape)).describe("検索結果。id を get_municipal_document に渡すと本文を取得できる。"),
+  aggregations: z.object({
+    doc_types: z.array(facetBucketSchema).optional().describe("文書種別ごとの件数。"),
+    prefectures: z.array(facetBucketSchema).optional().describe("都道府県ごとの件数。key は都道府県コード。"),
+    municipalities: z.array(facetBucketSchema).optional().describe("自治体ごとの件数。key は canonical slug。")
+  }).optional().describe("include_facets が true のときだけ返る集計結果。")
+};
+
+const documentOutputSchema = {
+  status: z.string().describe("ok または error。"),
+  error: z.string().optional().describe("エラーメッセージ。正常時は空文字。"),
+  document: z.object({
+    ...documentCommonShape,
+    indexed_at: z.string().optional().describe("索引に取り込んだ日時。"),
+    speaker: z.string().optional().describe("発言者名。"),
+    speaker_role: z.string().optional().describe("発言者の役職。"),
+    body: z.string().describe("本文。max_body_chars を超える分は切り詰められる。"),
+    body_full_length: z.number().describe("切り詰める前の本文の文字数。"),
+    body_truncated: z.boolean().describe("本文が切り詰められたかどうか。")
+  }).describe("取得した文書。")
+};
+
+// 3ツールとも公開データを読むだけで、書き込みも削除も行わない。注釈がないと
+// クライアントは既定で「書き込みあり・破壊的」とみなすため、明示しておく。
+const READ_ONLY_ANNOTATIONS = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: true
+} as const;
+
 function createServer(): McpServer {
   const server = new McpServer({
     name: "miyabe-tools-search",
@@ -265,7 +348,9 @@ function createServer(): McpServer {
     {
       title: "会議録検索",
       description: "全国自治体の会議録を検索し、該当箇所の抜粋、自治体、開催日、原典URL、全文取得用IDを返します。",
-      inputSchema: searchInputSchema
+      inputSchema: searchInputSchema,
+      outputSchema: searchOutputSchema,
+      annotations: READ_ONLY_ANNOTATIONS
     },
     async (args) => {
       try {
@@ -285,7 +370,9 @@ function createServer(): McpServer {
     {
       title: "例規集検索",
       description: "全国自治体の条例・規則などの例規集を検索し、該当箇所の抜粋、自治体、公布日等、原典URL、全文取得用IDを返します。",
-      inputSchema: searchInputSchema
+      inputSchema: searchInputSchema,
+      outputSchema: searchOutputSchema,
+      annotations: READ_ONLY_ANNOTATIONS
     },
     async (args) => {
       try {
@@ -309,7 +396,9 @@ function createServer(): McpServer {
         id: z.string().min(1).describe("検索結果の id。"),
         doc_type: z.enum(["minutes", "reiki"]).default("minutes").describe("minutes は会議録、reiki は例規集。"),
         max_body_chars: z.number().int().min(0).max(200000).default(20000).describe("返却する本文の最大文字数。最大200000。")
-      }
+      },
+      outputSchema: documentOutputSchema,
+      annotations: READ_ONLY_ANNOTATIONS
     },
     async (args) => {
       try {

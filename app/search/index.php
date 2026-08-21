@@ -255,6 +255,8 @@ $boot = [
                         <a href="/status/">収集・公開状況</a>
                         <a href="/api-guide/">AIから使う（MCP）</a>
                         <a href="/privacy/">プライバシー</a>
+                        <a href="/terms/">利用規約</a>
+                        <a href="/support/">サポート</a>
                     </div>
                 </div>
                 <div id="search-stats" class="stats"></div>

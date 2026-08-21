@@ -40,6 +40,8 @@ function privacy_asset_url(string $relativePath): string
             <a href="/search/">記録を検索</a>
             <a href="/api-guide/">AIから使う（MCP）</a>
             <a href="/status/">収集・公開状況</a>
+            <a href="/terms/">利用規約</a>
+            <a href="/support/">サポート</a>
         </nav>
     </header>
 
@@ -118,9 +120,8 @@ function privacy_asset_url(string $relativePath): string
         <section class="docs-section">
             <h2>連絡先</h2>
             <p>
-                本サイトに関する連絡は、運営者の公開している連絡先、または
-                <a href="https://tatsuhiko.miya.be/" target="_blank" rel="noopener">tatsuhiko.miya.be</a>
-                に掲載されている連絡方法をご利用ください。
+                本ポリシーや本サイトに関するお問い合わせは、<a href="/support/">サポート</a>のページに
+                窓口をまとめています。
             </p>
         </section>
     </main>

@@ -50,6 +50,8 @@ function status_asset_url(string $relativePath): string
             <div class="hero-meta">
                 <a href="/search/">記録を検索へ</a>
                 <a href="/privacy/">プライバシー</a>
+                <a href="/terms/">利用規約</a>
+                <a href="/support/">サポート</a>
                 <span data-home-display-count>表示自治体: 読み込み中</span>
                 <span data-home-municipality-count>自治体マスタ: 読み込み中</span>
                 <span data-home-generated-at>更新: 読み込み中</span>
