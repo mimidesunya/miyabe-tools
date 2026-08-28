@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from tools.gijiroku.crawl_policy import (  # noqa: E402
+    ENFORCE_ROBOTS,
     policy_fingerprint,
     policy_fingerprint_is_current,
     required_crawl_urls,
@@ -106,6 +107,20 @@ def classify_row(
                 "crawl_status": "unresolved",
                 "exclusion_reason": "source_url_unresolved",
                 "exclusion_detail": "会議録の代表URLを未特定",
+                "policy_checked_at": checked_at,
+                "policy_fingerprint": current_fingerprint,
+            }
+        )
+        return updated
+
+    if not ENFORCE_ROBOTS:
+        # robots.txt を根拠に取得を止めない方針のため、取得可否は判定しない。
+        # 過去の robots 由来の除外もここで解除される。
+        updated.update(
+            {
+                "crawl_status": "enabled",
+                "exclusion_reason": "",
+                "exclusion_detail": "",
                 "policy_checked_at": checked_at,
                 "policy_fingerprint": current_fingerprint,
             }
@@ -327,7 +342,7 @@ def audit_registry(
     selected_indexes = {index for index, row in enumerate(rows) if is_selected(row)}
     robots_urls: list[str] = []
     results: dict[str, RobotsResult] = {}
-    if not stamp_fingerprints:
+    if not stamp_fingerprints and ENFORCE_ROBOTS:
         robots_urls = sorted(
             {
                 robots_txt_url(str(rows[index].get("url", "")).strip())

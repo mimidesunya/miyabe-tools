@@ -10,6 +10,14 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 
 POLICY_VERSION = 1
 
+# robots.txt を取得可否の根拠にしない。議会の会議録と例規は誰でも検証できる
+# べき公的記録で、robots.txt は法的な制限ではなく検索エンジン向けの慣行に
+# すぎない、という運営判断による（2026-08-28）。
+# 相手側への配慮は robots ではなく、レート制限と正直な User-Agent で行う。
+# video_only（本文が存在しない）や login_required（認証が必要）の除外は
+# robots とは別の理由なので、この設定では解除されない。
+ENFORCE_ROBOTS = False
+
 
 def canonical_system_type(system_type: str) -> str:
     normalized = str(system_type).strip()
