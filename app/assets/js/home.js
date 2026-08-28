@@ -1,6 +1,14 @@
 (() => {
     const apiUrl = String(window.HOMEPAGE_API_URL || '/api/home.php');
     const taskStatusApiUrl = String(window.HOMEPAGE_TASK_STATUS_API_URL || '/api/task-status.php');
+    // 実行中の処理は収集状況ページだけが必要とする。トップで3秒ごとに叩くと、
+    // まず検索したいだけの利用者に無関係な通信を負わせることになる。
+    const taskStatusPollMs = Number.isFinite(Number(window.HOMEPAGE_TASK_STATUS_POLL_MS))
+        ? Number(window.HOMEPAGE_TASK_STATUS_POLL_MS)
+        : 3000;
+    const refreshMs = Number.isFinite(Number(window.HOMEPAGE_REFRESH_MS))
+        ? Number(window.HOMEPAGE_REFRESH_MS)
+        : 60000;
 
     const mapElement = document.querySelector('[data-coverage-map]');
     const loadingPanel = document.querySelector('[data-home-loading]');
@@ -17,6 +25,7 @@
     const searchInput = document.querySelector('[data-home-search]');
     const featureButtons = Array.from(document.querySelectorAll('[data-feature-filter]'));
     const runningSection = document.querySelector('[data-running-section]');
+    const stateCountsElement = document.querySelector('[data-status-state-counts]');
     const runningSummaryList = document.querySelector('[data-running-summary-list]');
     const runningList = document.querySelector('[data-running-list]');
 
@@ -584,31 +593,79 @@
         };
     }
 
+    // 「分子/分母」では、どこで何件落ちているかが読めない。全国の自治体から
+    // 検索できる状態までを段階で示し、届かない分は理由別に並べる。
+    function funnelFor(key) {
+        const s = Array.isArray(state.payload?.feature_summaries)
+            ? state.payload.feature_summaries.find((item) => String(item?.feature_key || '') === key)
+            : null;
+        if (!s) return null;
+        const n = (v) => Number(v || 0);
+        return {
+            key,
+            label: String(s.label || featureMeta[key]?.label || key),
+            icon: String(s.icon || ''),
+            master: n(s.municipality_count),
+            resolved: n(s.url_resolved),
+            unresolved: n(s.url_unresolved),
+            target: n(s.target_count),
+            blocked: n(s.blocked_count),
+            searchable: n(s.searchable_count),
+            pending: n(s.pending_count),
+            // レジストリ段階の未実装と、取得を試して形式に対応できなかった分は同じ理由。
+            notImplemented: n(s.unsupported_count) + n(s.not_implemented_count),
+            error: n(s.error_count),
+            unavailable: n(s.unavailable_count),
+        };
+    }
+
+    function renderCoverageGap(f) {
+        const rows = [
+            ['取得元URLが未特定', f.unresolved, '公開しているか確認できていないものを含みます'],
+            ['形式に未対応', f.notImplemented, '取得元は分かりますが、この形式にまだ対応できていません'],
+            ['取り込み待ち', f.pending, '取得済みで、公開または検索への反映を待っています'],
+            ['エラー', f.error, '取得処理がエラーになっています'],
+            ['取得できない', f.unavailable, '取得元が本文を公開していません（録画映像のみなど）。待っても取得できません'],
+            ['取得しない方針', f.blocked, '閲覧に認証が必要なため、取得対象から外しています'],
+        ].filter((row) => Number(row[1]) > 0);
+        if (rows.length === 0) return '';
+        return `<dl class="cov-gap">${rows.map(([label, count, hint]) => `
+            <div title="${escapeHtml(hint)}">
+                <dt>${escapeHtml(label)}</dt>
+                <dd>${escapeHtml(String(count))}</dd>
+            </div>`).join('')}</dl>`;
+    }
+
     function renderStats() {
         if (!statbar) return;
-        const stats = ['all', 'gijiroku', 'reiki'].map(statForFeature);
-        statbar.innerHTML = stats.map((stat, index) => {
-            const ratio = stat.total > 0 ? Math.min(100, Math.round((stat.ready / stat.total) * 100)) : 0;
-            const denominator = stat.target && stat.target > stat.total ? stat.target : stat.total;
-            return `
-                <div class="stat-card">
-                    <span class="stat-label">${escapeHtml(stat.label)}</span>
-                    <strong>${escapeHtml(`${stat.ready} / ${denominator}`)}</strong>
-                    <span class="stat-note">${index === 0 ? '全機能の合算' : `${ratio}% 利用可能`}</span>
-                    <span class="stat-bar" aria-hidden="true"><span style="width: ${ratio}%"></span></span>
-                </div>
-            `.trim();
-        }).join('');
+        const feats = ['gijiroku', 'reiki'].map(funnelFor).filter(Boolean);
+        if (feats.length === 0) {
+            statbar.innerHTML = '<div class="stat-card-loading">読み込み中</div>';
+            return;
+        }
+        const master = feats[0].master;
+        const head = `<div class="cov-total"><span>全国の自治体</span><strong>${escapeHtml(String(master))}</strong></div>`;
+        const body = feats.map((f) => `
+            <section class="cov-feat">
+                <h3>${escapeHtml(f.icon ? `${f.icon} ${f.label}` : f.label)}</h3>
+                <ol class="cov-flow">
+                    <li><span>取得元を特定</span><b>${escapeHtml(String(f.resolved))}</b></li>
+                    <li><span>取得の対象</span><b>${escapeHtml(String(f.target))}</b></li>
+                    <li class="is-goal"><span>検索できる</span><b>${escapeHtml(String(f.searchable))}</b></li>
+                </ol>
+                ${renderCoverageGap(f)}
+            </section>`).join('');
+        statbar.innerHTML = head + body;
     }
 
     // 状態名だけでは何が起きているか読み取れないので、説明をその場で出す。
     const stateDescriptions = {
-        ready: '画面とデータを公開中です。',
+        ready: '取得済みで、検索できます。',
         complete: '取得元の全一覧を走査し、見つかった記録を取得済みです。',
         index_pending: '取得済みですが、検索できる件数がまだ追いついていません。',
         body_not_published: '取得元が本文を公開していないため、検索できる本文がありません。待っても検索できるようにはなりません。',
         not_found: '取得元の画面は最後まで辿れましたが、会議録が見つかりませんでした。この形式にはまだ対応できていません。',
-        coverage_unknown: '検索できますが、取得元の全一覧を走査済みか確認できる記録がありません。',
+        coverage_unknown: '検索できます。取得元にある分を取り切れたかまでは確認できていません。',
         partial_planned: '取得済み分は検索できます。残りを追加取得する予定です。',
         partial_error: '取得途中でエラーになり、取得できた分だけ検索できます。',
         partial_recent_only: '取得元が直近分しか公開していないため、それ以前は取得できていません。',
@@ -786,18 +843,11 @@
     function renderFeatureSummaries(featureSummaries) {
         const summaries = Array.isArray(featureSummaries) ? featureSummaries.filter((item) => item) : [];
         return summaries.map((item) => {
-            // 上部の統計カードと同じ算出に揃える。サーバーの available_count は
-            // 登録レジストリ基準、カードは公開データ基準で数え方が異なり、
-            // 同じ画面で数字がずれるため、ここではカード側の数字に統一する。
             const key = String(item?.feature_key || '');
-            if (key === 'gijiroku' || key === 'reiki') {
-                const stat = statForFeature(key);
-                const denominator = stat.target && stat.target > stat.total ? stat.target : stat.total;
-                const icon = item?.icon ? `${item.icon} ` : '';
-                const text = `${icon}${item?.label || stat.label}: 対象 ${denominator} / 検索可能 ${stat.ready}`;
-                return `<span>${escapeHtml(text)}</span>`;
-            }
-            return `<span>${escapeHtml(item.text || '')}</span>`;
+            const f = (key === 'gijiroku' || key === 'reiki') ? funnelFor(key) : null;
+            if (!f) return `<span>${escapeHtml(item.text || '')}</span>`;
+            const icon = f.icon ? `${f.icon} ` : '';
+            return `<span>${escapeHtml(`${icon}${f.label}: 検索できる ${f.searchable} / 取得の対象 ${f.target}`)}</span>`;
         }).join('');
     }
 
@@ -847,6 +897,31 @@
         }
     }
 
+    // 絞り込み欄に足す選択肢の表示名。payload が持っているラベルをそのまま使う。
+    const stateFilterLabels = {};
+    function rememberStateFilterLabel(key, label) {
+        const stateKey = String(key || '');
+        const stateLabel = String(label || '').trim();
+        if (stateKey !== '' && stateLabel !== '' && !stateFilterLabels[stateKey]) {
+            stateFilterLabels[stateKey] = stateLabel;
+        }
+    }
+
+    function collectStateFilterLabels(payload) {
+        (Array.isArray(payload?.state_counts) ? payload.state_counts : []).forEach((group) => {
+            (Array.isArray(group?.states) ? group.states : []).forEach((row) => {
+                rememberStateFilterLabel(row?.state, row?.label);
+            });
+        });
+        // 集計が payload に無い経路（管理DB由来のカードなど）でも欄が空にならないよう、
+        // カード側の表示名からも拾っておく。
+        (Array.isArray(payload?.municipalities) ? payload.municipalities : []).forEach((card) => {
+            (Array.isArray(card?.features) ? card.features : []).forEach((feature) => {
+                rememberStateFilterLabel(feature?.availability_state, feature?.status_label);
+            });
+        });
+    }
+
     function syncControls() {
         state.feature = normalizeFeature(state.feature);
         state.issue = normalizeIssue(state.issue);
@@ -854,7 +929,20 @@
         featureButtons.forEach((button) => {
             button.classList.toggle('is-active', String(button.dataset.featureFilter || '') === state.feature);
         });
-        if (issueFilterSelect) issueFilterSelect.value = state.issue;
+        if (issueFilterSelect) {
+            // 収集状況ページから細かい状態で飛んでくると、選択肢にない値になる。
+            // そのままだと絞り込み中なのに欄が空になり、何で絞られたか分からず
+            // 解除もできない。無い値はその場で選択肢に足して表示する。
+            const hasOption = Array.from(issueFilterSelect.options)
+                .some((option) => option.value === state.issue);
+            if (!hasOption && state.issue !== 'all') {
+                const option = document.createElement('option');
+                option.value = state.issue;
+                option.textContent = stateFilterLabels[state.issue] || state.issue;
+                issueFilterSelect.appendChild(option);
+            }
+            issueFilterSelect.value = state.issue;
+        }
         if (searchInput) searchInput.value = state.query;
         if (prefectureSelect) {
             const current = prefectureSelect.value || 'all';
@@ -948,12 +1036,47 @@
         if (municipalityCountElement) municipalityCountElement.textContent = `自治体マスタ: ${Number(state.payload?.municipality_count || 0)}`;
         if (generatedAtElement) generatedAtElement.textContent = `更新: ${String(state.payload?.generated_at || '不明')}`;
         if (taskSummariesElement) taskSummariesElement.innerHTML = renderFeatureSummaries(state.payload?.feature_summaries);
+        collectStateFilterLabels(state.payload);
+        renderStateCounts(state.payload?.state_counts);
         renderProcessingStatus(state.payload);
         syncControls();
         ensureSelection();
         // 視点の自動リセットは初回描画だけ。定期更新では現在の表示位置を保つ。
         renderAll({ fit: !hasFitOnce });
         hasFitOnce = true;
+    }
+
+    // 状態別の件数。件数そのものを絞り込みリンクにして、凡例と統計と導線を
+    // 1か所にまとめる。説明だけの凡例を別に置くと、読まないと意味が取れない。
+    function renderStateCounts(groups) {
+        if (!stateCountsElement) return;
+        const list = Array.isArray(groups) ? groups : [];
+        if (list.length === 0) {
+            stateCountsElement.innerHTML = '<div class="loading-panel">状態別の件数を読み込めませんでした。</div>';
+            return;
+        }
+        stateCountsElement.innerHTML = list.map((group) => {
+            const total = Number(group?.total || 0);
+            const rows = (Array.isArray(group?.states) ? group.states : []).map((row) => {
+                const count = Number(row?.count || 0);
+                const share = total > 0 ? Math.round((count / total) * 1000) / 10 : 0;
+                const href = `/?feature=${encodeURIComponent(String(group?.feature_key || ''))}&status=${encodeURIComponent(String(row?.state || ''))}`;
+                const description = stateDescriptions[String(row?.state || '')] || '';
+                return `<li>
+                    <a href="${escapeHtml(href)}">
+                        <span class="state-row-label">${escapeHtml(String(row?.label || row?.state || ''))}</span>
+                        <span class="state-row-count">${escapeHtml(String(count))}</span>
+                    </a>
+                    <span class="state-row-share" aria-hidden="true"><i style="width:${share}%"></i></span>
+                    ${description ? `<p class="state-row-note">${escapeHtml(description)}</p>` : ''}
+                </li>`;
+            }).join('');
+            const heading = group?.icon ? `${group.icon} ${group.label}` : String(group?.label || '');
+            return `<section class="state-group">
+                <h3>${escapeHtml(heading)}<span>${escapeHtml(String(total))}</span></h3>
+                <ol class="state-list">${rows}</ol>
+            </section>`;
+        }).join('');
     }
 
     async function loadPayload() {
@@ -1055,8 +1178,10 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         initMap();
-        refresh().finally(() => refreshTaskStatus());
-        window.setInterval(refreshTaskStatus, 3000);
-        window.setInterval(refresh, 60000);
+        refresh().finally(() => {
+            if (taskStatusPollMs > 0) refreshTaskStatus();
+        });
+        if (taskStatusPollMs > 0) window.setInterval(refreshTaskStatus, taskStatusPollMs);
+        if (refreshMs > 0) window.setInterval(refresh, refreshMs);
     });
 })();

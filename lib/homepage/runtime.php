@@ -2002,46 +2002,136 @@ function homepage_feature_summaries(
     array $municipalities,
     array $featureLabels,
     array $featureIcons,
-    array $featureRuntimeStates
+    array $featureRuntimeStates,
+    array $displayMunicipalities = []
 ): array {
+    // 「分子/分母」だと、どこで何件落ちているかが読めない。全国の自治体から
+    // 検索できる状態までを段階で数え、届かない分は理由別に内訳を出す。
+    // 届かない理由は自治体カードが持つ availability_state が唯一の正なので、
+    // ここで再判定せずそのまま集計する。カード側と数字がずれないようにする。
+    $cardStates = [];
+    foreach ($displayMunicipalities as $card) {
+        if (!is_array($card)) {
+            continue;
+        }
+        $cardSlug = (string)($card['slug'] ?? '');
+        foreach (($card['visible_features'] ?? []) as $visibleFeature) {
+            if (!is_array($visibleFeature)) {
+                continue;
+            }
+            $cardStates[$cardSlug][(string)($visibleFeature['feature_key'] ?? '')] =
+                trim((string)($visibleFeature['availability_state'] ?? ''));
+        }
+    }
+
     $summaries = [];
     foreach (['gijiroku', 'reiki'] as $featureKey) {
-        $targetCodes = array_values(array_filter(
-            homepage_feature_target_codes($featureKey),
-            static fn(mixed $code): bool => trim((string)$code) !== ''
-        ));
-        $targetLookup = array_fill_keys($targetCodes, true);
-        $availableCount = 0;
+        $index = homepage_feature_registry_index($featureKey);
+        $supported = homepage_feature_supported_system_types($featureKey);
 
+        $urlResolved = 0;
+        $urlUnresolved = 0;
+        $blocked = 0;          // 認証が要るなど、取得しないと決めたもの
+        $unsupported = 0;      // 取得元は分かるが形式が未実装
+        // 取得元に本文が存在しない。こちらの方針ではなく相手の公開状況の話なので、
+        // 実行時に判明する body_not_published と同じ「取得できない」に数える。
+        $unavailable = 0;
+        $targetCodes = [];
+        foreach ($index as $code => $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            if (trim((string)($row['url'] ?? '')) === '') {
+                $urlUnresolved += 1;
+                continue;
+            }
+            $urlResolved += 1;
+            $crawlStatus = trim((string)($row['crawl_status'] ?? ''));
+            // 空欄と、書き出し不良で入った文字列 "None" は有効扱いにする。
+            if ($crawlStatus !== '' && $crawlStatus !== 'enabled' && $crawlStatus !== 'None') {
+                $reason = trim((string)($row['exclusion_reason'] ?? ''));
+                if ($reason === 'video_only' || $reason === 'body_not_published') {
+                    $unavailable += 1;
+                } else {
+                    $blocked += 1;
+                }
+                continue;
+            }
+            $systemType = trim((string)($row['system_type'] ?? ''));
+            if ($supported !== [] && !isset($supported[$systemType])) {
+                $unsupported += 1;
+                continue;
+            }
+            $targetCodes[trim((string)$code)] = true;
+        }
+
+        $searchable = 0;
+        $pending = 0;          // 取得済みで公開・索引待ち
+        $notImplemented = 0;   // 取得元は辿れたが、この形式にまだ対応できていない
+        $error = 0;
         foreach ($municipalities as $slug => $municipality) {
             if (!is_array($municipality)) {
                 continue;
             }
             $code = trim((string)($municipality['code'] ?? ''));
-            if ($code === '' || !isset($targetLookup[$code])) {
+            if ($code === '' || !isset($targetCodes[$code])) {
                 continue;
             }
-
             $runtimeState = $featureRuntimeStates[(string)$slug][$featureKey] ?? null;
-            if (
-                is_array($runtimeState)
-                && !empty($runtimeState['has_data'])
-                && !empty($runtimeState['search_indexed'])
-            ) {
-                $availableCount += 1;
+            if (is_array($runtimeState) && !empty($runtimeState['has_data']) && !empty($runtimeState['search_indexed'])) {
+                $searchable += 1;
+                continue;
+            }
+            $state = $cardStates[(string)$slug][$featureKey] ?? '';
+            switch ($state) {
+                // 取得元が本文を公開していない。待っても検索できるようにはならない。
+                case 'excluded':
+                case 'review_required':
+                case 'body_not_published':
+                    $unavailable += 1;
+                    break;
+                case 'not_found':
+                case 'unsupported':
+                    $notImplemented += 1;
+                    break;
+                case 'runtime_error':
+                case 'update_error':
+                case 'partial_error':
+                case 'warning':
+                    $error += 1;
+                    break;
+                default:
+                    // publish_pending / search_pending / index_pending / unacquired など
+                    $pending += 1;
+                    break;
             }
         }
 
-        $label = (string)($featureLabels[$featureKey] ?? $featureKey);
-        $icon = (string)($featureIcons[$featureKey] ?? '');
-        $targetCount = count($targetLookup);
         $summaries[] = [
             'feature_key' => $featureKey,
-            'label' => $label,
-            'icon' => $icon,
-            'target_count' => $targetCount,
-            'available_count' => $availableCount,
-            'text' => sprintf('%s %s: 対象 %d / 検索可能 %d', $icon, $label, $targetCount, $availableCount),
+            'label' => (string)($featureLabels[$featureKey] ?? $featureKey),
+            'icon' => (string)($featureIcons[$featureKey] ?? ''),
+            'municipality_count' => count($municipalities),
+            'url_resolved' => $urlResolved,
+            'url_unresolved' => $urlUnresolved,
+            'blocked_count' => $blocked,
+            'unsupported_count' => $unsupported,
+            'target_count' => count($targetCodes),
+            'searchable_count' => $searchable,
+            'pending_count' => $pending,
+            'not_implemented_count' => $notImplemented,
+            'error_count' => $error,
+            'unavailable_count' => $unavailable,
+            // 旧フィールド。既存の利用箇所を壊さないため残す。
+            'available_count' => $searchable,
+            'text' => sprintf(
+                '%s %s: 全国 %d / 取得元判明 %d / 検索できる %d',
+                (string)($featureIcons[$featureKey] ?? ''),
+                (string)($featureLabels[$featureKey] ?? $featureKey),
+                count($municipalities),
+                $urlResolved,
+                $searchable
+            ),
         ];
     }
 
@@ -3232,7 +3322,8 @@ function homepage_build_api_payload(bool $includeRegistryStates = false): array
         $municipalities,
         $featureLabels,
         $featureIcons,
-        $featureRuntimeStates
+        $featureRuntimeStates,
+        $displayMunicipalities
     );
 
     $municipalityCards = [];
@@ -3299,6 +3390,43 @@ function homepage_build_api_payload(bool $includeRegistryStates = false): array
             'has_error' => $cardHasError,
             'has_warning' => $cardHasWarning,
             'features' => $features,
+        ];
+    }
+
+    // 状態ごとの件数。収集状況ページはこれだけで描けるので、1794件のカードを
+    // 送らずに済む。ラベルはカードが持っているものをそのまま使い、表記が
+    // 二重管理にならないようにする。
+    $stateCounts = [];
+    foreach ($municipalityCards as $card) {
+        foreach (($card['features'] ?? []) as $feature) {
+            $stateFeatureKey = (string)($feature['feature_key'] ?? '');
+            $stateName = (string)($feature['availability_state'] ?? '');
+            if ($stateFeatureKey === '' || $stateName === '') {
+                continue;
+            }
+            if (!isset($stateCounts[$stateFeatureKey][$stateName])) {
+                $stateCounts[$stateFeatureKey][$stateName] = [
+                    'state' => $stateName,
+                    'label' => (string)($feature['status_label'] ?? $stateName),
+                    'count' => 0,
+                ];
+            }
+            $stateCounts[$stateFeatureKey][$stateName]['count'] += 1;
+        }
+    }
+    $stateCountGroups = [];
+    foreach (['gijiroku', 'reiki'] as $stateFeatureKey) {
+        if (!isset($stateCounts[$stateFeatureKey])) {
+            continue;
+        }
+        $rows = array_values($stateCounts[$stateFeatureKey]);
+        usort($rows, static fn(array $a, array $b): int => $b['count'] <=> $a['count']);
+        $stateCountGroups[] = [
+            'feature_key' => $stateFeatureKey,
+            'label' => (string)($featureLabels[$stateFeatureKey] ?? $stateFeatureKey),
+            'icon' => (string)($featureIcons[$stateFeatureKey] ?? ''),
+            'total' => array_sum(array_column($rows, 'count')),
+            'states' => $rows,
         ];
     }
 
@@ -3381,6 +3509,7 @@ function homepage_build_api_payload(bool $includeRegistryStates = false): array
         'selected_prefecture_code' => '',
         'selected_prefecture_name' => '',
         'feature_summaries' => $featureSummaries,
+        'state_counts' => $stateCountGroups,
         'task_state_summaries' => $taskStateSummaries,
         'running_tasks' => $runningTasks,
         'municipalities' => $municipalityCards,

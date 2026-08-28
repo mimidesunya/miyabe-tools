@@ -2401,3 +2401,203 @@ body > .shell > .hero {
         flex-direction: column;
     }
 }
+
+/* 収録状況のファネル表示。段階ごとの残存数と、届かない分の理由を並べる。 */
+.cov-total {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 0 10px;
+    border-bottom: 1px solid var(--line);
+}
+
+.cov-total span {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.cov-total strong {
+    color: var(--blue-deep);
+    font-family: var(--serif);
+    font-size: 25px;
+    font-weight: 700;
+}
+
+.cov-feat {
+    padding: 12px 0 10px;
+    border-bottom: 1px solid var(--line);
+}
+
+.cov-feat h3 {
+    margin: 0 0 6px;
+    font-family: var(--serif);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.cov-flow {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 2px;
+}
+
+.cov-flow li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 10px;
+    padding-left: 12px;
+    position: relative;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.cov-flow li::before {
+    content: "└";
+    position: absolute;
+    left: 0;
+    color: var(--line);
+}
+
+.cov-flow li b {
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.cov-flow li.is-goal {
+    color: var(--ink);
+}
+
+.cov-flow li.is-goal b {
+    color: var(--blue-deep);
+    font-size: 19px;
+}
+
+.cov-gap {
+    margin: 8px 0 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+    gap: 2px 12px;
+}
+
+.cov-gap div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px;
+    border-top: 1px dotted var(--line);
+    padding-top: 3px;
+}
+
+.cov-gap dt {
+    color: var(--muted);
+    font-size: 10px;
+}
+
+.cov-gap dd {
+    margin: 0;
+    color: var(--ink);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 収集状況ページの状態別件数。件数そのものが絞り込みリンクになる。 */
+.state-board-note {
+    margin: 0 0 14px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.state-board-groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 28px;
+}
+
+.state-group h3 {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0 0 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+    font-family: var(--serif);
+    font-size: 16px;
+}
+
+.state-group h3 span {
+    color: var(--muted);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.state-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.state-list li {
+    padding: 8px 0;
+    border-bottom: 1px dotted var(--line);
+}
+
+.state-list a {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    color: inherit;
+    text-decoration: none;
+}
+
+.state-list a:hover .state-row-label,
+.state-list a:focus-visible .state-row-label {
+    text-decoration: underline;
+}
+
+.state-row-label {
+    font-size: 14px;
+}
+
+.state-row-count {
+    color: var(--blue-deep);
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 件数の大小を一目で比べるためだけの目盛り。行の区切り線と紛れないよう、
+   下地は置かず、細く淡くする。 */
+.state-row-share {
+    display: block;
+    height: 3px;
+    margin: 6px 0 2px;
+}
+
+.state-row-share i {
+    display: block;
+    height: 100%;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--blue-deep) 30%, transparent);
+}
+
+.state-row-note {
+    margin: 5px 0 0;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.6;
+}
+
+/* 収集状況ページのファネルは1カラムで全幅になるため、読める幅で止める。 */
+.stats-strip-page {
+    max-width: 440px;
+}

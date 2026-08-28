@@ -154,18 +154,9 @@ function home_h(?string $value): string
             </div>
         </section>
 
-        <section class="operations-board" data-running-section hidden>
-            <div class="section-head">
-                <div><span>03</span><h2>収集・公開状況</h2></div>
-                <p>スクレイピングと検索インデックス反映の現在値です。</p>
-            </div>
-            <div class="operation-summary-list" data-running-summary-list></div>
-            <div class="running-list" data-running-list hidden></div>
-        </section>
-
         <section class="municipality-results" aria-label="表示中の自治体">
             <div class="section-head">
-                <div><span>04</span><h2>自治体索引</h2></div>
+                <div><span>03</span><h2>自治体索引</h2></div>
                 <p>地図に表示している自治体を都道府県別に掲載します。</p>
             </div>
             <div class="municipality-list" data-home-grid>
@@ -188,7 +179,7 @@ function home_h(?string $value): string
             <div class="footer-data">
                 <span data-home-municipality-count>自治体マスタ: 読み込み中</span>
                 <span data-home-generated-at>更新: 読み込み中</span>
-                <span data-home-task-summaries></span>
+                <a href="/status/">収集の実行状況</a>
             </div>
         </footer>
     </main>
@@ -196,7 +187,10 @@ function home_h(?string $value): string
 
 <script>
 window.HOMEPAGE_API_URL = '/api/home.php';
-window.HOMEPAGE_TASK_STATUS_API_URL = '/api/task-status.php';
+// 実行中の処理は /status/ でだけ扱う。初めて来た人はまず検索したいので、
+// 3秒ごとの状態ポーリングと1分ごとの全件再取得はトップでは行わない。
+window.HOMEPAGE_TASK_STATUS_POLL_MS = 0;
+window.HOMEPAGE_REFRESH_MS = 600000;
 </script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="<?php echo home_h(site_asset_url('assets/js/municipality-coordinates.js')); ?>" defer></script>
