@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
+import time
+import tempfile
 from types import SimpleNamespace
 
 from tools.tasks import batch
@@ -41,6 +44,36 @@ class SelectRunnableTargetsTest(unittest.TestCase):
     def test_retry_failed_includes_only_previous_failures_among_zero_scores(self) -> None:
         selected = batch.select_runnable_targets(self.spec, self.targets, retry_failed=True)
         self.assertEqual(["failed", "runnable"], [target["slug"] for target in selected])
+
+class StalledWorkersTest(unittest.TestCase):
+    def _worker(self, tmpdir, text: str) -> dict:
+        path = Path(tmpdir) / "out.log"
+        path.write_text(text, encoding="utf-8")
+        return {
+            "target": {"slug": "x"},
+            "stdout_path": str(path),
+            "stderr_path": "",
+            "output_size": 0,
+            "output_seen_at": time.monotonic() - 10_000,
+        }
+
+    def test_worker_that_keeps_writing_is_not_stalled(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            worker = self._worker(tmpdir, "進んでいる")
+            # 前回の記録と大きさが違う=進んでいるので、打ち切らない。
+            self.assertEqual(batch.stalled_workers([worker], 1800), [])
+
+    def test_silent_worker_is_stalled(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            worker = self._worker(tmpdir, "止まっている")
+            worker["output_size"] = batch.worker_output_size(worker)
+            self.assertEqual(batch.stalled_workers([worker], 1800), [worker])
+
+    def test_zero_disables_the_check(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            worker = self._worker(tmpdir, "止まっている")
+            worker["output_size"] = batch.worker_output_size(worker)
+            self.assertEqual(batch.stalled_workers([worker], 0), [])
 
 
 if __name__ == "__main__":

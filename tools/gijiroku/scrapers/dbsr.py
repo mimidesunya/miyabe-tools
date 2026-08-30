@@ -535,6 +535,8 @@ def list_links_cover_recent_years_only(items: dict[str, ListPage]) -> bool:
 
 # 会議録が始まる前まで遡れば、その取得元の全期間になる。
 WIDENED_PERIOD_START = "1970-01-01"
+# 全期間の一覧から作った ListPage の年ラベル。年度別一覧と区別するために使う。
+WIDENED_PERIOD_LABEL = "全期間"
 
 
 # 検索フォームの会議種別（本会議・各委員会）の選択肢を読む JS。
@@ -676,7 +678,7 @@ def missing_cabinet_list_pages(
         pages.append(
             ListPage(
                 title=f"全期間（{label}）",
-                year_label="全期間",
+                year_label=WIDENED_PERIOD_LABEL,
                 url=url,
                 # 会議種別が分かっているので必ず渡す。空にすると収録した会議が
                 # 種別なしになり、委員会を取れているかどうかを後から判定できない。
@@ -738,7 +740,7 @@ def widened_period_list_pages(
     return [
         ListPage(
             title=f"全期間（{cabinet or '全種別'}）",
-            year_label="全期間",
+            year_label=WIDENED_PERIOD_LABEL,
             url=url,
             meeting_group="",
             auxiliary_docs=[],
@@ -892,7 +894,7 @@ def submit_all_conditions_search(
         if list_url not in items:
             items[list_url] = ListPage(
                 title=title,
-                year_label="全期間",
+                year_label=WIDENED_PERIOD_LABEL,
                 url=list_url,
                 meeting_group="",
                 auxiliary_docs=[],
@@ -1514,6 +1516,12 @@ def should_quick_update_from_state(state: dict) -> bool:
 
 
 def build_day_groups(list_page: ListPage, list_url: str, rows: list[DocumentRow]) -> list[DayDocumentGroup]:
+    """1 つの一覧ページの文書を、開催日ごとの会議にまとめる。
+
+    全期間の一覧から作ったページは年ラベルを持たないので、開催日から組み直す。
+    「全期間」のままにすると、呼び出し側が (年ラベル, 会議種別, 表題) で重複を
+    除くときに、同じ委員会の同じ月日が年をまたいで 1 件に潰れてしまう。
+    """
     grouped: dict[str, list[DocumentRow]] = {}
     ordered_dates: list[str] = []
     for row in rows:
@@ -1529,10 +1537,15 @@ def build_day_groups(list_page: ListPage, list_url: str, rows: list[DocumentRow]
         chosen_rows = body_rows or doc_rows
         suffix = document_suffix(chosen_rows[0].title if chosen_rows else doc_rows[0].title)
         title = f"{infer_day_title_from_held_on(held_on)}－{suffix}"
+        year_label = (
+            era_year_label(held_on)
+            if list_page.year_label == WIDENED_PERIOD_LABEL
+            else list_page.year_label
+        )
         groups.append(
             DayDocumentGroup(
                 title=title,
-                year_label=list_page.year_label,
+                year_label=year_label,
                 meeting_group=list_page.meeting_group,
                 list_url=list_url,
                 doc_urls=[row.url for row in chosen_rows],

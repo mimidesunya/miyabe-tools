@@ -223,6 +223,33 @@ class MissingCabinetListPagesTest(unittest.TestCase):
     def test_no_pages_without_options(self) -> None:
         self.assertEqual(dbsr.missing_cabinet_list_pages(self._items(), []), [])
 
+class BuildDayGroupsTest(unittest.TestCase):
+    def _page(self, year_label: str) -> "dbsr.ListPage":
+        return dbsr.ListPage(
+            title="全期間（総務企画委員会）",
+            year_label=year_label,
+            url="list",
+            meeting_group="総務企画委員会",
+            auxiliary_docs=[],
+        )
+
+    def test_full_period_listing_takes_the_year_from_the_meeting_date(self) -> None:
+        # 「全期間」のままだと、呼び出し側が (年, 種別, 表題) で重複を除くときに
+        # 同じ委員会の同じ月日が年をまたいで 1 件へ潰れてしまう。
+        rows = [
+            dbsr.DocumentRow(title="総務企画委員会 本文", url="u1", held_on="2010-02-18"),
+            dbsr.DocumentRow(title="総務企画委員会 本文", url="u2", held_on="2015-02-18"),
+        ]
+        groups = dbsr.build_day_groups(self._page(dbsr.WIDENED_PERIOD_LABEL), "list", rows)
+        self.assertEqual([g.year_label for g in groups], ["平成22年", "平成27年"])
+        keys = {(g.year_label, g.meeting_group, g.title) for g in groups}
+        self.assertEqual(len(keys), 2)
+
+    def test_year_listing_keeps_its_own_label(self) -> None:
+        rows = [dbsr.DocumentRow(title="本文", url="u1", held_on="2010-02-18")]
+        groups = dbsr.build_day_groups(self._page("平成22年度"), "list", rows)
+        self.assertEqual(groups[0].year_label, "平成22年度")
+
 
 if __name__ == "__main__":
     unittest.main()

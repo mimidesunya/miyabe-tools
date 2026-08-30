@@ -182,8 +182,10 @@ class MonthSlot(NamedTuple):
 def month_slots() -> list[MonthSlot]:
     """明治2年1月から今月までを 1 か月刻みで並べる。"""
     today = datetime.date.today()
+    # 末尾は今年いっぱいまで取る。今日までで切ると、公布日が先の例規が
+    # どの区間にも入らず、期間で割ったときに取りこぼす。
     specs = list(ERA_SPEC) + [
-        ("令和", REIWA_BASE, (1, 5, 1), (today.year - REIWA_BASE + 1, today.month, today.day))
+        ("令和", REIWA_BASE, (1, 5, 1), (today.year - REIWA_BASE + 1, 12, 31))
     ]
     slots: list[MonthSlot] = []
     for era, base, (from_year, from_month, from_day), (to_year, to_month, to_day) in specs:
@@ -270,30 +272,44 @@ FRESH_EVAL = """
 DATE_ERROR_EVAL = "() => /に正しい日付をご記入ください/.test(document.body.innerText)"
 
 
-def run_search(page, timeout_ms: int) -> bool:
-    """検索を実行し、結果が差し替わるのを待つ。0 件・入力エラーなら False。"""
+# run_search の結果。
+#   "ok"    … 結果が差し替わり、件数を信用してよい
+#   "empty" … 0 件、または日付を弾かれた
+#   "stale" … 差し替えを確認できなかった。表示は前の検索のままかもしれない
+SEARCH_OK = "ok"
+SEARCH_EMPTY = "empty"
+SEARCH_STALE = "stale"
+
+
+def run_search(page, timeout_ms: int) -> str:
+    """検索を実行し、結果が差し替わるのを待つ。SEARCH_* のいずれかを返す。"""
     try:
         stamped = bool(page.evaluate(STAMP_EVAL))
     except Exception:
         stamped = False
     page.click("#searchDetail", timeout=timeout_ms)
+    stale = False
     if stamped:
         try:
             page.wait_for_function(FRESH_EVAL, timeout=timeout_ms)
         except PlaywrightTimeoutError:
+            # 前の検索結果が残っている可能性がある。件数を信用してはいけない。
             print("[WARN] 検索結果の差し替えを待ちきれませんでした", flush=True)
+            stale = True
     try:
         page.wait_for_selector("#pager", timeout=timeout_ms)
     except PlaywrightTimeoutError:
-        return False
+        return SEARCH_EMPTY
     page.wait_for_timeout(600)
     try:
         if page.evaluate(DATE_ERROR_EVAL):
             print("[WARN] 日付が不正として弾かれました（この範囲は取得できません）", flush=True)
-            return False
+            return SEARCH_EMPTY
     except Exception:
         pass
-    return read_result_total(page) > 0
+    if stale:
+        return SEARCH_STALE
+    return SEARCH_OK if read_result_total(page) > 0 else SEARCH_EMPTY
 
 
 def reopen_detail(page, timeout_ms: int) -> None:
@@ -369,13 +385,13 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                     stem = stem_for(title, number, date_text)
                     if stem in seen_stems:
                         continue
-                    seen_stems.add(stem)
                     filename = f"{stem}.html"
                     clean_path = html_dir / filename
                     markdown_path = markdown_dir / f"{stem}.md"
                     iso_date = static_catalog.to_seireki(date_text)
 
                     if not force and not check_updates and reiki_io.existing_path(clean_path) is not None:
+                        seen_stems.add(stem)
                         manifest.append(_manifest_row(filename, source_url, title, number, iso_date))
                         emit_total += 1
                         continue
@@ -393,9 +409,12 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                         print(f"[WARN] body fetch failed {title[:30]}: {exc}", flush=True)
 
                     if not body_html.strip():
+                        # ここで seen_stems へ入れない。期間を割った別の検索で
+                        # 同じ例規に当たったとき、もう一度だけ試せるようにする。
                         failed += 1
                         continue
 
+                    seen_stems.add(stem)
                     parsed = ParsedArticle(title=title, content_html=body_html, date_text=date_text, number=number)
                     content_text = static_catalog.html_to_plain(body_html)
                     reiki_io.write_text(source_dir / filename, body_html, compress=True)
@@ -426,12 +445,22 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                     break
                 try:
                     nxt.click()
-                    page.wait_for_timeout(1800)
                 except Exception:
                     break
-                if read_pager_text(page) == pager_text:
-                    # 押しても表示が変わらない＝これ以上進めない。
+                # 固定時間で待つと、遅い応答を「進めない」と誤判定して
+                # 残りのページを捨ててしまう。表示が変わるまで待つ。
+                try:
+                    page.wait_for_function(
+                        "(previous) => {"
+                        " const d = document.querySelector('#pager dt');"
+                        " return d && d.innerText.trim() !== previous; }",
+                        arg=pager_text,
+                        timeout=timeout_ms,
+                    )
+                except PlaywrightTimeoutError:
+                    # 本当に最終ページなら表示は変わらない。
                     break
+                page.wait_for_timeout(400)
             return emit_total - start_total
 
         def collect(kind: dict, span: tuple[int, int] | None, depth: int) -> None:
@@ -440,7 +469,22 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                 return
             reopen_detail(page, timeout_ms)
             apply_filters(page, kind["id"], span)
-            if not run_search(page, timeout_ms):
+            outcome = run_search(page, timeout_ms)
+            if outcome == SEARCH_EMPTY:
+                return
+            if outcome == SEARCH_STALE:
+                # 件数を信用できないので、取り込まずに期間を割って確かめ直す。
+                if span is not None and span[0] >= span[1]:
+                    print(
+                        f"[WARN] {kind['text']} {span_label(span)}: "
+                        "検索結果を確認できませんでした",
+                        flush=True,
+                    )
+                    return
+                lo, hi = (0, len(MONTH_SLOTS) - 1) if span is None else span
+                mid = (lo + hi) // 2
+                collect(kind, (lo, mid), depth + 1)
+                collect(kind, (mid + 1, hi), depth + 1)
                 return
             total = read_result_total(page)
             if total <= 0:

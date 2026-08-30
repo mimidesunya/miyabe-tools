@@ -116,6 +116,12 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
         help="同一ホストで次の自治体を起動するまでの最小待機秒数",
     )
     parser.add_argument(
+        "--target-stall-seconds",
+        type=int,
+        default=1800,
+        help="子プロセスがこの秒数まったく出力しなければ打ち切る（0 は無制限）",
+    )
+    parser.add_argument(
         "--refresh-seconds",
         type=float,
         default=5.0,
@@ -320,6 +326,9 @@ def launch_worker(
         "stderr_handle": stderr_handle,
         "started_at": batch_status.now_text(),
         "state_path": state_path,
+        # 出力が伸びなくなった子を打ち切るための目印。
+        "output_size": 0,
+        "output_seen_at": time.monotonic(),
     }
 
 
@@ -666,6 +675,43 @@ def print_status(
                 f"pid={worker['process'].pid}: {summary}",
                 flush=True,
             )
+
+
+def worker_output_size(worker: dict) -> int:
+    """子プロセスがこれまでに吐いた量。進んでいるかの判断に使う。"""
+    total = 0
+    for key in ("stdout_path", "stderr_path"):
+        path = worker.get(key)
+        if not path:
+            continue
+        try:
+            total += Path(str(path)).stat().st_size
+        except OSError:
+            continue
+    return total
+
+
+def stalled_workers(active_workers: list[dict], stall_seconds: int) -> list[dict]:
+    """一定時間まったく出力しなくなった子プロセスを返す。
+
+    子には実行期限が無く、heartbeat は進捗と関係なく更新される。そのため
+    1 件が固まると task が「実行中」のまま残り、以後の周期取得が投入されなく
+    なる（巡回全体が止まる）。出力が止まった子だけをここで見つけて打ち切る。
+    正常でも長い自治体があるので、経過時間ではなく無出力の長さで判断する。
+    """
+    if stall_seconds <= 0:
+        return []
+    now = time.monotonic()
+    stalled: list[dict] = []
+    for worker in active_workers:
+        size = worker_output_size(worker)
+        if size != worker.get("output_size"):
+            worker["output_size"] = size
+            worker["output_seen_at"] = now
+            continue
+        if now - float(worker.get("output_seen_at") or now) >= stall_seconds:
+            stalled.append(worker)
+    return stalled
 
 
 # 稼働中 worker の進捗を state に反映し、heartbeat を更新する。
@@ -1034,6 +1080,17 @@ def run_batch(spec: BatchSpec, args: argparse.Namespace, targets: list[dict]) ->
                     terminate_process_group(worker["process"])
                 for worker in active_workers:
                     terminate_process_group(worker["process"])
+                made_progress = True
+
+            # 出力が止まった子は打ち切る。放っておくと task が「実行中」の
+            # まま残り、以後の周期取得が投入されなくなる。
+            for worker in stalled_workers(active_workers, args.target_stall_seconds):
+                slug = str(worker["target"]["slug"])
+                print(
+                    f"[WARN] {slug}: {args.target_stall_seconds}秒 出力が無いので打ち切ります",
+                    flush=True,
+                )
+                terminate_process_group(worker["process"])
                 made_progress = True
 
             # 完了済み子プロセスを回収する。
