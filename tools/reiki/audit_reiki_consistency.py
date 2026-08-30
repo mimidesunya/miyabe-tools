@@ -56,6 +56,10 @@ def coverage_state(work_root: Path) -> str:
         return "未確認"
     if not payload.get("declares", True):
         return "申告なし"
+    if int(payload.get("version") or 0) < 2:
+        # 古い形式は完了の意味が違う（上限に当たった葉をそのまま未完了に
+        # していた）。信用せず、取り直しが要ることを見せる。
+        return "旧形式"
     if payload.get("complete"):
         # 上限を検出できていない取得元は、黙って打ち切られていても分からない。
         # 完了と扱うが、そのことが見えるようにしておく。
@@ -161,7 +165,7 @@ def audit_target(target: dict, *, opensearch_url: str, alias: str, skip_index: b
             problems.append(f"索引ずれ{indexed - len(files):+d}")
         if indexed_dups:
             problems.append(f"索引重複{len(indexed_dups)}種")
-    if coverage.startswith("未達"):
+    if coverage.startswith("未達") or coverage == "旧形式":
         problems.append(f"母数{coverage}")
 
     return {

@@ -651,7 +651,10 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
     reiki_io.save_source_coverage(
         work_root,
         {
-            "version": 1,
+            # 2 … 取り切れなかった区間を unresolved に積み、歩いた行数と
+            #      申告件数を突き合わせる形。1 は上限に当たった葉をそのまま
+            #      未完了としていたので、判定の意味が違う。混ぜて読めない。
+            "version": 2,
             "kind": "search",
             "declares": True,
             "observed_at": time.strftime("%Y%m%d_%H%M%S"),
