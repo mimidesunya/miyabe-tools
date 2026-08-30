@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -50,9 +51,38 @@ def sanitize_filename(text: str, fallback: str = "meeting") -> str:
     return truncate_utf8_bytes(cleaned)
 
 
+def equivalent_year_key(name: str) -> str:
+    """見た目が違っても同じ年を指すラベルを、同じ鍵に寄せる。"""
+    return unicodedata.normalize("NFKC", str(name or "")).replace("元年", "1年")
+
+
 def normalize_year_dir(year_label: str | None) -> str:
     label = sanitize_filename((year_label or "unknown").strip(), "unknown")
     return label or "unknown"
+
+
+def existing_year_dir(downloads_dir: Path, year_dir_name: str) -> str:
+    """同じ年を指す保存先が既にあるなら、その名前を使う。
+
+    取得元は同じ年を「令和5年」「令和５年」「令和元年」と書き分ける。
+    見た目の値をそのまま保存先にすると、同じ年が別の場所に割れる
+    （西尾市・甲府市・広島県などで実際に起きて、古い方が孤児になった）。
+
+    ただし、いま使っている名前を正規化した名前へ**変えてはいけない**。
+    全角の年だけを使っている自治体が 890 あり、名前を変えると
+    99,549 ファイルが一度に孤児になる。だから、新しく作るときだけ
+    寄せて、既にある保存先はそのまま使う。
+    """
+    key = equivalent_year_key(year_dir_name)
+    try:
+        if (downloads_dir / year_dir_name).is_dir():
+            return year_dir_name
+        for existing in downloads_dir.iterdir():
+            if existing.is_dir() and equivalent_year_key(existing.name) == key:
+                return existing.name
+    except OSError:
+        pass
+    return year_dir_name
 
 
 def normalize_meeting_group_dir(meeting_group: str | None) -> str:
@@ -164,9 +194,14 @@ def build_base_plans(
     # ここでは成果物ファイルを書き込まない。
     plans: list[dict[str, Any]] = []
     seen_output_stems: dict[tuple[str, str], int] = {}
+    # 保存先の探索は会議ごとに走るので、年ラベルごとに 1 回だけにする。
+    year_dir_cache: dict[str, str] = {}
 
     for original_idx, item in enumerate(items, start=1):
         year_dir_name = normalize_year_dir(str(item_value(item, "year_label", "") or ""))
+        if year_dir_name not in year_dir_cache:
+            year_dir_cache[year_dir_name] = existing_year_dir(downloads_dir, year_dir_name)
+        year_dir_name = year_dir_cache[year_dir_name]
         meeting_group_dir = (
             normalize_meeting_group_dir(item_value(item, "meeting_group", None)) if use_group_dir else ""
         )
