@@ -655,20 +655,21 @@ def main() -> int:
     print(f"[INFO] Source URL: {target['source_url']}")
     print(f"[INFO] Base URL: {target['base_url']}")
 
+    # 走査の印はブラウザを起動する前に置く。起動の途中で殺されても、
+    # 前回の complete が残らないようにする。
+    previous_coverage_record = gijiroku_storage.load_source_coverage(
+        state_path.parent, state
+    )
+    gijiroku_storage.mark_walk_started(
+        state_path.parent, previous_coverage_record, now_ts()
+    )
+
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=not args.headful)
         context = browser.new_context(accept_downloads=False, locale="ja-JP", user_agent=DEFAULT_USER_AGENT)
         page = context.new_page()
         page.set_default_timeout(args.timeout_ms)
 
-        # 走査の印は**探索の前**に置く。探索の途中で殺されると、
-        # 前回の complete がそのまま残ってしまう。
-        previous_coverage_record = gijiroku_storage.load_source_coverage(
-            state_path.parent, state
-        )
-        gijiroku_storage.mark_walk_started(
-            state_path.parent, previous_coverage_record, now_ts()
-        )
         print("[INFO] 会議一覧を収集中...")
         offered_types: list[str] = []
         walk: dict = {}

@@ -98,7 +98,11 @@ def effective_coverage_complete(payload: dict | None) -> bool:
 
     complete でも、歩き直しを始めたまま終われていないなら当てにできない。
     """
-    if not isinstance(payload, dict) or not payload.get("complete"):
+    if not isinstance(payload, dict):
+        return False
+    # 文字列の "0" を真と読むと PHP と答えが割れる。真偽値か 1 だけを真にする。
+    complete = payload.get("complete")
+    if complete is not True and complete != 1:
         return False
     try:
         if int(payload.get("version") or 0) < 2:

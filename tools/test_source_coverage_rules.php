@@ -49,12 +49,60 @@ foreach ($rules['reiki'] ?? [] as $case) {
     }
 }
 
-// 例規の feature に work_dir がある（無いと走査記録が丸ごと読めない）。
-// 実際にこのキーが無くて、公開画面の判定が空振りしていた。
+// 例規の feature に work_dir があり、Python の work_root と同じ場所を指すこと。
+// 引数の数だけを見ても、キーが消えたことは分からない。実際にこのキーが
+// 無くて、公開画面の判定が丸ごと空振りしていた。
 require_once __DIR__ . '/../lib/municipalities.php';
-$reflection = new ReflectionFunction('homepage_reiki_source_coverage');
-if ($reflection->getNumberOfParameters() < 1) {
-    $failures[] = '例規: homepage_reiki_source_coverage が feature を受け取らない';
+
+$sampleSlug = '13101-chiyoda-ku';
+$expectedWorkDir = work_path('reiki/' . $sampleSlug);
+
+// 実際に feature を作って、走査記録が読めることを確かめる。
+$tempWork = $expectedWorkDir;
+$cleanup = false;
+if (!is_dir($tempWork)) {
+    @mkdir($tempWork, 0777, true);
+    $cleanup = true;
+}
+$coveragePath = $tempWork . DIRECTORY_SEPARATOR . 'source_coverage.json';
+$hadCoverage = is_file($coveragePath);
+if (!$hadCoverage) {
+    file_put_contents($coveragePath, json_encode([
+        'version' => 2, 'complete' => false, 'unresolved' => [['kind' => '条例']],
+        'observed_at' => '20260830_120000',
+    ]));
+}
+
+// feature を手で作ると配線を見ていないことになる。実際の生成経路から取る。
+$entry = normalize_municipality_entry($sampleSlug, []);
+$feature = is_array($entry['reiki'] ?? null) ? $entry['reiki'] : [];
+if (trim((string)($feature['work_dir'] ?? '')) === '') {
+    $failures[] = '例規: feature に work_dir が無い。走査記録が丸ごと読めない';
+} elseif ($feature['work_dir'] !== $expectedWorkDir) {
+    $failures[] = sprintf(
+        "例規: work_dir が Python の work_root と違う
+  期待 %s
+  実際 %s",
+        $expectedWorkDir,
+        (string)$feature['work_dir']
+    );
+}
+$status = homepage_reiki_acquisition_status(10, 10, $feature);
+if (($status['state'] ?? '') !== 'coverage_incomplete') {
+    $failures[] = sprintf(
+        "例規: feature の work_dir から走査記録を読めていない
+  期待 coverage_incomplete / 実際 %s
+  見た場所 %s",
+        (string)($status['state'] ?? '(空)'),
+        $coveragePath
+    );
+}
+
+if (!$hadCoverage) {
+    @unlink($coveragePath);
+}
+if ($cleanup) {
+    @rmdir($tempWork);
 }
 
 $total = count($rules['minutes'] ?? []) + count($rules['reiki'] ?? []);

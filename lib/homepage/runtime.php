@@ -393,7 +393,13 @@ function homepage_minutes_walk_state(?array $coverage): string
     }
     // 判定ルールの版。古い規則で書かれた complete は、ページ送りを諦めた
     // 回数を数えていないので完了の意味が違う。
-    if ((int)($coverage['rule_version'] ?? 0) < 2) {
+    // (int) は "2foo" を 2 にしてしまうので、数値でなければ古い扱いにする
+    // （Python の int() は例外になるので、揃えないと答えが割れる）。
+    $ruleVersion = $coverage['rule_version'] ?? null;
+    if (!is_int($ruleVersion) && !(is_string($ruleVersion) && ctype_digit($ruleVersion))) {
+        return 'stale_rule';
+    }
+    if ((int)$ruleVersion < 2) {
         return 'stale_rule';
     }
     $state = trim((string)($coverage['state'] ?? ''));
@@ -413,10 +419,20 @@ function homepage_minutes_walk_state(?array $coverage): string
 // 同じ答えを返す必要がある。
 function homepage_reiki_coverage_complete(?array $coverage): bool
 {
-    if (!is_array($coverage) || empty($coverage['complete'])) {
+    if (!is_array($coverage)) {
         return false;
     }
-    if ((int)($coverage['version'] ?? 0) < 2) {
+    // 真偽値か 1 のときだけ真。empty() は文字列の "0" を偽にするが、
+    // Python は真と読む。揃えないと答えが割れる。
+    $complete = $coverage['complete'] ?? null;
+    if ($complete !== true && $complete !== 1) {
+        return false;
+    }
+    $version = $coverage['version'] ?? null;
+    if (!is_int($version) && !(is_string($version) && ctype_digit($version))) {
+        return false;
+    }
+    if ((int)$version < 2) {
         return false;
     }
     $startedAt = (string)($coverage['walk_started_at'] ?? '');
@@ -728,13 +744,9 @@ function homepage_reiki_acquisition_status(
     array $feature = [],
     bool $hasError = false
 ): array {
-    $status = homepage_indexed_shortfall_status($storedCount, $indexedCount);
-    if ($status['state'] !== '') {
-        return $status;
-    }
-    // 直近の取得が失敗していても、古い索引が 1 件でも残っていれば
-    // 「利用可能」に落ちていた。エラーの表示は $hasData が偽のときしか
-    // 届かないので、ここで拾う。
+    // 直近の失敗を先に見る。索引の反映待ちを先に返すと、索引が 0 件のときに
+    // 「検索反映待ち」で終わってしまい、失敗がここまで届かない。
+    // エラーの表示は $hasData が偽のときしか届かないので、ここで拾う。
     if ($hasError) {
         return [
             'state' => 'last_run_failed',
@@ -743,6 +755,10 @@ function homepage_reiki_acquisition_status(
                 . '直近の取得は失敗しています。',
             'source_coverage' => null,
         ];
+    }
+    $status = homepage_indexed_shortfall_status($storedCount, $indexedCount);
+    if ($status['state'] !== '') {
+        return $status;
     }
     // 取り切れなかった区間が残っているなら、そう出す。会議録では出している
     // のに例規だけ「利用可能」と出していた。

@@ -805,7 +805,10 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             flush=True,
         )
 
-    static_catalog.emit_progress(emit_total, emit_total, state_path)
+    # 取り切れなかった区間や失敗があるなら n/n にしない。バッチの成功判定と
+    # snapshot はここを見るので、n/n にすると「取れた」記録が残ってしまう。
+    shortfall = len(coverage_unresolved) + failed
+    static_catalog.emit_progress(emit_total, emit_total + shortfall, state_path)
     print(f"Finished. downloaded={downloaded} failed={failed} manifest={len(manifest)} -> {manifest_path}", flush=True)
     return 0
 
