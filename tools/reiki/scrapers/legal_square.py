@@ -280,6 +280,11 @@ SEARCH_OK = "ok"
 SEARCH_EMPTY = "empty"
 SEARCH_STALE = "stale"
 
+# 差し替えを確認できない検索が続くとき、どこまで粘るか。
+# 取得元が遅くなっただけなら数回で戻る。戻らないなら期間を二分し続けても
+# 数十時間かかるだけなので、そこで諦めて失敗として終わらせる。
+MAX_STALE_SEARCHES = 20
+
 
 def run_search(page, timeout_ms: int) -> str:
     """検索を実行し、結果が差し替わるのを待つ。SEARCH_* のいずれかを返す。"""
@@ -361,6 +366,7 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
 
         emit_total = 0
         stopped = False
+        stale_searches = 0
 
         def harvest_pages(label: str) -> int:
             """いま表示中の検索結果をページ送りしながら取り込む。取り込んだ件数を返す。
@@ -477,6 +483,14 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                 reopen_detail(page, timeout_ms)
                 apply_filters(page, kind["id"], span)
                 outcome = run_search(page, timeout_ms)
+            if outcome == SEARCH_STALE:
+                nonlocal stale_searches
+                stale_searches += 1
+                if stale_searches >= MAX_STALE_SEARCHES:
+                    raise RuntimeError(
+                        f"検索結果の差し替えを{stale_searches}回確認できませんでした。"
+                        "取得元が応答していない可能性があります。"
+                    )
             if outcome == SEARCH_EMPTY:
                 return
             if outcome == SEARCH_STALE:
