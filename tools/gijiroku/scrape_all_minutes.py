@@ -251,7 +251,11 @@ def coverage_incomplete_reason(target: dict) -> str:
     言えない。例規側で塞いだのと同じ穴。
     """
     work_dir = Path(str(target.get("work_dir") or ""))
-    payload = gijiroku_storage.load_source_coverage(work_dir)
+    # 別ファイルがまだ無い古い作業ディレクトリでは、scrape_state.json の中の
+    # 記録に落ちる。落ちないと、上限で打ち切った古い実行が「記録なし」として
+    # 完了判定を通ってしまう（八幡市など）。
+    state = gijiroku_storage.load_state(work_dir / "scrape_state.json")
+    payload = gijiroku_storage.load_source_coverage(work_dir, state)
     state = gijiroku_storage.effective_walk_state(payload)
     if state in {"complete", "unknown"}:
         # 記録が無い系統（unknown）は、ここでは判断しない。
