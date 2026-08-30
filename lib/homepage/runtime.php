@@ -725,11 +725,24 @@ function homepage_reiki_source_coverage(array $feature): ?array
 function homepage_reiki_acquisition_status(
     int $storedCount,
     int $indexedCount,
-    array $feature = []
+    array $feature = [],
+    bool $hasError = false
 ): array {
     $status = homepage_indexed_shortfall_status($storedCount, $indexedCount);
     if ($status['state'] !== '') {
         return $status;
+    }
+    // 直近の取得が失敗していても、古い索引が 1 件でも残っていれば
+    // 「利用可能」に落ちていた。エラーの表示は $hasData が偽のときしか
+    // 届かないので、ここで拾う。
+    if ($hasError) {
+        return [
+            'state' => 'last_run_failed',
+            'label' => '検索可（直近の取得に失敗）',
+            'detail' => '検索できるのは前回までに取れた分です。'
+                . '直近の取得は失敗しています。',
+            'source_coverage' => null,
+        ];
     }
     // 取り切れなかった区間が残っているなら、そう出す。会議録では出している
     // のに例規だけ「利用可能」と出していた。
@@ -3050,7 +3063,8 @@ function homepage_collect_visible_features(
             'reiki' => homepage_reiki_acquisition_status(
                 (int)(is_array($display) ? ($display['count_current'] ?? 0) : 0),
                 $searchIndexedCount,
-                is_array($feature) ? $feature : []
+                is_array($feature) ? $feature : [],
+                $hasError
             ),
             default => ['state' => '', 'label' => '', 'detail' => '', 'source_coverage' => null],
         };

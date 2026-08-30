@@ -681,6 +681,14 @@ def main() -> int:
         page = context.new_page()
         page.set_default_timeout(args.timeout_ms)
 
+        # 走査の印は**探索の前**に置く。探索の途中で殺されると、
+        # 前回の complete がそのまま残ってしまう。
+        previous_coverage_record = gijiroku_storage.load_source_coverage(
+            state_path.parent, state
+        )
+        gijiroku_storage.mark_walk_started(
+            state_path.parent, previous_coverage_record, now_ts()
+        )
         print("[INFO] 会議一覧を収集中...")
         walk: dict = {}
         meeting_items = discover_meeting_items(
@@ -698,11 +706,7 @@ def main() -> int:
         )
         if offered_types:
             print(f"[INFO] 取得元が示す会議種別: {'/'.join(offered_types)}", flush=True)
-        # state は実行の頭で消えているので、前回の記録は別ファイルから読む。
-        previous_coverage = gijiroku_storage.load_source_coverage(state_path.parent, state)
-        gijiroku_storage.mark_walk_started(
-            state_path.parent, previous_coverage, now_ts()
-        )
+        previous_coverage = previous_coverage_record
         # 歩けたかどうかを必ず記録する。state を書かないと、監査からは
         # 「発見はしたが全部歩けたかは不明」のまま永久に区別が付かない。
         if args.max_meetings > 0:
