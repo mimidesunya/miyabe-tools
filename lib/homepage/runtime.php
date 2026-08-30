@@ -542,10 +542,16 @@ function homepage_gijiroku_acquisition_status(
     $progressIncomplete = is_array($progress)
         && (int)($progress['total'] ?? 0) > 0
         && (int)($progress['current'] ?? 0) < (int)($progress['total'] ?? 0);
-    $validationMatchesDiscovery = is_array($progress)
-        && is_array($sourceCoverage)
-        && (int)($sourceCoverage['discovered_count'] ?? 0) > 0
-        && (int)($progress['discovered'] ?? 0) === (int)($sourceCoverage['discovered_count'] ?? 0);
+    // 発見数と検証数の一致は、分類済み validation を書く系統でしか見られない。
+    // 書かない系統（kensakusystem / amivoice / msearch）でこれを必須にすると、
+    // 走査が完了していても永久に「追加取得中」と出る（141 自治体）。
+    $hasClassifiedProgress = is_array($progress) && (int)($progress['discovered'] ?? 0) > 0;
+    $validationMatchesDiscovery = !$hasClassifiedProgress
+        || (
+            is_array($sourceCoverage)
+            && (int)($sourceCoverage['discovered_count'] ?? 0) > 0
+            && (int)($progress['discovered'] ?? 0) === (int)($sourceCoverage['discovered_count'] ?? 0)
+        );
     $isRunning = is_array($display) && trim((string)($display['class'] ?? '')) === 'task-running';
 
     if (
@@ -595,12 +601,16 @@ function homepage_gijiroku_acquisition_status(
         ];
     }
 
-    if (
-        $sourceState === 'complete'
-        && is_array($progress)
-        && homepage_progress_count_is_complete((int)$progress['current'], (int)$progress['total'])
-    ) {
-        $acquiredCount = max(0, (int)($progress['current'] ?? 0));
+    // 分類済み validation を書かない系統（kensakusystem / amivoice / msearch）は
+    // $progress が無い。それを必須にすると、走査が完了していても完了表示に
+    // 到達できない（141 自治体）。無い場合は走査記録の発見数を使う。
+    $progressComplete = is_array($progress)
+        ? homepage_progress_count_is_complete((int)$progress['current'], (int)$progress['total'])
+        : !$hasClassifiedProgress;
+    if ($sourceState === 'complete' && $progressComplete) {
+        $acquiredCount = is_array($progress)
+            ? max(0, (int)($progress['current'] ?? 0))
+            : max(0, (int)(is_array($sourceCoverage) ? ($sourceCoverage['discovered_count'] ?? 0) : 0));
         $indexedCount = max(0, $indexedCount);
         if ($acquiredCount > 0 && $indexedCount <= 0) {
             $bodyMissing = homepage_gijiroku_body_missing_status($feature);
