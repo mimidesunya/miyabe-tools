@@ -29,6 +29,9 @@ from tools.tasks import priority as scraping_priority
 reiki_priority = scraping_priority.PriorityCalculator(
     "reiki",
     count_field="clean_html_count",
+    # 例規のスクレイパは取り切れなくても n/n で正常終了する。走査記録を
+    # 見ないと、取り切れなかった区間が残っていてもキューは完了と読む。
+    extra_progress_reader=scraping_priority.reiki_coverage_progress,
 )
 
 

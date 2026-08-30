@@ -411,6 +411,13 @@ function homepage_gijiroku_source_coverage(array $feature): ?array
     }
 
     $coverageState = trim((string)($coverage['state'] ?? ''));
+    // 判定ルールの版。tools/gijiroku/gijiroku_storage.py の
+    // COVERAGE_RULE_VERSION と揃える。古い規則で書かれた complete は
+    // ページ送りを諦めた回数を数えていないので、完了の意味が違う。
+    // 監査とキューは信用しないので、公開だけ完了と出すと食い違う。
+    if ((int)($coverage['rule_version'] ?? 0) < 2) {
+        return null;
+    }
     // 歩き直しを始めたまま終われていないなら、前回の complete は当てにしない。
     $startedAt = (string)($coverage['walk_started_at'] ?? '');
     $updatedAt = (string)($coverage['updated_at'] ?? '');
@@ -663,11 +670,58 @@ const HOMEPAGE_REIKI_INDEX_EXCLUSION_REASON = '本文として取り出せなか
 // 例規集は取得元の走査記録を持たない。取得した生ファイルのうち本文として
 // 整形できたものだけが検索に載るため、件数差はそれで説明がつく
 // （札幌市 1106 件中 967 件、旭川市 1126 件中 923 件が本文）。
-function homepage_reiki_acquisition_status(int $storedCount, int $indexedCount): array
+// 例規の走査記録。取得元が上限を持つ検索型（legal-square）だけが書く。
+// 目録型は母数を申告しないので、記録が無いことは異常ではない。
+function homepage_reiki_source_coverage(array $feature): ?array
 {
+    $workDir = trim((string)($feature['work_dir'] ?? ''));
+    if ($workDir === '') {
+        return null;
+    }
+    $path = rtrim($workDir, DIRECTORY_SEPARATOR . '/\\')
+        . DIRECTORY_SEPARATOR . 'source_coverage.json';
+    $payload = read_json_cache_file($path, 0);
+    if (!is_array($payload) || $payload === []) {
+        return null;
+    }
+    // 判定ルールの版。tools/reiki/scrapers/legal_square.py の version と揃える。
+    if ((int)($payload['version'] ?? 0) < 2) {
+        return null;
+    }
+    return $payload;
+}
+
+function homepage_reiki_acquisition_status(
+    int $storedCount,
+    int $indexedCount,
+    array $feature = []
+): array {
     $status = homepage_indexed_shortfall_status($storedCount, $indexedCount);
     if ($status['state'] !== '') {
         return $status;
+    }
+    // 取り切れなかった区間が残っているなら、そう出す。会議録では出している
+    // のに例規だけ「利用可能」と出していた。
+    $coverage = $feature === [] ? null : homepage_reiki_source_coverage($feature);
+    if (is_array($coverage)) {
+        $startedAt = (string)($coverage['walk_started_at'] ?? '');
+        $observedAt = (string)($coverage['observed_at'] ?? '');
+        $rewalking = $startedAt !== '' && $startedAt > $observedAt;
+        if (!($coverage['complete'] ?? false) || $rewalking) {
+            $unresolved = is_array($coverage['unresolved'] ?? null)
+                ? count($coverage['unresolved'])
+                : 0;
+            return [
+                'state' => 'coverage_incomplete',
+                'label' => '検索可（一部未取得）',
+                'detail' => $rewalking
+                    ? '取得元を確認し直している途中です。'
+                    : ($unresolved > 0
+                        ? '取得元の上限に阻まれて取り切れていない区間が ' . $unresolved . ' 件あります。'
+                        : '取得元の全件を取り切れた記録がありません。'),
+                'source_coverage' => $coverage,
+            ];
+        }
     }
     return [
         'state' => '',
@@ -2964,7 +3018,8 @@ function homepage_collect_visible_features(
             // 検索対象外の機能（選挙ポスター掲示場など）はここへ入れない。
             'reiki' => homepage_reiki_acquisition_status(
                 (int)(is_array($display) ? ($display['count_current'] ?? 0) : 0),
-                $searchIndexedCount
+                $searchIndexedCount,
+                is_array($feature) ? $feature : []
             ),
             default => ['state' => '', 'label' => '', 'detail' => '', 'source_coverage' => null],
         };

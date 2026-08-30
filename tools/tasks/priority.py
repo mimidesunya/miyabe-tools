@@ -26,10 +26,19 @@ if str(_GIJIROKU_TOOLS) not in sys.path:
 try:
     from gijiroku_storage import effective_walk_state
 except Exception:  # 会議録の道具が無い環境でも優先度計算は動かす
+    # 手抜きの代替を置くと、判定が二種類になって食い違う。
+    # gijiroku_storage.effective_walk_state と同じ規則をそのまま書く。
     def effective_walk_state(payload: Any) -> str:
         if not isinstance(payload, dict) or not payload:
             return "unknown"
-        return str(payload.get("state") or "").strip() or "unknown"
+        if int(payload.get("rule_version") or 0) < 2:
+            return "stale_rule"
+        state = str(payload.get("state") or "").strip() or "unknown"
+        started = str(payload.get("walk_started_at") or "")
+        updated = str(payload.get("updated_at") or "")
+        if state == "complete" and started and started > updated:
+            return "rewalking"
+        return state
 
 
 # priority_score が大きいほど先に実行し、0 は今回のキューに載せない。
@@ -284,6 +293,35 @@ def scrape_state_progress(target: dict[str, Any]) -> tuple[int, int]:
         if current_count > 0:
             return current_count, max(total_count, current_count + 1)
     return current_count, total_count
+
+
+def reiki_coverage_progress(target: dict[str, Any]) -> tuple[int, int]:
+    """例規の走査記録から、取り切れたかどうかを進捗として返す。
+
+    例規のスクレイパは取り切れなくても `n/n` で正常終了する。進捗だけを
+    見ていると、取り切れなかった区間が残っていてもキューは完了と読む。
+    会議録で塞いだのと同じ穴が、例規側に残っていた。
+    """
+    work_dir = Path(target.get("work_dir", ""))
+    try:
+        payload = json.loads((work_dir / "source_coverage.json").read_text(encoding="utf-8"))
+    except Exception:
+        return 0, 0
+    if not isinstance(payload, dict) or not payload:
+        return 0, 0
+    if not payload.get("declares", True):
+        # 取得元に母数の概念が無い（目録型）。ここでは判断しない。
+        return 0, 0
+    if int(payload.get("version") or 0) < 2:
+        # 古い規則で書かれた記録。完了の意味が違うので信用しない。
+        return 0, 1
+    collected = max(0, int(payload.get("collected") or 0))
+    started = str(payload.get("walk_started_at") or "")
+    observed = str(payload.get("observed_at") or "")
+    if payload.get("complete") and not (started and started > observed):
+        return collected, collected
+    # 取り切れていない。完了より必ず小さい母数にして、次回へ回す。
+    return collected, collected + 1
 
 
 class PriorityCalculator:
