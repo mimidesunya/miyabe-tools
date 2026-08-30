@@ -474,8 +474,9 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                         timeout=timeout_ms,
                     )
                 except PlaywrightTimeoutError:
-                    # 件数表示で最終ページと分かる場合は上で抜けている。ここへ来るのは
-                    # 表示を読めなかったときなので、残りを捨てた可能性を残す。
+                    # 件数表示を読めなかったときのほか、最終ページでないのに
+                    # 差し替えが timeout_ms 以内に来なかったときもここへ来る。
+                    # つまり残りのページを捨てている可能性がある。
                     print(
                         f"[WARN] {label}: {page_no}ページ目の次が開けませんでした"
                         "（以降を取得できていない可能性があります）",
@@ -499,14 +500,17 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                 reopen_detail(page, timeout_ms)
                 apply_filters(page, kind["id"], span)
                 outcome = run_search(page, timeout_ms)
+            nonlocal stale_searches
             if outcome == SEARCH_STALE:
-                nonlocal stale_searches
                 stale_searches += 1
                 if stale_searches >= MAX_STALE_SEARCHES:
                     raise RuntimeError(
                         f"検索結果の差し替えを{stale_searches}回確認できませんでした。"
                         "取得元が応答していない可能性があります。"
                     )
+            if outcome == SEARCH_OK:
+                # 続けて失敗したときだけ諦める。ときどき遅いだけの取得元は落とさない。
+                stale_searches = 0
             if outcome == SEARCH_EMPTY:
                 return
             if outcome == SEARCH_STALE:
