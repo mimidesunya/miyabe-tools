@@ -922,17 +922,33 @@ def main() -> int:
 
         # 取れた数・除外・失敗の内訳を残す。ファイル数え上げでは、本文の
         # 無い詳細ページ（saved_html）を取れたことにしてしまう。
-        downloaded_count = sum(
-            count
-            for name, count in status_counts.items()
-            if name in {"saved_text", "skipped_existing"}
-        )
+        #
+        # 数えるのは**計画の全件**で、この実行で処理した分だけではない。
+        # 再開実行では既に取れている本文が処理対象から外れるので、
+        # 今回分だけ数えると 9090 件の既存本文が「未取得」になる。
+        downloaded_count = 0
+        final_status_counts: dict[str, int] = {}
+        for plan in planned_items:
+            # 本文が取れているかは .txt の有無で見る。.html しか無いのは
+            # 詳細ページを置いただけ（saved_html）で、本文は取れていない。
+            existing = gijiroku_storage.existing_named_outputs(
+                plan["meeting_download_dir"], plan["stem"]
+            )
+            has_body = any(
+                gijiroku_storage.logical_suffix(path) == ".txt" for path in existing
+            )
+            if has_body:
+                downloaded_count += 1
+                continue
+            item_state = state.get("items", {}).get(plan["resume_key"], {})
+            status = str(item_state.get("status") or "").strip() or "not_found"
+            final_status_counts[status] = final_status_counts.get(status, 0) + 1
         gijiroku_storage.apply_classified_scrape_validation(
             state_path,
             state,
             discovered_count=len(meeting_items),
             downloaded_count=downloaded_count,
-            status_counts=status_counts,
+            status_counts=final_status_counts,
         )
 
         context.close()
