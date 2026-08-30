@@ -950,6 +950,12 @@ def run_batch(spec: BatchSpec, args: argparse.Namespace, targets: list[dict]) ->
                 )
                 batch_status.invalidate_runtime_caches()
                 completed_count += 1
+                # ここも「この自治体は終わった」枝。数えないと、全部が
+                # この経路を通ったときに 0/0 のまま成功で終わる。
+                if overall_returncode == 0:
+                    nonlocal_counts["succeeded"] += 1
+                else:
+                    nonlocal_counts["failed"] += 1
                 print(
                     f"[DONE {completed_count}/{len(targets)}] {target['slug']} "
                     f"[{target['system_type']}] returncode={overall_returncode} {summary} "
@@ -972,6 +978,11 @@ def run_batch(spec: BatchSpec, args: argparse.Namespace, targets: list[dict]) ->
                     progress_unit="",
                 )
                 write_status_state()
+                # 索引待ちへ回した分も、取得としては成否が決まっている。
+                if int(returncode) == 0:
+                    nonlocal_counts["succeeded"] += 1
+                else:
+                    nonlocal_counts["failed"] += 1
                 print(f"[INDEX-QUEUE] {target['slug']} 検索インデックス更新を待機キューへ追加", flush=True)
                 return
 
@@ -1347,6 +1358,15 @@ def run_batch(spec: BatchSpec, args: argparse.Namespace, targets: list[dict]) ->
         return 143
     # 1 件も成功しなかった実行を 0 で終えると、周期そのものが成功に見える。
     # 取得元がまとめて落ちている、設定を壊した、といった形が隠れる。
+    total_counted = nonlocal_counts["succeeded"] + nonlocal_counts["failed"]
+    if targets and total_counted == 0:
+        # 1 件も終端まで来ていない。子プロセスの起動が全部こけた形。
+        print(
+            f"[ERROR] {len(targets)}件のうち 1 件も実行できませんでした。",
+            file=sys.stderr,
+            flush=True,
+        )
+        return 1
     if nonlocal_counts["failed"] > 0 and nonlocal_counts["succeeded"] == 0:
         print(
             f"[ERROR] {nonlocal_counts['failed']}件すべてが失敗しました。"

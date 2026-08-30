@@ -135,6 +135,11 @@ def resolve_d1_law_base_url(source_url: str, session: requests.Session | None = 
         return direct_base_url
 
 
+# 個票の取得に失敗した URL。失敗を握り潰したまま「確認済み」と数えると、
+# 初回なら例規が欠け、更新なら古い本文を現行として固定する。
+DOWNLOAD_FAILURES: list[str] = []
+
+
 def download_file(
     url,
     dest_path,
@@ -207,11 +212,15 @@ def download_file(
         return True, written_path, source_hash, metadata
     except Exception as exc:
         print(f"Failed to download {url}: {exc}")
+        # 失敗と「既存をそのまま使った」を同じ形で返していたので、
+        # 呼ぶ側が区別できず「確認済み」に数えていた。印を付ける。
+        DOWNLOAD_FAILURES.append(str(url))
         return (
             False,
             existing_path or dest_path,
             "",
             {
+                "download_failed": True,
                 "status_code": "",
                 "not_modified": False,
                 "conditional": False,
@@ -750,8 +759,9 @@ def main():
         pass
     # 目録を最後まで開けて、個票の取得にも失敗が無ければ取り切れたと言える。
     missed_pages = int(catalog_walk.get("missed_pages") or 0)
-    # d1-law に --limit は無いので、目録を開けたかどうかだけで判断する。
-    walk_complete = missed_pages == 0
+    # d1-law に --limit は無いので、目録を開けたかと個票の失敗で判断する。
+    detail_failures = len(DOWNLOAD_FAILURES)
+    walk_complete = missed_pages == 0 and detail_failures == 0
     manifest_result = reiki_io.write_manifest_guarded(
         manifest_path,
         manifest_entries,
@@ -769,6 +779,8 @@ def main():
             "scanned_pages": int(catalog_walk.get("scanned_pages") or 0),
             "missed_pages": missed_pages,
             "missed_examples": catalog_walk.get("missed_examples") or [],
+            "failed": detail_failures,
+            "failed_examples": DOWNLOAD_FAILURES[:10],
             "collected": len(manifest_entries),
             "manifest_shrunk": not manifest_result["written"],
             "manifest_previous": manifest_result["previous"],
@@ -779,6 +791,11 @@ def main():
         print(
             f"[WARN] 目録のページを {missed_pages} 件開けませんでした。"
             "その先の例規は見えていません。",
+            flush=True,
+        )
+    if detail_failures:
+        print(
+            f"[WARN] 例規本体を {detail_failures} 件取得できませんでした。",
             flush=True,
         )
     print(f"Finished. Downloaded {downloaded_count} files.")

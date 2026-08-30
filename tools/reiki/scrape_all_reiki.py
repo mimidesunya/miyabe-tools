@@ -10,6 +10,7 @@ tools/tasks/batch.py に集約し、ここには例規集固有の判定だけ�
 from __future__ import annotations
 
 import argparse
+import json
 import shlex
 import sys
 from pathlib import Path
@@ -20,6 +21,7 @@ sys.path.append(str(Path(__file__).parent))
 # 例規集 batch runner は会議録側の task/build-lock ヘルパも共有する。
 # ファイルパス指定で実行されるため、関係する tools ディレクトリを明示的に import 対象へ入れる。
 import freshness_metadata
+import reiki_io
 import reiki_targets
 from tools.tasks import backfill as task_backfill
 from tools.tasks import batch as scraping_batch
@@ -158,8 +160,40 @@ def actual_scrape_progress(target: dict) -> tuple[int, int]:
     return max(0, current_count), max(0, max(total_count, current_count))
 
 
+def coverage_incomplete_reason(target: dict) -> str:
+    """走査記録から見て取り切れていないなら、その理由を返す。
+
+    ファイル数と manifest だけを見ていると、失敗を manifest から落とした
+    実行が n/n に見える。子が正しく未完了を書いても、この実行は成功・
+    鮮度更新・索引投入まで進んでしまう。
+    """
+    work_root = Path(str(target.get("work_root") or ""))
+    try:
+        payload = json.loads((work_root / "source_coverage.json").read_text(encoding="utf-8"))
+    except Exception:
+        return ""
+    if not isinstance(payload, dict) or not payload:
+        return ""
+    if not payload.get("declares", True):
+        return ""
+    if reiki_io.effective_coverage_complete(payload):
+        return ""
+    unresolved = len(payload.get("unresolved") or [])
+    failed = int(payload.get("failed") or 0)
+    if unresolved:
+        return f"取り切れなかった区間が {unresolved} 件"
+    if failed:
+        return f"取得に失敗した例規が {failed} 件"
+    if payload.get("manifest_shrunk"):
+        return "一覧が前回より減ったため置き換えていない"
+    return "取り切れた記録がありません"
+
+
 # 子スクレイパが returncode=0 でも、取得件数が完了していなければ成功扱いしない。
 def scrape_completion_error(target: dict, progress: dict | None) -> str:
+    coverage_reason = coverage_incomplete_reason(target)
+    if coverage_reason:
+        return coverage_reason
     current, total = actual_scrape_progress(target)
     if total <= 0 and isinstance(progress, dict):
         try:
