@@ -58,8 +58,8 @@ def coverage_state(work_root: Path) -> str:
         return "申告なし"
     if payload.get("complete"):
         return "完了"
-    capped = int(payload.get("capped_leaves") or 0)
-    return f"未達({capped})" if capped else "未達"
+    unresolved = len(payload.get("unresolved") or [])
+    return f"未達({unresolved})" if unresolved else "未達"
 
 
 def read_manifest(work_root: Path) -> tuple[str, list[str]]:

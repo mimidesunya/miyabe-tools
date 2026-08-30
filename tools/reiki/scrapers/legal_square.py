@@ -273,11 +273,13 @@ DATE_ERROR_EVAL = "() => /に正しい日付をご記入ください/.test(docum
 
 
 # run_search の結果。
-#   "ok"    … 結果が差し替わり、件数を信用してよい
-#   "empty" … 0 件、または日付を弾かれた
-#   "stale" … 差し替えを確認できなかった。表示は前の検索のままかもしれない
+#   "ok"       … 結果が差し替わり、件数を信用してよい
+#   "empty"    … 0 件。取得元がその条件では何も持っていない
+#   "rejected" … 条件を弾かれて検索が実行されていない。0 件とは意味が違う
+#   "stale"    … 差し替えを確認できなかった。表示は前の検索のままかもしれない
 SEARCH_OK = "ok"
 SEARCH_EMPTY = "empty"
+SEARCH_REJECTED = "rejected"
 SEARCH_STALE = "stale"
 
 # 差し替えを確認できない検索が続くとき、どこまで粘るか。
@@ -304,12 +306,17 @@ def run_search(page, timeout_ms: int) -> str:
     try:
         page.wait_for_selector("#pager", timeout=timeout_ms)
     except PlaywrightTimeoutError:
-        return SEARCH_EMPTY
+        # 0 件でも件数表示は出る（「0件」と表示される）。出ないのは検索が
+        # 終わっていないか画面が変わったときなので、0 件として扱わない。
+        print("[WARN] 件数表示が出ませんでした", flush=True)
+        return SEARCH_STALE
     page.wait_for_timeout(600)
     try:
         if page.evaluate(DATE_ERROR_EVAL):
             print("[WARN] 日付が不正として弾かれました（この範囲は取得できません）", flush=True)
-            return SEARCH_EMPTY
+            # 0 件ではなく「検索していない」。同じ値にすると取りこぼしが
+            # 「その期間には何も無い」として通ってしまう。
+            return SEARCH_REJECTED
     except Exception:
         pass
     if stale:
@@ -367,9 +374,22 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
         emit_total = 0
         stopped = False
         stale_searches = 0
-        # 分割の葉ごとに、取得元が言った件数と上限に張り付いたかを控える。
+        # 取り切れた区間と、取り切れなかった区間を分けて控える。
         # 総数ひとつでは完了判定にならない（上限に当たると総数自体が上限値になる）。
+        # 上限に当たっても、そのあと期間で割って取り切れたなら取りこぼしではない。
+        # 記録するのは**それ以上割らないと決めた地点**だけにする。
         coverage_leaves: list[dict] = []
+        coverage_unresolved: list[dict] = []
+
+        def note_leaf(kind: dict, span: tuple[int, int] | None, total: int) -> None:
+            coverage_leaves.append(
+                {"kind": kind["text"], "span": span_label(span), "total": total}
+            )
+
+        def note_unresolved(kind: dict, span: tuple[int, int] | None, reason: str) -> None:
+            coverage_unresolved.append(
+                {"kind": kind["text"], "span": span_label(span), "reason": reason}
+            )
 
         def harvest_pages(label: str) -> int:
             """いま表示中の検索結果をページ送りしながら取り込む。取り込んだ件数を返す。
@@ -514,6 +534,10 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             if outcome == SEARCH_OK:
                 # 続けて失敗したときだけ諦める。ときどき遅いだけの取得元は落とさない。
                 stale_searches = 0
+            if outcome == SEARCH_REJECTED:
+                # 検索が実行されていないので、この区間は取り切れていない。
+                note_unresolved(kind, span, "検索条件を弾かれた")
+                return
             if outcome == SEARCH_EMPTY:
                 return
             if outcome == SEARCH_STALE:
@@ -524,6 +548,7 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                         "検索結果を確認できませんでした",
                         flush=True,
                     )
+                    note_unresolved(kind, span, "検索結果を確認できなかった")
                     return
                 lo, hi = (0, len(MONTH_SLOTS) - 1) if span is None else span
                 mid = (lo + hi) // 2
@@ -534,17 +559,15 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             if total <= 0:
                 return
             capped = cap > 0 and total >= cap
+            if not capped:
+                # ここは上限に当たっていないので、この区間は取り切れる。
+                note_leaf(kind, span, total)
+            elif span is not None and span[0] >= span[1]:
+                # 単月まで割ってもまだ上限。これ以上は割れないので取り切れない。
+                note_unresolved(kind, span, f"単月でも上限{cap}件")
             # 上限に張り付いた中間ノードは、どうせ二分するので本文取得は省く。
             # ただし期間指定なしの初回だけは、制定年月日が無い例規を拾う保険として取り込む。
             if not capped or span is None or span[0] >= span[1]:
-                coverage_leaves.append(
-                    {
-                        "kind": kind["text"],
-                        "span": span_label(span),
-                        "total": total,
-                        "capped": bool(capped),
-                    }
-                )
                 got = harvest_pages(f"{kind['text']} {span_label(span)}")
                 print(
                     f"[INFO] {kind['text']} {span_label(span)}: 総数{total}件 → 新規{got}件"
@@ -599,7 +622,6 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
 
         browser.close()
 
-    capped_leaves = [leaf for leaf in coverage_leaves if leaf["capped"]]
     reiki_io.save_source_coverage(
         work_root,
         {
@@ -609,17 +631,17 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             "observed_at": time.strftime("%Y%m%d_%H%M%S"),
             "cap_value": cap or None,
             "leaves": coverage_leaves,
-            "capped_leaves": len(capped_leaves),
-            # 上限に張り付いたまま割り切れなかった葉が 1 つでもあれば、
-            # そこは取り切れていない。件数が揃っていても完了ではない。
-            "complete": not capped_leaves,
+            "unresolved": coverage_unresolved,
+            # 取り切れなかった区間が 1 つでもあれば完了ではない。
+            # 上限に当たっても、そのあと期間で割って取り切れたなら取りこぼしではない。
+            "complete": not coverage_unresolved and failed == 0,
             "collected": emit_total,
             "failed": failed,
         },
     )
-    if capped_leaves:
+    if coverage_unresolved:
         print(
-            f"[WARN] 上限に張り付いたまま取り切れなかった区間が {len(capped_leaves)} 件あります",
+            f"[WARN] 取り切れなかった区間が {len(coverage_unresolved)} 件あります",
             flush=True,
         )
 
