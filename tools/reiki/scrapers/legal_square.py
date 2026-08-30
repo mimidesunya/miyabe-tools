@@ -95,24 +95,43 @@ def open_search(page, source_url: str, timeout_ms: int) -> None:
     page.wait_for_timeout(1500)
 
 
-# 詳細検索の「種別」ツリーの第1階層（条例・規則・告示…）を読む JS。
+# 詳細検索の「種別」ツリーを読む JS。第1階層（条例・規則・告示…）と、
+# その下の第2階層を親子で返す。単日まで割っても上限に張り付く自治体が
+# あり（合併の日に例規がまとめて制定されている）、そこでは種別を
+# もう一段細かくするしか手が無い。
 KIND_EVAL = """
-() => Array.from(document.querySelectorAll('ul.treeview li')).map(li => {
-  const cb = li.querySelector('input[type=checkbox]');
-  if (!cb || !/kind_tree01$/.test(cb.id)) return null;
-  const text = Array.from(li.childNodes)
+() => {
+  const label = (li) => Array.from(li.childNodes)
     .filter(n => n.nodeType === 3).map(n => n.textContent.trim()).join('');
-  return text ? {id: cb.id, text: text} : null;
-}).filter(Boolean)
+  const out = [];
+  document.querySelectorAll('ul.treeview li').forEach(li => {
+    const cb = li.querySelector('input[type=checkbox]');
+    if (!cb || !/kind_tree01$/.test(cb.id)) return;
+    const text = label(li);
+    if (!text) return;
+    const children = [];
+    li.querySelectorAll('li').forEach(sub => {
+      const scb = sub.querySelector('input[type=checkbox]');
+      if (!scb || !/kind_tree0[2-9]$/.test(scb.id)) return;
+      const stext = label(sub);
+      if (stext) children.push({id: scb.id, text: stext});
+    });
+    out.push({id: cb.id, text: text, children: children});
+  });
+  return out;
+}
 """
 
 
 def list_kind_segments(page) -> list[dict]:
-    """種別ツリーの第1階層を返す。無ければ空。"""
+    """種別ツリーの第1階層を返す。無ければ空。各要素は children を持つ。"""
     try:
-        return page.evaluate(KIND_EVAL) or []
+        segments = page.evaluate(KIND_EVAL) or []
     except Exception:
         return []
+    for segment in segments:
+        segment.setdefault("children", [])
+    return segments
 
 
 # 1 回の検索で返る件数の上限としてありそうな値。取得元ごとに設定が違う。
@@ -634,6 +653,26 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             indivisible = single_month and (days is None or single_day) and (
                 days is not None or slot_day_count(span) <= 1
             )
+            children = kind.get("children") or []
+            if capped and indivisible and children:
+                # 日でも割り切れないが、種別をもう一段細かくできる。
+                # 合併の日にまとめて制定された例規はここで分かれる。
+                print(
+                    f"[INFO] {kind['text']} {span_label(span, days)}: "
+                    f"日で割り切れないので種別を{len(children)}件に分けます",
+                    flush=True,
+                )
+                for child in children:
+                    if stopped:
+                        break
+                    collect(
+                        {"id": child["id"], "text": f"{kind['text']}／{child['text']}",
+                         "children": []},
+                        span,
+                        depth + 1,
+                        days,
+                    )
+                return
             if capped and indivisible:
                 note_unresolved(
                     kind, span, f"単日でも上限{cap}件", days=days
@@ -709,7 +748,7 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             segments = list_kind_segments(page)
             if not segments:
                 print("[INFO] 種別ツリーが無いので制定年月日だけで分割します", flush=True)
-                segments = [{"id": "", "text": "全件"}]
+                segments = [{"id": "", "text": "全件", "children": []}]
             else:
                 print(f"[INFO] 種別 {len(segments)} 件で分割します", flush=True)
             for seg_index, segment in enumerate(segments, 1):
