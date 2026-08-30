@@ -673,6 +673,9 @@ def main() -> int:
             print(f"[INFO] 取得元が示す会議区分: {'/'.join(offered_types)}", flush=True)
         # state は実行の頭で消えているので、前回の記録は別ファイルから読む。
         source_coverage = gijiroku_storage.load_source_coverage(state_path.parent, state)
+        gijiroku_storage.mark_walk_started(
+            state_path.parent, source_coverage, now_ts()
+        )
         # 歩けたかどうかを必ず記録する。state を書かないと、監査からは
         # 「発見はしたが全部歩けたかは不明」のまま永久に区別が付かない。
         if walk.get("limit_reached"):

@@ -613,7 +613,17 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
         cap = detect_cap(page, total0)
         if cap == 0:
             print(f"[INFO] 条件なしで全{total0}件を取得します", flush=True)
-            harvest_pages("全件")  # 上限が無いので、これで全部
+            _got, walked_all = harvest_pages("全件")
+            if walked_all < total0:
+                # 上限が無いはずでも、途中で「次へ」が止まれば取り落とす。
+                # 分割走査と同じく、申告件数と歩いた行数を突き合わせる。
+                coverage_unresolved.append(
+                    {
+                        "kind": "全件",
+                        "span": "指定なし",
+                        "reason": f"{total0}件のうち{walked_all}件しか辿れなかった",
+                    }
+                )
         else:
             print(f"[INFO] 1回の検索は{cap}件で打ち切られます。種別と制定年月日で分割します。", flush=True)
             # 分割の前に、条件なしの結果をそのまま取り込む。上限までしか取れないが、

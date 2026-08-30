@@ -223,12 +223,37 @@ def load_source_coverage(work_dir: Path, state: dict[str, Any] | None = None) ->
     """
     try:
         payload = json.loads(source_coverage_path(work_dir).read_text(encoding="utf-8"))
-        if isinstance(payload, dict) and payload:
-            return payload
     except Exception:
-        pass
+        payload = None
+    if not isinstance(payload, dict) or not payload:
+        payload = None
     previous = (state or {}).get("source_coverage")
-    return previous if isinstance(previous, dict) else {}
+    if not isinstance(previous, dict) or not previous:
+        previous = None
+    if payload is None:
+        return previous or {}
+    if previous is None:
+        return payload
+    # 両方あるなら新しい方。写しの書き込みが失敗していると、state の方が
+    # 新しいのに古い写しを返してしまう。
+    if str(previous.get("updated_at") or "") > str(payload.get("updated_at") or ""):
+        return previous
+    return payload
+
+
+def mark_walk_started(work_dir: Path, previous: dict[str, Any], when: str) -> None:
+    """これから取得元を歩き直す、という印を残す。
+
+    前回 complete の自治体は、歩き直しの途中で殺されても complete のまま
+    残る。取得元が増えていても完了に見えてしまうので、始めた時刻を
+    別に控えて、終わった時刻より新しければ確認前と分かるようにする。
+
+    `previous` は読み終えたあとの記録を渡すこと。先に印だけ書くと、
+    写しがまだ無い自治体で state 側の記録を取りこぼす。
+    """
+    payload = dict(previous) if previous else {"mode": "source_discovery_coverage"}
+    payload["walk_started_at"] = when
+    save_source_coverage(work_dir, payload)
 
 
 def save_source_coverage(work_dir: Path, payload: dict[str, Any]) -> None:
@@ -290,8 +315,10 @@ def save_state(path: Path, state: dict[str, Any]) -> None:
     if isinstance(coverage, dict) and coverage:
         try:
             save_source_coverage(path.parent, coverage)
-        except Exception:
-            pass
+        except Exception as error:
+            # 写しに失敗してもスクレイプは続ける。ただし黙って捨てると
+            # 「state は新しいのに写しが古い」に後から気付けない。
+            print(f"[WARN] 走査記録の写しに失敗しました: {error}", flush=True)
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_suffix(path.suffix + ".tmp")
     payload = json.dumps(state, ensure_ascii=False, indent=2) + "\n"

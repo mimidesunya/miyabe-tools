@@ -1439,6 +1439,16 @@ def collect_list_page_documents(
     )
 
 
+# ページ送りを途中で諦めた回数。「次へ」が押せなかった、次のページを開けなかった、
+# 同じページが返ってきた、のいずれか。歩き切れなかったのに complete と
+# 記録しないために、走査の外まで持ち上げる必要がある。呼ぶ側に数えさせると
+# 必ずどこかで忘れるので、ここで数える。
+ABANDONED_LIST_PAGES: list[str] = []
+# 同じページが返ってきて止まった箇所。最終ページでも「次へ」を残す取得元が
+# あるので、これが異常だという証拠はまだ無い。失敗には数えず、記録だけ残す。
+REPEATED_LIST_PAGES: list[str] = []
+
+
 def collect_document_rows_from_open_list(
     page,
     timeout_ms: int,
@@ -1457,6 +1467,7 @@ def collect_document_rows_from_open_list(
         page_rows = extract_document_rows_from_page(page)
         signature = (page_rows[0].url if page_rows else page.url, len(page_rows))
         if signature in seen_page_signatures:
+            REPEATED_LIST_PAGES.append(page.url)
             break
         seen_page_signatures.add(signature)
 
@@ -1484,6 +1495,7 @@ def collect_document_rows_from_open_list(
                     pass
                 continue
             except Exception:
+                ABANDONED_LIST_PAGES.append(f"「次へ」を押せなかった: {page.url}")
                 break
 
         next_url = ""
@@ -1505,6 +1517,7 @@ def collect_document_rows_from_open_list(
             except Exception:
                 pass
         except Exception:
+            ABANDONED_LIST_PAGES.append(f"次のページを開けなかった: {next_url}")
             break
 
     return collected
@@ -1996,6 +2009,9 @@ def main() -> int:
     previous_source_coverage = gijiroku_storage.load_source_coverage(
         state_path.parent, state
     )
+    gijiroku_storage.mark_walk_started(
+        state_path.parent, previous_source_coverage, now_ts()
+    )
     previous_source_state = str(previous_source_coverage.get("state") or "").strip()
     if args.max_meetings <= 0 and index_json.exists() and previous_source_state != "complete":
         state["source_coverage"] = {
@@ -2048,6 +2064,10 @@ def main() -> int:
 
         limit_reached = bool(coverage_report.get("limit_reached"))
         failed_list_page_count = max(0, int(coverage_report.get("failed_list_page_count") or 0))
+        # ページ送りを途中で諦めた分も失敗として数える。数えないと、
+        # 後半のページを丸ごと落としたまま complete になる。
+        abandoned = list(ABANDONED_LIST_PAGES)
+        failed_list_page_count += len(abandoned)
         discovery_source = str(coverage_report.get("discovery_source") or "")
         if limit_reached:
             source_coverage_state = "partial_limit"
@@ -2065,6 +2085,8 @@ def main() -> int:
             "discovered_count": len(meeting_items),
             "list_page_count": max(0, int(coverage_report.get("list_page_count") or 0)),
             "failed_list_page_count": failed_list_page_count,
+            "abandoned_list_pages": abandoned[:20],
+            "repeated_list_pages": len(REPEATED_LIST_PAGES),
             "discovery_source": discovery_source,
             "limit": max(0, int(args.max_meetings)),
             "updated_at": now_ts(),
