@@ -680,11 +680,12 @@ def main() -> int:
         state["source_coverage"] = {
             **(previous_coverage if isinstance(previous_coverage, dict) else {}),
             "mode": "source_discovery_coverage",
-            # 読み取れなかったときは空で上書きしない（監査が「委員会が無い」と読む）。
-            **({"offered_meeting_types": list(offered_types)} if offered_types else {}),
             "updated_at": now_ts(),
         }
         gijiroku_storage.save_state(state_path, state)
+        # 会議種別は scrape_state.json ではなく別ファイルへ。state は実行のたびに
+        # 消される（batch.py の remove_stale_scrape_state）ので、ここに置くと残らない。
+        gijiroku_storage.save_offered_meeting_types(state_path.parent, list(offered_types))
 
         index_json.parent.mkdir(parents=True, exist_ok=True)
         index_json.write_text(

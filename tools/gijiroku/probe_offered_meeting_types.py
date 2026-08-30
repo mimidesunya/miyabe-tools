@@ -139,19 +139,12 @@ def probe_gijiroku_com(page, target: dict, timeout_ms: int) -> list[str]:
 
 
 def save_offered_types(target: dict, offered: list[str]) -> Path:
-    state_path = Path(str(target["work_dir"])) / "scrape_state.json"
-    state = gijiroku_storage.load_state(state_path) if state_path.exists() else {}
-    if not isinstance(state, dict):
-        state = {}
-    coverage = state.get("source_coverage")
-    state["source_coverage"] = {
-        **(coverage if isinstance(coverage, dict) else {}),
-        "offered_meeting_types": list(offered),
-        "offered_types_probed_at": time.strftime("%Y%m%d_%H%M%S"),
-    }
-    state_path.parent.mkdir(parents=True, exist_ok=True)
-    gijiroku_storage.save_state(state_path, state)
-    return state_path
+    # scrape_state.json は実行のたびに消される（batch.py の
+    # remove_stale_scrape_state）ので、消えない別ファイルへ置く。
+    work_dir = Path(str(target["work_dir"]))
+    work_dir.mkdir(parents=True, exist_ok=True)
+    gijiroku_storage.save_offered_meeting_types(work_dir, offered)
+    return gijiroku_storage.offered_meeting_types_path(work_dir)
 
 
 def parse_args() -> argparse.Namespace:

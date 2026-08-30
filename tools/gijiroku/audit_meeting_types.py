@@ -36,6 +36,7 @@ import sys
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent))
+import gijiroku_storage  # noqa: E402
 import gijiroku_targets  # noqa: E402
 
 
@@ -64,6 +65,10 @@ def load_offered_types(target: dict) -> list[str] | None:
     work_dir = str(target.get("work_dir") or "").strip()
     if work_dir == "":
         return None
+    names = gijiroku_storage.load_offered_meeting_types(Path(work_dir))
+    if names:
+        return names
+    # 記録の置き場所を移す前に取得した分は、まだ scrape_state.json に入っている。
     try:
         raw = json.loads((Path(work_dir) / "scrape_state.json").read_text(encoding="utf-8"))
     except Exception:

@@ -203,6 +203,40 @@ def load_state(path: Path) -> dict[str, Any]:
     return state
 
 
+# 取得元が示す会議種別。scrape_state.json は実行のたびに消されるので、
+# ここへ分けて置く（batch.py の remove_stale_scrape_state）。
+OFFERED_MEETING_TYPES_FILE = "offered_meeting_types.json"
+
+
+def offered_meeting_types_path(work_dir: Path) -> Path:
+    return Path(work_dir) / OFFERED_MEETING_TYPES_FILE
+
+
+def load_offered_meeting_types(work_dir: Path) -> list[str] | None:
+    """取得元が示す会議種別を読む。記録が無ければ None。"""
+    payload = load_json(offered_meeting_types_path(work_dir), None)
+    names = payload.get("names") if isinstance(payload, dict) else None
+    if not isinstance(names, list):
+        return None
+    cleaned = [str(value).strip() for value in names if str(value).strip()]
+    return cleaned or None
+
+
+def save_offered_meeting_types(work_dir: Path, names: list[str]) -> None:
+    """読み取れた会議種別だけを保存する。空では上書きしない。
+
+    空で上書きすると、監査が「取得元にも委員会が無い」と読んでしまう。
+    読み取れなかったのか本当に無いのかは区別できないので、前の記録を残す。
+    """
+    cleaned = [str(value).strip() for value in names if str(value).strip()]
+    if not cleaned:
+        return
+    write_json(
+        offered_meeting_types_path(work_dir),
+        {"names": cleaned, "observed_at": datetime.now().strftime("%Y%m%d_%H%M%S")},
+    )
+
+
 def save_state(path: Path, state: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_suffix(path.suffix + ".tmp")
