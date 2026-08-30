@@ -381,24 +381,39 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
         coverage_leaves: list[dict] = []
         coverage_unresolved: list[dict] = []
 
-        def note_leaf(kind: dict, span: tuple[int, int] | None, total: int) -> None:
+        def note_leaf(
+            kind: dict, span: tuple[int, int] | None, total: int, walked: int
+        ) -> None:
+            # 取得元が言った件数と、実際に歩いた行数がずれていたら取り落としている。
             coverage_leaves.append(
-                {"kind": kind["text"], "span": span_label(span), "total": total}
+                {
+                    "kind": kind["text"],
+                    "span": span_label(span),
+                    "total": total,
+                    "walked": walked,
+                }
             )
+            if walked < total:
+                note_unresolved(kind, span, f"{total}件のうち{walked}件しか辿れなかった")
 
         def note_unresolved(kind: dict, span: tuple[int, int] | None, reason: str) -> None:
             coverage_unresolved.append(
                 {"kind": kind["text"], "span": span_label(span), "reason": reason}
             )
 
-        def harvest_pages(label: str) -> int:
-            """いま表示中の検索結果をページ送りしながら取り込む。取り込んだ件数を返す。
+        def harvest_pages(label: str) -> tuple[int, int]:
+            """いま表示中の検索結果をページ送りしながら取り込む。
+
+            返すのは (新しく取り込んだ件数, 実際に歩いた行数)。歩いた行数は、
+            取得元が言った件数と突き合わせるために要る。件数だけ合っていて
+            途中のページを取り落としている、という形を見つけられない。
 
             取得済みの例規は読み飛ばすだけなので何も出力せずに何分も進むことがある。
             見張りに故障と誤解されないよう、ページ送りのたびに現在地を知らせる。
             """
             nonlocal emit_total, downloaded, failed, stopped
             start_total = emit_total
+            walked = 0
             page_no = 0
             while True:
                 page_no += 1
@@ -407,6 +422,7 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                 rows = page.evaluate(ROW_EVAL)
                 anchors = page.query_selector_all("a.viewerOpener")
                 count = min(len(rows), len(anchors))
+                walked += count
                 for i in range(count):
                     meta = rows[i]
                     title = str(meta.get("title", "")).strip()
@@ -507,7 +523,7 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                     )
                     break
                 page.wait_for_timeout(400)
-            return emit_total - start_total
+            return emit_total - start_total, walked
 
         def collect(kind: dict, span: tuple[int, int] | None, depth: int) -> None:
             """種別 × 制定年月日で検索し、上限に張り付くなら期間を二分してやり直す。"""
@@ -559,16 +575,16 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             if total <= 0:
                 return
             capped = cap > 0 and total >= cap
-            if not capped:
-                # ここは上限に当たっていないので、この区間は取り切れる。
-                note_leaf(kind, span, total)
-            elif span is not None and span[0] >= span[1]:
+            if capped and span is not None and span[0] >= span[1]:
                 # 単月まで割ってもまだ上限。これ以上は割れないので取り切れない。
                 note_unresolved(kind, span, f"単月でも上限{cap}件")
             # 上限に張り付いた中間ノードは、どうせ二分するので本文取得は省く。
             # ただし期間指定なしの初回だけは、制定年月日が無い例規を拾う保険として取り込む。
             if not capped or span is None or span[0] >= span[1]:
-                got = harvest_pages(f"{kind['text']} {span_label(span)}")
+                got, walked = harvest_pages(f"{kind['text']} {span_label(span)}")
+                if not capped:
+                    # 上限に当たっていない区間だけが「取り切れた」と言える。
+                    note_leaf(kind, span, total, walked)
                 print(
                     f"[INFO] {kind['text']} {span_label(span)}: 総数{total}件 → 新規{got}件"
                     f"（累計 {emit_total}件）",
@@ -597,12 +613,12 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
         cap = detect_cap(page, total0)
         if cap == 0:
             print(f"[INFO] 条件なしで全{total0}件を取得します", flush=True)
-            harvest_pages("全件")
+            harvest_pages("全件")  # 上限が無いので、これで全部
         else:
             print(f"[INFO] 1回の検索は{cap}件で打ち切られます。種別と制定年月日で分割します。", flush=True)
             # 分割の前に、条件なしの結果をそのまま取り込む。上限までしか取れないが、
             # 種別ツリーの読み取りが漏らした例規や、どの種別にも属さない例規の保険になる。
-            got = harvest_pages("条件なし")
+            got, _walked = harvest_pages("条件なし")
             print(f"[INFO] 条件なし: 総数{total0}件 → 新規{got}件", flush=True)
             reopen_detail(page, timeout_ms)
             segments = list_kind_segments(page)
@@ -630,11 +646,22 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             "declares": True,
             "observed_at": time.strftime("%Y%m%d_%H%M%S"),
             "cap_value": cap or None,
+            # 上限を検出できたか。検出できていないだけで、取得元が黙って
+            # 打ち切っている可能性は否定できない。
+            "cap_detected": cap > 0,
             "leaves": coverage_leaves,
             "unresolved": coverage_unresolved,
             # 取り切れなかった区間が 1 つでもあれば完了ではない。
             # 上限に当たっても、そのあと期間で割って取り切れたなら取りこぼしではない。
-            "complete": not coverage_unresolved and failed == 0,
+            # --limit で打ち切ったときも完了ではない。
+            "limited": bool(limit > 0),
+            "stopped_early": bool(stopped),
+            "complete": (
+                not coverage_unresolved
+                and failed == 0
+                and not stopped
+                and limit <= 0
+            ),
             "collected": emit_total,
             "failed": failed,
         },

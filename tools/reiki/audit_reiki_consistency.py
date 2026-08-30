@@ -57,9 +57,16 @@ def coverage_state(work_root: Path) -> str:
     if not payload.get("declares", True):
         return "申告なし"
     if payload.get("complete"):
-        return "完了"
+        # 上限を検出できていない取得元は、黙って打ち切られていても分からない。
+        # 完了と扱うが、そのことが見えるようにしておく。
+        return "完了" if payload.get("cap_detected", True) else "完了(上限未検出)"
+    reasons = []
+    if payload.get("stopped_early") or payload.get("limited"):
+        reasons.append("打ち切り")
     unresolved = len(payload.get("unresolved") or [])
-    return f"未達({unresolved})" if unresolved else "未達"
+    if unresolved:
+        reasons.append(f"未取得{unresolved}区間")
+    return "未達(" + "/".join(reasons) + ")" if reasons else "未達"
 
 
 def read_manifest(work_root: Path) -> tuple[str, list[str]]:
