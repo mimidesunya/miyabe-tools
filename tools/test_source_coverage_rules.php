@@ -57,21 +57,15 @@ require_once __DIR__ . '/../lib/municipalities.php';
 $sampleSlug = '13101-chiyoda-ku';
 $expectedWorkDir = work_path('reiki/' . $sampleSlug);
 
-// 実際に feature を作って、走査記録が読めることを確かめる。
-$tempWork = $expectedWorkDir;
-$cleanup = false;
-if (!is_dir($tempWork)) {
-    @mkdir($tempWork, 0777, true);
-    $cleanup = true;
-}
+// 走査記録の読み取りは、本番の work を触らずに一時ディレクトリで確かめる。
+// テストが実データに書き込むと、走っているスクレイパと競合する。
+$tempWork = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'miyabe_coverage_test_' . getmypid();
+@mkdir($tempWork, 0777, true);
 $coveragePath = $tempWork . DIRECTORY_SEPARATOR . 'source_coverage.json';
-$hadCoverage = is_file($coveragePath);
-if (!$hadCoverage) {
-    file_put_contents($coveragePath, json_encode([
-        'version' => 2, 'complete' => false, 'unresolved' => [['kind' => '条例']],
-        'observed_at' => '20260830_120000',
-    ]));
-}
+file_put_contents($coveragePath, json_encode([
+    'version' => 2, 'complete' => false, 'unresolved' => [['kind' => '条例']],
+    'observed_at' => '20260830_120000',
+]));
 
 // feature を手で作ると配線を見ていないことになる。実際の生成経路から取る。
 $entry = normalize_municipality_entry($sampleSlug, []);
@@ -87,7 +81,8 @@ if (trim((string)($feature['work_dir'] ?? '')) === '') {
         (string)$feature['work_dir']
     );
 }
-$status = homepage_reiki_acquisition_status(10, 10, $feature);
+// 読み取り自体は一時ディレクトリで確かめる（本番の work は触らない）。
+$status = homepage_reiki_acquisition_status(10, 10, ['work_dir' => $tempWork]);
 if (($status['state'] ?? '') !== 'coverage_incomplete') {
     $failures[] = sprintf(
         "例規: feature の work_dir から走査記録を読めていない
@@ -98,12 +93,8 @@ if (($status['state'] ?? '') !== 'coverage_incomplete') {
     );
 }
 
-if (!$hadCoverage) {
-    @unlink($coveragePath);
-}
-if ($cleanup) {
-    @rmdir($tempWork);
-}
+@unlink($coveragePath);
+@rmdir($tempWork);
 
 $total = count($rules['minutes'] ?? []) + count($rules['reiki'] ?? []);
 if ($failures !== []) {

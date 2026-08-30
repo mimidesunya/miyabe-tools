@@ -385,6 +385,11 @@ def count_statuses(status_counts: dict[str, int], statuses: frozenset[str]) -> i
     return sum(max(0, int(status_counts.get(status, 0))) for status in statuses)
 
 
+# 会議候補の一覧が、前回のこれを下回るほど減ったら上書きしない。
+# 取得元から一斉に会議が消えることは、まず無い。
+PLAN_SHRINK_ALLOWANCE = 0.8
+
+
 def save_meetings_index(path: Path, payload: list[Any]) -> None:
     """会議候補の一覧を保存する。空では上書きしない。
 
@@ -393,15 +398,18 @@ def save_meetings_index(path: Path, payload: list[Any]) -> None:
     などで起きていた。空になったのは発見の失敗であって、取得元から
     会議が消えたわけではない。
     """
-    if not payload:
-        try:
-            existing = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            existing = None
-        if isinstance(existing, list) and existing:
+    try:
+        existing = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        existing = None
+    if isinstance(existing, list) and existing:
+        # 空だけでなく、大きく減ったときも守る。1202 件が 1 件になっても
+        # 「取得元から会議が消えた」より「発見が途中で終わった」を疑う。
+        if len(payload) < len(existing) * PLAN_SHRINK_ALLOWANCE:
             print(
-                f"[WARN] 会議候補を1件も見つけられませんでした。"
-                f"前回の {len(existing)}件を残します: {path}",
+                f"[WARN] 今回見つけた会議候補は {len(payload)}件で、"
+                f"前回の {len(existing)}件より大きく減っています。"
+                f"前回の分を残します: {path}",
                 flush=True,
             )
             return

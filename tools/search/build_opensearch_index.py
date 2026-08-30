@@ -1214,6 +1214,9 @@ def main() -> int:
             )
         return 0
 
+    # 0 件の索引を公開に切り替えないための計数。作らなかった側は None のまま。
+    minutes_count: int | None = None
+    reiki_count: int | None = None
     built_minutes_index: str | None = None
     built_reiki_index: str | None = None
     initial_minutes_indices = indices_for_alias(client, args.minutes_alias)
@@ -1358,6 +1361,28 @@ def main() -> int:
                 ),
             )
             processed_offset += reiki_count
+
+        # 0 件の索引に切り替えると、公開検索が丸ごと空になる。work の
+        # マウント漏れやディレクトリ構成の変更で、正常終了したまま起きる。
+        empty_builds = [
+            name
+            for name, count, index in (
+                ("会議録", minutes_count, built_minutes_index),
+                ("例規", reiki_count, built_reiki_index),
+            )
+            if index and count is not None and count <= 0
+        ]
+        if empty_builds and not args.no_switch_alias and not args.allow_partial_alias:
+            print(
+                "[ERROR] " + "・".join(empty_builds) + "の索引が 0 件です。"
+                "このまま公開に切り替えると検索が空になります。"
+                "取得元のディレクトリを確認してください。"
+                "意図しているなら --allow-partial-alias を付けてください。",
+                file=sys.stderr,
+                flush=True,
+            )
+            search_rebuild_status_finish(status_state, ok=False, message="索引が 0 件")
+            return 2
 
         if not args.no_switch_alias:
             print("[ALIAS] atomic switch", flush=True)

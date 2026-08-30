@@ -143,6 +143,17 @@ class MeetingsIndexTest(unittest.TestCase):
         gijiroku_storage.save_meetings_index(self.path, [])
         self.assertEqual(len(json.loads(self.path.read_text(encoding="utf-8"))), 2)
 
+    def test_large_drop_does_not_replace_the_plan(self):
+        # 1202 件が 1 件になったら、取得元から消えたより発見の失敗を疑う。
+        gijiroku_storage.save_meetings_index(self.path, [{"a": i} for i in range(100)])
+        gijiroku_storage.save_meetings_index(self.path, [{"a": 1}])
+        self.assertEqual(len(json.loads(self.path.read_text(encoding="utf-8"))), 100)
+
+    def test_small_drop_is_accepted(self):
+        gijiroku_storage.save_meetings_index(self.path, [{"a": i} for i in range(100)])
+        gijiroku_storage.save_meetings_index(self.path, [{"a": i} for i in range(90)])
+        self.assertEqual(len(json.loads(self.path.read_text(encoding="utf-8"))), 90)
+
     def test_non_empty_discovery_replaces_the_plan(self):
         gijiroku_storage.save_meetings_index(self.path, [{"a": 1}])
         gijiroku_storage.save_meetings_index(self.path, [{"c": 3}])
