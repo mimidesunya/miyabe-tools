@@ -21,6 +21,7 @@ sys.path.append(str(Path(__file__).parent))
 # Docker ではこの batch runner をファイルパス指定で実行する。
 # package install なしでも共通 tools、会議録モジュール、隣接モジュールを import できるようにする。
 import freshness_metadata
+import gijiroku_storage
 import gijiroku_targets
 from tools.tasks import backfill as task_backfill
 from tools.tasks import batch as scraping_batch
@@ -242,7 +243,37 @@ def actual_scrape_progress(target: dict) -> tuple[int, int]:
 
 
 # 子スクレイパが returncode=0 でも、取得件数が完了していなければ成功扱いしない。
+def coverage_incomplete_reason(target: dict) -> str:
+    """走査記録から見て歩き切れていないなら、その理由を返す。
+
+    発見した分を全部保存できていれば、分類済み validation は成功になる。
+    落ちた枝はそもそも発見数に入らないので、それだけでは「取り切れた」と
+    言えない。例規側で塞いだのと同じ穴。
+    """
+    work_dir = Path(str(target.get("work_dir") or ""))
+    payload = gijiroku_storage.load_source_coverage(work_dir)
+    state = gijiroku_storage.effective_walk_state(payload)
+    if state in {"complete", "unknown"}:
+        # 記録が無い系統（unknown）は、ここでは判断しない。
+        return ""
+    missed = int((payload or {}).get("missed_pages") or 0)
+    if state == "partial_error" and missed:
+        return f"一覧のページを {missed} 件開けませんでした"
+    labels = {
+        "partial_error": "走査の途中で取り落としがあります",
+        "partial_limit": "上限で打ち切っています",
+        "partial_planned": "走査が途中で終わっています",
+        "partial_recent_only": "取得元が直近分しか出していません",
+        "rewalking": "走査し直している途中です",
+        "stale_rule": "古い規則で書かれた記録です",
+    }
+    return labels.get(state, f"走査が完了していません（{state}）")
+
+
 def scrape_completion_error(target: dict, progress: dict | None) -> str:
+    coverage_reason = coverage_incomplete_reason(target)
+    if coverage_reason:
+        return coverage_reason
     validation = classified_scrape_validation(target)
     if validation is not None:
         discovered_count = validation_int(validation, "discovered_count")

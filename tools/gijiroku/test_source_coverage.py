@@ -160,6 +160,44 @@ class MeetingsIndexTest(unittest.TestCase):
         self.assertEqual(json.loads(self.path.read_text(encoding="utf-8")), [{"c": 3}])
 
 
+class PlanShrinkDemotesCoverageTest(unittest.TestCase):
+    """一覧の置き換えを拒んだら、走査記録も complete のままにしない。
+
+    拒むと正本は前回の件数のまま、記録は「今回の件数を取り切った」に
+    なり、食い違う。10 系統それぞれに覚えさせず、拒む場所で直す。
+    """
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        self.path = self.dir / "meetings_index.json"
+
+    def test_large_drop_demotes_complete(self):
+        gijiroku_storage.record_catalog_walk(self.dir, discovered=100)
+        self.assertEqual(
+            gijiroku_storage.effective_walk_state(
+                gijiroku_storage.load_source_coverage(self.dir)
+            ),
+            "complete",
+        )
+        gijiroku_storage.save_meetings_index(self.path, [{"a": i} for i in range(100)])
+        gijiroku_storage.save_meetings_index(self.path, [{"a": i} for i in range(30)])
+        payload = gijiroku_storage.load_source_coverage(self.dir)
+        self.assertEqual(gijiroku_storage.effective_walk_state(payload), "partial_error")
+        self.assertTrue(payload.get("plan_shrank"))
+        self.assertEqual(payload.get("plan_previous_count"), 100)
+
+    def test_small_drop_keeps_complete(self):
+        gijiroku_storage.record_catalog_walk(self.dir, discovered=100)
+        gijiroku_storage.save_meetings_index(self.path, [{"a": i} for i in range(100)])
+        gijiroku_storage.save_meetings_index(self.path, [{"a": i} for i in range(90)])
+        self.assertEqual(
+            gijiroku_storage.effective_walk_state(
+                gijiroku_storage.load_source_coverage(self.dir)
+            ),
+            "complete",
+        )
+
+
 class AllFailedTest(unittest.TestCase):
     def test_every_candidate_failing_is_reported(self):
         summary = gijiroku_storage.classified_scrape_summary(

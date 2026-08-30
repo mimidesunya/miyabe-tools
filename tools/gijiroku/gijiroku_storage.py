@@ -446,6 +446,25 @@ def record_catalog_walk(
         )
 
 
+def _demote_coverage_for_shrink(work_dir: Path, current: int, previous: int) -> None:
+    """会議候補の一覧が大きく減ったことを、走査記録に反映する。"""
+    payload = load_source_coverage(work_dir)
+    if not payload:
+        return
+    if str(payload.get("state") or "") == "complete":
+        payload = {**payload, "state": "partial_error"}
+    payload = {
+        **payload,
+        "plan_shrank": True,
+        "plan_previous_count": previous,
+        "plan_current_count": current,
+    }
+    try:
+        save_source_coverage(work_dir, payload)
+    except Exception as error:
+        print(f"[WARN] 走査記録を直せませんでした: {error}", flush=True)
+
+
 def meetings_index_would_shrink(path: Path, payload: list[Any]) -> bool:
     """この一覧で保存すると、前回より大きく減って拒否されるか。
 
@@ -483,6 +502,10 @@ def save_meetings_index(path: Path, payload: list[Any]) -> None:
                 f"前回の分を残します: {path}",
                 flush=True,
             )
+            # 置き換えを拒んだのに走査記録が complete のままだと、
+            # 正本は前回の件数・記録は「今回の件数を取り切った」という
+            # 食い違いになる。ここで降格させる。呼ぶ側に覚えさせない。
+            _demote_coverage_for_shrink(path.parent, len(payload), len(existing))
             return
     path.parent.mkdir(parents=True, exist_ok=True)
     body = json.dumps(payload, ensure_ascii=False, indent=2)
