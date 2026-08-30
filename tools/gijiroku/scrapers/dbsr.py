@@ -255,6 +255,9 @@ def find_search_library_url(page, source_url: str) -> str:
 # 入口ページの一覧は「直近４年分または12年分」しか出さないテンプレートがある。
 # それ以前の会議は期間を明示した文書一覧からしか辿れない。どの経路で
 # 会議を見つけたかを呼び出し元へ返し、収録範囲の判定に使う。
+# 年ラベルらしさ。「令和2年」「平成30年度」「2020年」など。
+YEAR_LABEL_RE = re.compile(r"(令和|平成|昭和|大正|明治)\s*[0-9０-９元]+|[12][0-9]{3}\s*年")
+
 DISCOVERY_SOURCE_LIBRARY = "search_library"
 DISCOVERY_SOURCE_RECENT = "recent_fallback"
 DISCOVERY_SOURCE_FULL_PERIOD = "full_period"
@@ -1060,6 +1063,21 @@ def discover_list_pages(
         pass
     items: dict[str, ListPage] = {}
 
+    def looks_like_year_library(pages: dict[str, ListPage]) -> bool:
+        """読んだ一覧が、本当に年度別一覧かを確かめる。
+
+        入口に一覧へのリンクが無い取得元では、推測 URL が**キーワード一覧**を
+        返すことがある。その画面も同じ DOM 構造なので、そのまま読むと
+        年ラベルの位置に検索語（「ガス」「いじめ」など）が入り、同じ会議が
+        検索語の数だけ複製される。桑名市・日南市など 10 自治体で起きていた。
+
+        年ラベルが 1 つも年に見えないなら、それは年度別一覧ではない。
+        """
+        labels = {str(page.year_label or "") for page in pages.values()}
+        if not labels:
+            return False
+        return any(YEAR_LABEL_RE.search(label) for label in labels)
+
     def finish_library(source: str) -> tuple[list[ListPage], str]:
         """年度別一覧を読み終えたあと、一覧に出てこない会議種別を補う。"""
         options = collect_cabinet_options(page, str(target["source_url"]), timeout_ms)
@@ -1085,7 +1103,18 @@ def discover_list_pages(
             cell = cells.nth(cell_index)
             year_label = safe_inner_text(cell.locator("dt.cell__title").first) or "不明"
             collect_list_page_entries(page, cell.locator("dd.cell__item"), year_label, items)
-        return finish_library(DISCOVERY_SOURCE_LIBRARY)
+        if not looks_like_year_library(items):
+            # 年ラベルが 1 つも年に見えない。キーワード一覧を掴んでいる。
+            # このまま読むと同じ会議が検索語の数だけ複製される。
+            print(
+                "[WARN] 年度別一覧ではなくキーワード一覧を読んでいます。"
+                f"別の経路を試します（ラベルの例: "
+                f"{sorted({str(p.year_label) for p in items.values()})[:4]}）",
+                flush=True,
+            )
+            items.clear()
+        else:
+            return finish_library(DISCOVERY_SOURCE_LIBRARY)
 
     cells = page.locator("div.LibraryTable dl")
     if cells.count() > 0:
@@ -1094,7 +1123,18 @@ def discover_list_pages(
             cell = cells.nth(cell_index)
             year_label = safe_inner_text(cell.locator("dt").first) or "不明"
             collect_list_page_entries(page, cell.locator("dd"), year_label, items)
-        return finish_library(DISCOVERY_SOURCE_LIBRARY)
+        if not looks_like_year_library(items):
+            # 年ラベルが 1 つも年に見えない。キーワード一覧を掴んでいる。
+            # このまま読むと同じ会議が検索語の数だけ複製される。
+            print(
+                "[WARN] 年度別一覧ではなくキーワード一覧を読んでいます。"
+                f"別の経路を試します（ラベルの例: "
+                f"{sorted({str(p.year_label) for p in items.values()})[:4]}）",
+                flush=True,
+            )
+            items.clear()
+        else:
+            return finish_library(DISCOVERY_SOURCE_LIBRARY)
 
     # 新しい DBSR テンプレートは table--all を付けず table 系のクラスを使うが、
     # 自治体によってタグ名が異なる。クラス名は共通なのでタグ名は指定しない。
@@ -1119,7 +1159,18 @@ def discover_list_pages(
         collect_list_page_entries(page, entries, year_label, items)
 
     if items:
-        return finish_library(DISCOVERY_SOURCE_LIBRARY)
+        if not looks_like_year_library(items):
+            # 年ラベルが 1 つも年に見えない。キーワード一覧を掴んでいる。
+            # このまま読むと同じ会議が検索語の数だけ複製される。
+            print(
+                "[WARN] 年度別一覧ではなくキーワード一覧を読んでいます。"
+                f"別の経路を試します（ラベルの例: "
+                f"{sorted({str(p.year_label) for p in items.values()})[:4]}）",
+                flush=True,
+            )
+            items.clear()
+        else:
+            return finish_library(DISCOVERY_SOURCE_LIBRARY)
 
     # 年度ごとのまとまりを組まず、会議一覧へのリンクをそのまま並べる
     # search-library がある（小金井市・福岡県など）。構造セレクタでは
@@ -1131,7 +1182,18 @@ def discover_list_pages(
         # 検索フォームから全期間を出せないか先に試す。
         if list_links_cover_recent_years_only(items):
             return recent_or_widened(items)
-        return finish_library(DISCOVERY_SOURCE_LIBRARY)
+        if not looks_like_year_library(items):
+            # 年ラベルが 1 つも年に見えない。キーワード一覧を掴んでいる。
+            # このまま読むと同じ会議が検索語の数だけ複製される。
+            print(
+                "[WARN] 年度別一覧ではなくキーワード一覧を読んでいます。"
+                f"別の経路を試します（ラベルの例: "
+                f"{sorted({str(p.year_label) for p in items.values()})[:4]}）",
+                flush=True,
+            )
+            items.clear()
+        else:
+            return finish_library(DISCOVERY_SOURCE_LIBRARY)
 
     # search-library ページを持たないテンプレート（あきる野市・大野城市など）は
     # 入口ページ自体に会議一覧が並ぶ。この形では search-library が 404 になる。
