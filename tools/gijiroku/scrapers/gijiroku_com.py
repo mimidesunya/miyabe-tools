@@ -739,6 +739,10 @@ def main() -> int:
         # 失敗した分は取れていない。試行数で進めると n/n になり、
         # 本文が欠けていても公開画面が「取得完了」と出る。
         failed_count = 0
+        # 状態ごとの内訳。分類済み validation を書くのに要る。これが無いと
+        # バッチの成功判定がファイル数え上げに落ち、本文の無い saved_html の
+        # .html を「取れた」と数えてしまう（北海道 49 件、札幌 33 件）。
+        status_counts: dict[str, int] = {}
         emit_progress(0, len(meeting_items), state_path, state)
 
         with result_csv.open("w", encoding="utf-8", newline="") as handle:
@@ -898,6 +902,9 @@ def main() -> int:
                 # saved_html は詳細ページを置いただけで本文が取れていない。
                 # このスクレイパ自身が再試行対象にしている状態なので、
                 # 進捗としては取れたことにしない。
+                status_counts[status or "unknown"] = (
+                    status_counts.get(status or "unknown", 0) + 1
+                )
                 if (
                     status in gijiroku_storage.SCRAPE_FAILED_STATUSES
                     or status == "saved_html"
@@ -912,6 +919,21 @@ def main() -> int:
                 )
                 if args.delay_seconds > 0 and idx < len(work_items):
                     time.sleep(args.delay_seconds)
+
+        # 取れた数・除外・失敗の内訳を残す。ファイル数え上げでは、本文の
+        # 無い詳細ページ（saved_html）を取れたことにしてしまう。
+        downloaded_count = sum(
+            count
+            for name, count in status_counts.items()
+            if name in {"saved_text", "skipped_existing"}
+        )
+        gijiroku_storage.apply_classified_scrape_validation(
+            state_path,
+            state,
+            discovered_count=len(meeting_items),
+            downloaded_count=downloaded_count,
+            status_counts=status_counts,
+        )
 
         context.close()
         browser.close()

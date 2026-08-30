@@ -572,7 +572,13 @@ function homepage_gijiroku_acquisition_status(
     // 未完了なのに完了と出てしまう。**系統名で分ける。**
     $writesValidation = in_array(
         $systemType,
-        ['dbsr', 'db-search', 'kaigiroku-indexphp', '独自', 'kami-city-pdf', 'site-gikai-pdf', 'static-kaigiroku-dir'],
+        [
+            'dbsr', 'db-search', 'kaigiroku-indexphp', '独自',
+            'kami-city-pdf', 'site-gikai-pdf', 'static-kaigiroku-dir',
+            // gijiroku.com も内訳を書くようにした。本文の無い saved_html を
+            // ファイル数え上げで「取れた」と数えないため。
+            'gijiroku.com', 'voices',
+        ],
         true
     );
     $hasClassifiedProgress = is_array($progress) && (int)($progress['discovered'] ?? 0) > 0;
