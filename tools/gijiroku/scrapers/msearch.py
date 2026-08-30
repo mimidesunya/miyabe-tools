@@ -226,6 +226,9 @@ def main() -> int:
         previous_missing_count=previous_missing,
     )
     gijiroku_planning.save_plan_summary(state_path, state, plans, missing_count, previous_missing)
+    # 失敗した分は取れていない。試行数で進めると n/n になり、
+    # 本文が欠けていても公開画面が「取得完了」と出る。
+    failed_count = 0
     emit_progress(len(plans) - len(work_items), len(plans), state_path, state)
 
     with result_csv.open("w", encoding="utf-8", newline="") as handle:
@@ -261,6 +264,7 @@ def main() -> int:
                     )
             except Exception as exc:
                 status = "error"
+                failed_count += 1
                 error_text = str(exc)
             state["items"][plan["resume_key"]] = {
                 "title": item.title,
@@ -283,7 +287,12 @@ def main() -> int:
                 }
             )
             handle.flush()
-            emit_progress(len(plans) - len(work_items) + idx, len(plans), state_path, state)
+            emit_progress(
+                len(plans) - len(work_items) + idx - failed_count,
+                len(plans),
+                state_path,
+                state,
+            )
             if args.delay_seconds > 0 and idx < len(work_items):
                 time.sleep(args.delay_seconds)
 

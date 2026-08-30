@@ -711,6 +711,9 @@ def main() -> int:
 
         index_json.parent.mkdir(parents=True, exist_ok=True)
         gijiroku_storage.save_meetings_index(index_json, [asdict(item) for item in meeting_items])
+        # 失敗した分は取れていない。試行数で進めると n/n になり、
+        # 本文が欠けていても公開画面が「取得完了」と出る。
+        failed_count = 0
         emit_progress(0, len(meeting_items), state_path, state)
 
         api_root = source_api_root(str(target["source_url"]))
@@ -786,7 +789,12 @@ def main() -> int:
                         }
                     )
                     handle.flush()
-                    emit_progress(len(meeting_items) - len(work_items) + idx, len(meeting_items), state_path, state)
+                    emit_progress(
+                    len(meeting_items) - len(work_items) + idx - failed_count,
+                    len(meeting_items),
+                    state_path,
+                    state,
+                )
                     continue
 
                 try:
@@ -812,6 +820,7 @@ def main() -> int:
                     error_msg = str(exc)
                 except Exception as exc:
                     status = "error"
+                    failed_count += 1
                     error_msg = str(exc)
                     if args.save_debug_json:
                         debug_path = debug_dir / year_dir_name
@@ -854,7 +863,12 @@ def main() -> int:
                     }
                 )
                 handle.flush()
-                emit_progress(len(meeting_items) - len(work_items) + idx, len(meeting_items), state_path, state)
+                emit_progress(
+                    len(meeting_items) - len(work_items) + idx - failed_count,
+                    len(meeting_items),
+                    state_path,
+                    state,
+                )
                 if args.delay_seconds > 0 and idx < len(work_items):
                     time.sleep(args.delay_seconds)
 
