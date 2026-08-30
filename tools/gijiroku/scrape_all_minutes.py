@@ -251,9 +251,12 @@ def coverage_incomplete_reason(target: dict) -> str:
     言えない。例規側で塞いだのと同じ穴。
     """
     work_dir = Path(str(target.get("work_dir") or ""))
-    # 別ファイルがまだ無い古い作業ディレクトリでは、scrape_state.json の中の
-    # 記録に落ちる。落ちないと、上限で打ち切った古い実行が「記録なし」として
-    # 完了判定を通ってしまう（八幡市など）。
+    # 走査記録は別ファイルを正としつつ、scrape_state.json の中の記録にも落ちる。
+    # 写しの書き込みに失敗した実行では、state 側にしか記録が残らない。
+    #
+    # なお「別ファイルが無い古い作業ディレクトリを救う」ためではない。
+    # バッチは子プロセスを起動する前に scrape_state.json を消すので、
+    # 判定の時点で読めるのはこの実行が書いたものだけである。
     state = gijiroku_storage.load_state(work_dir / "scrape_state.json")
     payload = gijiroku_storage.load_source_coverage(work_dir, state)
     state = gijiroku_storage.effective_walk_state(payload)
