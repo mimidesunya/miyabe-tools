@@ -160,6 +160,9 @@ def main() -> int:
                 issues.append("index_pending")
         elif not kinds and saved_file_count >= 20 and indexed_count * 2 < saved_file_count:
             issues.append("index_far_behind_saved")
+        if bool(validation.get("all_failed")):
+            # 候補はあるのに 1 件も取れない。再試行では直らない。
+            issues.append("source_all_failed")
         if source_state in {"partial_planned", "partial_limit", "partial_error", "partial_recent_only", "rewalking", "stale_rule"}:
             issues.append(source_state)
         elif source_state != "complete" and saved_file_count > 0:

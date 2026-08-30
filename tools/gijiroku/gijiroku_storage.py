@@ -416,6 +416,15 @@ def classified_scrape_summary(
         warning_lines.append(f"取得エラー {failed}件")
     if unknown_missing > 0:
         warning_lines.append(f"取得結果が確認できない候補 {unknown_missing}件")
+    # 候補は見つかったのに 1 件も取れなかった。取得元がページを作り直して
+    # 一覧のリンクが全部死んでいる形がこれになる。放っておくと毎回
+    # 同じ失敗を繰り返すだけで、登録の見直しが要ることが誰にも見えない。
+    all_failed = discovered > 0 and downloaded == 0 and excluded == 0 and failed > 0
+    if all_failed:
+        warning_lines.append(
+            f"候補 {discovered}件のすべてが取得エラー。取得元のページ構成が"
+            "変わって、登録した入口が古くなっている可能性があります"
+        )
 
     return {
         "mode": SCRAPE_VALIDATION_MODE,
@@ -425,6 +434,7 @@ def classified_scrape_summary(
         "failed_count": failed,
         "unknown_missing_count": unknown_missing,
         "eligible_count": eligible,
+        "all_failed": all_failed,
         "progress_current": downloaded,
         "progress_total": eligible,
         "progress_unit": "meeting",
