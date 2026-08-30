@@ -415,9 +415,19 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                         print(f"[WARN] body fetch failed {title[:30]}: {exc}", flush=True)
 
                     if not body_html.strip():
-                        # ここで seen_stems へ入れない。期間を割った別の検索で
-                        # 同じ例規に当たったとき、もう一度だけ試せるようにする。
                         failed += 1
+                        if reiki_io.existing_path(clean_path) is not None:
+                            # 取り直しに失敗しただけで、本文は既にある。
+                            # ここでマニフェストから落とすと収録が縮む
+                            # （毎日の巡回は --check-updates で走る）。
+                            seen_stems.add(stem)
+                            manifest.append(
+                                _manifest_row(filename, source_url, title, number, iso_date)
+                            )
+                            emit_total += 1
+                            continue
+                        # 本文がまだ無いものは seen_stems へ入れない。期間を割った
+                        # 別の検索で同じ例規に当たったとき、もう一度試せるようにする。
                         continue
 
                     seen_stems.add(stem)
@@ -464,7 +474,13 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                         timeout=timeout_ms,
                     )
                 except PlaywrightTimeoutError:
-                    # 本当に最終ページなら表示は変わらない。
+                    # 件数表示で最終ページと分かる場合は上で抜けている。ここへ来るのは
+                    # 表示を読めなかったときなので、残りを捨てた可能性を残す。
+                    print(
+                        f"[WARN] {label}: {page_no}ページ目の次が開けませんでした"
+                        "（以降を取得できていない可能性があります）",
+                        flush=True,
+                    )
                     break
                 page.wait_for_timeout(400)
             return emit_total - start_total
@@ -546,6 +562,10 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             harvest_pages("全件")
         else:
             print(f"[INFO] 1回の検索は{cap}件で打ち切られます。種別と制定年月日で分割します。", flush=True)
+            # 分割の前に、条件なしの結果をそのまま取り込む。上限までしか取れないが、
+            # 種別ツリーの読み取りが漏らした例規や、どの種別にも属さない例規の保険になる。
+            got = harvest_pages("条件なし")
+            print(f"[INFO] 条件なし: 総数{total0}件 → 新規{got}件", flush=True)
             reopen_detail(page, timeout_ms)
             segments = list_kind_segments(page)
             if not segments:
