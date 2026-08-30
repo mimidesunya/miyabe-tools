@@ -267,18 +267,37 @@ class RelabelNavigationGroupsTest(unittest.TestCase):
         self.assertEqual(dbsr.relabel_navigation_groups(items, options), 1)
         self.assertEqual(list(items.values())[0].meeting_group, "企画総務委員会")
 
-    def test_unmatched_cabinet_becomes_empty(self) -> None:
-        # 種別として使えない値を残すより、無いことが分かる方がよい。
+    def test_unmatched_cabinet_is_left_alone(self) -> None:
+        # 空にすると保存先が変わり、次の取得で旧ファイルが孤児になる。
         items = self._items("9", "トップページ")
         options = [{"key": "Cabinet", "value": "2", "text": "企画総務委員会"}]
-        dbsr.relabel_navigation_groups(items, options)
-        self.assertEqual(list(items.values())[0].meeting_group, "")
+        self.assertEqual(dbsr.relabel_navigation_groups(items, options), 0)
+        self.assertEqual(list(items.values())[0].meeting_group, "トップページ")
 
     def test_real_meeting_type_is_left_alone(self) -> None:
         items = self._items("2", "企画総務委員会")
         options = [{"key": "Cabinet", "value": "2", "text": "別の名前"}]
         self.assertEqual(dbsr.relabel_navigation_groups(items, options), 0)
         self.assertEqual(list(items.values())[0].meeting_group, "企画総務委員会")
+
+class ExpandCabinetValuesTest(unittest.TestCase):
+    def test_grouped_values_are_split_per_number(self) -> None:
+        # 束ねたまま一覧 URL に入れると、既存の Cabinet=1 と別物になってしまう。
+        options = [{"key": "Cabinet", "value": "1,2", "text": "本会議"}]
+        self.assertEqual(
+            dbsr.expand_cabinet_values(options),
+            [
+                {"key": "Cabinet", "value": "1", "text": "本会議"},
+                {"key": "Cabinet", "value": "2", "text": "本会議"},
+            ],
+        )
+
+    def test_duplicates_are_dropped(self) -> None:
+        options = [
+            {"key": "Cabinet", "value": "1,2", "text": "本会議"},
+            {"key": "Cabinet", "value": "2", "text": "本会議(再掲)"},
+        ]
+        self.assertEqual(len(dbsr.expand_cabinet_values(options)), 2)
 
 
 if __name__ == "__main__":

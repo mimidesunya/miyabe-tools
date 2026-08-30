@@ -602,16 +602,36 @@ def record_offered_types(sink: list[str] | None, options: list[dict]) -> None:
             sink.append(text)
 
 
+def expand_cabinet_values(options: list[dict]) -> list[dict]:
+    """`1,2` のようにまとめられた会議種別を、番号ごとにばらす。
+
+    福岡市のトップは会議種別を `Cabinet[]=1,2` のように束ねて出す。束ねたまま
+    一覧 URL に入れると、既存の `Cabinet=1` と別物として扱われ、要らない補完
+    URL を作ってしまう。番号に分けておけば既存の一覧と突き合う。
+    """
+    expanded: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    for option in options:
+        key = str(option.get("key") or "").strip()
+        text = str(option.get("text") or "").strip()
+        for value in str(option.get("value") or "").split(","):
+            value = value.strip()
+            if not value or (key, value) in seen:
+                continue
+            seen.add((key, value))
+            expanded.append({"key": key, "value": value, "text": text})
+    return expanded
+
+
 def collect_cabinet_options(page, source_url: str, timeout_ms: int) -> list[dict]:
     """会議種別の選択肢を、載っていそうなページを順に開いて集める。
 
-    検索フォームがどのページにあるかは取得元によって違う。いま開いている
-    ページ・検索ページ・閲覧メニューの順に見て、最初に見つかったものを返す。
+    検索フォームがどのページにあるかは取得元によって違う。同じ取得元でもページに
+    よって粗さが違う（福岡市はトップが 4 グループ、会議名検索が 34 種別）ので、
+    最初に見つかったもので止めず **いちばん細かいもの** を採る。
     見つけたページへ移動するので、一覧を読み終えてから呼ぶこと。
     """
-    options = read_cabinet_options(page)
-    if options:
-        return options
+    best = expand_cabinet_values(read_cabinet_options(page))
 
     candidates: list[str] = []
     try:
@@ -637,10 +657,10 @@ def collect_cabinet_options(page, source_url: str, timeout_ms: int) -> list[dict
             page.goto(candidate, wait_until="domcontentloaded", timeout=timeout_ms)
         except Exception:
             continue
-        options = read_cabinet_options(page)
-        if options:
-            return options
-    return []
+        options = expand_cabinet_values(read_cabinet_options(page))
+        if len(options) > len(best):
+            best = options
+    return best
 
 
 # 一覧ページの見出しをそのまま会議種別にしている取得元がある。見出しが
@@ -657,8 +677,9 @@ def relabel_navigation_groups(
     """会議種別が案内文言になっている一覧を、URL の会議種別で名づけ直す。
 
     一覧 URL は Cabinet / CabinetName で会議種別を持っているので、検索フォームの
-    選択肢と突き合わせれば正しい名前が付く。突き合わない一覧は空にする。
-    種別として使えない値を残すより、無いことが分かる方がよい。
+    選択肢と突き合わせれば正しい名前が付く。突き合わない一覧はそのままにする。
+    空にすると保存先（`downloads/<年>/<種別>/`）が変わり、次の取得で旧ファイルが
+    孤児になって索引に二重に載るため。
     """
     labels = {
         str(option.get("value") or "").strip(): normalize_space(
@@ -671,9 +692,10 @@ def relabel_navigation_groups(
         group = normalize_space(page.meeting_group or "")
         if not group or not NAVIGATION_GROUP_PATTERN.match(group):
             continue
-        items[list_url] = replace(
-            page, meeting_group=labels.get(cabinet_of(list_url), "")
-        )
+        label = labels.get(cabinet_of(list_url), "")
+        if not label:
+            continue
+        items[list_url] = replace(page, meeting_group=label)
         fixed += 1
     return fixed
 
