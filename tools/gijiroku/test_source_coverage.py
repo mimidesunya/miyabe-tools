@@ -225,6 +225,38 @@ class ReikiCoverageTest(unittest.TestCase):
         current, total = self.progress({"work_root": str(self.dir)})
         self.assertLess(current, total)
 
+    def test_catalog_record_counts_failures(self):
+        # 目録型は目録に並んだ件数が申告。失敗した分は取れていない。
+        reiki_io.save_source_coverage(
+            self.dir,
+            {
+                "version": 2,
+                "kind": "catalog",
+                "declares": True,
+                "declared_total": 10,
+                "collected": 9,
+                "failed": 1,
+                "complete": False,
+            },
+        )
+        current, total = self.progress({"work_root": str(self.dir)})
+        self.assertLess(current, total)
+
+    def test_catalog_record_without_failures_is_complete(self):
+        reiki_io.save_source_coverage(
+            self.dir,
+            {
+                "version": 2,
+                "kind": "catalog",
+                "declares": True,
+                "declared_total": 10,
+                "collected": 10,
+                "failed": 0,
+                "complete": True,
+            },
+        )
+        self.assertEqual(self.progress({"work_root": str(self.dir)}), (10, 10))
+
     def test_catalog_sources_are_left_to_other_evidence(self):
         reiki_io.save_source_coverage(self.dir, {"version": 2, "declares": False})
         self.assertEqual(self.progress({"work_root": str(self.dir)}), (0, 0))

@@ -190,6 +190,10 @@ def run(
     session.headers.update({"User-Agent": USER_AGENT})
 
     articles = discover(session, source_url)
+    # 目録に並んだ件数が、この取得元の申告そのもの。母数を別に探しに行く
+    # 必要は無い（目録型に「総数」の表示は無い）。--limit で切ったときは
+    # 切る前の件数を母数として覚えておく。
+    declared_total = len(articles)
     if limit > 0:
         articles = articles[:limit]
     total = len(articles)
@@ -273,7 +277,24 @@ def run(
             emit_progress(index + 1, total, state_path)
 
     reiki_io.write_json(manifest_path, manifest, compress=True)
-    emit_progress(total, total, state_path)
+    # 失敗した分は取れていない。ここで total/total にすると、10 件中 1 件
+    # 落としても 9/9 に見え、キューは完了と読んでしまう。
+    emit_progress(max(0, total - failed), total, state_path)
+    reiki_io.save_source_coverage(
+        work_root,
+        {
+            "version": 2,
+            "kind": "catalog",
+            # 目録に並んだ件数が申告。上限のある検索型とは別の形。
+            "declares": True,
+            "observed_at": time.strftime("%Y%m%d_%H%M%S"),
+            "declared_total": declared_total,
+            "limited": bool(limit > 0),
+            "collected": max(0, total - failed),
+            "failed": failed,
+            "complete": failed == 0 and limit <= 0 and total == declared_total,
+        },
+    )
     print(
         f"Finished. downloaded={downloaded} skipped={skipped} failed={failed} "
         f"manifest={len(manifest)} -> {manifest_path}",
