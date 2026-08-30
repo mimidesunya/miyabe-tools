@@ -71,6 +71,10 @@ function main(array $argv): void
     usort($records, static fn(array $a, array $b): int => strcmp((string)$a['code'], (string)$b['code']));
 
     $manifestPath = $workRoot . DIRECTORY_SEPARATOR . 'source_manifest.json.gz';
+    // 走っている最中の一覧は正本と分ける。25 件ごとに正本を上書きすると、
+    // 途中で死んだときに短い一覧がそのまま残る。
+    $partialManifestPath = $workRoot . DIRECTORY_SEPARATOR . 'source_manifest.partial.json.gz';
+    $coveragePath = $workRoot . DIRECTORY_SEPARATOR . 'source_coverage.json';
     $taxonomyPath = $workRoot . DIRECTORY_SEPARATOR . 'taxonomy_pages.json.gz';
     $previousManifestRecords = load_json_file($manifestPath, []);
     $previousManifestBySource = index_manifest_by_source($previousManifestRecords);
@@ -244,8 +248,9 @@ function main(array $argv): void
         }
 
         if ((($index + 1) % 25) === 0 || ($index + 1) === $total) {
-            // 中断後の補完でも detail_url や taxonomy を拾えるよう、manifest を途中でも保存する。
-            write_json_file($manifestPath, $manifests, true);
+            // 中断後の補完でも detail_url や taxonomy を拾えるよう、途中でも保存する。
+            // 正本ではなく途中経過へ書く（正本を縮めないため）。
+            write_json_file($partialManifestPath, $manifests, true);
             echo sprintf(
                 "[%d/%d] downloaded=%d checked=%d skipped=%d parsed=%d reused=%d\n",
                 $index + 1,
@@ -259,8 +264,46 @@ function main(array $argv): void
         }
     }
 
-    write_json_file($manifestPath, $manifests, true);
+    // 目録に並んだ件数が、この取得元の申告そのもの。失敗した分は取れていない。
+    $declaredTotal = count($records);
+    $walkComplete = $failed === 0 && $limit <= 0 && $total === $declaredTotal;
+    $existingManifest = load_json_file($manifestPath, []);
+    $previousManifestCount = count($existingManifest);
+    // 前回より減っていたら上書きしない。取り切れた走査でも 2 割超は拒む。
+    // 走査が短く終わった実行が正本を置き換えると、ディスクに残るファイルが
+    // 一斉に孤児になる。
+    $largeDrop = $previousManifestCount > 0
+        && count($manifests) < $previousManifestCount * 0.8;
+    $manifestWritten = true;
+    if ($previousManifestCount > count($manifests) && (!$walkComplete || $largeDrop)) {
+        $manifestWritten = false;
+        write_json_file($workRoot . DIRECTORY_SEPARATOR . 'source_manifest.shrunk.json.gz', $manifests, true);
+        fwrite(STDERR, sprintf(
+            'Warning: 今回の走査は %d件で、前回の %d件より少ないため上書きしません。'
+            . '今回の分は source_manifest.shrunk.json.gz に残しました。' . PHP_EOL,
+            count($manifests),
+            $previousManifestCount
+        ));
+    } else {
+        write_json_file($manifestPath, $manifests, true);
+    }
+    @unlink($partialManifestPath);
 
+    // 失敗した分は取れていない。n/n で終えるとキューが完了と読む。
+    emit_progress(max(0, $total - $failed), $total, $statePath);
+    write_json_file($coveragePath, [
+        'version' => 2,
+        'kind' => 'catalog',
+        'declares' => true,
+        'observed_at' => date('Ymd_His'),
+        'declared_total' => $declaredTotal,
+        'limited' => $limit > 0,
+        'collected' => max(0, $total - $failed),
+        'failed' => $failed,
+        'manifest_shrunk' => !$manifestWritten,
+        'manifest_previous' => $previousManifestCount,
+        'complete' => $walkComplete && $manifestWritten,
+    ], false);
     echo "\nFinished {$target['name']} scrape.\n";
     echo "  Source HTML: {$sourceDir}\n";
     echo "  Clean HTML: {$htmlDir}\n";
@@ -271,6 +314,7 @@ function main(array $argv): void
     echo "  Skipped existing: {$skipped}\n";
     echo "  Parsed: {$parsed}\n";
     echo "  Reused manifest: {$reused}\n";
+    echo "  Failed: {$failed}\n";
 }
 
 function cli_option_value(array $options, array $argv, string $name, string $default = ''): string

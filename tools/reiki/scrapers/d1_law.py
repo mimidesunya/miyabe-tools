@@ -250,8 +250,14 @@ def first_manifest_catalog_version(records) -> str:
     return ""
 
 
-def get_hno_list(base_url, data_dir, force=False, check_updates=False):
+def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None):
+    """目録を辿って例規 ID を集める。
+
+    `walk` を渡すと、開けなかった目録ページの数を控える。枝が落ちると
+    その先の例規がまるごと見えなくなるのに、これまで数えていなかった。
+    """
     hno_set = set()
+    missed_pages: list[str] = []
 
     print("Fetching index pages...")
     download_file(base_url + "mokuji_index_index.html", data_dir / "mokuji_index_index.html", force=force, check_updates=check_updates)
@@ -271,12 +277,15 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False):
         if stored_path is None:
             _, stored_path, _, _ = download_file(base_url + current, file_path, check_updates=check_updates)
         if stored_path is None or not stored_path.exists():
+            # 目録の枝が開けない。その先の例規はまるごと見えなくなる。
+            missed_pages.append(current)
             continue
 
         try:
             content = reiki_io.read_text_auto(stored_path)
         except Exception as exc:
             print(f"Error reading {stored_path}: {exc}")
+            missed_pages.append(current)
             continue
 
         for link in re.findall(r"(index_\d+\.html|bunya_\d+\.html)", content):
@@ -292,6 +301,14 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False):
         for hno in re.findall(r'href="([A-Za-z0-9]+)/\1_j\.html"', content):
             hno_set.add(hno)
 
+    if walk is not None:
+        walk.update(
+            {
+                "scanned_pages": len(scanned),
+                "missed_pages": len(missed_pages),
+                "missed_examples": missed_pages[:10],
+            }
+        )
     return sorted(hno_set)
 
 
@@ -558,7 +575,14 @@ def main():
                 "No opensearch regulations were collected; refusing to mark the target as successfully scraped."
             )
     else:
-        hno_list = get_hno_list(base_url, source_dir, force=args.force, check_updates=args.check_updates)
+        catalog_walk: dict = {}
+        hno_list = get_hno_list(
+            base_url,
+            source_dir,
+            force=args.force,
+            check_updates=args.check_updates,
+            walk=catalog_walk,
+        )
         print(f"Found {len(hno_list)} unique regulation IDs.")
 
     total_regulations = len(opensearch_entries) if opensearch_entries else len(hno_list)
@@ -722,9 +746,39 @@ def main():
             existing_partial.unlink()
     except Exception:
         pass
-    reiki_io.write_manifest_guarded(
-        manifest_path, manifest_entries, label=f"{target['name']}の例規一覧"
+    # 目録を最後まで開けて、個票の取得にも失敗が無ければ取り切れたと言える。
+    missed_pages = int(catalog_walk.get("missed_pages") or 0)
+    # d1-law に --limit は無いので、目録を開けたかどうかだけで判断する。
+    walk_complete = missed_pages == 0
+    manifest_result = reiki_io.write_manifest_guarded(
+        manifest_path,
+        manifest_entries,
+        label=f"{target['name']}の例規一覧",
+        walk_complete=walk_complete,
     )
+    reiki_io.save_source_coverage(
+        work_root,
+        {
+            "version": 2,
+            "kind": "catalog",
+            "declares": True,
+            "observed_at": time.strftime("%Y%m%d_%H%M%S"),
+            "declared_total": total_regulations,
+            "scanned_pages": int(catalog_walk.get("scanned_pages") or 0),
+            "missed_pages": missed_pages,
+            "missed_examples": catalog_walk.get("missed_examples") or [],
+            "collected": len(manifest_entries),
+            "manifest_shrunk": not manifest_result["written"],
+            "manifest_previous": manifest_result["previous"],
+            "complete": walk_complete and manifest_result["written"],
+        },
+    )
+    if missed_pages:
+        print(
+            f"[WARN] 目録のページを {missed_pages} 件開けませんでした。"
+            "その先の例規は見えていません。",
+            flush=True,
+        )
     print(f"Finished. Downloaded {downloaded_count} files.")
     print(f"Checked existing: {checked_count}")
     print(f"Conditional requests: {conditional_count}")

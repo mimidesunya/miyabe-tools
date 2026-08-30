@@ -998,8 +998,8 @@ manifest から落として `n/n` で正常終了することが分かった。
 | 系統 | 形 | 状態 |
 | --- | --- | --- |
 | `static_catalog`（joureikun / legalcrud / jourei-v5 など） | 個票の取得失敗を `continue` し、最後に `emit_progress(total, total)` で強制的に 100% | 直した |
-| `taikei` / `g-reiki`（PHP） | 個票失敗を `continue` し、成功分だけの manifest で正常終了 | **未対応** |
-| `d1-law` | 目録の欠けた枝を `continue`。失敗を数える変数が無い | **未対応** |
+| `taikei` / `g-reiki`（PHP） | 個票失敗を `continue` し、成功分だけの manifest で正常終了 | 直した |
+| `d1-law` | 目録の欠けた枝を `continue`。失敗を数える変数が無い | 直した |
 
 `static_catalog` は **目録に並んだ件数を申告とみなす**ことにした。
 目録型に「総数」の表示は無いので、母数を別に探しに行くのは設計上やらない
@@ -1009,8 +1009,22 @@ manifest から落として `n/n` で正常終了することが分かった。
 - `source_coverage.json` に `kind: catalog` で記録する
 - `--limit` で切った実行は完了にしない
 
-`d1-law` と `taikei` は失敗を数える箇所が散在しており、片手間に直すと
-別の壊し方をする。**未対応として残す。**
+### taikei / g-reiki（2026-08-30 追記）
+
+`$failed` は数えていたのに、報告も母数への反映もしていなかった。
+`static_catalog` と同じ形に揃えた。
+
+- 25 件ごとの途中保存を `source_manifest.partial.json.gz` へ分けた
+- `emit_progress(total - failed, total)` にして失敗分を引く
+- `source_coverage.json` を書く。目録に並んだ件数が申告
+- 前回より減ったら上書きしない（取り切れた走査でも 2 割超は拒む）
+- 終了時に `Failed:` を出す
+
+### d1-law（2026-08-30 追記）
+
+目録の枝が開けないと `continue` して、その先の例規がまるごと見えなくなる
+のに、数えていなかった。`get_hno_list()` が開けなかったページ数を返すように
+して、`source_coverage.json` に残す。1 枝でも落ちていれば完了としない。
 
 ---
 
