@@ -193,6 +193,11 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+# 列挙に失敗して索引から丸ごと落ちた自治体。strict でない全量 rebuild では
+# 警告して先へ進むので、公開に切り替える前にここを見る。
+SKIPPED_SOURCES: list[str] = []
+
+
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -330,6 +335,9 @@ def iter_minutes_documents(
             if strict:
                 raise RuntimeError(f"failed to enumerate minutes files dir={downloads_dir}: {exc}") from exc
             print(f"[WARN] failed to enumerate minutes files dir={downloads_dir}: {exc}", file=sys.stderr)
+            # 自治体がまるごと索引から落ちる。このまま公開に切り替えると、
+            # その自治体は検索できなくなる。
+            SKIPPED_SOURCES.append(f"会議録 {meta['slug']}: {exc}")
             continue
 
         # 取得できたのが目次だけの取得元がある。件数だけでは「反映待ち」と
@@ -434,6 +442,7 @@ def iter_reiki_documents(
             if strict:
                 raise RuntimeError(f"failed to enumerate reiki files dir={html_root}: {exc}") from exc
             print(f"[WARN] failed to enumerate reiki files dir={html_root}: {exc}", file=sys.stderr)
+            SKIPPED_SOURCES.append(f"例規 {meta['slug']}: {exc}")
             continue
 
         for key, html_path in sorted(html_files.items()):
@@ -1372,6 +1381,20 @@ def main() -> int:
             )
             if index and count is not None and count <= 0
         ]
+        if SKIPPED_SOURCES and not args.no_switch_alias and not args.allow_partial_alias:
+            print(
+                f"[ERROR] {len(SKIPPED_SOURCES)} 自治体を列挙できず索引から落としました。"
+                "このまま公開に切り替えると、その自治体は検索できなくなります。"
+                "意図しているなら --allow-partial-alias を付けてください。"
+                " 例: " + " / ".join(SKIPPED_SOURCES[:3]),
+                file=sys.stderr,
+                flush=True,
+            )
+            search_rebuild_status_finish(
+                status_state, ok=False, message=f"{len(SKIPPED_SOURCES)} 自治体を列挙できず"
+            )
+            return 2
+
         if empty_builds and not args.no_switch_alias and not args.allow_partial_alias:
             print(
                 "[ERROR] " + "・".join(empty_builds) + "の索引が 0 件です。"

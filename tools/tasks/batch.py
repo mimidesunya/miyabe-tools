@@ -830,6 +830,8 @@ SUMMARY_FIELDNAMES = [
 # 一括スクレイピング全体の制御ループ。優先度選定〜結果記録までを共通で行う。
 def run_batch(spec: BatchSpec, args: argparse.Namespace, targets: list[dict]) -> int:
     stop_controller = install_stop_signal_handlers()
+    # 1 件も成功しなかった実行を成功として終えないための数え。
+    nonlocal_counts = {"succeeded": 0, "failed": 0}
 
     targets = filter_targets(targets, args.filter)
     targets = select_runnable_targets(
@@ -997,6 +999,9 @@ def run_batch(spec: BatchSpec, args: argparse.Namespace, targets: list[dict]) ->
             )
             if overall_returncode == 0:
                 batch_status.invalidate_runtime_caches()
+                nonlocal_counts["succeeded"] += 1
+            else:
+                nonlocal_counts["failed"] += 1
             completed_count += 1
             print(
                 f"[DONE {completed_count}/{len(targets)}] {target['slug']} "
@@ -1338,4 +1343,16 @@ def run_batch(spec: BatchSpec, args: argparse.Namespace, targets: list[dict]) ->
     )
     batch_status.write_state(spec.task_name, status_state)
     print(f"[DONE] {summary_path}", flush=True)
-    return 143 if stop_controller.should_stop() else 0
+    if stop_controller.should_stop():
+        return 143
+    # 1 件も成功しなかった実行を 0 で終えると、周期そのものが成功に見える。
+    # 取得元がまとめて落ちている、設定を壊した、といった形が隠れる。
+    if nonlocal_counts["failed"] > 0 and nonlocal_counts["succeeded"] == 0:
+        print(
+            f"[ERROR] {nonlocal_counts['failed']}件すべてが失敗しました。"
+            "取得元がまとめて落ちているか、設定が壊れている可能性があります。",
+            file=sys.stderr,
+            flush=True,
+        )
+        return 1
+    return 0

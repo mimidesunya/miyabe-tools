@@ -131,6 +131,8 @@ def crawl_pdf_items(
     queue: deque[tuple[str, int]] = deque([(start_url, 0)])
     items: dict[str, PdfMeetingItem] = {}
     missed: list[str] = []
+    # 深さの上限で辿るのをやめたリンク。その先の会議録は見えていない。
+    depth_capped = 0
 
     while queue and len(visited) < max_pages:
         url, depth = queue.popleft()
@@ -193,6 +195,14 @@ def crawl_pdf_items(
                     ),
                 )
             elif (
+                depth >= max_depth
+                and absolute not in visited
+                and _is_followable_html(start_netloc, absolute)
+                and looks_like_generic_minutes_page(text, absolute)
+            ):
+                # 辿る価値のあるリンクだが、深さの上限で捨てている。
+                depth_capped += 1
+            elif (
                 depth < max_depth
                 and absolute not in visited
                 and _is_followable_html(start_netloc, absolute)
@@ -209,7 +219,10 @@ def crawl_pdf_items(
                 "missed_pages": len(missed),
                 "missed_examples": missed[:10],
                 # 上限に当たって止まったなら、まだ辿る先が残っている。
-                "limit_reached": bool(queue) or len(visited) >= max_pages,
+                "limit_reached": (
+                    bool(queue) or len(visited) >= max_pages or depth_capped > 0
+                ),
+                "depth_capped_links": depth_capped,
                 "visited_pages": len(visited),
             }
         )
