@@ -18,7 +18,7 @@ import time
 from collections import deque
 from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlencode
@@ -221,6 +221,29 @@ def normalize_date(value: Any) -> str | None:
     return text if DATE_RE.match(text) else None
 
 
+def plausible_meeting_date(value: Any) -> str | None:
+    """会議録の開催日として取り得る日付だけを返す。
+
+    まだ開かれていない会議の会議録は無い。未来の日付は、和暦の読み違い
+    （年度を年と取る）か、本文中の別の日付（期限や施行日）を拾った結果で
+    ある。実際に 20 件あり、横須賀市の 2025 年 12 月開催が 2026 年 12 月に
+    なっていた。日付が信用できないなら、日付を持たせない方がよい。
+    """
+    text = normalize_date(value)
+    if text is None:
+        return None
+    try:
+        # 形だけ合っていても 13 月は日付ではない。
+        datetime.strptime(text, "%Y-%m-%d")
+    except ValueError:
+        return None
+    # 1 日ぶんは時差と取得元の表記ゆれの余地として許す。
+    limit = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%d")
+    if text > limit:
+        return None
+    return text
+
+
 def normalize_datetime(value: Any) -> str | None:
     text = str(value or "").strip()
     if text == "":
@@ -366,7 +389,7 @@ def iter_minutes_documents(
             body = str(record.content or "")
             title_terms = " ".join(part for part in [record.title_terms, record.meeting_name_terms] if clean_text(part))
             source_url = clean_text(record.source_url)
-            held_on = normalize_date(record.held_on)
+            held_on = plausible_meeting_date(record.held_on)
             document = {
                 **meta,
                 "doc_type": "minutes",
