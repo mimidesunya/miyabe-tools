@@ -331,6 +331,48 @@ class ReikiCoverageTest(unittest.TestCase):
         )
 
 
+class ManifestShrinkGuardTest(unittest.TestCase):
+    """走査が短く終わった実行に、正本を上書きさせない。
+
+    飛騨市で 1378 行の一覧が 786 行に上書きされ、ディスクに残る
+    594 ファイルが一斉に孤児になった。減った理由が「取得元から消えた」
+    のか「今回の走査が短かった」のかは、ここでは区別が付かない。
+    区別が付かないなら消さない側に倒す。
+    """
+
+    def setUp(self):
+        self.path = Path(tempfile.mkdtemp()) / "source_manifest.json.gz"
+
+    def test_growing_manifest_is_written(self):
+        reiki_io.write_manifest_guarded(self.path, [{"a": i} for i in range(10)])
+        result = reiki_io.write_manifest_guarded(self.path, [{"a": i} for i in range(12)])
+        self.assertTrue(result["written"])
+        self.assertEqual(self._rows(), 12)
+
+    def test_shrinking_manifest_is_refused(self):
+        reiki_io.write_manifest_guarded(self.path, [{"a": i} for i in range(12)])
+        result = reiki_io.write_manifest_guarded(self.path, [{"a": i} for i in range(5)])
+        self.assertFalse(result["written"])
+        self.assertEqual(result["previous"], 12)
+        self.assertEqual(self._rows(), 12, "減った一覧で正本を上書きした")
+
+    def test_shrunk_run_is_kept_as_a_candidate(self):
+        reiki_io.write_manifest_guarded(self.path, [{"a": i} for i in range(12)])
+        reiki_io.write_manifest_guarded(self.path, [{"a": i} for i in range(5)])
+        candidate = self.path.parent / "source_manifest.shrunk.json"
+        self.assertIsNotNone(
+            reiki_io.existing_path(candidate), "今回の分を捨ててしまっている"
+        )
+
+    def test_same_size_is_written(self):
+        reiki_io.write_manifest_guarded(self.path, [{"a": i} for i in range(7)])
+        result = reiki_io.write_manifest_guarded(self.path, [{"b": i} for i in range(7)])
+        self.assertTrue(result["written"])
+
+    def _rows(self) -> int:
+        return len(json.loads(reiki_io.read_text_auto(reiki_io.existing_path(self.path))))
+
+
 class SharedRuleFixtureTest(unittest.TestCase):
     """PHP と同じ入力・同じ期待値を流す。
 

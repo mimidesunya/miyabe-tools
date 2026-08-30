@@ -217,6 +217,46 @@ def existing_path(path: Path) -> Path | None:
     return None
 
 
+def write_manifest_guarded(path: Path, manifest: list, *, label: str = "") -> dict:
+    """マニフェストを書く。前回より減っていたら上書きしない。
+
+    走査が短く終わった実行が、前回より少ない行数で上書きすると、
+    ディスクに残っているファイルが一斉に孤児になる。実際に飛騨市で
+    1378 行が 786 行に上書きされ、594 ファイルが孤児になった。
+
+    減った理由は「取得元から消えた」かもしれないし「今回の走査が
+    短かった」かもしれない。ここでは区別が付かないので、**消さない側**に
+    倒す。減ったことは戻り値で知らせ、呼ぶ側が未完了として扱えるようにする。
+    """
+    previous_count = 0
+    try:
+        existing = existing_path(path)
+        if existing is not None:
+            previous = json.loads(read_text_auto(existing))
+            if isinstance(previous, list):
+                previous_count = len(previous)
+    except Exception:
+        previous_count = 0
+
+    if previous_count > len(manifest):
+        # 候補として別名で残し、正本は動かさない。
+        candidate = logical_path(path).with_suffix(".shrunk.json")
+        try:
+            write_json(candidate, manifest, compress=True)
+        except Exception:
+            pass
+        print(
+            f"[WARN] {label or path.name}: 今回の走査は {len(manifest)}件で、"
+            f"前回の {previous_count}件より少ないため上書きしません。"
+            f"今回の分は {candidate.name} に残しました。",
+            flush=True,
+        )
+        return {"written": False, "previous": previous_count, "current": len(manifest)}
+
+    write_json(path, manifest, compress=True)
+    return {"written": True, "previous": previous_count, "current": len(manifest)}
+
+
 def collect_matching_files(root: Path, patterns: list[str]) -> list[Path]:
     found: dict[Path, None] = {}
     for pattern in patterns:

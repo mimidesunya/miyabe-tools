@@ -767,7 +767,9 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
 
     # 母数の記録は manifest が確定してから書く。先に書くと、
     # このあと例外で落ちたときに「新しい complete と古い manifest」が残る。
-    reiki_io.write_json(manifest_path, manifest, compress=True)
+    manifest_result = reiki_io.write_manifest_guarded(
+        manifest_path, manifest, label=f"{target['name']}の例規一覧"
+    )
     reiki_io.save_source_coverage(
         work_root,
         {
@@ -794,9 +796,14 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                 and failed == 0
                 and not stopped
                 and limit <= 0
+                # 前回より減ったなら取り切れたとは言えない。
+                and manifest_result["written"]
             ),
             "collected": emit_total,
             "failed": failed,
+            # 前回より少ない行数で終わったなら、走査が短かった可能性がある。
+            "manifest_shrunk": not manifest_result["written"],
+            "manifest_previous": manifest_result["previous"],
         },
     )
     if coverage_unresolved:
