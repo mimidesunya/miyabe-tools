@@ -369,10 +369,10 @@ class ManifestShrinkGuardTest(unittest.TestCase):
         # ここを塞ぐと、例規が廃止されても正本が永久に古いまま固定される。
         reiki_io.write_manifest_guarded(self.path, [{"a": i} for i in range(12)])
         result = reiki_io.write_manifest_guarded(
-            self.path, [{"a": i} for i in range(5)], walk_complete=True
+            self.path, [{"a": i} for i in range(11)], walk_complete=True
         )
         self.assertTrue(result["written"])
-        self.assertEqual(self._rows(), 5)
+        self.assertEqual(self._rows(), 11)
 
     def test_incomplete_walk_may_not_shrink(self):
         reiki_io.write_manifest_guarded(self.path, [{"a": i} for i in range(12)])
@@ -381,6 +381,16 @@ class ManifestShrinkGuardTest(unittest.TestCase):
         )
         self.assertFalse(result["written"])
         self.assertEqual(self._rows(), 12)
+
+    def test_complete_walk_may_not_shrink_a_lot(self):
+        # 取り切れた走査でも、2 割超が一度に消えるのは取得元の不調を疑う。
+        # 例規の 2 割が一度に廃止されることは、まず無い。
+        reiki_io.write_manifest_guarded(self.path, [{"a": i} for i in range(100)])
+        result = reiki_io.write_manifest_guarded(
+            self.path, [{"a": i} for i in range(50)], walk_complete=True
+        )
+        self.assertFalse(result["written"])
+        self.assertEqual(self._rows(), 100)
 
     def test_same_size_is_written(self):
         reiki_io.write_manifest_guarded(self.path, [{"a": i} for i in range(7)])

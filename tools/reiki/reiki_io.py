@@ -217,6 +217,11 @@ def existing_path(path: Path) -> Path | None:
     return None
 
 
+# 取り切れた走査でも、これを下回るほど減ったら上書きしない。
+# 例規の 2 割超が一度に廃止されることは、まず無い。
+SHRINK_ALLOWANCE = 0.8
+
+
 def write_manifest_guarded(
     path: Path, manifest: list, *, label: str = "", walk_complete: bool = False
 ) -> dict:
@@ -244,17 +249,26 @@ def write_manifest_guarded(
     except Exception:
         previous_count = 0
 
-    if previous_count > len(manifest) and not walk_complete:
+    # 取り切れた走査でも、大きく減ったなら取得元の不調を疑う。例規の
+    # 2 割超が一度に廃止されることは、まず無い。判断を人に残す。
+    large_drop = previous_count > 0 and len(manifest) < previous_count * SHRINK_ALLOWANCE
+    if previous_count > len(manifest) and (not walk_complete or large_drop):
         # 候補として別名で残し、正本は動かさない。
         candidate = logical_path(path).with_suffix(".shrunk.json")
         try:
             write_json(candidate, manifest, compress=True)
         except Exception:
             pass
+        reason = (
+            f"取り切れた走査だが {round((1 - SHRINK_ALLOWANCE) * 100)}% を超えて減っている"
+            if walk_complete
+            else "走査が取り切れていない"
+        )
         print(
             f"[WARN] {label or path.name}: 今回の走査は {len(manifest)}件で、"
-            f"前回の {previous_count}件より少ないため上書きしません。"
-            f"今回の分は {candidate.name} に残しました。",
+            f"前回の {previous_count}件より少ないため上書きしません（{reason}）。"
+            f"今回の分は {candidate.name} に残しました。"
+            "正しければ、この候補を正本に置き換えてください。",
             flush=True,
         )
         return {"written": False, "previous": previous_count, "current": len(manifest)}
