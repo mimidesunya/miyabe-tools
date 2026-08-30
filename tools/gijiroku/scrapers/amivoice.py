@@ -349,7 +349,12 @@ def main() -> int:
         discovered=len(meeting_items),
         plan_shrank=plan_shrank,
         limit_reached=bool(catalog_walk.get("limit_reached")) or args.max_meetings > 0,
-        extra={"pages_walked": int(catalog_walk.get("pages_walked") or 0)},
+        extra={
+            "pages_walked": int(catalog_walk.get("pages_walked") or 0),
+            # 内側を歩いた数。1 会期あたり 1 で止まっていたら、
+            # ページ送りの見つけ方が取得元の書き方に合っていない。
+            "inner_pages_walked": int(catalog_walk.get("inner_pages_walked") or 0),
+        },
     )
     index_json.parent.mkdir(parents=True, exist_ok=True)
     gijiroku_storage.save_meetings_index(index_json, [asdict(item) for item in meeting_items])
