@@ -181,6 +181,15 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--limit", type=int, default=0, help="Development limit per document type.")
     parser.add_argument("--no-switch-alias", action="store_true")
+    parser.add_argument(
+        "--allow-partial-alias",
+        action="store_true",
+        help=(
+            "一部の自治体だけ、または --limit で切って再構築した索引を、"
+            "それでも公開の alias に切り替える。既定では拒む（残りの自治体が"
+            "検索から消えるため）。"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -1109,6 +1118,26 @@ def main() -> int:
     if mode == "update" and not slugs:
         print("[ERROR] --mode update requires --slug.", file=sys.stderr, flush=True)
         return 2
+    # 一部だけ作った索引を公開の alias に切り替えると、残りの自治体が
+    # まるごと検索から消える。--mode update は自治体ごとの差し替えなので
+    # 別（alias はそのまま）。rebuild だけを止める。
+    partial_rebuild = mode == "rebuild" and (bool(slugs) or int(args.limit or 0) > 0)
+    if partial_rebuild and not args.no_switch_alias and not args.allow_partial_alias:
+        reason = []
+        if slugs:
+            reason.append(f"{len(slugs)}自治体だけ")
+        if int(args.limit or 0) > 0:
+            reason.append(f"--limit {args.limit}")
+        print(
+            "[ERROR] " + "・".join(reason) + "で作った索引は公開の alias に"
+            "切り替えられません。残りの自治体が検索から消えます。"
+            "作るだけなら --no-switch-alias、意図して公開するなら"
+            " --allow-partial-alias を付けてください。",
+            file=sys.stderr,
+            flush=True,
+        )
+        return 2
+
     resume_index = str(args.resume_index or "").strip()
     if mode == "resume":
         if resume_index == "":
