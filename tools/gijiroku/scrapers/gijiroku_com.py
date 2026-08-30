@@ -424,9 +424,14 @@ def discover_meeting_items(
     timeout_ms: int,
     max_meetings: int = 0,
     delay_seconds: float = 0,
+    coverage: dict | None = None,
 ) -> list[MeetingItem]:
     meetings: list[MeetingItem] = []
     year_pages: list[tuple[str, str]] = []
+    # 開けなかった年度ページを数える。黙って continue すると、
+    # 一年分まるごと落としたことが記録に残らない。
+    walked_years = 0
+    skipped_years = 0
 
     # 本会議と委員会でページが分かれている取得元（g08v_viewh / g08v_views）、
     # 1 ページにまとめている取得元（g08v_view、八尾市など）、入口ページに
@@ -458,6 +463,7 @@ def discover_meeting_items(
         try:
             page.goto(year_url, wait_until="domcontentloaded", timeout=timeout_ms)
         except Exception:
+            skipped_years += 1
             continue
         try:
             page.wait_for_load_state("networkidle", timeout=3_000)
@@ -466,7 +472,9 @@ def discover_meeting_items(
 
         frame = page.frame(name="BOTTOM")
         if frame is None:
+            skipped_years += 1
             continue
+        walked_years += 1
 
         anchors = frame.locator("a")
         count = anchors.count()
@@ -504,6 +512,14 @@ def discover_meeting_items(
                 )
                 pending_url = ""
 
+    if coverage is not None:
+        coverage.update(
+            {
+                "declared_years": len(year_pages),
+                "walked_years": walked_years,
+                "skipped_years": skipped_years,
+            }
+        )
     uniq: dict[tuple[str, str], MeetingItem] = {}
     for item in meetings:
         uniq[(item.title, item.url)] = item
@@ -511,6 +527,10 @@ def discover_meeting_items(
     if discovered:
         return discovered
 
+    # 古い voices 型に落ちた場合、上で数えた年度は当てにならない。
+    if coverage is not None:
+        coverage.update({"declared_years": 0, "walked_years": 0, "skipped_years": 0,
+                         "discovery_source": "legacy_voices"})
     return discover_legacy_voices_meeting_items(
         page.context.request,
         base_url,
@@ -662,12 +682,14 @@ def main() -> int:
         page.set_default_timeout(args.timeout_ms)
 
         print("[INFO] 会議一覧を収集中...")
+        walk: dict = {}
         meeting_items = discover_meeting_items(
             page,
             target["base_url"],
             args.timeout_ms,
             args.max_meetings,
             args.delay_seconds,
+            walk,
         )
         print(f"[INFO] 会議候補 {len(meeting_items)} 件")
 
@@ -678,9 +700,23 @@ def main() -> int:
             print(f"[INFO] 取得元が示す会議種別: {'/'.join(offered_types)}", flush=True)
         # state は実行の頭で消えているので、前回の記録は別ファイルから読む。
         previous_coverage = gijiroku_storage.load_source_coverage(state_path.parent, state)
+        # 歩けたかどうかを必ず記録する。state を書かないと、監査からは
+        # 「発見はしたが全部歩けたかは不明」のまま永久に区別が付かない。
+        if args.max_meetings > 0:
+            walk_state = "partial_limit"
+        elif walk.get("skipped_years"):
+            walk_state = "partial_error"
+        elif walk.get("walked_years"):
+            walk_state = "complete"
+        else:
+            # 古い voices 型は年度を歩く形ではないので、完了とは言えない。
+            walk_state = "unknown"
         state["source_coverage"] = {
             **previous_coverage,
+            **walk,
             "mode": "source_discovery_coverage",
+            "state": walk_state,
+            "discovered_count": len(meeting_items),
             "updated_at": now_ts(),
         }
         gijiroku_storage.save_state(state_path, state)

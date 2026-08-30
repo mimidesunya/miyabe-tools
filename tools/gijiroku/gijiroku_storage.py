@@ -232,10 +232,18 @@ def load_source_coverage(work_dir: Path, state: dict[str, Any] | None = None) ->
 
 
 def save_source_coverage(work_dir: Path, payload: dict[str, Any]) -> None:
-    """走査の記録を保存する。空では上書きしない。"""
+    """走査の記録を保存する。空では上書きしない。
+
+    save_state は会議ごとに呼ばれるので、中身が変わっていないときは書かない。
+    """
     if not payload:
         return
     path = source_coverage_path(work_dir)
+    try:
+        if json.loads(path.read_text(encoding="utf-8")) == payload:
+            return
+    except Exception:
+        pass
     path.parent.mkdir(parents=True, exist_ok=True)
     body = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
     temporary = path.with_suffix(".json.tmp")

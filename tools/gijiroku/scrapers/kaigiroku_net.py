@@ -301,6 +301,7 @@ def discover_meeting_items(
     timeout_ms: int,
     max_years: int,
     offered_types: list[str] | None = None,
+    coverage: dict | None = None,
 ) -> tuple[int, list[MeetingItem]]:
     source_url = str(target["source_url"])
     tenant_id = load_tenant_id(page, source_url, timeout_ms)
@@ -317,14 +318,21 @@ def discover_meeting_items(
     year_rows = year_data.get("view_years", [])
     if not isinstance(year_rows, list):
         year_rows = []
+    # 取得元が示した年の数を控える。歩いた数と突き合わせないと、
+    # 何年か落としたことに気付けない。
+    declared_years = len(year_rows)
+    truncated = max_years > 0 and len(year_rows) > max_years
     if max_years > 0:
         year_rows = year_rows[:max_years]
+    walked_years = 0
+    skipped_years = 0
 
     meetings: list[MeetingItem] = []
     seen_schedule_keys: set[tuple[int, int]] = set()
 
     for year_row in year_rows:
         if not isinstance(year_row, dict):
+            skipped_years += 1
             continue
 
         view_year = str(year_row.get("view_year", "")).strip()
@@ -345,7 +353,9 @@ def discover_meeting_items(
 
         roots = council_data.get("councils", [])
         if not isinstance(roots, list):
+            skipped_years += 1
             continue
+        walked_years += 1
 
         for root in roots:
             if not isinstance(root, dict):
@@ -405,6 +415,15 @@ def discover_meeting_items(
                             seen_schedule_keys.add(schedule_key)
                             meetings.append(item)
 
+    if coverage is not None:
+        coverage.update(
+            {
+                "declared_years": declared_years,
+                "walked_years": walked_years,
+                "skipped_years": skipped_years,
+                "limit_reached": bool(truncated),
+            }
+        )
     return tenant_id, meetings
 
 
@@ -644,8 +663,9 @@ def main() -> int:
 
         print("[INFO] 会議一覧を収集中...")
         offered_types: list[str] = []
+        walk: dict = {}
         tenant_id, meeting_items = discover_meeting_items(
-            page, target, args.timeout_ms, args.max_years, offered_types
+            page, target, args.timeout_ms, args.max_years, offered_types, walk
         )
         print(f"[INFO] tenant_id={tenant_id}")
         print(f"[INFO] 会議候補 {len(meeting_items)} 件")
@@ -653,9 +673,22 @@ def main() -> int:
             print(f"[INFO] 取得元が示す会議区分: {'/'.join(offered_types)}", flush=True)
         # state は実行の頭で消えているので、前回の記録は別ファイルから読む。
         source_coverage = gijiroku_storage.load_source_coverage(state_path.parent, state)
+        # 歩けたかどうかを必ず記録する。state を書かないと、監査からは
+        # 「発見はしたが全部歩けたかは不明」のまま永久に区別が付かない。
+        if walk.get("limit_reached"):
+            walk_state = "partial_limit"
+        elif walk.get("skipped_years"):
+            walk_state = "partial_error"
+        elif walk.get("walked_years"):
+            walk_state = "complete"
+        else:
+            walk_state = "unknown"
         state["source_coverage"] = {
             **source_coverage,
+            **walk,
             "mode": "source_discovery_coverage",
+            "state": walk_state,
+            "discovered_count": len(meeting_items),
             "updated_at": now_ts(),
         }
         gijiroku_storage.save_state(state_path, state)
