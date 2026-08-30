@@ -549,13 +549,18 @@ def iter_reiki_documents(
                 "evaluation_text": evaluation_text,
                 "indexed_at": indexed_at,
                 "updated_at": updated_at,
-                "sort_date": promulgated_on or first_date(updated_at),
+                # 公布日が読めないときに取得日を入れると、昭和 26 年の規則が
+                # 今日の日付で「最新」に見える。日付が無いなら持たせない。
+                # 実データで 72 件がこの形だった（中央区の昭和 29 年条例など）。
+                "sort_date": promulgated_on,
                 "filename": filename,
                 "ordinance_no": clean_text(record.get("number") or record.get("ordinance_no")),
                 "category": clean_text(record.get("primary_class")) or clean_text(record.get("document_type")),
                 "promulgated_on": promulgated_on,
                 "enforced_on": None,
-                "amended_on": first_date(updated_at),
+                # 最終改正日は取得元から読めていない。取得日を入れると
+                # 「今日改正された」と読める。読めるまでは空にする。
+                "amended_on": None,
                 "local_id": local_id,
             }
             yield f"reiki:{meta['slug']}:{local_id}", compact_document(document)

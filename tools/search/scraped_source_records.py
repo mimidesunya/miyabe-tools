@@ -626,9 +626,43 @@ def extract_number_from_html(html_content: str) -> str:
     return decode_html_text(match.group(1)) if match else ""
 
 
+# 古い例規は law-date に西暦が併記されず、和暦しか無い。西暦だけを見ると
+# 公布日が読めず、日付の欄が空になる（そこへ取得日を入れると、昭和の条例が
+# 今日の日付で最新に見えていた）。和暦からも読む。
+WAREKI_ERA_BASE = {"明治": 1867, "大正": 1911, "昭和": 1925, "平成": 1988, "令和": 2018}
+WAREKI_DATE_PATTERN = re.compile(
+    r"(明治|大正|昭和|平成|令和)\s*([0-9]{1,2})年\s*([0-9]{1,2})月\s*([0-9]{1,2})日"
+)
+REIKI_DATE_TEXT_PATTERN = re.compile(
+    r'<div class="law-date">(.*?)</div>', re.IGNORECASE | re.DOTALL
+)
+
+
+def wareki_to_iso(text: str) -> str:
+    """和暦を YYYY-MM-DD へ。日まで揃っていなければ空文字。"""
+    if not text:
+        return ""
+    normalized = text.replace("元年", "1年").translate(
+        str.maketrans("０１２３４５６７８９", "0123456789")
+    )
+    match = WAREKI_DATE_PATTERN.search(normalized)
+    if not match:
+        return ""
+    era, year, month, day = match.groups()
+    try:
+        return f"{WAREKI_ERA_BASE[era] + int(year):04d}-{int(month):02d}-{int(day):02d}"
+    except (KeyError, ValueError):
+        return ""
+
+
 def extract_date_from_html(html_content: str) -> str:
     match = REIKI_DATE_PATTERN.search(html_content)
-    return match.group(1) if match else ""
+    if match:
+        return match.group(1)
+    text_match = REIKI_DATE_TEXT_PATTERN.search(html_content)
+    if text_match:
+        return wareki_to_iso(TAG_PATTERN.sub("", text_match.group(1)))
+    return ""
 
 
 def join_strings(value: object) -> str:
