@@ -385,16 +385,39 @@ function homepage_gijiroku_classified_progress(array $feature): ?array
 
 function homepage_gijiroku_source_coverage(array $feature): ?array
 {
+    // 走査の記録は source_coverage.json を見る。scrape_state.json は実行の頭で
+    // 消されるので、走っている最中と殺されたあとが「記録なし」で同じに見える。
+    $workDir = trim((string)($feature['work_dir'] ?? ''));
+    $coverage = null;
+    if ($workDir !== '') {
+        $durablePath = rtrim($workDir, DIRECTORY_SEPARATOR . '/\\')
+            . DIRECTORY_SEPARATOR . 'source_coverage.json';
+        $durable = read_json_cache_file($durablePath, 0);
+        if (is_array($durable) && $durable !== []) {
+            $coverage = $durable;
+        }
+    }
     $state = homepage_gijiroku_scrape_state($feature);
-    $coverage = is_array($state) && is_array($state['source_coverage'] ?? null)
+    $inState = is_array($state) && is_array($state['source_coverage'] ?? null)
         ? $state['source_coverage']
         : null;
+    if (is_array($inState)
+        && (!is_array($coverage)
+            || (string)($inState['updated_at'] ?? '') > (string)($coverage['updated_at'] ?? ''))) {
+        $coverage = $inState;
+    }
     if (!is_array($coverage) || trim((string)($coverage['mode'] ?? '')) !== 'source_discovery_coverage') {
         return null;
     }
 
     $coverageState = trim((string)($coverage['state'] ?? ''));
-    if (!in_array($coverageState, ['complete', 'partial_planned', 'partial_limit', 'partial_error'], true)) {
+    // 歩き直しを始めたまま終われていないなら、前回の complete は当てにしない。
+    $startedAt = (string)($coverage['walk_started_at'] ?? '');
+    $updatedAt = (string)($coverage['updated_at'] ?? '');
+    if ($coverageState === 'complete' && $startedAt !== '' && $startedAt > $updatedAt) {
+        return null;
+    }
+    if (!in_array($coverageState, ['complete', 'partial_planned', 'partial_limit', 'partial_error', 'partial_recent_only'], true)) {
         return null;
     }
     return [

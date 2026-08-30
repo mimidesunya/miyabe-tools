@@ -196,20 +196,32 @@ def priority_score(
 
 # 会議録の scrape_state.json など、task state 以外の進捗候補を読むための標準 reader。
 def scrape_state_progress(target: dict[str, Any]) -> tuple[int, int]:
-    state_path = Path(target.get("work_dir", "")) / "scrape_state.json"
+    work_dir = Path(target.get("work_dir", ""))
+    state_path = work_dir / "scrape_state.json"
     try:
         payload = json.loads(state_path.read_text(encoding="utf-8"))
     except Exception:
-        return 0, 0
+        payload = {}
     if not isinstance(payload, dict):
-        return 0, 0
+        payload = {}
     validation = payload.get("validation")
     if isinstance(validation, dict) and str(validation.get("mode") or "") == "classified_scrape_result":
         current_count, total_count = item_progress(validation)
     else:
         current_count, total_count = item_progress(payload)
 
+    # 走査の記録は source_coverage.json を見る。scrape_state.json は実行の頭で
+    # 消されるので、殺された実行のあとはここが空になり、再投入の判断ができない。
     source_coverage = payload.get("source_coverage")
+    try:
+        durable = json.loads((work_dir / "source_coverage.json").read_text(encoding="utf-8"))
+    except Exception:
+        durable = None
+    if isinstance(durable, dict) and durable:
+        if not isinstance(source_coverage, dict) or str(
+            source_coverage.get("updated_at") or ""
+        ) <= str(durable.get("updated_at") or ""):
+            source_coverage = durable
     if (
         isinstance(source_coverage, dict)
         and str(source_coverage.get("mode") or "") == "source_discovery_coverage"
@@ -217,6 +229,7 @@ def scrape_state_progress(target: dict[str, Any]) -> tuple[int, int]:
         in {"partial_planned", "partial_limit", "partial_error", "partial_recent_only"}
     ):
         # 件数上限や一覧ページの失敗がある実行を「25/25 完了」のように扱わない。
+        # 進捗が読めなくても、走査が未完了なら再投入したい。
         # 直近分の一覧しか出ない取得元（partial_recent_only）も同じ扱いにする。
         # 既存 snapshot よりこの incomplete 候補が優先され、次回バッチへ再投入される。
         return current_count, max(total_count, current_count + 1)
@@ -226,6 +239,9 @@ def scrape_state_progress(target: dict[str, Any]) -> tuple[int, int]:
         isinstance(source_coverage, dict)
         and str(source_coverage.get("mode") or "") == "source_discovery_coverage"
         and str(source_coverage.get("state") or "") == "complete"
+        # 歩き直しを始めたまま終われていないなら、前回の complete は当てにしない。
+        and str(source_coverage.get("walk_started_at") or "")
+        <= str(source_coverage.get("updated_at") or "")
     )
     if system_family in {"dbsr", "db-search", "kaigiroku-indexphp"} and not has_explicit_coverage:
         # 旧DBSR成果物は、保存件数と検索件数が一致していても取得元の全一覧を
