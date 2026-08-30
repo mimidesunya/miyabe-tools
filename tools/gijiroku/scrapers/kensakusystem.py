@@ -554,10 +554,7 @@ def main() -> int:
     print(f"[INFO] 会議候補 {len(meeting_items)} 件")
 
     index_json.parent.mkdir(parents=True, exist_ok=True)
-    index_json.write_text(
-        json.dumps([asdict(item) for item in meeting_items], ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    gijiroku_storage.save_meetings_index(index_json, [asdict(item) for item in meeting_items])
     emit_progress(0, len(meeting_items), state_path, state)
 
     with result_csv.open("w", encoding="utf-8", newline="") as handle:

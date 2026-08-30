@@ -379,6 +379,33 @@ def count_statuses(status_counts: dict[str, int], statuses: frozenset[str]) -> i
     return sum(max(0, int(status_counts.get(status, 0))) for status in statuses)
 
 
+def save_meetings_index(path: Path, payload: list[Any]) -> None:
+    """会議候補の一覧を保存する。空では上書きしない。
+
+    発見に失敗した実行が `[]` を書くと、既に取れているファイルがあるのに
+    「取るものは無い」という記録だけが残る。実際に野洲市（1202 ファイル）
+    などで起きていた。空になったのは発見の失敗であって、取得元から
+    会議が消えたわけではない。
+    """
+    if not payload:
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            existing = None
+        if isinstance(existing, list) and existing:
+            print(
+                f"[WARN] 会議候補を1件も見つけられませんでした。"
+                f"前回の {len(existing)}件を残します: {path}",
+                flush=True,
+            )
+            return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = json.dumps(payload, ensure_ascii=False, indent=2)
+    temporary = path.with_suffix(".json.tmp")
+    temporary.write_text(body, encoding="utf-8")
+    os.replace(temporary, path)
+
+
 def classified_scrape_summary(
     *,
     discovered_count: int,

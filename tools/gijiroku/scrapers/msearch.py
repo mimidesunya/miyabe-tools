@@ -197,7 +197,7 @@ def main() -> int:
     meeting_items = parse_index(decode_response(response), response.url)
     print(f"[INFO] 会議候補 {len(meeting_items)} 件")
     index_json.parent.mkdir(parents=True, exist_ok=True)
-    index_json.write_text(json.dumps([asdict(item) for item in meeting_items], ensure_ascii=False, indent=2), encoding="utf-8")
+    gijiroku_storage.save_meetings_index(index_json, [asdict(item) for item in meeting_items])
     if args.max_meetings > 0:
         meeting_items = meeting_items[: args.max_meetings]
 
