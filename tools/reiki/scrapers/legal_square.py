@@ -779,8 +779,15 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             existing_partial.unlink()
     except Exception:
         pass
+    # 取り切れた走査なら、減ったのは取得元から消えたということ。上書きしてよい。
+    walk_complete = (
+        not coverage_unresolved and failed == 0 and not stopped and limit <= 0
+    )
     manifest_result = reiki_io.write_manifest_guarded(
-        manifest_path, manifest, label=f"{target['name']}の例規一覧"
+        manifest_path,
+        manifest,
+        label=f"{target['name']}の例規一覧",
+        walk_complete=walk_complete,
     )
     reiki_io.save_source_coverage(
         work_root,

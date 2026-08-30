@@ -291,7 +291,12 @@ def run(
     except Exception:
         pass
     manifest_result = reiki_io.write_manifest_guarded(
-        manifest_path, manifest, label=f"{target['name']}の例規一覧"
+        manifest_path,
+        manifest,
+        label=f"{target['name']}の例規一覧",
+        # 目録を最後まで歩けて、個票も全部取れたなら、減ったのは
+        # 取得元から消えたということ。
+        walk_complete=(failed == 0 and limit <= 0 and total == declared_total),
     )
     # 失敗した分は取れていない。ここで total/total にすると、10 件中 1 件
     # 落としても 9/9 に見え、キューは完了と読んでしまう。

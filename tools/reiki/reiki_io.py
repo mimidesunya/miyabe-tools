@@ -217,16 +217,22 @@ def existing_path(path: Path) -> Path | None:
     return None
 
 
-def write_manifest_guarded(path: Path, manifest: list, *, label: str = "") -> dict:
-    """マニフェストを書く。前回より減っていたら上書きしない。
+def write_manifest_guarded(
+    path: Path, manifest: list, *, label: str = "", walk_complete: bool = False
+) -> dict:
+    """マニフェストを書く。前回より減っていたら、取り切れた実行のときだけ上書きする。
 
     走査が短く終わった実行が、前回より少ない行数で上書きすると、
     ディスクに残っているファイルが一斉に孤児になる。実際に飛騨市で
     1378 行が 786 行に上書きされ、594 ファイルが孤児になった。
 
     減った理由は「取得元から消えた」かもしれないし「今回の走査が
-    短かった」かもしれない。ここでは区別が付かないので、**消さない側**に
-    倒す。減ったことは戻り値で知らせ、呼ぶ側が未完了として扱えるようにする。
+    短かった」かもしれない。**取り切れた実行なら区別が付く** —— 全部歩けた
+    うえで少なかったのだから、取得元から消えたのである。その場合は
+    上書きしてよい。取り切れていない実行は消さない側に倒す。
+
+    `walk_complete` を渡さないと、減った一覧は永久に上書きできない。
+    取得元が例規を廃止しても正本が古いまま固定される。
     """
     previous_count = 0
     try:
@@ -238,7 +244,7 @@ def write_manifest_guarded(path: Path, manifest: list, *, label: str = "") -> di
     except Exception:
         previous_count = 0
 
-    if previous_count > len(manifest):
+    if previous_count > len(manifest) and not walk_complete:
         # 候補として別名で残し、正本は動かさない。
         candidate = logical_path(path).with_suffix(".shrunk.json")
         try:
@@ -253,6 +259,12 @@ def write_manifest_guarded(path: Path, manifest: list, *, label: str = "") -> di
         )
         return {"written": False, "previous": previous_count, "current": len(manifest)}
 
+    if previous_count > len(manifest):
+        print(
+            f"[INFO] {label or path.name}: 取り切れた走査で {previous_count}件から"
+            f" {len(manifest)}件に減りました。取得元から削除されたものとして扱います。",
+            flush=True,
+        )
     write_json(path, manifest, compress=True)
     return {"written": True, "previous": previous_count, "current": len(manifest)}
 

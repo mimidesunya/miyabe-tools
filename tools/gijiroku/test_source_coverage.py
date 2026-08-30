@@ -364,6 +364,24 @@ class ManifestShrinkGuardTest(unittest.TestCase):
             reiki_io.existing_path(candidate), "今回の分を捨ててしまっている"
         )
 
+    def test_complete_walk_may_shrink(self):
+        # 全部歩けたうえで少なかったなら、取得元から消えたということ。
+        # ここを塞ぐと、例規が廃止されても正本が永久に古いまま固定される。
+        reiki_io.write_manifest_guarded(self.path, [{"a": i} for i in range(12)])
+        result = reiki_io.write_manifest_guarded(
+            self.path, [{"a": i} for i in range(5)], walk_complete=True
+        )
+        self.assertTrue(result["written"])
+        self.assertEqual(self._rows(), 5)
+
+    def test_incomplete_walk_may_not_shrink(self):
+        reiki_io.write_manifest_guarded(self.path, [{"a": i} for i in range(12)])
+        result = reiki_io.write_manifest_guarded(
+            self.path, [{"a": i} for i in range(5)], walk_complete=False
+        )
+        self.assertFalse(result["written"])
+        self.assertEqual(self._rows(), 12)
+
     def test_same_size_is_written(self):
         reiki_io.write_manifest_guarded(self.path, [{"a": i} for i in range(7)])
         result = reiki_io.write_manifest_guarded(self.path, [{"b": i} for i in range(7)])
