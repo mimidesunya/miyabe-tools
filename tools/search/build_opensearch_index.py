@@ -1121,7 +1121,10 @@ def main() -> int:
     # 一部だけ作った索引を公開の alias に切り替えると、残りの自治体が
     # まるごと検索から消える。--mode update は自治体ごとの差し替えなので
     # 別（alias はそのまま）。rebuild だけを止める。
-    partial_rebuild = mode == "rebuild" and (bool(slugs) or int(args.limit or 0) > 0)
+    # resume も途中から作り直すので、slug や limit で絞れば部分索引になる。
+    partial_rebuild = mode in {"rebuild", "resume"} and (
+        bool(slugs) or int(args.limit or 0) > 0
+    )
     if partial_rebuild and not args.no_switch_alias and not args.allow_partial_alias:
         reason = []
         if slugs:

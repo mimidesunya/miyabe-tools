@@ -732,7 +732,13 @@ function homepage_reiki_source_coverage(array $feature): ?array
         return null;
     }
     // 判定ルールの版。tools/reiki/scrapers/legal_square.py の version と揃える。
-    if ((int)($payload['version'] ?? 0) < 2) {
+    // (int) は "2foo" を 2 にしてしまう。homepage_reiki_coverage_complete と
+    // 同じ読み方にしないと、片方だけ通る。
+    $version = $payload['version'] ?? null;
+    if (!is_int($version) && !(is_string($version) && ctype_digit($version))) {
+        return null;
+    }
+    if ((int)$version < 2) {
         return null;
     }
     return $payload;

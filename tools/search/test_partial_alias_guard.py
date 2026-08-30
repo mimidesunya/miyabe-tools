@@ -48,6 +48,16 @@ class PartialAliasGuardTest(unittest.TestCase):
         # update は自治体ごとの差し替えで、alias は作り直さない。
         self.assertNotEqual(run("--mode", "update", "--slug", "13101-chiyoda-ku"), BLOCKED)
 
+    def test_partial_resume_is_refused(self):
+        # resume も途中から作り直すので、slug で絞れば部分索引になる。
+        self.assertEqual(
+            run(
+                "--mode", "resume", "--resume-index", "miyabe-reiki-x",
+                "--doc-type", "reiki", "--slug", "13101-chiyoda-ku",
+            ),
+            BLOCKED,
+        )
+
     def test_full_rebuild_is_allowed(self):
         self.assertNotEqual(run("--mode", "rebuild"), BLOCKED)
 

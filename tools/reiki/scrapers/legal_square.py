@@ -413,6 +413,10 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
     seen_stems: set[str] = set()
     downloaded = failed = 0
 
+    # 歩き直しの印はブラウザを起動する前に置く。起動や最初の検索で
+    # 殺されると、前回の complete がそのまま残ってしまう。
+    reiki_io.mark_walk_started(work_root, time.strftime("%Y%m%d_%H%M%S"))
+
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=not headful, args=["--ignore-certificate-errors"])
         context = browser.new_context(ignore_https_errors=True, locale="ja-JP", user_agent=USER_AGENT)
@@ -425,8 +429,6 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
         emit_total = 0
         stopped = False
         stale_searches = 0
-        # 歩き直しの途中で殺されたら、前回の complete を当てにしない。
-        reiki_io.mark_walk_started(work_root, time.strftime("%Y%m%d_%H%M%S"))
         # 取り切れた区間と、取り切れなかった区間を分けて控える。
         # 総数ひとつでは完了判定にならない（上限に当たると総数自体が上限値になる）。
         # 上限に当たっても、そのあと期間で割って取り切れたなら取りこぼしではない。

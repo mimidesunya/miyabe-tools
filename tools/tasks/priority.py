@@ -49,7 +49,10 @@ except Exception:  # 会議録の道具が無い環境でも優先度計算は�
     def effective_walk_state(payload: Any) -> str:
         if not isinstance(payload, dict) or not payload:
             return "unknown"
-        if int(payload.get("rule_version") or 0) < 2:
+        try:
+            if int(payload.get("rule_version") or 0) < 2:
+                return "stale_rule"
+        except (TypeError, ValueError):
             return "stale_rule"
         state = str(payload.get("state") or "").strip() or "unknown"
         started = str(payload.get("walk_started_at") or "")
