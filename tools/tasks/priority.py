@@ -112,6 +112,22 @@ def successful_item_finished_at(item: dict[str, Any]) -> str:
     return str(item.get("finished_at") or item.get("last_checked_at") or "").strip()
 
 
+# 失敗した自治体を自動で再試行するまでの待ち時間。
+# すぐにやり直すと壊れた取得元を叩き続けるので間を置く。とはいえ間を置かないと
+# 一度の失敗で永久に再取得されなくなる（実際に会議録 45・例規 6 自治体が
+# 3 か月以上、巡回対象から外れたままだった）。
+FAILED_RETRY_DAYS = 7
+
+
+def failure_is_retryable(finished_at: str) -> bool:
+    """失敗から十分に時間が経っていれば、自動で 1 度やり直してよい。"""
+    finished = freshness_metadata.parse_datetime_text(finished_at)
+    if finished is None:
+        # 失敗時刻が分からないものは、従来どおり手動の対処に任せる。
+        return False
+    return (freshness_metadata.now_tokyo() - finished) >= timedelta(days=FAILED_RETRY_DAYS)
+
+
 # 取得完了かつ 30 日以内に成功していれば、今回の scrape 対象から外せるか判定する。
 def recently_completed_successfully(
     task_name: str,
@@ -273,7 +289,7 @@ class PriorityCalculator:
         current_count, total_count = self.priority_progress(slug, target)
         ratio = (current_count / total_count) if total_count > 0 else 0.0
 
-        # 実エラーで失敗した自治体は自動再実行せず、手動の対処を待つ。
+        # 実エラーで失敗した自治体は、すぐには自動再実行せず手動の対処を待つ。
         failed_task_name = ""
         if previous_item_failed_with_error(self.task_name, slug):
             failed_task_name = self.task_name
@@ -281,20 +297,25 @@ class PriorityCalculator:
             failed_task_name = self.reflect_task_name
 
         freshness = freshness_metadata.item_freshness(self.task_name, target)
+        retry_after_failure = False
         if failed_task_name:
             failed_item = task_item(failed_task_name, slug)
-            return {
-                "priority_group": 5,
-                "priority_score": 0,
-                "priority_label": "previous_failed",
-                "progress_ratio": ratio,
-                "current_count": current_count,
-                "total_count": total_count,
-                self.count_field: current_count,
-                "finished_at": str(failed_item.get("finished_at") or "").strip(),
-                "previously_failed": True,
-                **freshness,
-            }
+            failed_at = str(failed_item.get("finished_at") or "").strip()
+            if not failure_is_retryable(failed_at):
+                return {
+                    "priority_group": 5,
+                    "priority_score": 0,
+                    "priority_label": "previous_failed",
+                    "progress_ratio": ratio,
+                    "current_count": current_count,
+                    "total_count": total_count,
+                    self.count_field: current_count,
+                    "finished_at": failed_at,
+                    "previously_failed": True,
+                    **freshness,
+                }
+            # 十分に時間が経ったので、通常の対象として 1 度やり直す。
+            retry_after_failure = True
 
         freshness_date = freshness_metadata.parse_date(freshness.get("freshness_date"))
         is_fresh = (
@@ -332,13 +353,14 @@ class PriorityCalculator:
         return {
             "priority_group": priority_group,
             "priority_score": score,
-            "priority_label": priority_label,
+            # 失敗から時間を置いてやり直す対象は、通常の対象と区別して見せる。
+            "priority_label": "failed_retry" if retry_after_failure else priority_label,
             "progress_ratio": ratio,
             "current_count": current_count,
             "total_count": total_count,
             self.count_field: current_count,
             "finished_at": finished_at,
-            "previously_failed": False,
+            "previously_failed": retry_after_failure,
             **freshness,
         }
 

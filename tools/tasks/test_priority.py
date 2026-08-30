@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import unittest
+from datetime import timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -81,6 +82,24 @@ class PreviousItemFailedTest(unittest.TestCase):
         item = {"status": "failed", "message": "停止しました", "progress_current": 1, "progress_total": 10}
         with self._with_item(item):
             self.assertFalse(priority.previous_item_failed_with_error("gijiroku", "x"))
+
+class FailureIsRetryableTest(unittest.TestCase):
+    def test_recent_failure_waits_for_manual_handling(self) -> None:
+        recent = (
+            priority.freshness_metadata.now_tokyo() - timedelta(days=1)
+        ).strftime("%Y-%m-%d %H:%M:%S")
+        self.assertFalse(priority.failure_is_retryable(recent))
+
+    def test_old_failure_is_retried_automatically(self) -> None:
+        # 一度の失敗で永久に巡回対象から外れないようにする。
+        old = (
+            priority.freshness_metadata.now_tokyo()
+            - timedelta(days=priority.FAILED_RETRY_DAYS + 1)
+        ).strftime("%Y-%m-%d %H:%M:%S")
+        self.assertTrue(priority.failure_is_retryable(old))
+
+    def test_unknown_failure_time_is_left_to_manual_handling(self) -> None:
+        self.assertFalse(priority.failure_is_retryable(""))
 
 
 if __name__ == "__main__":
