@@ -543,12 +543,23 @@ function homepage_gijiroku_acquisition_status(
         && (int)($progress['total'] ?? 0) > 0
         && (int)($progress['current'] ?? 0) < (int)($progress['total'] ?? 0);
     // 発見数と検証数の一致は、分類済み validation を書く系統でしか見られない。
-    // 書かない系統（kensakusystem / amivoice / msearch）でこれを必須にすると、
-    // 走査が完了していても永久に「追加取得中」と出る（141 自治体）。
+    // 書かない系統でこれを必須にすると、走査が完了していても永久に
+    // 「追加取得中」と出る（141 自治体）。
+    //
+    // ただし「validation が無い」を「書かない系統」と同じに扱ってはいけない。
+    // dbsr は一覧走査のあとに complete を書き、本文取得が終わってから
+    // validation を書く。その間に落ちると validation が無い状態になるので、
+    // 未完了なのに完了と出てしまう。**系統名で分ける。**
+    $writesValidation = in_array(
+        $systemType,
+        ['dbsr', 'db-search', 'kaigiroku-indexphp', '独自', 'kami-city-pdf', 'site-gikai-pdf', 'static-kaigiroku-dir'],
+        true
+    );
     $hasClassifiedProgress = is_array($progress) && (int)($progress['discovered'] ?? 0) > 0;
-    $validationMatchesDiscovery = !$hasClassifiedProgress
+    $validationMatchesDiscovery = !$writesValidation
         || (
-            is_array($sourceCoverage)
+            $hasClassifiedProgress
+            && is_array($sourceCoverage)
             && (int)($sourceCoverage['discovered_count'] ?? 0) > 0
             && (int)($progress['discovered'] ?? 0) === (int)($sourceCoverage['discovered_count'] ?? 0)
         );
@@ -606,7 +617,7 @@ function homepage_gijiroku_acquisition_status(
     // 到達できない（141 自治体）。無い場合は走査記録の発見数を使う。
     $progressComplete = is_array($progress)
         ? homepage_progress_count_is_complete((int)$progress['current'], (int)$progress['total'])
-        : !$hasClassifiedProgress;
+        : !$writesValidation;
     if ($sourceState === 'complete' && $progressComplete) {
         $acquiredCount = is_array($progress)
             ? max(0, (int)($progress['current'] ?? 0))

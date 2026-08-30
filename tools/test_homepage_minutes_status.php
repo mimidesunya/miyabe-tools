@@ -64,6 +64,15 @@ if (($result['state'] ?? '') !== 'complete') {
     $failures[] = '一致しているのに完了と出ない: ' . ($result['state'] ?? '(空)');
 }
 
+// validation を書く系統が、発見のあと本文取得の途中で落ちた。
+// validation がまだ無いだけで、取得は終わっていない。
+// 「validation が無い」を「書かない系統」と同じに扱うと、ここで完了と出る。
+$feature = make_feature($base . '/killed_midway', $coverage, null);
+$result = homepage_gijiroku_acquisition_status($feature, 'dbsr', true, false, 50, null);
+if (($result['state'] ?? '') === 'complete') {
+    $failures[] = 'validation を書く系統が、書く前に落ちたのに完了と出た';
+}
+
 // 走査が未完了なら、完了とは出ない。
 $feature = make_feature(
     $base . '/partial',
@@ -76,7 +85,7 @@ if (($result['state'] ?? '') === 'complete') {
     $failures[] = '走査が未完了なのに完了と出た';
 }
 
-foreach (['no_validation', 'mismatch', 'match', 'partial'] as $name) {
+foreach (['no_validation', 'mismatch', 'match', 'killed_midway', 'partial'] as $name) {
     @unlink($base . '/' . $name . '/source_coverage.json');
     @unlink($base . '/' . $name . '/scrape_state.json');
     @rmdir($base . '/' . $name);
@@ -87,4 +96,4 @@ if ($failures !== []) {
     fwrite(STDERR, "NG: " . implode("\n    ", $failures) . "\n");
     exit(1);
 }
-echo "OK: 会議録の公開表示が走査記録どおり (4 件)\n";
+echo "OK: 会議録の公開表示が走査記録どおり (5 件)\n";
