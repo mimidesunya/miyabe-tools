@@ -17,6 +17,7 @@ sys.path.insert(0, str(SEARCH_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import build_opensearch_index as search_builder  # type: ignore  # noqa: E402
+import gijiroku_storage  # type: ignore  # noqa: E402
 import gijiroku_targets  # type: ignore  # noqa: E402
 from opensearch_client import OpenSearchClient  # type: ignore  # noqa: E402
 
@@ -128,7 +129,10 @@ def main() -> int:
     for target in targets:
         slug = str(target.get("slug") or "").strip()
         state = read_json(Path(target["work_dir"]) / "scrape_state.json")
-        coverage = state.get("source_coverage") if isinstance(state.get("source_coverage"), dict) else {}
+        # 走査の記録は scrape_state.json ではなく source_coverage.json を見る。
+        # state は実行の頭で消されるので、走っている最中の自治体を全部
+        # 「走査記録なし」と数えてしまう。
+        coverage = gijiroku_storage.load_source_coverage(Path(target["work_dir"]), state)
         validation = state.get("validation") if isinstance(state.get("validation"), dict) else {}
         task_item = task_items.get(slug, {})
         saved_file_count = int_value(local_counts.get(slug))

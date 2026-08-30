@@ -205,6 +205,44 @@ def load_state(path: Path) -> dict[str, Any]:
 
 # 取得元が示す会議種別。scrape_state.json は実行のたびに消されるので、
 # ここへ分けて置く（batch.py の remove_stale_scrape_state）。
+# 取得元をどこまで歩けたかの記録。scrape_state.json は実行のたびに消される
+# （batch.py の remove_stale_scrape_state）ので、そこに置くと殺された実行が
+# 「全部歩けた」という記録ごと消してしまう。実行をまたぐものは別ファイルに置く。
+SOURCE_COVERAGE_FILE = "source_coverage.json"
+
+
+def source_coverage_path(work_dir: Path) -> Path:
+    return Path(work_dir) / SOURCE_COVERAGE_FILE
+
+
+def load_source_coverage(work_dir: Path, state: dict[str, Any] | None = None) -> dict[str, Any]:
+    """走査の記録を読む。無ければ空の辞書。
+
+    `state` を渡すと、別ファイルがまだ無い自治体について
+    scrape_state.json の中の古い記録に落ちる。移行が済むまでの経路。
+    """
+    try:
+        payload = json.loads(source_coverage_path(work_dir).read_text(encoding="utf-8"))
+        if isinstance(payload, dict) and payload:
+            return payload
+    except Exception:
+        pass
+    previous = (state or {}).get("source_coverage")
+    return previous if isinstance(previous, dict) else {}
+
+
+def save_source_coverage(work_dir: Path, payload: dict[str, Any]) -> None:
+    """走査の記録を保存する。空では上書きしない。"""
+    if not payload:
+        return
+    path = source_coverage_path(work_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    temporary = path.with_suffix(".json.tmp")
+    temporary.write_text(body, encoding="utf-8")
+    os.replace(temporary, path)
+
+
 OFFERED_MEETING_TYPES_FILE = "offered_meeting_types.json"
 
 
@@ -238,6 +276,14 @@ def save_offered_meeting_types(work_dir: Path, names: list[str]) -> None:
 
 
 def save_state(path: Path, state: dict[str, Any]) -> None:
+    # 走査の記録だけは実行をまたいで残す必要があるので、書くたびに写しておく。
+    # 呼ぶ側に覚えさせると、必ずどこかで書き忘れる。
+    coverage = state.get("source_coverage")
+    if isinstance(coverage, dict) and coverage:
+        try:
+            save_source_coverage(path.parent, coverage)
+        except Exception:
+            pass
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_suffix(path.suffix + ".tmp")
     payload = json.dumps(state, ensure_ascii=False, indent=2) + "\n"

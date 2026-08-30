@@ -676,9 +676,10 @@ def main() -> int:
         )
         if offered_types:
             print(f"[INFO] 取得元が示す会議種別: {'/'.join(offered_types)}", flush=True)
-        previous_coverage = state.get("source_coverage")
+        # state は実行の頭で消えているので、前回の記録は別ファイルから読む。
+        previous_coverage = gijiroku_storage.load_source_coverage(state_path.parent, state)
         state["source_coverage"] = {
-            **(previous_coverage if isinstance(previous_coverage, dict) else {}),
+            **previous_coverage,
             "mode": "source_discovery_coverage",
             "updated_at": now_ts(),
         }

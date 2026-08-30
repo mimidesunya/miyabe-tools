@@ -1990,9 +1990,13 @@ def main() -> int:
     if args.save_html:
         pages_dir.mkdir(parents=True, exist_ok=True)
 
-    previous_source_coverage = state.get("source_coverage")
-    previous_source_state = str(previous_source_coverage.get("state") or "").strip() \
-        if isinstance(previous_source_coverage, dict) else ""
+    # state は実行の頭で消えているので、そこから読むと前回の記録は必ず空になる。
+    # 「もう全部歩けている」という判断が毎回できず、殺された実行が
+    # partial_planned を残したままになる。実行をまたぐ記録は別ファイルから読む。
+    previous_source_coverage = gijiroku_storage.load_source_coverage(
+        state_path.parent, state
+    )
+    previous_source_state = str(previous_source_coverage.get("state") or "").strip()
     if args.max_meetings <= 0 and index_json.exists() and previous_source_state != "complete":
         state["source_coverage"] = {
             "mode": "source_discovery_coverage",
