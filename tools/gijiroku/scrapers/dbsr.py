@@ -579,6 +579,112 @@ def record_offered_types(sink: list[str] | None, options: list[dict]) -> None:
             sink.append(text)
 
 
+def collect_cabinet_options(page, source_url: str, timeout_ms: int) -> list[dict]:
+    """会議種別の選択肢を、載っていそうなページを順に開いて集める。
+
+    検索フォームがどのページにあるかは取得元によって違う。いま開いている
+    ページ・検索ページ・閲覧メニューの順に見て、最初に見つかったものを返す。
+    見つけたページへ移動するので、一覧を読み終えてから呼ぶこと。
+    """
+    options = read_cabinet_options(page)
+    if options:
+        return options
+
+    candidates: list[str] = []
+    try:
+        candidates.append(find_search_library_url(page, source_url))
+    except Exception:
+        pass
+    try:
+        links = page.locator(MENU_TEMPLATE_SELECTOR)
+        for index in range(links.count()):
+            href = safe_href(links.nth(index))
+            if not href:
+                continue
+            menu_url = canonicalize_template_url(urljoin(source_url, href))
+            if menu_url not in candidates:
+                candidates.append(menu_url)
+    except Exception:
+        pass
+
+    for candidate in candidates:
+        if not candidate:
+            continue
+        try:
+            page.goto(candidate, wait_until="domcontentloaded", timeout=timeout_ms)
+        except Exception:
+            continue
+        options = read_cabinet_options(page)
+        if options:
+            return options
+    return []
+
+
+def cabinet_of(list_url: str) -> str:
+    """一覧 URL が指している会議種別を返す。指定が無ければ空。"""
+    query = dict(cleaned_query_pairs(list_url))
+    return query.get("CabinetName", query.get("Cabinet", ""))
+
+
+def missing_cabinet_list_pages(
+    items: dict[str, ListPage], cabinet_options: list[dict] | None
+) -> list[ListPage]:
+    """一覧に出てこない会議種別ぶんの、全期間一覧を作る。
+
+    年度別の一覧が全期間そろっていても、それが本会議だけということがある。
+    愛知県は `Cabinet=1`（本会議）の一覧だけで 1996 年から 2026 年まで揃うので、
+    「全部取れた」ように見えて委員会が丸ごと欠けていた。検索フォームに並ぶ
+    会議種別のうち一覧に出てこないものを、期間を全期間にして補う。
+    """
+    if not items or not cabinet_options:
+        return []
+    seen = {cabinet_of(url) for url in items}
+    template_url = next(
+        (
+            url
+            for url in items
+            if "TermStart" in dict(cleaned_query_pairs(url))
+            or "TermEnd" in dict(cleaned_query_pairs(url))
+        ),
+        "",
+    )
+    if not template_url:
+        return []
+
+    parts = urlsplit(template_url)
+    base_query = dict(cleaned_query_pairs(template_url))
+    base_query["TermStart"] = WIDENED_PERIOD_START
+    base_query["TermEnd"] = datetime.date.today().isoformat()
+
+    pages: list[ListPage] = []
+    for option in cabinet_options:
+        key = str(option.get("key") or "").strip()
+        value = str(option.get("value") or "").strip()
+        if not key or not value or value in seen:
+            continue
+        seen.add(value)
+        query = dict(base_query)
+        query.pop("CabinetName", None)
+        query.pop("Cabinet", None)
+        query[key] = value
+        url = canonicalize_template_url(
+            urlunsplit(
+                (parts.scheme, parts.netloc, parts.path, urlencode(sorted(query.items())), "")
+            )
+        )
+        label = normalize_space(str(option.get("text") or value))
+        pages.append(
+            ListPage(
+                title=f"全期間（{label}）",
+                year_label="全期間",
+                url=url,
+                meeting_group="",
+                auxiliary_docs=[],
+            )
+        )
+    return pages
+
+
 def widened_period_list_pages(
     items: dict[str, ListPage], cabinet_options: list[dict] | None = None
 ) -> list[ListPage]:
@@ -869,9 +975,20 @@ def discover_list_pages(
         page.wait_for_load_state("networkidle", timeout=3_000)
     except Exception:
         pass
-    record_offered_types(offered_types, read_cabinet_options(page))
-
     items: dict[str, ListPage] = {}
+
+    def finish_library(source: str) -> tuple[list[ListPage], str]:
+        """年度別一覧を読み終えたあと、一覧に出てこない会議種別を補う。"""
+        options = collect_cabinet_options(page, str(target["source_url"]), timeout_ms)
+        record_offered_types(offered_types, options)
+        extra = missing_cabinet_list_pages(items, options)
+        if extra:
+            print(
+                f"[INFO] 一覧に出てこない会議種別 {len(extra)} 件を全期間で補います",
+                flush=True,
+            )
+        return list(items.values()) + extra, source
+
     cells = page.locator("div.LibraryTable dl.cell")
     if cells.count() > 0:
         for cell_index in range(cells.count()):
@@ -879,7 +996,7 @@ def discover_list_pages(
             cell = cells.nth(cell_index)
             year_label = safe_inner_text(cell.locator("dt.cell__title").first) or "不明"
             collect_list_page_entries(page, cell.locator("dd.cell__item"), year_label, items)
-        return list(items.values()), DISCOVERY_SOURCE_LIBRARY
+        return finish_library(DISCOVERY_SOURCE_LIBRARY)
 
     cells = page.locator("div.LibraryTable dl")
     if cells.count() > 0:
@@ -888,7 +1005,7 @@ def discover_list_pages(
             cell = cells.nth(cell_index)
             year_label = safe_inner_text(cell.locator("dt").first) or "不明"
             collect_list_page_entries(page, cell.locator("dd"), year_label, items)
-        return list(items.values()), DISCOVERY_SOURCE_LIBRARY
+        return finish_library(DISCOVERY_SOURCE_LIBRARY)
 
     # 新しい DBSR テンプレートは table--all を付けず table 系のクラスを使うが、
     # 自治体によってタグ名が異なる。クラス名は共通なのでタグ名は指定しない。
@@ -913,7 +1030,7 @@ def discover_list_pages(
         collect_list_page_entries(page, entries, year_label, items)
 
     if items:
-        return list(items.values()), DISCOVERY_SOURCE_LIBRARY
+        return finish_library(DISCOVERY_SOURCE_LIBRARY)
 
     # 年度ごとのまとまりを組まず、会議一覧へのリンクをそのまま並べる
     # search-library がある（小金井市・福岡県など）。構造セレクタでは
@@ -925,7 +1042,7 @@ def discover_list_pages(
         # 検索フォームから全期間を出せないか先に試す。
         if list_links_cover_recent_years_only(items):
             return recent_or_widened(items)
-        return list(items.values()), DISCOVERY_SOURCE_LIBRARY
+        return finish_library(DISCOVERY_SOURCE_LIBRARY)
 
     # search-library ページを持たないテンプレート（あきる野市・大野城市など）は
     # 入口ページ自体に会議一覧が並ぶ。この形では search-library が 404 になる。

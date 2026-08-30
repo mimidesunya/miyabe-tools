@@ -121,8 +121,6 @@ class FullTextDownloadUrlTest(unittest.TestCase):
         )
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class RecentOnlyListLinksTest(unittest.TestCase):
@@ -185,3 +183,44 @@ class WidenedPeriodListPagesTest(unittest.TestCase):
             "https://example.dbsr.jp/index.php/1?Template=list&CabinetName=t",
         ])
         self.assertEqual(dbsr.widened_period_list_pages(items), [])
+
+
+class MissingCabinetListPagesTest(unittest.TestCase):
+    def _items(self) -> dict:
+        url = (
+            "https://example.dbsr.jp/index.php/100000?Cabinet=1&Template=list"
+            "&TermEnd=2026-03-25&TermStart=2026-02-18"
+        )
+        return {
+            url: dbsr.ListPage(
+                title="令和8年2月定例会",
+                year_label="令和8年",
+                url=url,
+                meeting_group="",
+                auxiliary_docs=[],
+            )
+        }
+
+    def test_adds_pages_for_cabinets_missing_from_the_listing(self) -> None:
+        # 年度別一覧が全期間そろっていても、本会議だけということがある。
+        options = [
+            {"key": "Cabinet", "value": "1", "text": "本会議"},
+            {"key": "Cabinet", "value": "5", "text": "総務企画委員会"},
+        ]
+        pages = dbsr.missing_cabinet_list_pages(self._items(), options)
+        self.assertEqual(len(pages), 1)
+        self.assertIn("Cabinet=5", pages[0].url)
+        self.assertIn(f"TermStart={dbsr.WIDENED_PERIOD_START}", pages[0].url)
+        self.assertEqual(pages[0].year_label, "全期間")
+        self.assertIn("総務企画委員会", pages[0].title)
+
+    def test_no_pages_when_every_cabinet_is_present(self) -> None:
+        options = [{"key": "Cabinet", "value": "1", "text": "本会議"}]
+        self.assertEqual(dbsr.missing_cabinet_list_pages(self._items(), options), [])
+
+    def test_no_pages_without_options(self) -> None:
+        self.assertEqual(dbsr.missing_cabinet_list_pages(self._items(), []), [])
+
+
+if __name__ == "__main__":
+    unittest.main()
