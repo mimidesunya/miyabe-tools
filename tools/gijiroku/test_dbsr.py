@@ -250,6 +250,36 @@ class BuildDayGroupsTest(unittest.TestCase):
         groups = dbsr.build_day_groups(self._page("平成22年度"), "list", rows)
         self.assertEqual(groups[0].year_label, "平成22年度")
 
+class RelabelNavigationGroupsTest(unittest.TestCase):
+    def _items(self, cabinet: str, group: str) -> dict:
+        url = "https://x.dbsr.jp/index.php/100000?Cabinet=%s&Template=list" % cabinet
+        return {
+            url: dbsr.ListPage(
+                title="t", year_label="平成14年", url=url,
+                meeting_group=group, auxiliary_docs=[],
+            )
+        }
+
+    def test_navigation_label_is_replaced_with_the_meeting_type(self) -> None:
+        # 一覧の見出しをそのまま種別にすると「トップページ」のような値が入る。
+        items = self._items("2", "トップページ")
+        options = [{"key": "Cabinet", "value": "2", "text": "企画総務委員会"}]
+        self.assertEqual(dbsr.relabel_navigation_groups(items, options), 1)
+        self.assertEqual(list(items.values())[0].meeting_group, "企画総務委員会")
+
+    def test_unmatched_cabinet_becomes_empty(self) -> None:
+        # 種別として使えない値を残すより、無いことが分かる方がよい。
+        items = self._items("9", "トップページ")
+        options = [{"key": "Cabinet", "value": "2", "text": "企画総務委員会"}]
+        dbsr.relabel_navigation_groups(items, options)
+        self.assertEqual(list(items.values())[0].meeting_group, "")
+
+    def test_real_meeting_type_is_left_alone(self) -> None:
+        items = self._items("2", "企画総務委員会")
+        options = [{"key": "Cabinet", "value": "2", "text": "別の名前"}]
+        self.assertEqual(dbsr.relabel_navigation_groups(items, options), 0)
+        self.assertEqual(list(items.values())[0].meeting_group, "企画総務委員会")
+
 
 if __name__ == "__main__":
     unittest.main()

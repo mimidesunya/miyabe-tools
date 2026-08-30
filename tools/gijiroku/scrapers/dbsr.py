@@ -18,7 +18,7 @@ import json
 import re
 import sys
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
@@ -544,14 +544,35 @@ WIDENED_PERIOD_LABEL = "全期間"
 CABINET_OPTIONS_EVAL = r"""
 () => {
   const out = [];
+  const push = (key, value, text) => {
+    const v = (value || '').trim();
+    if (!v) return;
+    out.push({key: key, value: v, text: (text || '').trim()});
+  };
+  const isCabinet = (raw) => /^Cabinet(Name)?$/i.test((raw || '').replace(/\[\]$/, ''));
   document.querySelectorAll('select').forEach(sel => {
     const raw = sel.name || sel.id || '';
+    if (!isCabinet(raw)) return;
     const key = raw.replace(/\[\]$/, '');
-    if (!/^Cabinet(Name)?$/i.test(key)) return;
-    Array.from(sel.options).forEach(o => {
-      const v = (o.value || '').trim();
-      if (v) out.push({key: key, value: v, text: (o.text || '').trim()});
-    });
+    Array.from(sel.options).forEach(o => push(key, o.value, o.text));
+  });
+  // 福岡市のようにチェックボックスで会議種別を出す取得元がある。
+  // ラベルは for 属性か、囲んでいる label 要素から拾う。
+  document.querySelectorAll('input[type=checkbox], input[type=radio]').forEach(input => {
+    const raw = input.name || input.id || '';
+    if (!isCabinet(raw)) return;
+    const key = raw.replace(/\[\]$/, '');
+    let text = '';
+    if (input.id) {
+      const label = document.querySelector('label[for="' + input.id + '"]');
+      if (label) text = label.innerText;
+    }
+    if (!text) {
+      const wrapper = input.closest('label');
+      if (wrapper) text = wrapper.innerText;
+    }
+    if (!text && input.parentElement) text = input.parentElement.innerText;
+    push(key, input.value, text);
   });
   return out;
 }
@@ -620,6 +641,41 @@ def collect_cabinet_options(page, source_url: str, timeout_ms: int) -> list[dict
         if options:
             return options
     return []
+
+
+# 一覧ページの見出しをそのまま会議種別にしている取得元がある。見出しが
+# 「トップページ」のような案内文言だと、会議種別として使えない値が入る
+# （千代田区は 6100 会議のうち 2421 件がこれだった）。
+NAVIGATION_GROUP_PATTERN = re.compile(
+    r"^(トップ|ホーム|メニュー|検索|一覧|目次|索引|サイト)"
+)
+
+
+def relabel_navigation_groups(
+    items: dict[str, ListPage], cabinet_options: list[dict] | None
+) -> int:
+    """会議種別が案内文言になっている一覧を、URL の会議種別で名づけ直す。
+
+    一覧 URL は Cabinet / CabinetName で会議種別を持っているので、検索フォームの
+    選択肢と突き合わせれば正しい名前が付く。突き合わない一覧は空にする。
+    種別として使えない値を残すより、無いことが分かる方がよい。
+    """
+    labels = {
+        str(option.get("value") or "").strip(): normalize_space(
+            str(option.get("text") or "")
+        )
+        for option in (cabinet_options or [])
+    }
+    fixed = 0
+    for list_url, page in items.items():
+        group = normalize_space(page.meeting_group or "")
+        if not group or not NAVIGATION_GROUP_PATTERN.match(group):
+            continue
+        items[list_url] = replace(
+            page, meeting_group=labels.get(cabinet_of(list_url), "")
+        )
+        fixed += 1
+    return fixed
 
 
 def cabinet_of(list_url: str) -> str:
@@ -986,6 +1042,12 @@ def discover_list_pages(
         """年度別一覧を読み終えたあと、一覧に出てこない会議種別を補う。"""
         options = collect_cabinet_options(page, str(target["source_url"]), timeout_ms)
         record_offered_types(offered_types, options)
+        relabeled = relabel_navigation_groups(items, options)
+        if relabeled:
+            print(
+                f"[INFO] 会議種別が案内文言だった一覧 {relabeled} 件を付け直しました",
+                flush=True,
+            )
         extra = missing_cabinet_list_pages(items, options)
         if extra:
             print(
