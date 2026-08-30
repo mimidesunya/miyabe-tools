@@ -362,6 +362,26 @@ function homepage_gijiroku_body_missing_status(array $feature): array
     ];
 }
 
+// 分類済み validation を書かない系統でも、本文取得の進み具合は
+// scrape_state.json の progress_current / progress_total に出る。
+// 走査記録の complete は「一覧を歩き切った」であって「本文を取り切った」
+// ではないので、これを見ないと途中停止が完了に見える。
+function homepage_gijiroku_raw_progress(array $feature): ?array
+{
+    $state = homepage_gijiroku_scrape_state($feature);
+    if (!is_array($state)) {
+        return null;
+    }
+    $total = (int)($state['progress_total'] ?? 0);
+    if ($total <= 0) {
+        return null;
+    }
+    return [
+        'current' => max(0, (int)($state['progress_current'] ?? 0)),
+        'total' => $total,
+    ];
+}
+
 function homepage_gijiroku_classified_progress(array $feature): ?array
 {
     $state = homepage_gijiroku_scrape_state($feature);
@@ -615,9 +635,24 @@ function homepage_gijiroku_acquisition_status(
     // 分類済み validation を書かない系統（kensakusystem / amivoice / msearch）は
     // $progress が無い。それを必須にすると、走査が完了していても完了表示に
     // 到達できない（141 自治体）。無い場合は走査記録の発見数を使う。
-    $progressComplete = is_array($progress)
-        ? homepage_progress_count_is_complete((int)$progress['current'], (int)$progress['total'])
-        : !$writesValidation;
+    if (is_array($progress)) {
+        $progressComplete = homepage_progress_count_is_complete(
+            (int)$progress['current'],
+            (int)$progress['total']
+        );
+    } else {
+        // validation を書かない系統は、生の進捗で本文取得の完了を見る。
+        // 走査記録の complete は一覧を歩き切ったことしか言っていない。
+        $rawProgress = homepage_gijiroku_raw_progress($feature);
+        $progressComplete = !$writesValidation
+            && (
+                $rawProgress === null
+                || homepage_progress_count_is_complete(
+                    (int)$rawProgress['current'],
+                    (int)$rawProgress['total']
+                )
+            );
+    }
     if ($sourceState === 'complete' && $progressComplete) {
         $acquiredCount = is_array($progress)
             ? max(0, (int)($progress['current'] ?? 0))

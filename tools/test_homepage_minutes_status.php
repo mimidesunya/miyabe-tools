@@ -73,6 +73,24 @@ if (($result['state'] ?? '') === 'complete') {
     $failures[] = 'validation を書く系統が、書く前に落ちたのに完了と出た';
 }
 
+// validation を書かない系統も、本文取得の途中で止まっていれば完了ではない。
+// 走査記録の complete は「一覧を歩き切った」であって「本文を取り切った」
+// ではない。生の進捗（progress_current / progress_total）で見る。
+$dir = $base . '/raw_partial';
+@mkdir($dir, 0777, true);
+file_put_contents($dir . '/source_coverage.json', json_encode($coverage));
+file_put_contents(
+    $dir . '/scrape_state.json',
+    json_encode(['progress_current' => 1, 'progress_total' => 50])
+);
+$result = homepage_gijiroku_acquisition_status(
+    ['work_dir' => $dir, 'downloads_dir' => $dir . '/downloads'],
+    'kensakusystem', true, false, 50, null
+);
+if (($result['state'] ?? '') === 'complete') {
+    $failures[] = '本文取得が 1/50 で止まっているのに完了と出た';
+}
+
 // 走査が未完了なら、完了とは出ない。
 $feature = make_feature(
     $base . '/partial',
@@ -85,7 +103,7 @@ if (($result['state'] ?? '') === 'complete') {
     $failures[] = '走査が未完了なのに完了と出た';
 }
 
-foreach (['no_validation', 'mismatch', 'match', 'killed_midway', 'partial'] as $name) {
+foreach (['no_validation', 'mismatch', 'match', 'killed_midway', 'raw_partial', 'partial'] as $name) {
     @unlink($base . '/' . $name . '/source_coverage.json');
     @unlink($base . '/' . $name . '/scrape_state.json');
     @rmdir($base . '/' . $name);
@@ -96,4 +114,4 @@ if ($failures !== []) {
     fwrite(STDERR, "NG: " . implode("\n    ", $failures) . "\n");
     exit(1);
 }
-echo "OK: 会議録の公開表示が走査記録どおり (5 件)\n";
+echo "OK: 会議録の公開表示が走査記録どおり (6 件)\n";
