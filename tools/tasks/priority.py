@@ -10,12 +10,26 @@
 from __future__ import annotations
 
 import json
+import sys
 from collections.abc import Callable
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
 import freshness_metadata
+
+# 走査記録の読み方は 1 箇所に置く。ここで書き写すと、公開画面・監査・キューで
+# 別々の答えを出すことになる（実際にそうなっていた）。
+_GIJIROKU_TOOLS = Path(__file__).resolve().parents[1] / "gijiroku"
+if str(_GIJIROKU_TOOLS) not in sys.path:
+    sys.path.append(str(_GIJIROKU_TOOLS))
+try:
+    from gijiroku_storage import effective_walk_state
+except Exception:  # 会議録の道具が無い環境でも優先度計算は動かす
+    def effective_walk_state(payload: Any) -> str:
+        if not isinstance(payload, dict) or not payload:
+            return "unknown"
+        return str(payload.get("state") or "").strip() or "unknown"
 
 
 # priority_score が大きいほど先に実行し、0 は今回のキューに載せない。
@@ -222,11 +236,21 @@ def scrape_state_progress(target: dict[str, Any]) -> tuple[int, int]:
             source_coverage.get("updated_at") or ""
         ) <= str(durable.get("updated_at") or ""):
             source_coverage = durable
+    walk_state = effective_walk_state(source_coverage)
     if (
         isinstance(source_coverage, dict)
         and str(source_coverage.get("mode") or "") == "source_discovery_coverage"
-        and str(source_coverage.get("state") or "")
-        in {"partial_planned", "partial_limit", "partial_error", "partial_recent_only"}
+        and walk_state
+        in {
+            "partial_planned",
+            "partial_limit",
+            "partial_error",
+            "partial_recent_only",
+            # 歩き直しの途中で死んだ、古い規則で書かれた、のどちらも
+            # 取り切れた証拠にはならない。
+            "rewalking",
+            "stale_rule",
+        }
     ):
         # 件数上限や一覧ページの失敗がある実行を「25/25 完了」のように扱わない。
         # 進捗が読めなくても、走査が未完了なら再投入したい。
@@ -238,10 +262,7 @@ def scrape_state_progress(target: dict[str, Any]) -> tuple[int, int]:
     has_explicit_coverage = (
         isinstance(source_coverage, dict)
         and str(source_coverage.get("mode") or "") == "source_discovery_coverage"
-        and str(source_coverage.get("state") or "") == "complete"
-        # 歩き直しを始めたまま終われていないなら、前回の complete は当てにしない。
-        and str(source_coverage.get("walk_started_at") or "")
-        <= str(source_coverage.get("updated_at") or "")
+        and walk_state == "complete"
     )
     if (
         system_family

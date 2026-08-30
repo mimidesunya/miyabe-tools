@@ -160,7 +160,7 @@ def main() -> int:
                 issues.append("index_pending")
         elif not kinds and saved_file_count >= 20 and indexed_count * 2 < saved_file_count:
             issues.append("index_far_behind_saved")
-        if source_state in {"partial_planned", "partial_limit", "partial_error", "partial_recent_only", "rewalking"}:
+        if source_state in {"partial_planned", "partial_limit", "partial_error", "partial_recent_only", "rewalking", "stale_rule"}:
             issues.append(source_state)
         elif source_state != "complete" and saved_file_count > 0:
             issues.append("coverage_unknown")

@@ -264,12 +264,21 @@ def effective_walk_state(payload: dict[str, Any] | None) -> str:
     """
     if not isinstance(payload, dict) or not payload:
         return "unknown"
+    if int(payload.get("rule_version") or 0) < COVERAGE_RULE_VERSION:
+        # 古い規則で書かれた記録。complete の意味が違うので信用しない。
+        return "stale_rule"
     state = str(payload.get("state") or "").strip() or "unknown"
     started = str(payload.get("walk_started_at") or "")
     updated = str(payload.get("updated_at") or "")
     if state == "complete" and started and started > updated:
         return "rewalking"
     return state
+
+
+# 走査記録の判定ルールの版。意味が変わったら上げる。上げないと、古い規則で
+# 書かれた complete を新しい規則の complete と同じに読んでしまう。
+#   2 … ページ送りを諦めた回数を失敗に数え、歩き直しの印を持つ形
+COVERAGE_RULE_VERSION = 2
 
 
 def save_source_coverage(work_dir: Path, payload: dict[str, Any]) -> None:
@@ -279,6 +288,7 @@ def save_source_coverage(work_dir: Path, payload: dict[str, Any]) -> None:
     """
     if not payload:
         return
+    payload = {"rule_version": COVERAGE_RULE_VERSION, **payload}
     path = source_coverage_path(work_dir)
     try:
         if json.loads(path.read_text(encoding="utf-8")) == payload:

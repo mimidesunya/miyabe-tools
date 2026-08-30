@@ -678,7 +678,9 @@ def main() -> int:
         )
         # 歩けたかどうかを必ず記録する。state を書かないと、監査からは
         # 「発見はしたが全部歩けたかは不明」のまま永久に区別が付かない。
-        if walk.get("limit_reached"):
+        if walk.get("limit_reached") or args.max_meetings > 0:
+            # --max-meetings は coverage を決めたあとで会議を切る。
+            # 切った分は取れていないので complete にはできない。
             walk_state = "partial_limit"
         elif walk.get("skipped_years"):
             walk_state = "partial_error"

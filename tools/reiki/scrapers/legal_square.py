@@ -656,6 +656,11 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
 
         browser.close()
 
+    if not manifest:
+        raise RuntimeError("No ordinances collected; refusing to mark target as scraped.")
+
+    # 母数の記録は manifest が確定してから書く。先に書くと、
+    # このあと例外で落ちたときに「新しい complete と古い manifest」が残る。
     reiki_io.save_source_coverage(
         work_root,
         {
@@ -693,8 +698,6 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             flush=True,
         )
 
-    if not manifest:
-        raise RuntimeError("No ordinances collected; refusing to mark target as scraped.")
     reiki_io.write_json(manifest_path, manifest, compress=True)
     static_catalog.emit_progress(emit_total, emit_total, state_path)
     print(f"Finished. downloaded={downloaded} failed={failed} manifest={len(manifest)} -> {manifest_path}", flush=True)
