@@ -643,14 +643,15 @@ function homepage_gijiroku_acquisition_status(
     } else {
         // validation を書かない系統は、生の進捗で本文取得の完了を見る。
         // 走査記録の complete は一覧を歩き切ったことしか言っていない。
+        // 進捗そのものが無い場合は「本文を取り切った」証拠が無い。
+        // 完了とは言わず、未判定に落とす。この 5 系統はどれも進捗を書くので、
+        // 無いのは走査の途中で消えたか、まだ一度も走っていないかである。
         $rawProgress = homepage_gijiroku_raw_progress($feature);
         $progressComplete = !$writesValidation
-            && (
-                $rawProgress === null
-                || homepage_progress_count_is_complete(
-                    (int)$rawProgress['current'],
-                    (int)$rawProgress['total']
-                )
+            && $rawProgress !== null
+            && homepage_progress_count_is_complete(
+                (int)$rawProgress['current'],
+                (int)$rawProgress['total']
             );
     }
     if ($sourceState === 'complete' && $progressComplete) {

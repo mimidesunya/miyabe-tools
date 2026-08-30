@@ -33,8 +33,16 @@ $coverage = [
 
 $failures = [];
 
-// 分類済み validation を書かない系統。走査が完了していれば完了と出る。
-$feature = make_feature($base . '/no_validation', $coverage, null);
+// 分類済み validation を書かない系統。走査も本文取得も終わっていれば完了。
+// この系統も生の進捗は書くので、進捗が無いことを完了の根拠にはしない。
+$dir = $base . '/no_validation';
+@mkdir($dir, 0777, true);
+file_put_contents($dir . '/source_coverage.json', json_encode($coverage));
+file_put_contents(
+    $dir . '/scrape_state.json',
+    json_encode(['progress_current' => 50, 'progress_total' => 50])
+);
+$feature = ['work_dir' => $dir, 'downloads_dir' => $dir . '/downloads'];
 $result = homepage_gijiroku_acquisition_status($feature, 'kensakusystem', true, false, 50, null);
 if (($result['state'] ?? '') !== 'complete') {
     $failures[] = 'validation を書かない系統が完了表示にならない: ' . ($result['state'] ?? '(空)');
@@ -91,6 +99,13 @@ if (($result['state'] ?? '') === 'complete') {
     $failures[] = '本文取得が 1/50 で止まっているのに完了と出た';
 }
 
+// 進捗そのものが無いなら、本文を取り切った証拠が無い。完了とは言わない。
+$feature = make_feature($base . '/no_progress', $coverage, null);
+$result = homepage_gijiroku_acquisition_status($feature, 'kensakusystem', true, false, 50, null);
+if (($result['state'] ?? '') === 'complete') {
+    $failures[] = '進捗の記録が無いのに完了と出た';
+}
+
 // 走査が未完了なら、完了とは出ない。
 $feature = make_feature(
     $base . '/partial',
@@ -103,7 +118,7 @@ if (($result['state'] ?? '') === 'complete') {
     $failures[] = '走査が未完了なのに完了と出た';
 }
 
-foreach (['no_validation', 'mismatch', 'match', 'killed_midway', 'raw_partial', 'partial'] as $name) {
+foreach (['no_validation', 'mismatch', 'match', 'killed_midway', 'raw_partial', 'no_progress', 'partial'] as $name) {
     @unlink($base . '/' . $name . '/source_coverage.json');
     @unlink($base . '/' . $name . '/scrape_state.json');
     @rmdir($base . '/' . $name);
@@ -114,4 +129,4 @@ if ($failures !== []) {
     fwrite(STDERR, "NG: " . implode("\n    ", $failures) . "\n");
     exit(1);
 }
-echo "OK: 会議録の公開表示が走査記録どおり (6 件)\n";
+echo "OK: 会議録の公開表示が走査記録どおり (7 件)\n";
