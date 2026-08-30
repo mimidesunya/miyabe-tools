@@ -243,10 +243,17 @@ def scrape_state_progress(target: dict[str, Any]) -> tuple[int, int]:
         and str(source_coverage.get("walk_started_at") or "")
         <= str(source_coverage.get("updated_at") or "")
     )
-    if system_family in {"dbsr", "db-search", "kaigiroku-indexphp"} and not has_explicit_coverage:
-        # 旧DBSR成果物は、保存件数と検索件数が一致していても取得元の全一覧を
-        # 走査した記録がない。meetings_index の件数を使って未完了候補にし、
-        # 上限なしの再走査で complete/partial_error を確定させる。
+    if (
+        system_family
+        in {"dbsr", "db-search", "kaigiroku-indexphp", "kaigiroku.net", "gijiroku.com", "voices"}
+        and not has_explicit_coverage
+    ):
+        # 走査の記録を書く系統なのに complete が無いなら、まだ歩き切れていない。
+        # 保存件数と検索件数が一致していても、取得元の全一覧を走査した記録が
+        # なければ meetings_index の件数を使って未完了候補にし、上限なしの
+        # 再走査で complete/partial_error を確定させる。
+        # kaigiroku.net と gijiroku.com も記録を書くようになったので、
+        # 殺された再走査がキューに戻らないまま完了扱いになるのを防ぐ。
         try:
             index_payload = json.loads(Path(str(target.get("index_json_path") or "")).read_text(encoding="utf-8"))
             if isinstance(index_payload, list):

@@ -256,6 +256,22 @@ def mark_walk_started(work_dir: Path, previous: dict[str, Any], when: str) -> No
     save_source_coverage(work_dir, payload)
 
 
+def effective_walk_state(payload: dict[str, Any] | None) -> str:
+    """記録から読み取れる走査の状態を返す。
+
+    `complete` でも、歩き直しを始めたまま終われていないなら当てにできない。
+    読み手ごとにこの判断を書くと、公開画面と監査とキューで別々の答えを出す。
+    """
+    if not isinstance(payload, dict) or not payload:
+        return "unknown"
+    state = str(payload.get("state") or "").strip() or "unknown"
+    started = str(payload.get("walk_started_at") or "")
+    updated = str(payload.get("updated_at") or "")
+    if state == "complete" and started and started > updated:
+        return "rewalking"
+    return state
+
+
 def save_source_coverage(work_dir: Path, payload: dict[str, Any]) -> None:
     """走査の記録を保存する。空では上書きしない。
 

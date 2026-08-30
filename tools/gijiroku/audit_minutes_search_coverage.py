@@ -137,7 +137,8 @@ def main() -> int:
         task_item = task_items.get(slug, {})
         saved_file_count = int_value(local_counts.get(slug))
         indexed_count = int_value(search_counts.get(slug))
-        source_state = str(coverage.get("state") or "unknown").strip() or "unknown"
+        # complete でも歩き直しの途中で死んでいれば当てにしない。
+        source_state = gijiroku_storage.effective_walk_state(coverage)
         verified_acquired = int_value(validation.get("progress_current")) if source_state == "complete" else 0
         issues: list[str] = []
         # 取得したファイルには目次も混ざり、検索に載るのは本文だけ。件数差
@@ -159,7 +160,7 @@ def main() -> int:
                 issues.append("index_pending")
         elif not kinds and saved_file_count >= 20 and indexed_count * 2 < saved_file_count:
             issues.append("index_far_behind_saved")
-        if source_state in {"partial_planned", "partial_limit", "partial_error", "partial_recent_only"}:
+        if source_state in {"partial_planned", "partial_limit", "partial_error", "partial_recent_only", "rewalking"}:
             issues.append(source_state)
         elif source_state != "complete" and saved_file_count > 0:
             issues.append("coverage_unknown")

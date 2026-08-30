@@ -374,6 +374,8 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
         emit_total = 0
         stopped = False
         stale_searches = 0
+        # 歩き直しの途中で殺されたら、前回の complete を当てにしない。
+        reiki_io.mark_walk_started(work_root, time.strftime("%Y%m%d_%H%M%S"))
         # 取り切れた区間と、取り切れなかった区間を分けて控える。
         # 総数ひとつでは完了判定にならない（上限に当たると総数自体が上限値になる）。
         # 上限に当たっても、そのあと期間で割って取り切れたなら取りこぼしではない。
@@ -614,7 +616,13 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
         if cap == 0:
             print(f"[INFO] 条件なしで全{total0}件を取得します", flush=True)
             _got, walked_all = harvest_pages("全件")
-            if walked_all < total0:
+            if total0 <= 0:
+                # 件数表示が読めないと歩数と突き合わせられない。
+                # 取り切れた証拠が無いので、完了とは言わない。
+                coverage_unresolved.append(
+                    {"kind": "全件", "span": "指定なし", "reason": "件数表示を読めなかった"}
+                )
+            elif walked_all < total0:
                 # 上限が無いはずでも、途中で「次へ」が止まれば取り落とす。
                 # 分割走査と同じく、申告件数と歩いた行数を突き合わせる。
                 coverage_unresolved.append(

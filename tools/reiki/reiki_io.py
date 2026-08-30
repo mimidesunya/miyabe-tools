@@ -82,6 +82,29 @@ def load_source_coverage(work_root: Path) -> dict | None:
     return payload if isinstance(payload, dict) else None
 
 
+def mark_walk_started(work_root: Path, when: str) -> None:
+    """これから取得元を歩き直す、という印を残す。
+
+    前回 complete の自治体は、歩き直しの途中で殺されても complete のまま
+    残る。取得元が増えていても完了に見えるので、始めた時刻を控えておく。
+    """
+    payload = load_source_coverage(work_root) or {}
+    payload = {**payload, "walk_started_at": when}
+    save_source_coverage(work_root, payload)
+
+
+def effective_coverage_complete(payload: dict | None) -> bool:
+    """記録どおり取り切れていると言えるか。
+
+    complete でも、歩き直しを始めたまま終われていないなら当てにできない。
+    """
+    if not isinstance(payload, dict) or not payload.get("complete"):
+        return False
+    started = str(payload.get("walk_started_at") or "")
+    observed = str(payload.get("observed_at") or "")
+    return not (started and started > observed)
+
+
 def save_source_coverage(work_root: Path, payload: dict) -> Path:
     """母数の記録を保存する。
 

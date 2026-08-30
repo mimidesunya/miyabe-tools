@@ -443,7 +443,11 @@ function homepage_gijiroku_acquisition_status(
     }
 
     $systemType = strtolower(trim($systemType));
-    if ($systemType !== 'dbsr') {
+    // 走査の記録を書くのは dbsr だけではない。kaigiroku.net と gijiroku.com も
+    // 歩いた年の数を記録するようになった。名前で弾くと、記録があるのに
+    // 「取得範囲未判定」と出し続けることになる。
+    $recordsWalk = ['dbsr', 'db-search', 'kaigiroku-indexphp', 'kaigiroku.net', 'gijiroku.com', 'voices'];
+    if (!in_array($systemType, $recordsWalk, true)) {
         if ($hasError) {
             return [
                 'state' => 'partial_error',
@@ -452,7 +456,7 @@ function homepage_gijiroku_acquisition_status(
                 'source_coverage' => null,
             ];
         }
-        // 走査記録を持つのは dbsr 系だけだが、検索反映の遅れはどの系統でも起きる。
+        // 走査記録を持たない系統でも、検索反映の遅れは起きる。
         $storedCount = (int)(is_array($display) ? ($display['count_current'] ?? 0) : 0);
         $shortfall = homepage_indexed_shortfall_status($storedCount, $indexedCount);
         if ($shortfall['state'] !== '') {
