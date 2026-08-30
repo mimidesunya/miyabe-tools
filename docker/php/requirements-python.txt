@@ -3,3 +3,5 @@ sudachidict_core
 google-api-python-client>=2.100
 google-auth>=2.23
 google-auth-oauthlib>=1.1
+fonttools[woff]>=4.50
+brotli>=1.1

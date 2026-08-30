@@ -15,9 +15,30 @@ function poster_boards_current_user(): ?array
     return $_SESSION['user'] ?? null;
 }
 
+/**
+ * ログイン後に戻ってよいパスか。
+ *
+ * 掲示場マップは「ログイン直後はアカウント情報ページ」という導線を前提に
+ * しているので、そこは変えない。限定ツール（/tools/ 配下）だけ、開こうと
+ * したページへ戻す。外部サイトへ飛ばさないよう自サイト内の絶対パスに限る。
+ */
+function poster_boards_login_return_path(string $path): string
+{
+    $path = trim($path);
+    // 制御文字はヘッダ分割に使えるので、混じっていたら丸ごと捨てる。
+    if ($path === '' || !str_starts_with($path, '/tools/') || preg_match('/[[:cntrl:]]/', $path) === 1) {
+        return '';
+    }
+    return $path;
+}
+
 function poster_boards_require_login(): void
 {
     if (!poster_boards_current_user()) {
+        $return = poster_boards_login_return_path((string)($_SERVER['REQUEST_URI'] ?? ''));
+        if ($return !== '') {
+            $_SESSION['login_return_path'] = $return;
+        }
         header('Location: /line/login.php');
         exit;
     }

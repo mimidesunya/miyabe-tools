@@ -113,6 +113,14 @@ $_SESSION['user'] = [
     'avatar' => $picture,
 ];
 
+// 限定ツールから来た場合は、開こうとしたページへ戻す。
+$returnPath = poster_boards_login_return_path((string)($_SESSION['login_return_path'] ?? ''));
+unset($_SESSION['login_return_path']);
+if ($returnPath !== '') {
+    header('Location: ' . $returnPath);
+    exit;
+}
+
 // セッションから戻り先のスラッグを取得
 $defaultSlug = get_default_slug();
 $allowed = municipality_slugs();
