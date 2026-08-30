@@ -264,7 +264,11 @@ def effective_walk_state(payload: dict[str, Any] | None) -> str:
     """
     if not isinstance(payload, dict) or not payload:
         return "unknown"
-    if int(payload.get("rule_version") or 0) < COVERAGE_RULE_VERSION:
+    try:
+        seen_version = int(payload.get("rule_version") or 0)
+    except (TypeError, ValueError):
+        seen_version = 0
+    if seen_version < COVERAGE_RULE_VERSION:
         # 古い規則で書かれた記録。complete の意味が違うので信用しない。
         return "stale_rule"
     state = str(payload.get("state") or "").strip() or "unknown"
@@ -288,7 +292,9 @@ def save_source_coverage(work_dir: Path, payload: dict[str, Any]) -> None:
     """
     if not payload:
         return
-    payload = {"rule_version": COVERAGE_RULE_VERSION, **payload}
+    # 版は最後に上書きする。payload に古い版が入っていると、先に置いた
+    # 現在版が展開で負けて、古い版のまま保存されてしまう。
+    payload = {**payload, "rule_version": COVERAGE_RULE_VERSION}
     path = source_coverage_path(work_dir)
     try:
         if json.loads(path.read_text(encoding="utf-8")) == payload:

@@ -805,6 +805,9 @@ function normalize_municipality_entry(string $slug, array $entry): array
             'image_dir' => $reikiImagePath,
             'image_url' => data_public_url($reikiImageRelative),
             'markdown_dir' => $reikiMarkdownPath,
+            // 走査記録の置き場。tools/reiki/reiki_targets.py の work_root と
+            // 同じ場所を指す（source の親）。
+            'work_dir' => work_path('reiki/' . $slug),
         ],
         'gijiroku' => [
             'enabled' => $gijirokuEnabled,

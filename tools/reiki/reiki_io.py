@@ -100,6 +100,12 @@ def effective_coverage_complete(payload: dict | None) -> bool:
     """
     if not isinstance(payload, dict) or not payload.get("complete"):
         return False
+    try:
+        if int(payload.get("version") or 0) < 2:
+            # 古い規則で書かれた記録。完了の意味が違う。
+            return False
+    except (TypeError, ValueError):
+        return False
     started = str(payload.get("walk_started_at") or "")
     observed = str(payload.get("observed_at") or "")
     return not (started and started > observed)

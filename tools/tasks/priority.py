@@ -302,9 +302,11 @@ def reiki_coverage_progress(target: dict[str, Any]) -> tuple[int, int]:
     見ていると、取り切れなかった区間が残っていてもキューは完了と読む。
     会議録で塞いだのと同じ穴が、例規側に残っていた。
     """
-    work_dir = Path(target.get("work_dir", ""))
+    # 例規の target は work_dir ではなく work_root を持つ。
+    # 間違えると常に (0, 0) を返し、この判定は何もしないことになる。
+    work_root = Path(str(target.get("work_root") or target.get("work_dir") or ""))
     try:
-        payload = json.loads((work_dir / "source_coverage.json").read_text(encoding="utf-8"))
+        payload = json.loads((work_root / "source_coverage.json").read_text(encoding="utf-8"))
     except Exception:
         return 0, 0
     if not isinstance(payload, dict) or not payload:
