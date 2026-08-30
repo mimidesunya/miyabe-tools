@@ -1121,6 +1121,19 @@ def main() -> int:
     # 一部だけ作った索引を公開の alias に切り替えると、残りの自治体が
     # まるごと検索から消える。--mode update は自治体ごとの差し替えなので
     # 別（alias はそのまま）。rebuild だけを止める。
+    # 差分更新は、その自治体の文書を全部消してから入れ直す。--limit で
+    # 切ると、消したあと一部しか戻らない。生きている検索から大半が消える。
+    if mode == "update" and int(args.limit or 0) > 0 and not args.allow_partial_alias:
+        print(
+            f"[ERROR] --mode update に --limit {args.limit} は付けられません。"
+            "差分更新は対象自治体の文書を全部消してから入れ直すので、"
+            "切った分がそのまま検索から消えます。"
+            "意図しているなら --allow-partial-alias を付けてください。",
+            file=sys.stderr,
+            flush=True,
+        )
+        return 2
+
     # resume も途中から作り直すので、slug や limit で絞れば部分索引になる。
     partial_rebuild = mode in {"rebuild", "resume"} and (
         bool(slugs) or int(args.limit or 0) > 0
