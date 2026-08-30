@@ -308,8 +308,8 @@ def scrape_state_progress(target: dict[str, Any]) -> tuple[int, int]:
         "static-kaigiroku-dir",
         "kami-city-pdf",
         "site-gikai-pdf",
-        # amivoice / msearch はまだ走査記録を書かない。書くようにしてから
-        # ここへ足す。書かないまま入れると、永久に未完了として再投入し続ける。
+        "amivoice",
+        "msearch",
     }
     if system_family in RECORDS_WALK and not has_explicit_coverage:
         # 走査の記録を書く系統なのに complete が無いなら、まだ歩き切れていない。

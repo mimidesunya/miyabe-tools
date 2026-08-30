@@ -150,12 +150,21 @@ def discover_meetings(
     timeout_seconds: float,
     max_meetings: int,
     delay_seconds: float,
+    walk: dict | None = None,
 ) -> list[MeetingItem]:
+    """`walk` を渡すと、歩いた期間一覧のページ数と打ち切りを控える。
+
+    「次へ」は `input[alt]` に「次」が入っている前提で探している。取得元の
+    書き方が変わると 1 ページで終わるが、それは「次が無い」と見分けが
+    付かない。歩いたページ数を残しておけば、1 で止まったことに気付ける。
+    """
     search_url = urljoin(source_url, "search.exe")
     list_url = search_url + "?process=list_vcsm"
     cursor: int | None = None
     meetings: list[MeetingItem] = []
     seen_periods: set[str] = set()
+    pages_walked = 0
+    limit_reached = False
 
     while True:
         if cursor is None:
@@ -169,6 +178,7 @@ def discover_meetings(
             )
         response.raise_for_status()
         periods, next_cursor = parse_period_list(decode_response(response), response.url)
+        pages_walked += 1
 
         for period in periods:
             if period.url in seen_periods:
@@ -178,6 +188,7 @@ def discover_meetings(
             period_response.raise_for_status()
             meetings.extend(parse_meeting_list(decode_response(period_response), period_response.url, period))
             if max_meetings > 0 and len(meetings) >= max_meetings:
+                limit_reached = True
                 break
             if delay_seconds > 0:
                 time.sleep(delay_seconds)
@@ -188,6 +199,8 @@ def discover_meetings(
         if delay_seconds > 0:
             time.sleep(delay_seconds)
 
+    if walk is not None:
+        walk.update({"pages_walked": pages_walked, "limit_reached": limit_reached})
     unique: dict[str, MeetingItem] = {}
     for item in meetings:
         unique[item.url] = item
@@ -266,14 +279,22 @@ def main() -> int:
     print(f"[INFO] Target: {target['name']} ({target['slug']}, {target['system_type']})")
     print(f"[INFO] Source URL: {target['source_url']}")
     print("[INFO] 会議一覧を収集中...")
+    catalog_walk: dict = {}
     meeting_items = discover_meetings(
         session,
         str(target["source_url"]),
         timeout_seconds,
         args.max_meetings,
         args.delay_seconds,
+        walk=catalog_walk,
     )
     print(f"[INFO] 会議候補 {len(meeting_items)} 件")
+    gijiroku_storage.record_catalog_walk(
+        work_dir,
+        discovered=len(meeting_items),
+        limit_reached=bool(catalog_walk.get("limit_reached")) or args.max_meetings > 0,
+        extra={"pages_walked": int(catalog_walk.get("pages_walked") or 0)},
+    )
     index_json.parent.mkdir(parents=True, exist_ok=True)
     gijiroku_storage.save_meetings_index(index_json, [asdict(item) for item in meeting_items])
     if args.max_meetings > 0:

@@ -195,6 +195,14 @@ def main() -> int:
     response = session.get(index_url, timeout=timeout_seconds)
     response.raise_for_status()
     meeting_items = parse_index(decode_response(response), response.url)
+    # 目次 1 枚だけを読む形。取得に失敗すれば例外で落ちるので、ここまで
+    # 来たら目次は歩けている。--max-meetings で切ったときだけ未完了。
+    gijiroku_storage.record_catalog_walk(
+        work_dir,
+        discovered=len(meeting_items),
+        limit_reached=args.max_meetings > 0,
+        extra={"pages_walked": 1},
+    )
     print(f"[INFO] 会議候補 {len(meeting_items)} 件")
     index_json.parent.mkdir(parents=True, exist_ok=True)
     gijiroku_storage.save_meetings_index(index_json, [asdict(item) for item in meeting_items])
