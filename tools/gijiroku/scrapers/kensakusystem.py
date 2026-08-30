@@ -361,12 +361,30 @@ def fetch_tree_page(opener, context: SeeContext, depth: str, timeout_ms: int) ->
     return page_html
 
 
-def discover_meeting_items(opener, target: dict, timeout_ms: int, max_meetings: int = 0) -> list[MeetingItem]:
+def discover_meeting_items(
+    opener, target: dict, timeout_ms: int, max_meetings: int = 0, walk: dict | None = None
+) -> list[MeetingItem]:
+    """ツリーを辿って会議を集める。
+
+    `walk` を渡すと、開けなかった枝の数を控える。枝が落ちるとその先の
+    会議がまるごと見えなくなるのに、これまで数えていなかった。
+    """
     context = resolve_see_context(opener, target, timeout_ms)
     pending: deque[tuple[str | None, str]] = deque([(None, context.root_html)])
     seen_depths: set[str] = set()
     seen_urls: set[str] = set()
     meetings: list[MeetingItem] = []
+    missed: list[str] = []
+
+    def report(limit_reached: bool) -> None:
+        if walk is not None:
+            walk.update(
+                {
+                    "missed_pages": len(missed),
+                    "missed_examples": missed[:10],
+                    "limit_reached": limit_reached,
+                }
+            )
 
     while pending:
         current_depth, page_html = pending.popleft()
@@ -377,6 +395,7 @@ def discover_meeting_items(opener, target: dict, timeout_ms: int, max_meetings: 
             seen_urls.add(item.url)
             meetings.append(item)
             if max_meetings > 0 and len(meetings) >= max_meetings:
+                report(True)
                 return meetings
 
         for depth in parse_tree_depths(page_html):
@@ -388,9 +407,11 @@ def discover_meeting_items(opener, target: dict, timeout_ms: int, max_meetings: 
                 child_html = fetch_tree_page(opener, context, depth, timeout_ms)
             except Exception as exc:
                 print(f"[WARN] tree fetch failed: {depth_key} ({exc})")
+                missed.append(depth_key)
                 continue
             pending.append((depth, child_html))
 
+    report(False)
     return meetings
 
 
@@ -550,7 +571,19 @@ def main() -> int:
     opener = build_http_client()
 
     print("[INFO] 会議一覧を収集中...")
-    meeting_items = discover_meeting_items(opener, target, args.timeout_ms, args.max_meetings)
+    catalog_walk: dict = {}
+    meeting_items = discover_meeting_items(
+        opener, target, args.timeout_ms, args.max_meetings, catalog_walk
+    )
+    # 開けなかった枝を残す。残さないと「発見数＝保存数」で完了に見え、
+    # キューは 30 日巡ってこない。
+    gijiroku_storage.record_catalog_walk(
+        work_dir,
+        discovered=len(meeting_items),
+        missed_pages=int(catalog_walk.get("missed_pages") or 0),
+        missed_examples=catalog_walk.get("missed_examples") or [],
+        limit_reached=bool(catalog_walk.get("limit_reached")),
+    )
     print(f"[INFO] 会議候補 {len(meeting_items)} 件")
 
     index_json.parent.mkdir(parents=True, exist_ok=True)

@@ -294,11 +294,24 @@ def scrape_state_progress(target: dict[str, Any]) -> tuple[int, int]:
         and str(source_coverage.get("mode") or "") == "source_discovery_coverage"
         and walk_state == "complete"
     )
-    if (
-        system_family
-        in {"dbsr", "db-search", "kaigiroku-indexphp", "kaigiroku.net", "gijiroku.com", "voices"}
-        and not has_explicit_coverage
-    ):
+    # 走査記録を書く系統。書くようにした分だけここに足す。書かない系統を
+    # 入れると、記録が無いまま永久に未完了として再投入し続けることになる。
+    RECORDS_WALK = {
+        "dbsr",
+        "db-search",
+        "kaigiroku-indexphp",
+        "kaigiroku.net",
+        "gijiroku.com",
+        "voices",
+        "kensakusystem",
+        "独自",
+        "static-kaigiroku-dir",
+        "kami-city-pdf",
+        "site-gikai-pdf",
+        # amivoice / msearch はまだ走査記録を書かない。書くようにしてから
+        # ここへ足す。書かないまま入れると、永久に未完了として再投入し続ける。
+    }
+    if system_family in RECORDS_WALK and not has_explicit_coverage:
         # 走査の記録を書く系統なのに complete が無いなら、まだ歩き切れていない。
         # 保存件数と検索件数が一致していても、取得元の全一覧を走査した記録が
         # なければ meetings_index の件数を使って未完了候補にし、上限なしの

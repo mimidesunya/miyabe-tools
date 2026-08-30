@@ -10,6 +10,7 @@ import gzip
 import hashlib
 import json
 import os
+import time
 import shutil
 from datetime import datetime
 from dataclasses import asdict, is_dataclass
@@ -388,6 +389,55 @@ def count_statuses(status_counts: dict[str, int], statuses: frozenset[str]) -> i
 # 会議候補の一覧が、前回のこれを下回るほど減ったら上書きしない。
 # 取得元から一斉に会議が消えることは、まず無い。
 PLAN_SHRINK_ALLOWANCE = 0.8
+
+
+def now_ts() -> str:
+    """走査記録の時刻。各スクレイパが持っている now_ts と同じ形。"""
+    return time.strftime("%Y%m%d_%H%M%S")
+
+
+def record_catalog_walk(
+    work_dir: Path,
+    *,
+    discovered: int,
+    missed_pages: int = 0,
+    limit_reached: bool = False,
+    missed_examples: list[str] | None = None,
+    extra: dict[str, Any] | None = None,
+) -> None:
+    """一覧を辿って会議を見つける形の取得元について、歩けたかを残す。
+
+    このやり方のスクレイパは、開けなかったページを `continue` で捨て、
+    見つけた分だけを母数にする。落ちた枝はそもそも母数に入らないので、
+    「発見数＝保存数」で完了に見えてしまう。ページを取り落としたことを
+    ここに残さないと、キューは 30 日巡ってこない。
+    """
+    if missed_pages > 0:
+        state = "partial_error"
+    elif limit_reached:
+        state = "partial_limit"
+    elif discovered > 0:
+        state = "complete"
+    else:
+        state = "unknown"
+    payload: dict[str, Any] = {
+        "mode": "source_discovery_coverage",
+        "state": state,
+        "discovered_count": max(0, int(discovered)),
+        "missed_pages": max(0, int(missed_pages)),
+        "missed_examples": (missed_examples or [])[:10],
+        "limit_reached": bool(limit_reached),
+        "updated_at": now_ts(),
+    }
+    if extra:
+        payload.update(extra)
+    save_source_coverage(work_dir, payload)
+    if missed_pages > 0:
+        print(
+            f"[WARN] 一覧のページを {missed_pages} 件開けませんでした。"
+            "その先の会議は見えていません。",
+            flush=True,
+        )
 
 
 def save_meetings_index(path: Path, payload: list[Any]) -> None:

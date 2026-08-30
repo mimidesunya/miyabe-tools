@@ -254,17 +254,23 @@ def discover_items(
     *,
     max_pages: int,
     include_html_documents: bool,
+    walk: dict | None = None,
 ) -> list[StaticMinutesItem]:
+    """`walk` を渡すと、開けなかったページ数と上限に当たったかを控える。"""
     prefix = crawl_prefix(start_url)
     queue: list[str] = [normalized_url(start_url)]
     seen_pages: set[str] = set()
     items_by_url: dict[str, StaticMinutesItem] = {}
+    missed: list[str] = []
+    limit_reached = False
 
     while queue:
         page_url = queue.pop(0)
         if page_url in seen_pages:
             continue
         if max_pages > 0 and len(seen_pages) >= max_pages:
+            # ページ数の上限で止めた。まだ辿る先が残っている。
+            limit_reached = True
             break
         seen_pages.add(page_url)
 
@@ -272,6 +278,7 @@ def discover_items(
             page_html = request_text(session, page_url, timeout_ms)
         except Exception as exc:
             print(f"[WARN] HTML取得失敗: {page_url} ({exc})", flush=True)
+            missed.append(page_url)
             continue
 
         soup = BeautifulSoup(page_html, "html.parser")
@@ -370,6 +377,15 @@ def discover_items(
             )
             items_by_url.setdefault(absolute, item)
 
+    if walk is not None:
+        walk.update(
+            {
+                "missed_pages": len(missed),
+                "missed_examples": missed[:10],
+                "limit_reached": limit_reached,
+                "visited_pages": len(seen_pages),
+            }
+        )
     return list(items_by_url.values())
 
 
@@ -419,6 +435,7 @@ def main() -> int:
     print(f"[INFO] Target: {target['name']} ({slug}, {target['system_type']})")
     print(f"[INFO] Source URL: {target['source_url']}")
     print("[INFO] 静的ディレクトリを巡回中...")
+    catalog_walk: dict = {}
     meeting_items = discover_items(
         session,
         str(target["source_url"]),
@@ -426,10 +443,21 @@ def main() -> int:
         pages_dir,
         max_pages=args.max_pages,
         include_html_documents=not args.no_html_documents,
+        walk=catalog_walk,
     )
     if args.max_meetings > 0:
         meeting_items = meeting_items[: args.max_meetings]
     print(f"[INFO] 文書候補 {len(meeting_items)} 件")
+    # 開けなかったページと上限を残す。残さないと「発見数＝保存数」で
+    # 完了に見え、キューは 30 日巡ってこない。
+    gijiroku_storage.record_catalog_walk(
+        work_dir,
+        discovered=len(meeting_items),
+        missed_pages=int(catalog_walk.get("missed_pages") or 0),
+        missed_examples=catalog_walk.get("missed_examples") or [],
+        limit_reached=bool(catalog_walk.get("limit_reached")) or args.max_meetings > 0,
+        extra={"visited_pages": int(catalog_walk.get("visited_pages") or 0)},
+    )
 
     index_json.parent.mkdir(parents=True, exist_ok=True)
     gijiroku_storage.save_meetings_index(index_json, [asdict(item) for item in meeting_items])

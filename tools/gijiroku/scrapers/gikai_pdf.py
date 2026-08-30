@@ -119,11 +119,18 @@ def crawl_pdf_items(
     timeout_ms: int,
     max_pages: int,
     max_depth: int,
+    walk: dict | None = None,
 ) -> list[PdfMeetingItem]:
+    """入口から辿って PDF を集める。
+
+    `walk` を渡すと、開けなかったページ数と、ページ数の上限に当たったかを
+    控える。どちらもその先の会議録が見えなくなるのに、黙って捨てていた。
+    """
     start_netloc = urlsplit(start_url).netloc
     visited: set[str] = set()
     queue: deque[tuple[str, int]] = deque([(start_url, 0)])
     items: dict[str, PdfMeetingItem] = {}
+    missed: list[str] = []
 
     while queue and len(visited) < max_pages:
         url, depth = queue.popleft()
@@ -136,6 +143,8 @@ def crawl_pdf_items(
             # プロセスごと落ちる。解析も同じ try で守る。
             soup = BeautifulSoup(html, "html.parser")
         except Exception:
+            # 開けないページの先は、まるごと見えなくなる。数えておく。
+            missed.append(url)
             continue
         title = page_title(soup)
         page_year_label, page_source_year = extract_year_info(title)
@@ -194,6 +203,16 @@ def crawl_pdf_items(
             ):
                 queue.append((absolute, depth + 1))
 
+    if walk is not None:
+        walk.update(
+            {
+                "missed_pages": len(missed),
+                "missed_examples": missed[:10],
+                # 上限に当たって止まったなら、まだ辿る先が残っている。
+                "limit_reached": bool(queue) or len(visited) >= max_pages,
+                "visited_pages": len(visited),
+            }
+        )
     return list(items.values())
 
 
@@ -220,16 +239,28 @@ def main() -> int:
     print(f"[INFO] Target: {target['name']} ({slug}, {target['system_type']})")
     print(f"[INFO] Source URL: {target['source_url']}")
     print("[INFO] 会議録PDFを収集中（汎用クロール）...")
+    catalog_walk: dict = {}
     meeting_items = crawl_pdf_items(
         session,
         str(target["source_url"]),
         timeout_ms=args.timeout_ms,
         max_pages=args.max_pages,
         max_depth=args.max_depth,
+        walk=catalog_walk,
     )
     if args.max_meetings > 0:
         meeting_items = meeting_items[: args.max_meetings]
     print(f"[INFO] PDF候補 {len(meeting_items)} 件")
+    # 開けなかったページと、ページ数の上限に当たったことを残す。
+    # 残さないと「発見数＝保存数」で完了に見え、キューは 30 日巡ってこない。
+    gijiroku_storage.record_catalog_walk(
+        work_dir,
+        discovered=len(meeting_items),
+        missed_pages=int(catalog_walk.get("missed_pages") or 0),
+        missed_examples=catalog_walk.get("missed_examples") or [],
+        limit_reached=bool(catalog_walk.get("limit_reached")) or args.max_meetings > 0,
+        extra={"visited_pages": int(catalog_walk.get("visited_pages") or 0)},
+    )
 
     index_json.parent.mkdir(parents=True, exist_ok=True)
     gijiroku_storage.save_meetings_index(index_json, [asdict(item) for item in meeting_items])

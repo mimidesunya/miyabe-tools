@@ -115,7 +115,19 @@ def classify_row(
 
     if not ENFORCE_ROBOTS:
         # robots.txt を根拠に取得を止めない方針のため、取得可否は判定しない。
-        # 過去の robots 由来の除外もここで解除される。
+        # 解除するのは **robots 由来の除外だけ**。動画しか公開していない
+        # （video_only）、ログインが要る（login_required）といった除外は、
+        # robots とは関係が無い。ここで一律 enabled に戻すと、取れないものを
+        # 取りに行き続けることになる。実際に video_only が 7 自治体ある。
+        previous_reason = str(row.get("exclusion_reason", "")).strip()
+        if previous_reason and not previous_reason.startswith("robots_"):
+            updated.update(
+                {
+                    "policy_checked_at": checked_at,
+                    "policy_fingerprint": current_fingerprint,
+                }
+            )
+            return updated
         updated.update(
             {
                 "crawl_status": "enabled",

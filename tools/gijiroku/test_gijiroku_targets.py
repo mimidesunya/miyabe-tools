@@ -284,5 +284,44 @@ class MinutesRobotsPolicyTest(unittest.TestCase):
                 gijiroku_targets.load_gijiroku_target("00000")
 
 
+
+class NonRobotsExclusionTest(unittest.TestCase):
+    """robots を根拠にしない設定でも、robots 由来でない除外は解除しない。
+
+    動画しか公開していない（video_only）自治体が 7 件ある。fingerprint が
+    古くなると再監査され、一律 enabled に戻して取れないものを取りに行く。
+    """
+
+    ROW = {
+        "jis_code": "06367",
+        "url": "https://smart.discussvision.net/smart/tenant/example",
+        "system_type": "discussvision",
+        "policy_checked_at": "20260101",
+        "policy_fingerprint": "stale",
+    }
+
+    def _classify(self, reason: str) -> dict:
+        row = dict(
+            self.ROW,
+            crawl_status="excluded" if reason else "enabled",
+            exclusion_reason=reason,
+            exclusion_detail="d" if reason else "",
+        )
+        return audit_minutes_robots.classify_row(row, None, checked_at="20260830")
+
+    def test_video_only_stays_excluded(self):
+        result = self._classify("video_only")
+        self.assertEqual(result["crawl_status"], "excluded")
+        self.assertEqual(result["exclusion_reason"], "video_only")
+
+    def test_robots_exclusion_is_lifted(self):
+        result = self._classify("robots_disallowed")
+        self.assertEqual(result["crawl_status"], "enabled")
+        self.assertEqual(result["exclusion_reason"], "")
+
+    def test_enabled_row_stays_enabled(self):
+        result = self._classify("")
+        self.assertEqual(result["crawl_status"], "enabled")
+
 if __name__ == "__main__":
     unittest.main()

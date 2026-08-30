@@ -334,8 +334,13 @@ def discover_minutes_pages(
         if page_url:
             pages[page_url] = None
             if max_pages > 0 and len(pages) >= max_pages:
+                LIST_PAGE_LIMIT_HIT.append(start_url)
                 break
     return list(pages.keys())
+
+
+# 一覧ページの上限に当たった入口。当たったならまだ辿る先が残っている。
+LIST_PAGE_LIMIT_HIT: list[str] = []
 
 
 def discover_pdf_items(
@@ -345,8 +350,11 @@ def discover_pdf_items(
     pages_dir: Path | None = None,
     *,
     require_site_attachment: bool = False,
+    walk: dict | None = None,
 ) -> list[PdfMeetingItem]:
+    """`walk` を渡すと、解析できなかった一覧ページの数を控える。"""
     items_by_url: dict[str, PdfMeetingItem] = {}
+    missed: list[str] = []
 
     for page_url in page_urls:
         try:
@@ -355,6 +363,7 @@ def discover_pdf_items(
         except Exception as exc:
             # 1 ページの取得・解析失敗で自治体全体を落とさない。
             print(f"[WARN] 一覧ページを解析できません: {page_url} ({exc})", file=sys.stderr)
+            missed.append(page_url)
             continue
         title = page_title(soup)
         page_year_label, page_source_year = extract_year_info(title)
@@ -402,6 +411,14 @@ def discover_pdf_items(
             )
             items_by_url.setdefault(pdf_url, item)
 
+    if walk is not None:
+        walk.update(
+            {
+                "missed_pages": len(missed),
+                "missed_examples": missed[:10],
+                "visited_pages": len(page_urls),
+            }
+        )
     return list(items_by_url.values())
 
 
@@ -491,16 +508,28 @@ def main() -> int:
         max_pages=args.max_pages,
     )
     print(f"[INFO] 会議録ページ {len(page_urls)} 件")
+    catalog_walk: dict = {}
     meeting_items = discover_pdf_items(
         session,
         page_urls,
         args.timeout_ms,
         pages_dir,
         require_site_attachment=not strict_kami,
+        walk=catalog_walk,
     )
     if args.max_meetings > 0:
         meeting_items = meeting_items[: args.max_meetings]
     print(f"[INFO] PDF候補 {len(meeting_items)} 件")
+    # 解析できなかった一覧ページと、ページ数の上限を残す。残さないと
+    # 「発見数＝保存数」で完了に見え、キューは 30 日巡ってこない。
+    gijiroku_storage.record_catalog_walk(
+        work_dir,
+        discovered=len(meeting_items),
+        missed_pages=int(catalog_walk.get("missed_pages") or 0),
+        missed_examples=catalog_walk.get("missed_examples") or [],
+        limit_reached=bool(LIST_PAGE_LIMIT_HIT) or args.max_meetings > 0,
+        extra={"visited_pages": int(catalog_walk.get("visited_pages") or 0)},
+    )
 
     index_json.parent.mkdir(parents=True, exist_ok=True)
     gijiroku_storage.save_meetings_index(index_json, [asdict(item) for item in meeting_items])
