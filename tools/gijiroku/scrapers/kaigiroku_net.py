@@ -790,11 +790,11 @@ def main() -> int:
                     )
                     handle.flush()
                     emit_progress(
-                    len(meeting_items) - len(work_items) + idx - failed_count,
-                    len(meeting_items),
-                    state_path,
-                    state,
-                )
+                        len(meeting_items) - len(work_items) + idx - failed_count,
+                        len(meeting_items),
+                        state_path,
+                        state,
+                    )
                     continue
 
                 try:
@@ -820,7 +820,6 @@ def main() -> int:
                     error_msg = str(exc)
                 except Exception as exc:
                     status = "error"
-                    failed_count += 1
                     error_msg = str(exc)
                     if args.save_debug_json:
                         debug_path = debug_dir / year_dir_name
@@ -862,6 +861,10 @@ def main() -> int:
                         "fragments": fragment_count,
                     }
                 )
+                # 失敗の種類は共有の定義で決める。error だけ数えると
+                # timeout や not_found が「取れた」に混ざる。
+                if status in gijiroku_storage.SCRAPE_FAILED_STATUSES:
+                    failed_count += 1
                 handle.flush()
                 emit_progress(
                     len(meeting_items) - len(work_items) + idx - failed_count,

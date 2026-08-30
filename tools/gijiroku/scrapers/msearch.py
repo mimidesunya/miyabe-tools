@@ -264,7 +264,6 @@ def main() -> int:
                     )
             except Exception as exc:
                 status = "error"
-                failed_count += 1
                 error_text = str(exc)
             state["items"][plan["resume_key"]] = {
                 "title": item.title,
@@ -286,6 +285,10 @@ def main() -> int:
                     "error": error_text,
                 }
             )
+            # 失敗の種類は共有の定義で決める。error だけ数えると
+            # timeout や not_found が「取れた」に混ざる。
+            if status in gijiroku_storage.SCRAPE_FAILED_STATUSES:
+                failed_count += 1
             handle.flush()
             emit_progress(
                 len(plans) - len(work_items) + idx - failed_count,
