@@ -118,7 +118,9 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--target-stall-seconds",
         type=int,
-        default=1800,
+        default=3600,
+        # 正常でも無出力が続くことはある。福岡県の会議一覧は 1 ページの確認に
+        # 9 分ほどかかった。誤って打ち切らないよう、実測より十分に長く取る。
         help="子プロセスがこの秒数まったく出力しなければ打ち切る（0 は無制限）",
     )
     parser.add_argument(

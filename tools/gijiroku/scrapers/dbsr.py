@@ -656,7 +656,8 @@ def missing_cabinet_list_pages(
     parts = urlsplit(template_url)
     base_query = dict(cleaned_query_pairs(template_url))
     base_query["TermStart"] = WIDENED_PERIOD_START
-    base_query["TermEnd"] = datetime.date.today().isoformat()
+    # 年度別一覧が年内の先の日付を含むことがあるので、終端は年末にそろえる。
+    base_query["TermEnd"] = datetime.date(datetime.date.today().year, 12, 31).isoformat()
 
     pages: list[ListPage] = []
     for option in cabinet_options:

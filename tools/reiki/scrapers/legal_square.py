@@ -470,6 +470,13 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             reopen_detail(page, timeout_ms)
             apply_filters(page, kind["id"], span)
             outcome = run_search(page, timeout_ms)
+            if outcome == SEARCH_STALE:
+                # 一時的な遅れのことが多いので、まず同じ条件で 1 度だけやり直す。
+                # 期間指定なしの検索は、制定年月日を持たない例規を拾う保険なので、
+                # ここで諦めると分割してもその分を取り戻せない。
+                reopen_detail(page, timeout_ms)
+                apply_filters(page, kind["id"], span)
+                outcome = run_search(page, timeout_ms)
             if outcome == SEARCH_EMPTY:
                 return
             if outcome == SEARCH_STALE:
