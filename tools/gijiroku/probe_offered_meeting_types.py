@@ -211,6 +211,15 @@ def main() -> int:
                 failures += 1
                 print(f"[WARN] {index}/{len(targets)} {slug}: 失敗 [{type(exc).__name__}] {exc}", flush=True)
                 continue
+            if not offered:
+                # 空を保存すると、監査が「取得元にも委員会が無い」と読んでしまう。
+                # 読み取れなかったのか本当に無いのかを区別できないので、書かない。
+                failures += 1
+                print(
+                    f"[WARN] {index}/{len(targets)} {slug} ({family}): 会議種別を読み取れませんでした",
+                    flush=True,
+                )
+                continue
             save_offered_types(target, offered)
             print(
                 f"[INFO] {index}/{len(targets)} {slug} ({family}): {len(offered)}種別"

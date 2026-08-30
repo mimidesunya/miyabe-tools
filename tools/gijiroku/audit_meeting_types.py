@@ -10,7 +10,18 @@
 委員会が 1 件も無い**自治体を疑わしいものとして並べる。
 
 判定は `meetings_index.json` の `meeting_group` と `title` だけを見る。
-取得元サイトは開かないので、疑わしいと出たものは個別に確かめること。
+
+**ここで分かるのは「登録した URL の中身」だけである。** 次の 3 つは見えない。
+
+1. 議会が**別の URL** で委員会記録を公開している場合。米子市は本会議の検索
+   システムを登録しているが、委員会会議録は市サイトの別ページにある
+2. `meetings_index.json` は**発見した候補**の一覧で、本文の取得結果ではない。
+   候補に挙がっていても本文が取れていないことがある
+3. 委員会が 1 件でもあれば判定から外れる。**一部の委員会・年度だけ欠けている**
+   のは見つけられない
+
+つまりここで出る「取りこぼし」は**下限**であって、出なかったから問題が無いとは
+言えない。疑わしいと出たものも、出なかったものも、個別に確かめること。
 
   python tools/gijiroku/audit_meeting_types.py --only-issues
   python tools/gijiroku/audit_meeting_types.py --system gijiroku.com --json
@@ -119,8 +130,10 @@ def audit_target(target: dict, *, min_meetings: int) -> dict:
             # 取得元は委員会があると言っているのに 1 件も無い。取りこぼし確定。
             verdict = "取りこぼし"
         else:
-            # 取得元にも委員会が無い。これ以上取れるものはない。
-            verdict = "本会議のみ(取得元も)"
+            # 登録している URL の中には委員会が無い、というだけ。議会が別の URL で
+            # 委員会記録を公開していることがある（米子市）ので、取りこぼしが
+            # 無いとは言えない。
+            verdict = "登録先は本会議のみ"
     elif big and committee == 0 and plenary == 0:
         # 会議種別が記録されていないので、この情報だけでは判定できない。
         verdict = "種別不明"
@@ -197,20 +210,20 @@ def main() -> int:
     for row in rows:
         by_system.setdefault(row["system_family"], []).append(row)
     print(
-        "\n系統\t対象\t索引あり\t取りこぼし\t本会議のみ(未確認)\t本会議のみ(取得元も)\t"
+        "\n系統\t対象\t索引あり\t取りこぼし\t本会議のみ(未確認)\t登録先は本会議のみ\t"
         "種別不明\t種別=表題",
         file=sys.stderr,
     )
     for system, group in sorted(by_system.items(), key=lambda kv: -len(kv[1])):
         counts = {
             key: len([r for r in group if r["verdict"] == key])
-            for key in ("取りこぼし", "本会議のみ(未確認)", "本会議のみ(取得元も)", "種別不明")
+            for key in ("取りこぼし", "本会議のみ(未確認)", "登録先は本会議のみ", "種別不明")
         }
         indexed = [r for r in group if not r["no_index"]]
         as_title = [r for r in group if r["group_is_title"]]
         print(
             f"{system}\t{len(group)}\t{len(indexed)}\t{counts['取りこぼし']}\t"
-            f"{counts['本会議のみ(未確認)']}\t{counts['本会議のみ(取得元も)']}\t"
+            f"{counts['本会議のみ(未確認)']}\t{counts['登録先は本会議のみ']}\t"
             f"{counts['種別不明']}\t{len(as_title)}",
             file=sys.stderr,
         )
