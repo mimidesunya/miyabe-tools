@@ -544,6 +544,9 @@ def iter_reiki_documents(
                 "detail_url": detail_url,
                 "source_file": clean_text(record.get("source_file")) or detail_file,
                 "source_system": source_system,
+                # AI 評価の文面。本文とは分けて持つ。混ぜると、評価文が
+                # 例規本文として表示され、自治体の見解と読み違えられる。
+                "evaluation_text": evaluation_text,
                 "indexed_at": indexed_at,
                 "updated_at": updated_at,
                 "sort_date": promulgated_on or first_date(updated_at),
