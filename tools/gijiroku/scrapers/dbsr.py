@@ -500,6 +500,11 @@ def collect_template_list_links(
         if not href:
             continue
         list_url = canonicalize_template_url(urljoin(page_url, href))
+        # キーワード検索の結果一覧（Phrase=）は会議の一覧ではない。拾うと
+        # 同じ会議が検索語の数だけ複製され、年ラベルに検索語が入る。
+        # 桑名市・日南市など 10 自治体で 22,848 件がこの形だった。
+        if "phrase=" in list_url.lower():
+            continue
         if list_url in items:
             continue
         text = safe_inner_text(link)
