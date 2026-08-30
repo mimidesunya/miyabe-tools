@@ -240,20 +240,50 @@ FILTER_EVAL = """
 """
 
 
-def apply_filters(page, kind_id: str, span: tuple[int, int] | None) -> None:
-    """種別と制定年月日の範囲を設定する。span は MONTH_SLOTS の添字 [lo, hi]。"""
+def apply_filters(
+    page,
+    kind_id: str,
+    span: tuple[int, int] | None,
+    days: tuple[int, int] | None = None,
+) -> None:
+    """種別と制定年月日の範囲を設定する。
+
+    span は MONTH_SLOTS の添字 [lo, hi]。days を渡すと、単月の中を
+    さらに日で絞る。合併の月に例規がまとめて制定されている自治体では、
+    単月まで割っても上限に届かない（飛騨市の平成16年2月など）。
+    """
     payload: dict = {"kindId": kind_id or None, "from": None, "to": None}
     if span is not None:
         head, tail = MONTH_SLOTS[span[0]], MONTH_SLOTS[span[1]]
-        payload["from"] = [head.era, head.year, head.month, head.first_day]
-        payload["to"] = [tail.era, tail.year, tail.month, tail.last_day]
+        first_day, last_day = head.first_day, tail.last_day
+        if days is not None and span[0] == span[1]:
+            first_day, last_day = days
+        payload["from"] = [head.era, head.year, head.month, first_day]
+        payload["to"] = [tail.era, tail.year, tail.month, last_day]
     page.evaluate(FILTER_EVAL, payload)
 
 
-def span_label(span: tuple[int, int] | None) -> str:
+def slot_day_range(span: tuple[int, int]) -> tuple[int, int]:
+    """単月の中で割れる日の範囲。元号の切れ目では月の途中から始まる。"""
+    slot = MONTH_SLOTS[span[0]]
+    return slot.first_day, slot.last_day
+
+
+def slot_day_count(span: tuple[int, int] | None) -> int:
+    if span is None:
+        return 0
+    first, last = slot_day_range(span)
+    return max(0, last - first + 1)
+
+
+def span_label(span: tuple[int, int] | None, days: tuple[int, int] | None = None) -> str:
     if span is None:
         return "全期間"
     head, tail = MONTH_SLOTS[span[0]], MONTH_SLOTS[span[1]]
+    if days is not None and span[0] == span[1]:
+        if days[0] == days[1]:
+            return f"{head.era}{head.year}.{head.month}.{days[0]}"
+        return f"{head.era}{head.year}.{head.month}.{days[0]}〜{days[1]}"
     return f"{head.era}{head.year}.{head.month}〜{tail.era}{tail.year}.{tail.month}"
 
 
@@ -384,23 +414,34 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
         coverage_unresolved: list[dict] = []
 
         def note_leaf(
-            kind: dict, span: tuple[int, int] | None, total: int, walked: int
+            kind: dict,
+            span: tuple[int, int] | None,
+            total: int,
+            walked: int,
+            days: tuple[int, int] | None = None,
         ) -> None:
             # 取得元が言った件数と、実際に歩いた行数がずれていたら取り落としている。
             coverage_leaves.append(
                 {
                     "kind": kind["text"],
-                    "span": span_label(span),
+                    "span": span_label(span, days),
                     "total": total,
                     "walked": walked,
                 }
             )
             if walked < total:
-                note_unresolved(kind, span, f"{total}件のうち{walked}件しか辿れなかった")
+                note_unresolved(
+                    kind, span, f"{total}件のうち{walked}件しか辿れなかった", days=days
+                )
 
-        def note_unresolved(kind: dict, span: tuple[int, int] | None, reason: str) -> None:
+        def note_unresolved(
+            kind: dict,
+            span: tuple[int, int] | None,
+            reason: str,
+            days: tuple[int, int] | None = None,
+        ) -> None:
             coverage_unresolved.append(
-                {"kind": kind["text"], "span": span_label(span), "reason": reason}
+                {"kind": kind["text"], "span": span_label(span, days), "reason": reason}
             )
 
         def harvest_pages(label: str) -> tuple[int, int]:
@@ -527,19 +568,29 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                 page.wait_for_timeout(400)
             return emit_total - start_total, walked
 
-        def collect(kind: dict, span: tuple[int, int] | None, depth: int) -> None:
-            """種別 × 制定年月日で検索し、上限に張り付くなら期間を二分してやり直す。"""
+        def collect(
+            kind: dict,
+            span: tuple[int, int] | None,
+            depth: int,
+            days: tuple[int, int] | None = None,
+        ) -> None:
+            """種別 × 制定年月日で検索し、上限に張り付くなら期間を二分してやり直す。
+
+            単月まで割ってもまだ上限なら、その月の中を日で割る。合併の月に
+            例規がまとめて制定されている自治体（飛騨市の平成16年2月など）は、
+            月単位では割り切れない。
+            """
             if stopped:
                 return
             reopen_detail(page, timeout_ms)
-            apply_filters(page, kind["id"], span)
+            apply_filters(page, kind["id"], span, days)
             outcome = run_search(page, timeout_ms)
             if outcome == SEARCH_STALE:
                 # 一時的な遅れのことが多いので、まず同じ条件で 1 度だけやり直す。
                 # 期間指定なしの検索は、制定年月日を持たない例規を拾う保険なので、
                 # ここで諦めると分割してもその分を取り戻せない。
                 reopen_detail(page, timeout_ms)
-                apply_filters(page, kind["id"], span)
+                apply_filters(page, kind["id"], span, days)
                 outcome = run_search(page, timeout_ms)
             nonlocal stale_searches
             if outcome == SEARCH_STALE:
@@ -577,34 +628,50 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             if total <= 0:
                 return
             capped = cap > 0 and total >= cap
-            if capped and span is not None and span[0] >= span[1]:
-                # 単月まで割ってもまだ上限。これ以上は割れないので取り切れない。
-                note_unresolved(kind, span, f"単月でも上限{cap}件")
+            single_month = span is not None and span[0] >= span[1]
+            single_day = days is not None and days[0] >= days[1]
+            # これ以上割れないのは、単月かつ単日まで来たとき。
+            indivisible = single_month and (days is None or single_day) and (
+                days is not None or slot_day_count(span) <= 1
+            )
+            if capped and indivisible:
+                note_unresolved(
+                    kind, span, f"単日でも上限{cap}件", days=days
+                )
             # 上限に張り付いた中間ノードは、どうせ二分するので本文取得は省く。
             # ただし期間指定なしの初回だけは、制定年月日が無い例規を拾う保険として取り込む。
-            if not capped or span is None or span[0] >= span[1]:
-                got, walked = harvest_pages(f"{kind['text']} {span_label(span)}")
+            if not capped or indivisible:
+                got, walked = harvest_pages(f"{kind['text']} {span_label(span, days)}")
                 if not capped:
                     # 上限に当たっていない区間だけが「取り切れた」と言える。
-                    note_leaf(kind, span, total, walked)
+                    note_leaf(kind, span, total, walked, days=days)
                 print(
-                    f"[INFO] {kind['text']} {span_label(span)}: 総数{total}件 → 新規{got}件"
+                    f"[INFO] {kind['text']} {span_label(span, days)}: 総数{total}件 → 新規{got}件"
                     f"（累計 {emit_total}件）",
                     flush=True,
                 )
             else:
                 # 見張りが無出力を故障とみなすので、分割の途中も必ず知らせる。
                 print(
-                    f"[INFO] {kind['text']} {span_label(span)}: 上限{cap}件に達したので期間を二分します",
+                    f"[INFO] {kind['text']} {span_label(span, days)}: "
+                    f"上限{cap}件に達したので期間を二分します",
                     flush=True,
                 )
             if not capped:
                 return
-            if span is not None and span[0] >= span[1]:
+            if indivisible:
                 print(
-                    f"[WARN] {kind['text']} {span_label(span)}: 単月でも上限{cap}件に達しており取り切れません。",
+                    f"[WARN] {kind['text']} {span_label(span, days)}: "
+                    f"単日でも上限{cap}件に達しており取り切れません。",
                     flush=True,
                 )
+                return
+            if single_month:
+                # 月の中を日で割る。合併の月はここでしか割れない。
+                lo_day, hi_day = days if days is not None else slot_day_range(span)
+                mid_day = (lo_day + hi_day) // 2
+                collect(kind, span, depth + 1, (lo_day, mid_day))
+                collect(kind, span, depth + 1, (mid_day + 1, hi_day))
                 return
             lo, hi = (0, len(MONTH_SLOTS) - 1) if span is None else span
             mid = (lo + hi) // 2
