@@ -180,7 +180,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 01693			unresolved	source_url_unresolved	h-chosonkai の data/88/50/reiki_menu.html が404。移転先を未特定
 01694	https://www1.g-reiki.net/rausu-town/reiki_menu.html	g-reiki	enabled		
 01695			enabled		
-01696	http://houmu.h-chosonkai.gr.jp/~reikidb/data/131/42/reiki.html	h-chosonkai	enabled		
+01696		h-chosonkai	unresolved	duplicate_of_same_name	後志の泊村(01403)と同じURLが登録されていた。北海道に泊村は1つしかない
 01697			enabled		
 01698			enabled		
 01699			enabled		
@@ -1267,7 +1267,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 29449			enabled		
 29450			enabled		
 29451			enabled		
-29452	https://en3-jg.d1-law.com/kawakami/d1w_reiki/reiki.html	d1-law	enabled		
+29452		d1-law	unresolved	wrong_municipality_url	長野県川上村(20304)の例規集URLが登録されていた。奈良県川上村の例規集は未特定
 29453			enabled		
 30000	https://www.pref.wakayama.lg.jp/prefg/010100/reiki/reiki_menu.html	taikei	enabled		
 30201	https://krt800.legal-square.com/HAS-Shohin/page/SJSrbLogin.jsf	legal-square	enabled		
