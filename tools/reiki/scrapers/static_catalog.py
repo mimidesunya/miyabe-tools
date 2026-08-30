@@ -189,6 +189,8 @@ def run(
     session = requests.Session()
     session.headers.update({"User-Agent": USER_AGENT})
 
+    # 歩き直しの途中で殺されたら、前回の complete を当てにしない。
+    reiki_io.mark_walk_started(work_root, time.strftime("%Y%m%d_%H%M%S"))
     articles = discover(session, source_url)
     # 目録に並んだ件数が、この取得元の申告そのもの。母数を別に探しに行く
     # 必要は無い（目録型に「総数」の表示は無い）。--limit で切ったときは
@@ -274,7 +276,9 @@ def run(
 
         if ((index + 1) % 25) == 0 or (index + 1) == total:
             reiki_io.write_json(manifest_path, manifest, compress=True)
-            emit_progress(index + 1, total, state_path)
+            # 試行数ではなく取れた数を出す。途中で殺されたときに、
+            # 落とした分まで取れたことにしない。
+            emit_progress(index + 1 - failed, total, state_path)
 
     reiki_io.write_json(manifest_path, manifest, compress=True)
     # 失敗した分は取れていない。ここで total/total にすると、10 件中 1 件

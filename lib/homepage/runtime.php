@@ -383,6 +383,47 @@ function homepage_gijiroku_classified_progress(array $feature): ?array
     ];
 }
 
+// 走査記録から読み取れる状態。tools/gijiroku/gijiroku_storage.py の
+// effective_walk_state と同じ答えを返す必要がある。
+// tests/fixtures/source_coverage_rules.json で両方に同じ入力を流して確かめている。
+function homepage_minutes_walk_state(?array $coverage): string
+{
+    if (!is_array($coverage) || $coverage === []) {
+        return 'unknown';
+    }
+    // 判定ルールの版。古い規則で書かれた complete は、ページ送りを諦めた
+    // 回数を数えていないので完了の意味が違う。
+    if ((int)($coverage['rule_version'] ?? 0) < 2) {
+        return 'stale_rule';
+    }
+    $state = trim((string)($coverage['state'] ?? ''));
+    if ($state === '') {
+        $state = 'unknown';
+    }
+    // 歩き直しを始めたまま終われていないなら、前回の complete は当てにしない。
+    $startedAt = (string)($coverage['walk_started_at'] ?? '');
+    $updatedAt = (string)($coverage['updated_at'] ?? '');
+    if ($state === 'complete' && $startedAt !== '' && $startedAt > $updatedAt) {
+        return 'rewalking';
+    }
+    return $state;
+}
+
+// 例規の走査記録。tools/reiki/reiki_io.py の effective_coverage_complete と
+// 同じ答えを返す必要がある。
+function homepage_reiki_coverage_complete(?array $coverage): bool
+{
+    if (!is_array($coverage) || empty($coverage['complete'])) {
+        return false;
+    }
+    if ((int)($coverage['version'] ?? 0) < 2) {
+        return false;
+    }
+    $startedAt = (string)($coverage['walk_started_at'] ?? '');
+    $observedAt = (string)($coverage['observed_at'] ?? '');
+    return !($startedAt !== '' && $startedAt > $observedAt);
+}
+
 function homepage_gijiroku_source_coverage(array $feature): ?array
 {
     // 走査の記録は source_coverage.json を見る。scrape_state.json は実行の頭で
@@ -410,18 +451,8 @@ function homepage_gijiroku_source_coverage(array $feature): ?array
         return null;
     }
 
-    $coverageState = trim((string)($coverage['state'] ?? ''));
-    // 判定ルールの版。tools/gijiroku/gijiroku_storage.py の
-    // COVERAGE_RULE_VERSION と揃える。古い規則で書かれた complete は
-    // ページ送りを諦めた回数を数えていないので、完了の意味が違う。
-    // 監査とキューは信用しないので、公開だけ完了と出すと食い違う。
-    if ((int)($coverage['rule_version'] ?? 0) < 2) {
-        return null;
-    }
-    // 歩き直しを始めたまま終われていないなら、前回の complete は当てにしない。
-    $startedAt = (string)($coverage['walk_started_at'] ?? '');
-    $updatedAt = (string)($coverage['updated_at'] ?? '');
-    if ($coverageState === 'complete' && $startedAt !== '' && $startedAt > $updatedAt) {
+    $coverageState = homepage_minutes_walk_state($coverage);
+    if ($coverageState === 'stale_rule' || $coverageState === 'rewalking') {
         return null;
     }
     if (!in_array($coverageState, ['complete', 'partial_planned', 'partial_limit', 'partial_error', 'partial_recent_only'], true)) {
@@ -707,7 +738,7 @@ function homepage_reiki_acquisition_status(
         $startedAt = (string)($coverage['walk_started_at'] ?? '');
         $observedAt = (string)($coverage['observed_at'] ?? '');
         $rewalking = $startedAt !== '' && $startedAt > $observedAt;
-        if (!($coverage['complete'] ?? false) || $rewalking) {
+        if (!homepage_reiki_coverage_complete($coverage)) {
             $unresolved = is_array($coverage['unresolved'] ?? null)
                 ? count($coverage['unresolved'])
                 : 0;

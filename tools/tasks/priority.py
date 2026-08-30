@@ -23,6 +23,24 @@ import freshness_metadata
 _GIJIROKU_TOOLS = Path(__file__).resolve().parents[1] / "gijiroku"
 if str(_GIJIROKU_TOOLS) not in sys.path:
     sys.path.append(str(_GIJIROKU_TOOLS))
+_REIKI_TOOLS = Path(__file__).resolve().parents[1] / "reiki"
+if str(_REIKI_TOOLS) not in sys.path:
+    sys.path.append(str(_REIKI_TOOLS))
+try:
+    from reiki_io import effective_coverage_complete as reiki_coverage_complete
+except Exception:
+    def reiki_coverage_complete(payload: Any) -> bool:
+        if not isinstance(payload, dict) or not payload.get("complete"):
+            return False
+        try:
+            if int(payload.get("version") or 0) < 2:
+                return False
+        except (TypeError, ValueError):
+            return False
+        started = str(payload.get("walk_started_at") or "")
+        observed = str(payload.get("observed_at") or "")
+        return not (started and started > observed)
+
 try:
     from gijiroku_storage import effective_walk_state
 except Exception:  # 会議録の道具が無い環境でも優先度計算は動かす
@@ -314,13 +332,13 @@ def reiki_coverage_progress(target: dict[str, Any]) -> tuple[int, int]:
     if not payload.get("declares", True):
         # 取得元に母数の概念が無い（目録型）。ここでは判断しない。
         return 0, 0
-    if int(payload.get("version") or 0) < 2:
-        # 古い規則で書かれた記録。完了の意味が違うので信用しない。
-        return 0, 1
-    collected = max(0, int(payload.get("collected") or 0))
-    started = str(payload.get("walk_started_at") or "")
-    observed = str(payload.get("observed_at") or "")
-    if payload.get("complete") and not (started and started > observed):
+    try:
+        collected = max(0, int(payload.get("collected") or 0))
+    except (TypeError, ValueError):
+        collected = 0
+    # 判定は helper に任せる。ここで書き写すと、版や歩き直しの規則が
+    # 増えたときに片方だけ古くなる。
+    if reiki_coverage_complete(payload):
         return collected, collected
     # 取り切れていない。完了より必ず小さい母数にして、次回へ回す。
     return collected, collected + 1

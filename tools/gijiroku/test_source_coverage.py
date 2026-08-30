@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [
     str(ROOT / "tools" / "gijiroku"),
     str(ROOT / "tools" / "reiki"),
+    str(ROOT / "tools" / "reiki" / "scrapers"),
     str(ROOT / "tools" / "tasks"),
     str(ROOT / "tools"),
 ]
@@ -225,37 +226,80 @@ class ReikiCoverageTest(unittest.TestCase):
         current, total = self.progress({"work_root": str(self.dir)})
         self.assertLess(current, total)
 
-    def test_catalog_record_counts_failures(self):
-        # 目録型は目録に並んだ件数が申告。失敗した分は取れていない。
-        reiki_io.save_source_coverage(
-            self.dir,
-            {
-                "version": 2,
-                "kind": "catalog",
-                "declares": True,
-                "declared_total": 10,
-                "collected": 9,
-                "failed": 1,
-                "complete": False,
-            },
-        )
-        current, total = self.progress({"work_root": str(self.dir)})
-        self.assertLess(current, total)
+    def test_catalog_scraper_reports_its_failures(self):
+        """書く側を見る。読む側に手書きの JSON を渡しても何も確かめられない。
 
-    def test_catalog_record_without_failures_is_complete(self):
-        reiki_io.save_source_coverage(
-            self.dir,
-            {
-                "version": 2,
-                "kind": "catalog",
-                "declares": True,
-                "declared_total": 10,
-                "collected": 10,
-                "failed": 0,
-                "complete": True,
-            },
+        `reiki_coverage_progress` は kind も failed も読まないので、
+        自分で書いた complete を自分で確認するだけになっていた。
+        """
+        import static_catalog
+
+        articles = [
+            static_catalog.Article(code=f"a{i}", url=f"https://example.invalid/{i}", title=f"第{i}号")
+            for i in range(1, 4)
+        ]
+
+        def discover(session, source_url):
+            return articles
+
+        def parse_article(raw, url):
+            if url.endswith("/2"):
+                raise ValueError("この 1 件だけ取れない")
+            return static_catalog.ParsedArticle(
+                title="題名", content_html="<p>本文</p>", date_text="令和6年4月1日"
+            )
+
+        written = self._run_catalog(static_catalog, discover, parse_article)
+        self.assertEqual(written["failed"], 1)
+        self.assertFalse(written["complete"], "1 件落としたのに完了と記録した")
+        self.assertEqual(written["declared_total"], 3)
+
+    def test_catalog_scraper_reports_complete_when_nothing_failed(self):
+        import static_catalog
+
+        articles = [
+            static_catalog.Article(code=f"a{i}", url=f"https://example.invalid/{i}", title=f"第{i}号")
+            for i in range(1, 4)
+        ]
+
+        written = self._run_catalog(
+            static_catalog,
+            lambda session, source_url: articles,
+            lambda raw, url: static_catalog.ParsedArticle(
+                title="題名", content_html="<p>本文</p>", date_text="令和6年4月1日"
+            ),
         )
-        self.assertEqual(self.progress({"work_root": str(self.dir)}), (10, 10))
+        self.assertEqual(written["failed"], 0)
+        self.assertTrue(written["complete"])
+
+    def _run_catalog(self, static_catalog, discover, parse_article):
+        """static_catalog.run() を偽の取得元で 1 回まわし、書かれた記録を返す。"""
+        import unittest.mock as mock
+
+        root = Path(tempfile.mkdtemp())
+        target = {
+            "name": "試験町",
+            "slug": "00000-test",
+            "system_type": "joureikun",
+            "source_dir": str(root / "source"),
+            "html_dir": str(root / "html"),
+            "markdown_dir": str(root / "markdown"),
+            "work_root": str(root / "work"),
+            "source_url": "https://example.invalid/",
+        }
+        with mock.patch.object(
+            static_catalog.reiki_targets, "load_reiki_target", return_value=target
+        ), mock.patch.object(static_catalog, "fetch_text", return_value="<html></html>"):
+            static_catalog.run(
+                slug="00000-test",
+                expected_system="joureikun",
+                discover=discover,
+                parse_article=parse_article,
+                delay=0,
+            )
+        return json.loads(
+            (root / "work" / "source_coverage.json").read_text(encoding="utf-8")
+        )
 
     def test_catalog_sources_are_left_to_other_evidence(self):
         reiki_io.save_source_coverage(self.dir, {"version": 2, "declares": False})
@@ -285,6 +329,36 @@ class ReikiCoverageTest(unittest.TestCase):
                 }
             )
         )
+
+
+class SharedRuleFixtureTest(unittest.TestCase):
+    """PHP と同じ入力・同じ期待値を流す。
+
+    走査記録の読み方は Python 2 箇所・PHP 2 箇所・監査 1 箇所に散っている。
+    形が違う（rule_version 対 version、state 対 complete、updated_at 対
+    observed_at）ので 1 関数には畳めない。畳む代わりに、同じ入力に対して
+    同じ答えを出すことをここで固定する。PHP 側は tools/test_source_coverage_rules.php。
+    """
+
+    def setUp(self):
+        path = ROOT / "tests" / "fixtures" / "source_coverage_rules.json"
+        self.rules = json.loads(path.read_text(encoding="utf-8"))
+
+    def test_minutes_rules(self):
+        for case in self.rules["minutes"]:
+            with self.subTest(case["why"]):
+                self.assertEqual(
+                    gijiroku_storage.effective_walk_state(case["payload"]),
+                    case["expect"],
+                )
+
+    def test_reiki_rules(self):
+        for case in self.rules["reiki"]:
+            with self.subTest(case["why"]):
+                self.assertEqual(
+                    reiki_io.effective_coverage_complete(case["payload"]),
+                    case["expect"],
+                )
 
 
 if __name__ == "__main__":

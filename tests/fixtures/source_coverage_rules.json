@@ -1,0 +1,33 @@
+{
+  "_comment": "走査記録の読み方。Python と PHP が同じ答えを出すことを確かめるための共通の入力と期待値。同じ規則を 7 箇所に書いているので、関数を一本化する代わりにここで食い違いを検出する。",
+  "minutes": [
+    {"why": "版が無い記録は、いまの complete と意味が違う",
+     "payload": {"state": "complete"}, "expect": "stale_rule"},
+    {"why": "歩き直しを始めたまま終われていない",
+     "payload": {"rule_version": 2, "state": "complete", "walk_started_at": "20260830_120000", "updated_at": "20260830_110000"},
+     "expect": "rewalking"},
+    {"why": "歩き終わっている",
+     "payload": {"rule_version": 2, "state": "complete", "walk_started_at": "20260830_110000", "updated_at": "20260830_120000"},
+     "expect": "complete"},
+    {"why": "空は不明であって完了ではない", "payload": {}, "expect": "unknown"},
+    {"why": "上限で打ち切った",
+     "payload": {"rule_version": 2, "state": "partial_limit"}, "expect": "partial_limit"},
+    {"why": "直近分しか出ない取得元",
+     "payload": {"rule_version": 2, "state": "partial_recent_only"}, "expect": "partial_recent_only"}
+  ],
+  "reiki": [
+    {"why": "版が無い記録は信用しない",
+     "payload": {"complete": true}, "expect": false},
+    {"why": "古い版の complete は意味が違う",
+     "payload": {"version": 1, "complete": true}, "expect": false},
+    {"why": "歩き直しの途中で死んだ",
+     "payload": {"version": 2, "complete": true, "walk_started_at": "2", "observed_at": "1"},
+     "expect": false},
+    {"why": "歩き終わっている",
+     "payload": {"version": 2, "complete": true, "walk_started_at": "1", "observed_at": "2"},
+     "expect": true},
+    {"why": "取り切れていない",
+     "payload": {"version": 2, "complete": false}, "expect": false},
+    {"why": "空", "payload": {}, "expect": false}
+  ]
+}
