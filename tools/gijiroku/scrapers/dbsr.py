@@ -1180,8 +1180,8 @@ def discover_list_pages(
         # 取って完了と記録すると、公開されている古い会議録が抜けたまま
         # 「全部取れた」ように見える。期間指定つきのリンクしか無いときは、
         # 検索フォームから全期間を出せないか先に試す。
-        if list_links_cover_recent_years_only(items):
-            return recent_or_widened(items)
+        # 年ラベルの確認を先にする。キーワード一覧は「直近数年分だけ」の
+        # 判定にも引っかからず、そのまま通ってしまう（桑名市）。
         if not looks_like_year_library(items):
             # 年ラベルが 1 つも年に見えない。キーワード一覧を掴んでいる。
             # このまま読むと同じ会議が検索語の数だけ複製される。
@@ -1192,6 +1192,8 @@ def discover_list_pages(
                 flush=True,
             )
             items.clear()
+        elif list_links_cover_recent_years_only(items):
+            return recent_or_widened(items)
         else:
             return finish_library(DISCOVERY_SOURCE_LIBRARY)
 
