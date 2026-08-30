@@ -227,7 +227,12 @@ def resolve_act203_url(request_context, act100_url: str, timeout_ms: int) -> str
     ranked_paths: list[tuple[int, str]] = []
     for path in act200_paths:
         score = 0
-        if target_fino and f"FINO={target_fino}" in path:
+        # 文字列として含まれるかで見ると、FINO=5 が FINO=59 に当たる。
+        # 別の会議の本文を、その会議のものとして保存してしまう。
+        # 実際に北海道で 5→59、6→60、8→81、9→90、12→128、13→135 の
+        # 6 件が入れ替わっていた。値を取り出して厳密に比べる。
+        path_fino = parse_qs(urlparse(path).query).get("FINO", [""])[0]
+        if target_fino and path_fino == target_fino:
             score += 10
         if "HUID=" in path:
             score += 1
