@@ -367,6 +367,10 @@ def iter_minutes_documents(
         # 区別できないので、種別ごとの内訳を残して収集状況ページで使う。
         kind_counts: dict[str, int] = {}
         truncated = False
+        # 同じ本文を複数の会議種別に置く取得元がある。北海道議会の連合審査会は
+        # 「総務」「産炭地域」「連合審査会」の 3 つに同じ本文が入っており、
+        # 検索結果に同じ会議が 3 回並ぶ。自治体ごとに 1 回だけ載せる。
+        seen_bodies: set[str] = set()
         for file_path in source_files:
             try:
                 record = build_minutes_record(file_path, downloads_dir, meta_map, indexed_at)
@@ -383,6 +387,11 @@ def iter_minutes_documents(
                     raise RuntimeError(f"minutes file did not produce an indexable record: {file_path}")
                 continue
 
+            body_key = hashlib.sha1(str(record.content or "").encode("utf-8")).hexdigest()
+            if body_key in seen_bodies:
+                kind_counts["duplicate_body"] = kind_counts.get("duplicate_body", 0) + 1
+                continue
+            seen_bodies.add(body_key)
             local_id = stable_local_id(meta["slug"], record.rel_path)
             title = clean_text(record.title)
             meeting_name = clean_text(record.meeting_name)
