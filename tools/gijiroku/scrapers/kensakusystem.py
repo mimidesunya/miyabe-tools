@@ -577,9 +577,14 @@ def main() -> int:
     )
     # 開けなかった枝を残す。残さないと「発見数＝保存数」で完了に見え、
     # キューは 30 日巡ってこない。
+    # 一覧の置き換えが拒まれるなら、今回の走査を取り切れたとは言えない。
+    plan_shrank = gijiroku_storage.meetings_index_would_shrink(
+        index_json, [asdict(item) for item in meeting_items]
+    )
     gijiroku_storage.record_catalog_walk(
         work_dir,
         discovered=len(meeting_items),
+        plan_shrank=plan_shrank,
         missed_pages=int(catalog_walk.get("missed_pages") or 0),
         missed_examples=catalog_walk.get("missed_examples") or [],
         limit_reached=bool(catalog_walk.get("limit_reached")),

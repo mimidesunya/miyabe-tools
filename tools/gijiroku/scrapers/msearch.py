@@ -197,9 +197,14 @@ def main() -> int:
     meeting_items = parse_index(decode_response(response), response.url)
     # 目次 1 枚だけを読む形。取得に失敗すれば例外で落ちるので、ここまで
     # 来たら目次は歩けている。--max-meetings で切ったときだけ未完了。
+    # 一覧の置き換えが拒まれるなら、今回の走査を取り切れたとは言えない。
+    plan_shrank = gijiroku_storage.meetings_index_would_shrink(
+        index_json, [asdict(item) for item in meeting_items]
+    )
     gijiroku_storage.record_catalog_walk(
         work_dir,
         discovered=len(meeting_items),
+        plan_shrank=plan_shrank,
         limit_reached=args.max_meetings > 0,
         extra={"pages_walked": 1},
     )

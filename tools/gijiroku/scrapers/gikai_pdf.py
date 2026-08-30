@@ -219,9 +219,9 @@ def crawl_pdf_items(
                 "missed_pages": len(missed),
                 "missed_examples": missed[:10],
                 # 上限に当たって止まったなら、まだ辿る先が残っている。
-                "limit_reached": (
-                    bool(queue) or len(visited) >= max_pages or depth_capped > 0
-                ),
+                # 深さ上限は毎回同じ深さで止まるので、これを未完了にすると
+                # 永久に再投入し続ける。数えて見せるだけにする。
+                "limit_reached": bool(queue) and len(visited) >= max_pages,
                 "depth_capped_links": depth_capped,
                 "visited_pages": len(visited),
             }
@@ -266,9 +266,14 @@ def main() -> int:
     print(f"[INFO] PDF候補 {len(meeting_items)} 件")
     # 開けなかったページと、ページ数の上限に当たったことを残す。
     # 残さないと「発見数＝保存数」で完了に見え、キューは 30 日巡ってこない。
+    # 一覧の置き換えが拒まれるなら、今回の走査を取り切れたとは言えない。
+    plan_shrank = gijiroku_storage.meetings_index_would_shrink(
+        index_json, [asdict(item) for item in meeting_items]
+    )
     gijiroku_storage.record_catalog_walk(
         work_dir,
         discovered=len(meeting_items),
+        plan_shrank=plan_shrank,
         missed_pages=int(catalog_walk.get("missed_pages") or 0),
         missed_examples=catalog_walk.get("missed_examples") or [],
         limit_reached=bool(catalog_walk.get("limit_reached")) or args.max_meetings > 0,

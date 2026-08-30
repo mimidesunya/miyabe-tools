@@ -402,6 +402,7 @@ def record_catalog_walk(
     discovered: int,
     missed_pages: int = 0,
     limit_reached: bool = False,
+    plan_shrank: bool = False,
     missed_examples: list[str] | None = None,
     extra: dict[str, Any] | None = None,
 ) -> None:
@@ -416,6 +417,10 @@ def record_catalog_walk(
         state = "partial_error"
     elif limit_reached:
         state = "partial_limit"
+    elif plan_shrank:
+        # 前回より大きく減ったので一覧の置き換えを拒んだ。今回の走査を
+        # 「取り切れた」とは言えない。
+        state = "partial_error"
     elif discovered > 0:
         state = "complete"
     else:
@@ -427,6 +432,7 @@ def record_catalog_walk(
         "missed_pages": max(0, int(missed_pages)),
         "missed_examples": (missed_examples or [])[:10],
         "limit_reached": bool(limit_reached),
+        "plan_shrank": bool(plan_shrank),
         "updated_at": now_ts(),
     }
     if extra:
@@ -438,6 +444,21 @@ def record_catalog_walk(
             "その先の会議は見えていません。",
             flush=True,
         )
+
+
+def meetings_index_would_shrink(path: Path, payload: list[Any]) -> bool:
+    """この一覧で保存すると、前回より大きく減って拒否されるか。
+
+    拒否されるのに走査記録だけ「今回の件数を完全に歩けた」と書くと、
+    正本は前回の 100 件、記録は「50 件を取り切った」という食い違いになる。
+    """
+    try:
+        existing = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    if not isinstance(existing, list) or not existing:
+        return False
+    return len(payload) < len(existing) * PLAN_SHRINK_ALLOWANCE
 
 
 def save_meetings_index(path: Path, payload: list[Any]) -> None:

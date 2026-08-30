@@ -96,19 +96,32 @@ def parse_period_list(raw_html: str, page_url: str) -> tuple[list[PeriodItem], i
             )
         )
 
-    next_cursor = None
+    return periods, next_page_cursor(soup, "list_vcsm")
+
+
+def next_page_cursor(soup, process: str) -> int | None:
+    """「次の N 件」の送信ボタンから、次ページの位置を読む。
+
+    外側（会期一覧）は process=list_vcsm、内側（会議一覧）は process=list。
+    内側を歩いていなかったので、各委員会の 11 件目以降が丸ごと落ちていた
+    （沼津市の委員会会議録が実際に取れていなかった）。
+    """
+    pattern = re.compile(r"param\[process:" + re.escape(process) + r",cur_id:(\d+)\]")
     for control in soup.find_all("input", attrs={"name": True}):
         if "次" not in str(control.get("alt", "")):
             continue
-        match = re.search(r"param\[process:list_vcsm,cur_id:(\d+)\]", str(control.get("name", "")))
+        match = pattern.search(str(control.get("name", "")))
         if match:
-            next_cursor = int(match.group(1))
-            break
-    return periods, next_cursor
+            return int(match.group(1))
+    return None
 
 
-def parse_meeting_list(raw_html: str, page_url: str, period: PeriodItem) -> list[MeetingItem]:
+def parse_meeting_list(
+    raw_html: str, page_url: str, period: PeriodItem, cursor_out: list[int | None] | None = None
+) -> list[MeetingItem]:
     soup = BeautifulSoup(raw_html, "html.parser")
+    if cursor_out is not None:
+        cursor_out.append(next_page_cursor(soup, "list"))
     meetings: list[MeetingItem] = []
     for anchor in soup.find_all("a"):
         onclick = str(anchor.get("onclick", "") or anchor.get("onClick", ""))
@@ -164,6 +177,7 @@ def discover_meetings(
     meetings: list[MeetingItem] = []
     seen_periods: set[str] = set()
     pages_walked = 0
+    inner_pages = 0
     limit_reached = False
 
     while True:
@@ -184,9 +198,40 @@ def discover_meetings(
             if period.url in seen_periods:
                 continue
             seen_periods.add(period.url)
-            period_response = session.get(period.url, timeout=timeout_seconds)
-            period_response.raise_for_status()
-            meetings.extend(parse_meeting_list(decode_response(period_response), period_response.url, period))
+            # 会議一覧そのものも 10 件ずつのページ送りになっている。
+            # 外側だけ歩いて内側を歩かないと、11 件目以降が丸ごと落ちる。
+            period_cursor: int | None = None
+            while True:
+                if period_cursor is None:
+                    period_response = session.get(period.url, timeout=timeout_seconds)
+                else:
+                    # 送信先は search.exe で、hidden の vcsm が要る。
+                    # 会期 URL へ送っても、vcsm を落とすと 0 件が返る。
+                    vcsm = (parse_qs(urlsplit(period.url).query).get("vcsm") or [""])[0]
+                    control = f"param[process:list,cur_id:{period_cursor}]"
+                    period_response = session.post(
+                        search_url,
+                        data={
+                            "vcsm": vcsm,
+                            f"{control}.x": "1",
+                            f"{control}.y": "1",
+                        },
+                        timeout=timeout_seconds,
+                    )
+                period_response.raise_for_status()
+                cursor_out: list[int | None] = []
+                meetings.extend(
+                    parse_meeting_list(
+                        decode_response(period_response), period_response.url, period, cursor_out
+                    )
+                )
+                inner_pages += 1
+                next_period_cursor = cursor_out[0] if cursor_out else None
+                if next_period_cursor is None or next_period_cursor == period_cursor:
+                    break
+                period_cursor = next_period_cursor
+                if delay_seconds > 0:
+                    time.sleep(delay_seconds)
             if max_meetings > 0 and len(meetings) >= max_meetings:
                 limit_reached = True
                 break
@@ -200,7 +245,13 @@ def discover_meetings(
             time.sleep(delay_seconds)
 
     if walk is not None:
-        walk.update({"pages_walked": pages_walked, "limit_reached": limit_reached})
+        walk.update(
+            {
+                "pages_walked": pages_walked,
+                "inner_pages_walked": inner_pages,
+                "limit_reached": limit_reached,
+            }
+        )
     unique: dict[str, MeetingItem] = {}
     for item in meetings:
         unique[item.url] = item
@@ -289,9 +340,14 @@ def main() -> int:
         walk=catalog_walk,
     )
     print(f"[INFO] 会議候補 {len(meeting_items)} 件")
+    # 一覧の置き換えが拒まれるなら、今回の走査を取り切れたとは言えない。
+    plan_shrank = gijiroku_storage.meetings_index_would_shrink(
+        index_json, [asdict(item) for item in meeting_items]
+    )
     gijiroku_storage.record_catalog_walk(
         work_dir,
         discovered=len(meeting_items),
+        plan_shrank=plan_shrank,
         limit_reached=bool(catalog_walk.get("limit_reached")) or args.max_meetings > 0,
         extra={"pages_walked": int(catalog_walk.get("pages_walked") or 0)},
     )
