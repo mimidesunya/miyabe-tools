@@ -96,6 +96,30 @@ if (($status['state'] ?? '') !== 'coverage_incomplete') {
 @unlink($coveragePath);
 @rmdir($tempWork);
 
+// 公開画面とキューが同じ系統一覧を見ていること。片方だけ増えると、
+// 公開は「取得範囲未判定」・キューは再投入、という食い違いが出る。
+$runtimeSource = (string)file_get_contents(__DIR__ . '/../lib/homepage/runtime.php');
+$prioritySource = (string)file_get_contents(__DIR__ . '/tasks/priority.py');
+preg_match('/\$recordsWalk = \[(.*?)\];/s', $runtimeSource, $phpMatch);
+preg_match('/RECORDS_WALK = \{(.*?)\}/s', $prioritySource, $pyMatch);
+$extract = static function (string $body): array {
+    preg_match_all("/'([^']+)'|\"([^\"]+)\"/u", $body, $m);
+    $out = array_filter(array_merge($m[1], $m[2]));
+    sort($out);
+    return array_values(array_unique($out));
+};
+$phpList = $extract($phpMatch[1] ?? '');
+$pyList = $extract($pyMatch[1] ?? '');
+if ($phpList !== $pyList) {
+    $failures[] = sprintf(
+        "系統一覧が公開画面とキューで違います
+  公開のみ: %s
+  キューのみ: %s",
+        implode(',', array_diff($phpList, $pyList)) ?: '(無し)',
+        implode(',', array_diff($pyList, $phpList)) ?: '(無し)'
+    );
+}
+
 $total = count($rules['minutes'] ?? []) + count($rules['reiki'] ?? []);
 if ($failures !== []) {
     fwrite(STDERR, "NG: Python と答えが違います\n\n" . implode("\n\n", $failures) . "\n");

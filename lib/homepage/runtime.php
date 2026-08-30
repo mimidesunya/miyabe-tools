@@ -500,8 +500,16 @@ function homepage_gijiroku_acquisition_status(
     // 走査の記録を書くのは dbsr だけではない。kaigiroku.net と gijiroku.com も
     // 歩いた年の数を記録するようになった。名前で弾くと、記録があるのに
     // 「取得範囲未判定」と出し続けることになる。
-    $recordsWalk = ['dbsr', 'db-search', 'kaigiroku-indexphp', 'kaigiroku.net', 'gijiroku.com', 'voices'];
+    // tools/tasks/priority.py の RECORDS_WALK と揃える。片方だけ増えると、
+    // 公開だけ未判定・キューだけ再投入、という食い違いが出る。
+    $recordsWalk = [
+        'dbsr', 'db-search', 'kaigiroku-indexphp',
+        'kaigiroku.net', 'gijiroku.com', 'voices',
+        'kensakusystem', '独自', 'static-kaigiroku-dir',
+        'kami-city-pdf', 'site-gikai-pdf', 'amivoice', 'msearch',
+    ];
     if (!in_array($systemType, $recordsWalk, true)) {
+        // 系統名に日本語（独自）が混じるので、小文字化前の値でも見る。
         if ($hasError) {
             return [
                 'state' => 'partial_error',

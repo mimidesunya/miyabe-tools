@@ -567,6 +567,9 @@ def main():
     opensearch_session: requests.Session | None = None
     hno_list: list[str] = []
     opensearch_entries: list[dict[str, str]] = []
+    # 目録の歩き具合。OpenSearch 型は目録を歩かないので空のまま。分岐の中で
+    # 作ると、OpenSearch 型が終了処理で未定義参照になって落ちる（179 自治体）。
+    catalog_walk: dict = {}
     if d1_parser.is_opensearch_mokuji_source_url(str(target["source_url"])):
         opensearch_session, opensearch_entries = collect_opensearch_entries(str(target["source_url"]))
         print(f"Found {len(opensearch_entries)} unique opensearch regulations.")
@@ -575,7 +578,6 @@ def main():
                 "No opensearch regulations were collected; refusing to mark the target as successfully scraped."
             )
     else:
-        catalog_walk: dict = {}
         hno_list = get_hno_list(
             base_url,
             source_dir,
