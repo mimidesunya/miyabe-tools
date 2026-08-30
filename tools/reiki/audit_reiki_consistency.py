@@ -42,8 +42,12 @@ sys.path.append(str(Path(__file__).resolve().parent))
 import reiki_targets  # noqa: E402
 
 
-def load_manifest_names(work_root: Path) -> set[str] | None:
-    """マニフェストが指しているファイル名を返す。読めなければ None。"""
+def read_manifest(work_root: Path) -> tuple[str, list[str]]:
+    """マニフェストの状態と、指しているファイル名を返す。
+
+    件数だけを比べると「1 件欠落＋別の 1 件重複」を見逃す。名前の集合で比べ、
+    マニフェスト自身の重複も数える。状態は 無し / 壊れ / 空 / あり のどれか。
+    """
     for name in ("source_manifest.json.gz", "source_manifest.json"):
         path = work_root / name
         if not path.exists():
@@ -52,29 +56,49 @@ def load_manifest_names(work_root: Path) -> set[str] | None:
             raw = gzip.open(path).read() if path.suffix == ".gz" else path.read_bytes()
             rows = json.loads(raw.decode("utf-8"))
         except Exception:
-            return None
+            return "壊れ", []
         if not isinstance(rows, list):
-            return None
-        return {
+            return "壊れ", []
+        names = [
             str(row.get("source_file") or "").strip()
             for row in rows
             if isinstance(row, dict) and str(row.get("source_file") or "").strip()
+        ]
+        return ("空" if not names else "あり"), names
+    return "無し", []
+
+
+def count_indexed(opensearch_url: str, alias: str, slug: str) -> tuple[int, list[str]] | None:
+    """索引の件数と、二重に載っている原典ファイル名を返す。
+
+    件数だけだと、同じ文書が二重に載っていても総数が合ってしまうことがある。
+    異なり数（`cardinality`）は近似で ±1 程度ずれるので、実際に 2 件以上ある
+    ファイル名を数える方法にしてある（`min_doc_count: 2`）。
+    """
+    payload = json.dumps(
+        {
+            "size": 0,
+            "query": {"term": {"slug": slug}},
+            "aggs": {
+                "dups": {
+                    "terms": {"field": "source_file", "min_doc_count": 2, "size": 5}
+                }
+            },
         }
-    return None
-
-
-def count_indexed(opensearch_url: str, alias: str, slug: str) -> int | None:
-    """OpenSearch に入っている件数。数えられなければ None。"""
-    payload = json.dumps({"query": {"term": {"slug": slug}}}).encode("utf-8")
+    ).encode("utf-8")
     request = urllib.request.Request(
-        f"{opensearch_url.rstrip('/')}/{alias}/_count",
+        f"{opensearch_url.rstrip('/')}/{alias}/_search",
         data=payload,
         headers={"Content-Type": "application/json"},
     )
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:
-            return int(json.loads(response.read().decode("utf-8")).get("count") or 0)
-    except (urllib.error.URLError, ValueError, OSError):
+        with urllib.request.urlopen(request, timeout=30) as response:
+            body = json.loads(response.read().decode("utf-8"))
+        total = int(body.get("hits", {}).get("total", {}).get("value") or 0)
+        buckets = body.get("aggregations", {}).get("dups", {}).get("buckets") or []
+        duplicated = [str(bucket.get("key") or "") for bucket in buckets]
+        return total, duplicated
+    except (urllib.error.URLError, ValueError, OSError, KeyError):
         return None
 
 
@@ -85,32 +109,47 @@ def audit_target(target: dict, *, opensearch_url: str, alias: str, skip_index: b
         files = {name for name in os.listdir(html_dir)}
     except OSError:
         files = set()
-    manifest = load_manifest_names(work_root)
-    indexed = None if skip_index else count_indexed(opensearch_url, alias, str(target["slug"]))
+    manifest_state, manifest_names = read_manifest(work_root)
+    manifest = set(manifest_names)
+    duplicated = len(manifest_names) - len(manifest)
+    counted = None if skip_index else count_indexed(opensearch_url, alias, str(target["slug"]))
+    indexed, indexed_dups = counted if counted else (None, None)
 
-    orphan = len(files - manifest) if manifest is not None else 0
-    missing = len(manifest - files) if manifest is not None else 0
+    usable = manifest_state == "あり"
+    orphan = len(files - manifest) if usable else 0
+    missing = len(manifest - files) if usable else 0
     problems = []
-    if manifest is None:
-        problems.append("マニフェスト無し")
+    if not usable:
+        problems.append(f"マニフェスト{manifest_state}")
     else:
         if orphan:
             problems.append(f"孤児{orphan}")
         if missing:
             problems.append(f"欠落{missing}")
-    if indexed is not None and indexed != len(files):
-        problems.append(f"索引ずれ{indexed - len(files):+d}")
+        if duplicated:
+            problems.append(f"マニフェスト重複{duplicated}")
+    if indexed is not None:
+        if indexed != len(files):
+            problems.append(f"索引ずれ{indexed - len(files):+d}")
+        if indexed_dups:
+            problems.append(f"索引重複{len(indexed_dups)}種")
 
     return {
         "slug": str(target["slug"]),
         "name": str(target["name"]),
         "system_type": str(target.get("system_type") or ""),
         "files": len(files),
-        "manifest": len(manifest) if manifest is not None else -1,
+        "manifest_state": manifest_state,
+        "manifest": len(manifest_names),
         "indexed": indexed if indexed is not None else -1,
+        "indexed_duplicates": indexed_dups or [],
         "orphan": orphan,
         "missing": missing,
+        "duplicated": duplicated,
         "problem": " ".join(problems),
+        # 影索引を作ってよいか。切り替えてよいかは、これに加えて母数が上限でも
+        # 未確認でもないこと（型 A）の確認が要る。
+        "ready_for_shadow": usable and not orphan and not missing and not duplicated,
     }
 
 
@@ -159,18 +198,22 @@ def main() -> int:
         print(json.dumps(shown, ensure_ascii=False, indent=1))
         return 0
 
-    print("slug\tname\tsystem\tファイル\tマニフェスト\t索引\t食い違い")
+    print("slug\tname\tsystem\tファイル\tマニフェスト\t状態\t索引\t食い違い")
     for row in shown:
         print(
             f"{row['slug']}\t{row['name']}\t{row['system_type']}\t{row['files']}\t"
-            f"{row['manifest']}\t{row['indexed']}\t{row['problem']}"
+            f"{row['manifest']}\t{row['manifest_state']}\t{row['indexed']}\t"
+            f"{row['problem']}"
         )
 
     with_problem = [row for row in rows if row["problem"]]
+    ready = [row for row in rows if row["ready_for_shadow"]]
     print(
         f"\n対象 {len(rows)} 自治体 / 食い違い {len(with_problem)}"
         f" / 孤児の合計 {sum(row['orphan'] for row in rows)}"
-        f" / 欠落の合計 {sum(row['missing'] for row in rows)}",
+        f" / 欠落の合計 {sum(row['missing'] for row in rows)}"
+        f" / マニフェスト重複 {sum(row['duplicated'] for row in rows)}"
+        f" / 影索引を作れる {len(ready)}",
         file=sys.stderr,
     )
     return 0
