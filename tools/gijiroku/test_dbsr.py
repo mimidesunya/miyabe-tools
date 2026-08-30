@@ -213,6 +213,8 @@ class MissingCabinetListPagesTest(unittest.TestCase):
         self.assertIn(f"TermStart={dbsr.WIDENED_PERIOD_START}", pages[0].url)
         self.assertEqual(pages[0].year_label, "全期間")
         self.assertIn("総務企画委員会", pages[0].title)
+        # 種別が分かっているのに空で渡すと、収録した会議が種別なしになる。
+        self.assertEqual(pages[0].meeting_group, "総務企画委員会")
 
     def test_no_pages_when_every_cabinet_is_present(self) -> None:
         options = [{"key": "Cabinet", "value": "1", "text": "本会議"}]

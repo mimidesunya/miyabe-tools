@@ -678,7 +678,9 @@ def missing_cabinet_list_pages(
                 title=f"全期間（{label}）",
                 year_label="全期間",
                 url=url,
-                meeting_group="",
+                # 会議種別が分かっているので必ず渡す。空にすると収録した会議が
+                # 種別なしになり、委員会を取れているかどうかを後から判定できない。
+                meeting_group=meeting_group_from_meeting_name(label),
                 auxiliary_docs=[],
             )
         )
