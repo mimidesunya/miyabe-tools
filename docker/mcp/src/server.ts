@@ -129,7 +129,10 @@ function buildSearchParams(docType: DocType, args: any): URLSearchParams {
   addOptional(params, "end_date", args.end_date);
   addOptional(params, "start_year", args.start_year);
   addOptional(params, "end_year", args.end_year);
-  addOptional(params, "sort", args.sort || "date");
+  // 会議録は新しい発言から見たいので日付順が既定。例規は制定が古い基本規則ほど
+  // 重要なことが多く、日付順だと本則が下へ沈む（「補助金等交付規則」で本則が15位、
+  // 関連度順なら1位）。例規は関連度順を既定にする。
+  addOptional(params, "sort", args.sort || (docType === "reiki" ? "relevance" : "date"));
   addOptional(params, "page", args.page || 1);
   addOptional(params, "per_page", args.per_page || 10);
   addOptional(params, "include_facets", args.include_facets);
@@ -247,7 +250,7 @@ const searchInputSchema = {
   end_date: z.string().optional().describe("検索対象期間の終了日。YYYY-MM-DD形式。"),
   start_year: z.number().int().min(1).max(9999).optional().describe("検索対象期間の開始年。"),
   end_year: z.number().int().min(1).max(9999).optional().describe("検索対象期間の終了年。"),
-  sort: z.enum(["date", "relevance"]).default("date").describe("date は新しい順、relevance は関連度順。"),
+  sort: z.enum(["date", "relevance"]).optional().describe("date は新しい順、relevance は関連度順。既定は会議録が date、例規集が relevance。"),
   page: z.number().int().min(1).default(1).describe("ページ番号。"),
   per_page: z.number().int().min(1).max(50).default(10).describe("1ページあたりの件数。MCPでは最大50件。"),
   include_facets: z.boolean().optional().describe("true の場合、文書種別・都道府県・自治体の集計も返します。"),

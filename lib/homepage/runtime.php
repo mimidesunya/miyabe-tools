@@ -520,7 +520,21 @@ function homepage_gijiroku_acquisition_status(
                 return $bodyMissing;
             }
         }
-        if ($acquiredCount > 0 && $indexedCount < $acquiredCount) {
+        // 取得した会議数と検索できる件数は、数えている対象が違う。1 つの会議が
+        // 目次と本文の複数ファイルになることもあり、休会や目次のように本文の無い
+        // 記録は索引に載らない。差をそのまま「反映待ち」と書くと、永久に埋まらない
+        // 差を待ちに見せてしまう（福岡県で 1859/1899 と表示していた）。
+        // 種別内訳が残っていれば、本文のある件数と突き合わせて判断する。
+        $indexableCount = 0;
+        $kinds = homepage_gijiroku_document_kinds($feature);
+        if (is_array($kinds)) {
+            $indexableCount = max(0, (int)($kinds['indexable'] ?? 0));
+        }
+        $indexPending = $indexableCount > 0
+            ? $indexedCount < $indexableCount
+            : ($acquiredCount > 0 && $indexedCount < $acquiredCount);
+        if ($indexPending) {
+            $expectedCount = $indexableCount > 0 ? $indexableCount : $acquiredCount;
             return [
                 'state' => 'index_pending',
                 'label' => '取得完了・検索反映待ち',
@@ -528,15 +542,19 @@ function homepage_gijiroku_acquisition_status(
                     '取得元の全一覧から%d件を取得済みです。現在は%d/%d件を検索でき、残りを検索へ反映中または反映待ちです。',
                     $acquiredCount,
                     $indexedCount,
-                    $acquiredCount
+                    $expectedCount
                 ),
                 'source_coverage' => $sourceCoverage,
             ];
         }
+        $note = homepage_gijiroku_availability_note($feature, $acquiredCount, $indexedCount);
         return [
             'state' => 'complete',
             'label' => '取得完了（検索可）',
-            'detail' => '取得元の全一覧を走査し、見つかった会議録を取得済みです。',
+            'detail' => trim(
+                '取得元の全一覧を走査し、見つかった会議録を取得済みです。'
+                . ($note !== '' ? ' ' . $note : '')
+            ),
             'source_coverage' => $sourceCoverage,
         ];
     }

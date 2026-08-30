@@ -41,5 +41,19 @@ class LegacyVoicesListTest(unittest.TestCase):
         self.assertTrue(text.endswith("本文\n"))
 
 
+
+
+class TrimGroupLabelTest(unittest.TestCase):
+    def test_drops_date_suffix(self) -> None:
+        # 会議種別と日付を続けて持つ取得元（八代市・伊東市など）。
+        # 日付から先を残すと会議ごとに別々の種別になってしまう。
+        self.assertEqual(
+            gijiroku_com.trim_group_label("１２月定例会－11月28日-01号", "11月28日-01号"),
+            "１２月定例会",
+        )
+
+    def test_keeps_plain_group_name(self) -> None:
+        self.assertEqual(gijiroku_com.trim_group_label("厚生経済", "厚生経済"), "厚生経済")
+
 if __name__ == "__main__":
     unittest.main()

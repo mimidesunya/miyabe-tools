@@ -334,6 +334,31 @@ def meeting_name_from_document_title(title: str) -> str:
     return normalized
 
 
+# 会議種別として使うために、会議名から年・回次・日別の番号を落とす。
+#   「令和８年第１回定例会（第７号）」→「定例会」
+#   「平成30年第2回総務委員会」      →「総務委員会」
+# これを落とさないと会議ごとに別々の種別になり、種別での絞り込みができない。
+MEETING_GROUP_TRIM_PATTERNS = (
+    re.compile(r"^(明治|大正|昭和|平成|令和)\s*[元\d０-９]+\s*年度?\s*"),
+    re.compile(r"^第\s*[\d０-９]+\s*回\s*"),
+    re.compile(r"[（(]\s*第?\s*[\d０-９]+\s*(?:号|回|日目|日)\s*[)）]\s*$"),
+    re.compile(r"[\[［][^\]］]*[\]］]\s*$"),
+    re.compile(r"\s*(?:目次|会期日程|提出議案一覧表|議事日程・名簿|議事日程|本文|名簿|署名)\s*$"),
+)
+
+
+def meeting_group_from_meeting_name(meeting_name: str) -> str:
+    """会議名から会議種別を取り出す。落としきれなければ元の会議名を返す。"""
+    label = normalize_space(meeting_name)
+    for _ in range(4):
+        before = label
+        for pattern in MEETING_GROUP_TRIM_PATTERNS:
+            label = normalize_space(pattern.sub("", label))
+        if label == before:
+            break
+    return label or normalize_space(meeting_name)
+
+
 def build_full_period_day_groups(list_url: str, rows: list[DocumentRow]) -> list[DayDocumentGroup]:
     """期間指定の文書一覧を、開催日と会議名の単位でまとめる。
 
@@ -359,7 +384,7 @@ def build_full_period_day_groups(list_url: str, rows: list[DocumentRow]) -> list
             DayDocumentGroup(
                 title=f"{infer_day_title_from_held_on(held_on)}－{suffix}",
                 year_label=era_year_label(held_on),
-                meeting_group=meeting_name or "会議",
+                meeting_group=meeting_group_from_meeting_name(meeting_name) or "会議",
                 list_url=list_url,
                 doc_urls=[row.url for row in chosen_rows],
                 held_on=held_on,
@@ -512,7 +537,51 @@ def list_links_cover_recent_years_only(items: dict[str, ListPage]) -> bool:
 WIDENED_PERIOD_START = "1970-01-01"
 
 
-def widened_period_list_pages(items: dict[str, ListPage]) -> list[ListPage]:
+# 検索フォームの会議種別（本会議・各委員会）の選択肢を読む JS。
+# 取得元によって CabinetName（名前）と Cabinet（番号）に分かれる。
+CABINET_OPTIONS_EVAL = r"""
+() => {
+  const out = [];
+  document.querySelectorAll('select').forEach(sel => {
+    const raw = sel.name || sel.id || '';
+    const key = raw.replace(/\[\]$/, '');
+    if (!/^Cabinet(Name)?$/i.test(key)) return;
+    Array.from(sel.options).forEach(o => {
+      const v = (o.value || '').trim();
+      if (v) out.push({key: key, value: v, text: (o.text || '').trim()});
+    });
+  });
+  return out;
+}
+"""
+
+
+def read_cabinet_options(page) -> list[dict]:
+    """会議種別の選択肢を返す。メニューに並ばない委員会もここから拾える。"""
+    try:
+        return page.evaluate(CABINET_OPTIONS_EVAL) or []
+    except Exception:
+        return []
+
+
+def record_offered_types(sink: list[str] | None, options: list[dict]) -> None:
+    """取得元が「こういう会議種別がある」と自分で示している一覧を控える。
+
+    収録できたかどうかとは別に、**取得元が何を持っていると言っているか**を
+    残しておくと、「委員会が無いのは公開していないからか、こちらの見落としか」
+    を後から機械で判定できる。
+    """
+    if sink is None:
+        return
+    for option in options:
+        text = normalize_space(str(option.get("text") or option.get("value") or ""))
+        if text and text not in sink:
+            sink.append(text)
+
+
+def widened_period_list_pages(
+    items: dict[str, ListPage], cabinet_options: list[dict] | None = None
+) -> list[ListPage]:
     """直近しか指していない一覧リンクを、全期間を指す形に組み替える。
 
     期間は URL の TermStart / TermEnd で決まるので、そこだけ広げれば同じ
@@ -537,6 +606,26 @@ def widened_period_list_pages(items: dict[str, ListPage]) -> list[ListPage]:
             (parts.scheme, parts.netloc, parts.path, urlencode(sorted(query.items())), "")
         )
         by_cabinet[cabinet] = canonicalize_template_url(widened)
+
+    # メニューに並ぶのは本会議だけ、という取得元がある（福岡県など）。
+    # 検索フォームには委員会も並んでいるので、同じ形の URL を種別ぶん作る。
+    if by_cabinet and cabinet_options:
+        template_url = next(iter(by_cabinet.values()))
+        parts = urlsplit(template_url)
+        base_query = dict(cleaned_query_pairs(template_url))
+        for option in cabinet_options:
+            key = str(option.get("key") or "").strip()
+            value = str(option.get("value") or "").strip()
+            if not key or not value or value in by_cabinet:
+                continue
+            query = dict(base_query)
+            query.pop("CabinetName", None)
+            query.pop("Cabinet", None)
+            query[key] = value
+            widened = urlunsplit(
+                (parts.scheme, parts.netloc, parts.path, urlencode(sorted(query.items())), "")
+            )
+            by_cabinet[value] = canonicalize_template_url(widened)
 
     return [
         ListPage(
@@ -706,7 +795,11 @@ def submit_all_conditions_search(
 
 
 def discover_via_menu_pages(
-    page, timeout_ms: int, deadline: float | None, items: dict[str, ListPage]
+    page,
+    timeout_ms: int,
+    deadline: float | None,
+    items: dict[str, ListPage],
+    offered_types: list[str] | None = None,
 ) -> str:
     """閲覧メニュー・会議名検索を順に開いて会議一覧を探す。"""
     entry_url = page.url
@@ -736,9 +829,15 @@ def discover_via_menu_pages(
         if added:
             if not list_links_cover_recent_years_only(items):
                 continue
-            widened = widened_period_list_pages(items)
+            cabinet_options = read_cabinet_options(page)
+            record_offered_types(offered_types, cabinet_options)
+            widened = widened_period_list_pages(items, cabinet_options)
             if widened:
-                print("[INFO] 直近分の一覧しか無いので、期間を全期間へ広げます", flush=True)
+                print(
+                    "[INFO] 直近分の一覧しか無いので、期間を全期間へ広げます"
+                    f"（会議種別 {len(widened)} 件）",
+                    flush=True,
+                )
                 items.clear()
                 items.update({page_item.url: page_item for page_item in widened})
                 return DISCOVERY_SOURCE_FULL_PERIOD
@@ -750,7 +849,11 @@ def discover_via_menu_pages(
 
 
 def discover_list_pages(
-    page, target: dict, timeout_ms: int, deadline: float | None = None
+    page,
+    target: dict,
+    timeout_ms: int,
+    deadline: float | None = None,
+    offered_types: list[str] | None = None,
 ) -> tuple[list[ListPage], str]:
     ensure_discovery_time(deadline, "開始ページ")
     page.goto(str(target["source_url"]), wait_until="domcontentloaded", timeout=timeout_ms)
@@ -766,6 +869,7 @@ def discover_list_pages(
         page.wait_for_load_state("networkidle", timeout=3_000)
     except Exception:
         pass
+    record_offered_types(offered_types, read_cabinet_options(page))
 
     items: dict[str, ListPage] = {}
     cells = page.locator("div.LibraryTable dl.cell")
@@ -890,7 +994,7 @@ def discover_list_pages(
 
     # 入口ページにも一覧が無く、閲覧メニューや会議名検索の先にしか
     # 一覧を置かない取得元がある（碧南市・福岡市など）。
-    menu_source = discover_via_menu_pages(page, timeout_ms, deadline, items)
+    menu_source = discover_via_menu_pages(page, timeout_ms, deadline, items, offered_types)
     if items:
         return list(items.values()), menu_source
     return [], DISCOVERY_SOURCE_LIBRARY
@@ -1341,7 +1445,10 @@ def discover_meeting_items(
 ) -> list[MeetingItem]:
     deadline = discovery_deadline(discovery_timeout_seconds)
     base_url = str(target["base_url"])
-    list_pages, discovery_source = discover_list_pages(page, target, timeout_ms, deadline)
+    offered_types: list[str] = []
+    list_pages, discovery_source = discover_list_pages(
+        page, target, timeout_ms, deadline, offered_types
+    )
     print(f"[INFO] 会議一覧ページ {len(list_pages)} 件", flush=True)
     if coverage_report is not None:
         coverage_report.clear()
@@ -1351,6 +1458,7 @@ def discover_meeting_items(
                 "failed_list_page_count": 0,
                 "limit_reached": False,
                 "discovery_source": discovery_source,
+                "offered_meeting_types": list(offered_types),
             }
         )
 
@@ -1737,6 +1845,7 @@ def main() -> int:
             "list_page_count": max(0, int(coverage_report.get("list_page_count") or 0)),
             "failed_list_page_count": failed_list_page_count,
             "discovery_source": discovery_source,
+            "offered_meeting_types": list(coverage_report.get("offered_meeting_types") or []),
             "limit": max(0, int(args.max_meetings)),
             "updated_at": now_ts(),
         }

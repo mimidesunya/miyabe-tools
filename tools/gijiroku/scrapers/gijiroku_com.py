@@ -128,6 +128,12 @@ def trim_group_label(label: str, title: str) -> str:
     trimmed = re.sub(r"^(昭和|平成|令和)\s*[元\d０-９]+年\s*", "", trimmed)
     title_pattern = re.escape(normalize_space(title))
     trimmed = re.sub(rf"[｜|－-]\s*{title_pattern}$", "", trimmed).strip()
+    # 表題が「１２月定例会－11月28日-01号」のように会議種別と日付を続けて持つ
+    # 取得元がある。日付から先を落とさないと会議ごとに別々の種別になり、
+    # 種別で絞り込めなくなる（八代市・伊東市など）。
+    trimmed = re.sub(
+        r"[｜|－-]\s*[\d０-９]{1,2}\s*月\s*[\d０-９]{1,2}\s*日.*$", "", trimmed
+    ).strip()
     return normalize_space(trimmed)
 
 
@@ -297,6 +303,32 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# 検索フォームは会議種別をチェックボックスで並べる。取得元によって中身が違い、
+# 大田区は「本会議／常任委員会／特別委員会／議会運営委員会」、佐賀市は
+# 「定例会／臨時会」だけ。ここを読めば、委員会が無いのは取得元が公開して
+# いないからか、こちらの見落としかを後から判定できる。
+KGTP_LABEL_RE = re.compile(r'for="kgtp\d+"\s*>\s*([^<]+)', re.I)
+
+
+def read_offered_meeting_types(request_context, base_url: str, timeout_ms: int) -> list[str]:
+    """検索フォームが並べている会議種別のラベルを返す。読めなければ空。"""
+    labels: list[str] = []
+    for search_path in ("g08v_search.asp", "g07v_search.asp"):
+        try:
+            raw_html, _ = fetch_response_text(
+                request_context, urljoin(base_url, search_path), timeout_ms
+            )
+        except Exception:
+            continue
+        for match in KGTP_LABEL_RE.findall(raw_html or ""):
+            label = normalize_space(html.unescape(match))
+            if label and label not in labels:
+                labels.append(label)
+        if labels:
+            break
+    return labels
+
+
 def parse_legacy_voices_list_page(raw_html: str, page_url: str) -> tuple[list[MeetingItem], list[str]]:
     soup = BeautifulSoup(raw_html, "html.parser")
     meetings: list[MeetingItem] = []
@@ -347,7 +379,11 @@ def discover_legacy_voices_meeting_items(
     max_meetings: int,
     delay_seconds: float,
 ) -> list[MeetingItem]:
-    first_url = urljoin(base_url, "CGI/voiweb.exe?ACT=100&KTYP=2,3,0&KGTP=1,2&SORT=0")
+    # KGTP は会議種別の指定。取得元によって割り当てが違い、大田区では
+    # 1=本会議 / 2=その他 / 3=委員会 だった。1,2 だけを指定していたため
+    # 委員会が丸ごと落ちていた（48件 → 全種別なら152件）。
+    # 存在しない番号は無視されるので、全種別を並べて指定する。
+    first_url = urljoin(base_url, "CGI/voiweb.exe?ACT=100&KTYP=2,3,0&KGTP=1,2,3,4&SORT=0")
     pending_urls = [first_url]
     visited_pages: set[str] = set()
     pending_pages: set[str] = {"1"}
@@ -634,6 +670,20 @@ def main() -> int:
             args.delay_seconds,
         )
         print(f"[INFO] 会議候補 {len(meeting_items)} 件")
+
+        offered_types = read_offered_meeting_types(
+            page.context.request, str(target["base_url"]), args.timeout_ms
+        )
+        if offered_types:
+            print(f"[INFO] 取得元が示す会議種別: {'/'.join(offered_types)}", flush=True)
+        previous_coverage = state.get("source_coverage")
+        state["source_coverage"] = {
+            **(previous_coverage if isinstance(previous_coverage, dict) else {}),
+            "mode": "source_discovery_coverage",
+            "offered_meeting_types": list(offered_types),
+            "updated_at": now_ts(),
+        }
+        gijiroku_storage.save_state(state_path, state)
 
         index_json.parent.mkdir(parents=True, exist_ok=True)
         index_json.write_text(

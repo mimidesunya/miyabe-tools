@@ -51,11 +51,15 @@ class MinutesRobotsPolicyTest(unittest.TestCase):
 
         self.assertIn("https://example.dbsr.jp/index.php/100000?Template=search-library", required)
 
-    def test_explicit_disallow_is_recorded(self) -> None:
+    def test_explicit_disallow_no_longer_excludes(self) -> None:
+        # robots.txt を根拠に取得を止めない方針（ENFORCE_ROBOTS=False）にしたので、
+        # Disallow が書かれていても除外にはしない。過去の robots 由来の除外も解除する。
         row = {
             "jis_code": "00000",
             "url": "https://ssp.kaigiroku.net/tenant/example/pg/index.html",
             "system_type": "kaigiroku.net",
+            "crawl_status": "excluded",
+            "exclusion_reason": "robots_disallowed",
         }
         robots = audit_minutes_robots.RobotsResult(
             url="https://ssp.kaigiroku.net/robots.txt",
@@ -65,9 +69,9 @@ class MinutesRobotsPolicyTest(unittest.TestCase):
 
         classified = audit_minutes_robots.classify_row(row, robots, checked_at="2026-08-02")
 
-        self.assertEqual(classified["crawl_status"], "excluded")
-        self.assertEqual(classified["exclusion_reason"], "robots_disallowed")
-        self.assertIn("/dnp/search/", classified["exclusion_detail"])
+        self.assertEqual(classified["crawl_status"], "enabled")
+        self.assertEqual(classified["exclusion_reason"], "")
+        self.assertEqual(classified["exclusion_detail"], "")
         self.assertEqual(classified["policy_fingerprint"], crawl_policy.policy_fingerprint(row))
 
     def test_enabled_registry_change_remains_operator_enabled(self) -> None:

@@ -285,7 +285,23 @@ def fetch_schedule_items_for_council(page, api_root: str, source_url: str, timeo
     return items
 
 
-def discover_meeting_items(page, target: dict, timeout_ms: int, max_years: int) -> tuple[int, list[MeetingItem]]:
+def offered_type_labels(council_type: dict) -> list[str]:
+    """会議区分ツリーの上位ラベル（本会議・委員会・常任委員会…）を返す。"""
+    labels = []
+    for key in ("council_type_name2", "council_type_name3", "council_type_name4"):
+        name = normalize_space(str(council_type.get(key, "") or ""))
+        if name and name not in {"全会議", "資料"}:
+            labels.append(name)
+    return labels
+
+
+def discover_meeting_items(
+    page,
+    target: dict,
+    timeout_ms: int,
+    max_years: int,
+    offered_types: list[str] | None = None,
+) -> tuple[int, list[MeetingItem]]:
     source_url = str(target["source_url"])
     tenant_id = load_tenant_id(page, source_url, timeout_ms)
     api_root = source_api_root(source_url)
@@ -350,7 +366,14 @@ def discover_meeting_items(page, target: dict, timeout_ms: int, max_years: int) 
                         continue
                     council_type_path = str(council_type.get("council_type_path", "")).strip()
                     if not council_type_path.startswith("/0/1/"):
+                        # /0/2/ 以下は「資料」なので会議録ではない。
                         continue
+                    # 取得元が「こういう会議区分がある」と示している内容を控える。
+                    # 委員会が無いのが公開していないからか、こちらの見落としかの判定に使う。
+                    if offered_types is not None:
+                        for label in offered_type_labels(council_type):
+                            if label not in offered_types:
+                                offered_types.append(label)
                     meeting_group = deepest_council_group(council_type)
                     councils = council_type.get("councils", [])
                     if not isinstance(councils, list):
@@ -620,9 +643,22 @@ def main() -> int:
         page.set_default_timeout(args.timeout_ms)
 
         print("[INFO] 会議一覧を収集中...")
-        tenant_id, meeting_items = discover_meeting_items(page, target, args.timeout_ms, args.max_years)
+        offered_types: list[str] = []
+        tenant_id, meeting_items = discover_meeting_items(
+            page, target, args.timeout_ms, args.max_years, offered_types
+        )
         print(f"[INFO] tenant_id={tenant_id}")
         print(f"[INFO] 会議候補 {len(meeting_items)} 件")
+        if offered_types:
+            print(f"[INFO] 取得元が示す会議区分: {'/'.join(offered_types)}", flush=True)
+        source_coverage = state.get("source_coverage")
+        state["source_coverage"] = {
+            **(source_coverage if isinstance(source_coverage, dict) else {}),
+            "mode": "source_discovery_coverage",
+            "offered_meeting_types": list(offered_types),
+            "updated_at": now_ts(),
+        }
+        gijiroku_storage.save_state(state_path, state)
 
         if args.max_meetings > 0:
             meeting_items = meeting_items[: args.max_meetings]

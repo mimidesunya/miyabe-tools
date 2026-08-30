@@ -45,6 +45,23 @@ class MeetingNameFromDocumentTitleTest(unittest.TestCase):
         self.assertEqual(dbsr.meeting_name_from_document_title("令和８年第１回臨時会議 本文"), "令和８年第１回臨時会議")
 
 
+class MeetingGroupFromMeetingNameTest(unittest.TestCase):
+    def test_strips_year_session_and_day_number(self) -> None:
+        self.assertEqual(dbsr.meeting_group_from_meeting_name("令和８年第１回定例会（第７号）"), "定例会")
+        self.assertEqual(dbsr.meeting_group_from_meeting_name("令和８年第１回定例会［ 署名 ］"), "定例会")
+        self.assertEqual(dbsr.meeting_group_from_meeting_name("平成17年第１回臨時会 目次"), "臨時会")
+        self.assertEqual(dbsr.meeting_group_from_meeting_name("平成30年第2回総務委員会"), "総務委員会")
+
+    def test_keeps_name_without_year_or_number(self) -> None:
+        self.assertEqual(
+            dbsr.meeting_group_from_meeting_name("総務企画地域振興委員会"),
+            "総務企画地域振興委員会",
+        )
+
+    def test_keeps_original_when_everything_would_be_stripped(self) -> None:
+        self.assertEqual(dbsr.meeting_group_from_meeting_name("本文"), "本文")
+
+
 class BuildFullPeriodDayGroupsTest(unittest.TestCase):
     def test_same_day_different_meetings_are_not_merged(self) -> None:
         rows = [
@@ -54,9 +71,11 @@ class BuildFullPeriodDayGroupsTest(unittest.TestCase):
         ]
         groups = dbsr.build_full_period_day_groups("list", rows)
         self.assertEqual(len(groups), 2)
-        self.assertEqual(groups[0].meeting_group, "平成９年第４回定例会（第５日目）")
+        # 会議のまとめ方は表題ごとだが、meeting_group には種別だけを残す。
+        # 年や回次を残すと会議ごとに別々の種別になり、種別で絞り込めなくなる。
+        self.assertEqual(groups[0].meeting_group, "定例会")
         self.assertEqual(groups[0].doc_urls, ["u1"])  # 本文がある日は本文だけを採る
-        self.assertEqual(groups[1].meeting_group, "平成９年福祉委員会")
+        self.assertEqual(groups[1].meeting_group, "福祉委員会")
         self.assertEqual(groups[1].doc_urls, ["u3"])
         for group in groups:
             self.assertEqual(group.year_label, "平成9年")

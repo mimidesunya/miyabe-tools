@@ -23,3 +23,4 @@
 - [local-government-homepages.md](local-government-homepages.md) — 自治体公式ホームページ URL 一覧 `municipality_homepages.csv` の作成方法
 - [assembly-minutes-url-survey.md](assembly-minutes-url-survey.md) — 地方議会会議録システム URL 一覧 `assembly_minutes_system_urls.tsv` の調査手順
 - [reiki-url-survey.md](reiki-url-survey.md) — 自治体例規集システム URL 一覧 `reiki_system_urls.tsv` の調査手順
+- [collection-gap-survey.md](collection-gap-survey.md) — 会議録・例規集の収集取りこぼしの全国調査と対応計画（未完了の作業あり）
