@@ -75,6 +75,28 @@ class StalledWorkersTest(unittest.TestCase):
             worker["output_size"] = batch.worker_output_size(worker)
             self.assertEqual(batch.stalled_workers([worker], 0), [])
 
+class RetryFailedCoversAutoRetryTest(unittest.TestCase):
+    def test_failed_retry_is_picked_up_by_retry_failed(self) -> None:
+        # 失敗から時間が経って自動再試行の対象になったものも、手動で拾えないと
+        # 復旧経路が使えなくなる。
+        spec = SimpleNamespace(
+            priority=FakePriority(
+                {
+                    "auto": {"priority_score": 0, "priority_label": "failed_retry"},
+                    "recent": {"priority_score": 0, "priority_label": "recent_complete"},
+                }
+            )
+        )
+        targets = [{"slug": "auto"}, {"slug": "recent"}]
+        selected = batch.select_runnable_targets(spec, targets, retry_failed=True)
+        self.assertEqual(["auto"], [t["slug"] for t in selected])
+
+    def test_failed_retry_is_not_picked_up_without_the_flag(self) -> None:
+        spec = SimpleNamespace(
+            priority=FakePriority({"auto": {"priority_score": 0, "priority_label": "failed_retry"}})
+        )
+        self.assertEqual(batch.select_runnable_targets(spec, [{"slug": "auto"}]), [])
+
 
 if __name__ == "__main__":
     unittest.main()

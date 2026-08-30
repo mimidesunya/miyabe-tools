@@ -787,7 +787,10 @@ def select_runnable_targets(
             priority = {"priority_score": 2_000_000_000, "priority_label": "unknown_total"}
         label = str(priority.get("priority_label") or "unknown")
         label_counts[label] = label_counts.get(label, 0) + 1
-        retry_previous_failure = retry_failed and label == "previous_failed"
+        # --retry-failed は「前回失敗した対象を今回だけ拾う」ためのもの。
+        # 失敗から時間が経って自動再試行の対象になったもの（failed_retry）も
+        # 拾えないと、手動の復旧経路が使えない。
+        retry_previous_failure = retry_failed and label in {"previous_failed", "failed_retry"}
         if int(priority.get("priority_score") or 0) <= 0 and not retry_previous_failure:
             skipped_zero_score += 1
             continue

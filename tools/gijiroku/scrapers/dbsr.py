@@ -2040,7 +2040,13 @@ def main() -> int:
             "list_page_count": max(0, int(coverage_report.get("list_page_count") or 0)),
             "failed_list_page_count": failed_list_page_count,
             "discovery_source": discovery_source,
-            "offered_meeting_types": list(coverage_report.get("offered_meeting_types") or []),
+            # 読み取れなかったときに空で上書きしない。空を残すと監査が
+            # 「登録先にも委員会が無い」と読んでしまう（愛知県で実際に起きた）。
+            **(
+                {"offered_meeting_types": list(coverage_report["offered_meeting_types"])}
+                if coverage_report.get("offered_meeting_types")
+                else {}
+            ),
             "limit": max(0, int(args.max_meetings)),
             "updated_at": now_ts(),
         }

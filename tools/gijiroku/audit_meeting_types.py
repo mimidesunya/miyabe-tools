@@ -72,7 +72,10 @@ def load_offered_types(target: dict) -> list[str] | None:
     offered = coverage.get("offered_meeting_types") if isinstance(coverage, dict) else None
     if not isinstance(offered, list):
         return None
-    return [str(value).strip() for value in offered if str(value).strip()]
+    names = [str(value).strip() for value in offered if str(value).strip()]
+    # 空リストは「取得元に会議種別が無い」ではなく「読み取れなかった」ことの方が多い。
+    # 古い記録には空のまま残っているものがあるので、未確認として扱う。
+    return names or None
 
 
 def load_meetings(index_path: Path) -> list[dict]:

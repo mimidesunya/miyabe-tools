@@ -655,7 +655,8 @@ def main() -> int:
         state["source_coverage"] = {
             **(source_coverage if isinstance(source_coverage, dict) else {}),
             "mode": "source_discovery_coverage",
-            "offered_meeting_types": list(offered_types),
+            # 読み取れなかったときは空で上書きしない（監査が「委員会が無い」と読む）。
+            **({"offered_meeting_types": list(offered_types)} if offered_types else {}),
             "updated_at": now_ts(),
         }
         gijiroku_storage.save_state(state_path, state)
