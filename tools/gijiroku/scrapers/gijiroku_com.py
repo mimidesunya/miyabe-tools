@@ -895,7 +895,13 @@ def main() -> int:
                 )
                 # 失敗の種類は共有の定義で決める。error だけ数えると
                 # timeout や not_found が「取れた」に混ざる。
-                if status in gijiroku_storage.SCRAPE_FAILED_STATUSES:
+                # saved_html は詳細ページを置いただけで本文が取れていない。
+                # このスクレイパ自身が再試行対象にしている状態なので、
+                # 進捗としては取れたことにしない。
+                if (
+                    status in gijiroku_storage.SCRAPE_FAILED_STATUSES
+                    or status == "saved_html"
+                ):
                     failed_count += 1
                 handle.flush()
                 emit_progress(
