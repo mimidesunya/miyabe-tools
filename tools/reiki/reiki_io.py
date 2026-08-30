@@ -65,6 +65,40 @@ def archive_existing_file(path: Path, *, reason: str = "replace") -> Path | None
         return None
 
 
+# 取得元が申告する母数。scrape_state.json は実行のたびに消されるので分けて置く。
+SOURCE_COVERAGE_FILE = "source_coverage.json"
+
+
+def source_coverage_path(work_root: Path) -> Path:
+    return Path(work_root) / SOURCE_COVERAGE_FILE
+
+
+def load_source_coverage(work_root: Path) -> dict | None:
+    """取得元が申告した母数の記録を読む。無ければ None。"""
+    try:
+        payload = json.loads(source_coverage_path(work_root).read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def save_source_coverage(work_root: Path, payload: dict) -> Path:
+    """母数の記録を保存する。
+
+    完了判定に使うので、**フラットな総数ひとつでは足りない**。検索型は
+    分割の葉ごとに「上限に張り付いたか」を持ち、目録型は「最後まで歩けたか」を
+    持つ。取得元がそもそも母数を申告しない場合は、未確認ではなく
+    `declares=False` として記録する（読めなかったのとは意味が違う）。
+    """
+    path = source_coverage_path(work_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    temporary = path.with_suffix(".json.tmp")
+    temporary.write_text(body, encoding="utf-8")
+    os.replace(temporary, path)
+    return path
+
+
 def read_bytes(path: Path) -> bytes:
     raw = path.read_bytes()
     if path.suffix.lower() == ".gz":

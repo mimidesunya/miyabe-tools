@@ -367,6 +367,9 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
         emit_total = 0
         stopped = False
         stale_searches = 0
+        # 分割の葉ごとに、取得元が言った件数と上限に張り付いたかを控える。
+        # 総数ひとつでは完了判定にならない（上限に当たると総数自体が上限値になる）。
+        coverage_leaves: list[dict] = []
 
         def harvest_pages(label: str) -> int:
             """いま表示中の検索結果をページ送りしながら取り込む。取り込んだ件数を返す。
@@ -534,6 +537,14 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             # 上限に張り付いた中間ノードは、どうせ二分するので本文取得は省く。
             # ただし期間指定なしの初回だけは、制定年月日が無い例規を拾う保険として取り込む。
             if not capped or span is None or span[0] >= span[1]:
+                coverage_leaves.append(
+                    {
+                        "kind": kind["text"],
+                        "span": span_label(span),
+                        "total": total,
+                        "capped": bool(capped),
+                    }
+                )
                 got = harvest_pages(f"{kind['text']} {span_label(span)}")
                 print(
                     f"[INFO] {kind['text']} {span_label(span)}: 総数{total}件 → 新規{got}件"
@@ -587,6 +598,30 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                 )
 
         browser.close()
+
+    capped_leaves = [leaf for leaf in coverage_leaves if leaf["capped"]]
+    reiki_io.save_source_coverage(
+        work_root,
+        {
+            "version": 1,
+            "kind": "search",
+            "declares": True,
+            "observed_at": time.strftime("%Y%m%d_%H%M%S"),
+            "cap_value": cap or None,
+            "leaves": coverage_leaves,
+            "capped_leaves": len(capped_leaves),
+            # 上限に張り付いたまま割り切れなかった葉が 1 つでもあれば、
+            # そこは取り切れていない。件数が揃っていても完了ではない。
+            "complete": not capped_leaves,
+            "collected": emit_total,
+            "failed": failed,
+        },
+    )
+    if capped_leaves:
+        print(
+            f"[WARN] 上限に張り付いたまま取り切れなかった区間が {len(capped_leaves)} 件あります",
+            flush=True,
+        )
 
     if not manifest:
         raise RuntimeError("No ordinances collected; refusing to mark target as scraped.")

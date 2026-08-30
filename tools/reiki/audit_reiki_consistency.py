@@ -39,7 +39,27 @@ import urllib.request
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent))
+import reiki_io  # noqa: E402
 import reiki_targets  # noqa: E402
+
+
+def coverage_state(work_root: Path) -> str:
+    """取得元が申告した母数から見た収録状態を返す。
+
+    - `申告なし` … 取得元に母数の概念が無い（目録型）。別の根拠が要る
+    - `未確認`   … まだ記録していない、または読めなかった
+    - `完了`     … 申告された分をすべて取れている
+    - `未達`     … 上限に張り付いた区間が残っている
+    """
+    payload = reiki_io.load_source_coverage(work_root)
+    if payload is None:
+        return "未確認"
+    if not payload.get("declares", True):
+        return "申告なし"
+    if payload.get("complete"):
+        return "完了"
+    capped = int(payload.get("capped_leaves") or 0)
+    return f"未達({capped})" if capped else "未達"
 
 
 def read_manifest(work_root: Path) -> tuple[str, list[str]]:
@@ -115,6 +135,7 @@ def audit_target(target: dict, *, opensearch_url: str, alias: str, skip_index: b
     counted = None if skip_index else count_indexed(opensearch_url, alias, str(target["slug"]))
     indexed, indexed_dups = counted if counted else (None, None)
 
+    coverage = coverage_state(work_root)
     usable = manifest_state == "あり"
     orphan = len(files - manifest) if usable else 0
     missing = len(manifest - files) if usable else 0
@@ -133,6 +154,8 @@ def audit_target(target: dict, *, opensearch_url: str, alias: str, skip_index: b
             problems.append(f"索引ずれ{indexed - len(files):+d}")
         if indexed_dups:
             problems.append(f"索引重複{len(indexed_dups)}種")
+    if coverage.startswith("未達"):
+        problems.append(f"母数{coverage}")
 
     return {
         "slug": str(target["slug"]),
@@ -140,6 +163,7 @@ def audit_target(target: dict, *, opensearch_url: str, alias: str, skip_index: b
         "system_type": str(target.get("system_type") or ""),
         "files": len(files),
         "manifest_state": manifest_state,
+        "coverage": coverage,
         "manifest": len(manifest_names),
         "indexed": indexed if indexed is not None else -1,
         "indexed_duplicates": indexed_dups or [],
@@ -147,9 +171,16 @@ def audit_target(target: dict, *, opensearch_url: str, alias: str, skip_index: b
         "missing": missing,
         "duplicated": duplicated,
         "problem": " ".join(problems),
-        # 影索引を作ってよいか。切り替えてよいかは、これに加えて母数が上限でも
-        # 未確認でもないこと（型 A）の確認が要る。
+        # 影索引を作ってよいか。ファイルとマニフェストが一致していること。
         "ready_for_shadow": usable and not orphan and not missing and not duplicated,
+        # 切り替えてよいか。上に加えて、取得元の申告に届いていること。
+        "ready_for_cutover": (
+            usable
+            and not orphan
+            and not missing
+            and not duplicated
+            and coverage == "完了"
+        ),
     }
 
 
@@ -198,22 +229,24 @@ def main() -> int:
         print(json.dumps(shown, ensure_ascii=False, indent=1))
         return 0
 
-    print("slug\tname\tsystem\tファイル\tマニフェスト\t状態\t索引\t食い違い")
+    print("slug\tname\tsystem\tファイル\tマニフェスト\t状態\t母数\t索引\t食い違い")
     for row in shown:
         print(
             f"{row['slug']}\t{row['name']}\t{row['system_type']}\t{row['files']}\t"
-            f"{row['manifest']}\t{row['manifest_state']}\t{row['indexed']}\t"
-            f"{row['problem']}"
+            f"{row['manifest']}\t{row['manifest_state']}\t{row['coverage']}\t"
+            f"{row['indexed']}\t{row['problem']}"
         )
 
     with_problem = [row for row in rows if row["problem"]]
     ready = [row for row in rows if row["ready_for_shadow"]]
+    cutover = [row for row in rows if row["ready_for_cutover"]]
     print(
         f"\n対象 {len(rows)} 自治体 / 食い違い {len(with_problem)}"
         f" / 孤児の合計 {sum(row['orphan'] for row in rows)}"
         f" / 欠落の合計 {sum(row['missing'] for row in rows)}"
         f" / マニフェスト重複 {sum(row['duplicated'] for row in rows)}"
-        f" / 影索引を作れる {len(ready)}",
+        f" / 影索引を作れる {len(ready)}"
+        f" / 切り替えてよい {len(cutover)}",
         file=sys.stderr,
     )
     return 0
