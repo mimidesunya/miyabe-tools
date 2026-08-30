@@ -534,6 +534,9 @@ def main():
     image_public_url = target["image_public_url"]
     work_root = Path(target["work_root"])
     manifest_path = work_root / "source_manifest.json.gz"
+    # 走っている最中の一覧は正本と分ける。1 件ごとに正本を上書きすると、
+    # 走り始めた瞬間に縮み、途中で死ねばそのまま残る。
+    partial_manifest_path = work_root / "source_manifest.partial.json.gz"
     state_path = work_root / "scrape_state.json"
     classification_dir = target["classification_dir"]
 
@@ -705,13 +708,23 @@ def main():
             manifest_entries[-1]["mokujicd"] = str(source_item.get("mokujicd", ""))
 
         if ((index + 1) % 25) == 0 or (index + 1) == total_regulations:
-            # 途中停止しても後追い補完が source_url 等を復元できるよう、manifest を定期保存する。
-            reiki_io.write_json(manifest_path, manifest_entries, compress=True)
+            # 途中停止しても後追い補完が source_url 等を復元できるよう、定期保存する。
+            # 正本ではなく途中経過へ書く（正本を縮めないため）。
+            reiki_io.write_json(partial_manifest_path, manifest_entries, compress=True)
         if should_work:
             processed_work_count += 1
             emit_progress(progress_base + processed_work_count, total_regulations, state_path)
 
-    reiki_io.write_json(manifest_path, manifest_entries, compress=True)
+    # 正本を書けたら途中経過は要らない。
+    try:
+        existing_partial = reiki_io.existing_path(partial_manifest_path)
+        if existing_partial is not None:
+            existing_partial.unlink()
+    except Exception:
+        pass
+    reiki_io.write_manifest_guarded(
+        manifest_path, manifest_entries, label=f"{target['name']}の例規一覧"
+    )
     print(f"Finished. Downloaded {downloaded_count} files.")
     print(f"Checked existing: {checked_count}")
     print(f"Conditional requests: {conditional_count}")

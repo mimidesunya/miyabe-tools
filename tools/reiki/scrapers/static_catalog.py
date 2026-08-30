@@ -176,6 +176,9 @@ def run(
     markdown_dir = Path(target["markdown_dir"])
     work_root = Path(target["work_root"])
     manifest_path = work_root / "source_manifest.json.gz"
+    # 走っている最中の一覧は正本と分ける。1 件ごとに正本を上書きすると、
+    # 走り始めた瞬間に縮み、途中で死ねばそのまま残る。
+    partial_manifest_path = work_root / "source_manifest.partial.json.gz"
     state_path = work_root / "scrape_state.json"
     source_url = str(target["source_url"])
 
@@ -275,12 +278,21 @@ def run(
         )
 
         if ((index + 1) % 25) == 0 or (index + 1) == total:
-            reiki_io.write_json(manifest_path, manifest, compress=True)
+            reiki_io.write_json(partial_manifest_path, manifest, compress=True)
             # 試行数ではなく取れた数を出す。途中で殺されたときに、
             # 落とした分まで取れたことにしない。
             emit_progress(index + 1 - failed, total, state_path)
 
-    reiki_io.write_json(manifest_path, manifest, compress=True)
+    # 正本を書けたら途中経過は要らない。
+    try:
+        existing_partial = reiki_io.existing_path(partial_manifest_path)
+        if existing_partial is not None:
+            existing_partial.unlink()
+    except Exception:
+        pass
+    manifest_result = reiki_io.write_manifest_guarded(
+        manifest_path, manifest, label=f"{target['name']}の例規一覧"
+    )
     # 失敗した分は取れていない。ここで total/total にすると、10 件中 1 件
     # 落としても 9/9 に見え、キューは完了と読んでしまう。
     emit_progress(max(0, total - failed), total, state_path)
@@ -296,7 +308,15 @@ def run(
             "limited": bool(limit > 0),
             "collected": max(0, total - failed),
             "failed": failed,
-            "complete": failed == 0 and limit <= 0 and total == declared_total,
+            "complete": (
+                failed == 0
+                and limit <= 0
+                and total == declared_total
+                # 前回より減ったなら取り切れたとは言えない。
+                and manifest_result["written"]
+            ),
+            "manifest_shrunk": not manifest_result["written"],
+            "manifest_previous": manifest_result["previous"],
         },
     )
     print(

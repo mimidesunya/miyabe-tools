@@ -399,6 +399,8 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
     markdown_dir = Path(target["markdown_dir"])
     work_root = Path(target["work_root"])
     manifest_path = work_root / "source_manifest.json.gz"
+    # 走っている最中の一覧。正本とは分ける。
+    partial_manifest_path = work_root / "source_manifest.partial.json.gz"
     state_path = work_root / "scrape_state.json"
     source_url = str(target["source_url"])
     for d in (source_dir, html_dir, markdown_dir):
@@ -541,7 +543,10 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                     downloaded += 1
                     emit_total += 1
                     static_catalog.emit_progress(emit_total, max(emit_total, len(rows) * page_no), state_path)
-                    reiki_io.write_json(manifest_path, manifest, compress=True)
+                    # 途中経過は別ファイルへ。正本をここで上書きすると、
+                    # 走り始めた瞬間に 1 行まで縮み、途中で死ねばそのまま残る。
+                    # 縮小ガードは最後の 1 回にしか掛からない。
+                    reiki_io.write_json(partial_manifest_path, manifest, compress=True)
                     time.sleep(0.1)
                     if limit > 0 and emit_total >= limit:
                         break
@@ -767,6 +772,13 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
 
     # 母数の記録は manifest が確定してから書く。先に書くと、
     # このあと例外で落ちたときに「新しい complete と古い manifest」が残る。
+    # 正本を書けたら途中経過は要らない。
+    try:
+        existing_partial = reiki_io.existing_path(partial_manifest_path)
+        if existing_partial is not None:
+            existing_partial.unlink()
+    except Exception:
+        pass
     manifest_result = reiki_io.write_manifest_guarded(
         manifest_path, manifest, label=f"{target['name']}の例規一覧"
     )
