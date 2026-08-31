@@ -10,19 +10,27 @@ import gzip
 import hashlib
 import json
 import os
-import time
 import shutil
+import tempfile
+import time
 from datetime import datetime
 from dataclasses import asdict, is_dataclass
+from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 TEXT_ENCODINGS = ("utf-8", "cp932", "shift_jis", "euc_jp")
 ARCHIVE_MARKER = "_archive"
 SCRAPE_VALIDATION_MODE = "classified_scrape_result"
-SCRAPE_EXCLUDED_STATUSES = frozenset({"empty_text", "empty_pdf_text"})
+SCRAPE_EXCLUDED_STATUSES = frozenset(
+    {"empty_text", "empty_pdf_text", "skipped_not_minutes"}
+)
 SCRAPE_FAILED_STATUSES = frozenset({"error", "timeout", "not_found"})
+# 検索投入が読めない形式を完了扱いすると、ディスクには有るのに索引へは
+# 永久に載らない。Word の download は捨て、scraper の HTML fallback を使う。
+MINUTES_NAMED_OUTPUT_SUFFIXES = frozenset({".txt", ".html", ".htm"})
+MINUTES_TEXT_SUFFIXES = frozenset({".txt", ".html", ".htm"})
 
 
 def gzip_path(path: Path) -> Path:
@@ -33,32 +41,11 @@ def logical_path(path: Path) -> Path:
     return path.with_suffix("") if path.suffix.lower() == ".gz" else path
 
 
-def existing_output(path: Path) -> Path | None:
-    candidates = [gzip_path(path)]
-    if gzip_path(path) != path:
-        candidates.append(path)
-    for candidate in candidates:
-        try:
-            if candidate.exists():
-                return candidate
-        except OSError:
-            continue
-    return None
-
-
-def existing_named_outputs(directory: Path, stem: str) -> list[Path]:
-    try:
-        if not directory.exists():
-            return []
-    except OSError:
-        return []
-    try:
-        return sorted(
-            [path for path in directory.glob(stem + ".*") if path.is_file()],
-            key=lambda path: path.name,
-        )
-    except OSError:
-        return []
+def logical_suffix(path: Path) -> str:
+    suffixes = [suffix.lower() for suffix in path.suffixes]
+    if suffixes and suffixes[-1] == ".gz":
+        suffixes = suffixes[:-1]
+    return suffixes[-1] if suffixes else ""
 
 
 def archive_root_for(path: Path) -> tuple[Path, Path]:
@@ -75,6 +62,18 @@ def archive_root_for(path: Path) -> tuple[Path, Path]:
             return base / ARCHIVE_MARKER, resolved.relative_to(base)
         except ValueError:
             continue
+    # --output-dir の任意パスには "gijiroku" が含まれない。そこで成果物の
+    # 内側へ _archive を作ると、downloads の再帰列挙が退避物まで索引へ戻す。
+    # downloads の外へ出し、通常の slug 配下と同じ境界を保つ。
+    lowered = [part.lower() for part in parts]
+    if "downloads" in lowered:
+        index = len(parts) - 1 - list(reversed(lowered)).index("downloads")
+        if index > 0:
+            base = Path(*parts[:index])
+            try:
+                return base / ARCHIVE_MARKER, resolved.relative_to(base)
+            except ValueError:
+                pass
     return resolved.parent / ARCHIVE_MARKER, Path(resolved.name)
 
 
@@ -97,6 +96,44 @@ def archive_existing_file(path: Path, *, reason: str = "replace") -> Path | None
         return None
 
 
+def quarantine_invalid_file(path: Path, *, reason: str) -> Path | None:
+    """完了判定から外したファイルを、元へ戻せる場所へ移す。
+
+    削除すると取得元が一時的に消えた場合に復元できない。一方、正規名に
+    残すと次周期も同じファイルを完了扱いし得るため、同じ自治体配下の
+    `_archive` へ名前を保ったまま移す。
+    """
+    try:
+        candidate = path.resolve()
+        if ARCHIVE_MARKER in candidate.parts or not candidate.is_file():
+            return None
+        archive_root, relative = archive_root_for(candidate)
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        safe_reason = "".join(
+            ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in reason
+        ).strip("_") or "invalid"
+        destination = archive_root / f"{stamp}_invalid_{safe_reason}" / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(candidate, destination)
+        print(
+            f"[WARN] 壊れた会議録成果物を再取得対象へ戻しました: {candidate}"
+            f" -> {destination} ({reason})",
+            flush=True,
+        )
+        return destination
+    except FileNotFoundError:
+        # 同じ自治体を並行計画した側が先に退避しただけなら、再取得対象という
+        # 結果は変わらない。
+        return None
+    except Exception as exc:
+        print(
+            f"[WARN] 壊れた会議録成果物を退避できませんでした: {path}"
+            f" [{type(exc).__name__}] {exc}",
+            flush=True,
+        )
+        return None
+
+
 def read_bytes(path: Path) -> bytes:
     raw = path.read_bytes()
     if path.suffix.lower() == ".gz":
@@ -106,12 +143,197 @@ def read_bytes(path: Path) -> bytes:
 
 def read_text_auto(path: Path) -> str:
     raw = read_bytes(path)
+    return decode_text_auto(raw)
+
+
+def decode_text_auto(raw: bytes) -> str:
     for encoding in TEXT_ENCODINGS:
         try:
             return raw.decode(encoding)
         except UnicodeDecodeError:
             continue
     return raw.decode("utf-8", errors="ignore")
+
+
+class _VisibleHtmlText(HTMLParser):
+    """装飾用タグだけの HTML を本文ありと数えないための最小抽出器。"""
+
+    IGNORED_TAGS = frozenset({"script", "style", "template", "noscript"})
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.all_text: list[str] = []
+        self.body_text: list[str] = []
+        self.body_seen = False
+        self.in_body = False
+        self.ignored_depth = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        normalized = tag.lower()
+        if normalized == "body":
+            self.body_seen = True
+            self.in_body = True
+        if normalized in self.IGNORED_TAGS:
+            self.ignored_depth += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        normalized = tag.lower()
+        if normalized in self.IGNORED_TAGS and self.ignored_depth > 0:
+            self.ignored_depth -= 1
+        if normalized == "body":
+            self.in_body = False
+
+    def handle_data(self, data: str) -> None:
+        if self.ignored_depth > 0:
+            return
+        self.all_text.append(data)
+        if self.in_body:
+            self.body_text.append(data)
+
+    def visible_text(self) -> str:
+        parts = self.body_text if self.body_seen else self.all_text
+        return " ".join(parts)
+
+
+def invalid_artifact_reason(
+    path: Path,
+    *,
+    allowed_suffixes: frozenset[str],
+) -> str | None:
+    suffix = logical_suffix(path)
+    if suffix not in allowed_suffixes:
+        return f"unexpected_extension_{suffix or 'none'}"
+    try:
+        if path.stat().st_size <= 0:
+            return "zero_size"
+        raw = read_bytes(path)
+    except Exception as exc:
+        if path.suffix.lower() == ".gz":
+            return f"invalid_gzip_{type(exc).__name__}"
+        return f"unreadable_{type(exc).__name__}"
+    if not raw.strip(b"\x00\t\r\n "):
+        return "empty_body"
+    if suffix not in MINUTES_TEXT_SUFFIXES:
+        # PDF や JSON などの意味解析はこの保存層の責務ではない。本文候補として
+        # 呼ばれる text/html は下で検査し、その他は少なくとも空を許さない。
+        return None
+    text = decode_text_auto(raw).replace("\x00", "")
+    if suffix == ".txt":
+        return None if text.strip() else "empty_body"
+    try:
+        parser = _VisibleHtmlText()
+        parser.feed(text)
+        parser.close()
+        return None if parser.visible_text().strip() else "empty_body"
+    except Exception as exc:
+        return f"invalid_html_{type(exc).__name__}"
+
+
+def _validated_existing(path: Path, *, allowed_suffixes: frozenset[str]) -> Path | None:
+    try:
+        if not path.is_file():
+            return None
+    except OSError:
+        return None
+    reason = invalid_artifact_reason(path, allowed_suffixes=allowed_suffixes)
+    if reason is None:
+        return path
+    quarantine_invalid_file(path, reason=reason)
+    return None
+
+
+def existing_output(path: Path) -> Path | None:
+    expected_suffix = logical_suffix(path)
+    allowed_suffixes = frozenset({expected_suffix})
+    candidates = [gzip_path(path)]
+    if gzip_path(path) != path:
+        candidates.append(path)
+    for candidate in candidates:
+        existing = _validated_existing(candidate, allowed_suffixes=allowed_suffixes)
+        if existing is not None:
+            return existing
+    return None
+
+
+def existing_named_outputs(
+    directory: Path,
+    stem: str,
+    *,
+    allowed_suffixes: frozenset[str] = MINUTES_NAMED_OUTPUT_SUFFIXES,
+) -> list[Path]:
+    try:
+        candidates = sorted(
+            (
+                path
+                for path in directory.iterdir()
+                if path.name.startswith(stem + ".") and path.is_file()
+            ),
+            key=lambda path: path.name,
+        )
+    except OSError:
+        return []
+    valid: list[Path] = []
+    for candidate in candidates:
+        existing = _validated_existing(candidate, allowed_suffixes=allowed_suffixes)
+        if existing is not None:
+            valid.append(existing)
+    return valid
+
+
+def write_via_temporary_file(
+    path: Path,
+    writer: Callable[[Path], Any],
+    *,
+    archive_existing: bool = True,
+) -> Path:
+    """同じディレクトリで完成させたファイルだけを正規名へ置く。
+
+    一時ファイルを正規 stem で始めると、kill 後に残った一時ファイルを
+    `stem.*` の完了判定が拾う。先頭を dot にし、close 後の fsync が済むまで
+    replace しないことで、正規名は常に前世代か完成済み世代のどちらかになる。
+    """
+    final_path = Path(path)
+    final_path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary_name = tempfile.mkstemp(
+        prefix=f".{final_path.name}.",
+        suffix=".tmp",
+        dir=str(final_path.parent),
+    )
+    os.close(fd)
+    temporary = Path(temporary_name)
+    try:
+        writer(temporary)
+        if not temporary.is_file():
+            raise RuntimeError("一時ファイルが作成されませんでした。")
+        # 外部 writer（Playwright を含む）が handle を閉じたあとで同期する。
+        # 開いたまま replace できる環境差へ依存させない。
+        with temporary.open("r+b") as handle:
+            handle.flush()
+            os.fsync(handle.fileno())
+        if archive_existing and final_path.is_file():
+            archive_existing_file(final_path, reason="overwrite")
+        os.replace(temporary, final_path)
+        return final_path
+    finally:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def _write_bytes_atomically(path: Path, data: bytes, *, compress: bool) -> Path:
+    def write_temporary(temporary: Path) -> None:
+        if compress:
+            with gzip.open(temporary, "wb", compresslevel=6) as handle:
+                handle.write(data)
+        else:
+            temporary.write_bytes(data)
+
+    return write_via_temporary_file(
+        path,
+        write_temporary,
+        archive_existing=False,
+    )
 
 
 def write_bytes(path: Path, data: bytes, *, compress: bool = False) -> Path:
@@ -127,16 +349,14 @@ def write_bytes(path: Path, data: bytes, *, compress: bool = False) -> Path:
         except Exception:
             archive_existing_file(existing, reason="overwrite")
             archived_existing = existing.resolve()
+    _write_bytes_atomically(final_path, data, compress=compress)
     if compress:
-        with gzip.open(final_path, "wb", compresslevel=6) as handle:
-            handle.write(data)
         plain_path = logical_path(final_path)
         if plain_path != final_path and plain_path.exists():
             if archived_existing != plain_path.resolve():
                 archive_existing_file(plain_path, reason="delete")
             plain_path.unlink()
     else:
-        final_path.write_bytes(data)
         gz_path = gzip_path(final_path)
         if gz_path != final_path and gz_path.exists():
             if archived_existing != gz_path.resolve():
@@ -162,13 +382,6 @@ def load_json(path: Path, default: Any) -> Any:
 def write_json(path: Path, payload: Any, *, compress: bool = False) -> Path:
     text = json.dumps(payload, ensure_ascii=False, indent=2)
     return write_text(path, text + "\n", compress=compress)
-
-
-def logical_suffix(path: Path) -> str:
-    suffixes = [suffix.lower() for suffix in path.suffixes]
-    if suffixes and suffixes[-1] == ".gz":
-        suffixes = suffixes[:-1]
-    return suffixes[-1] if suffixes else ""
 
 
 def source_key(path: Path, root: Path) -> str:
@@ -304,9 +517,7 @@ def save_source_coverage(work_dir: Path, payload: dict[str, Any]) -> None:
         pass
     path.parent.mkdir(parents=True, exist_ok=True)
     body = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
-    temporary = path.with_suffix(".json.tmp")
-    temporary.write_text(body, encoding="utf-8")
-    os.replace(temporary, path)
+    _write_bytes_atomically(path, body.encode("utf-8"), compress=False)
 
 
 OFFERED_MEETING_TYPES_FILE = "offered_meeting_types.json"
@@ -353,10 +564,8 @@ def save_state(path: Path, state: dict[str, Any]) -> None:
             # 「state は新しいのに写しが古い」に後から気付けない。
             print(f"[WARN] 走査記録の写しに失敗しました: {error}", flush=True)
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_suffix(path.suffix + ".tmp")
     payload = json.dumps(state, ensure_ascii=False, indent=2) + "\n"
-    temp_path.write_text(payload, encoding="utf-8")
-    os.replace(temp_path, path)
+    _write_bytes_atomically(path, payload.encode("utf-8"), compress=False)
 
 
 def update_progress_state(path: Path, *, current: int, total: int, unit: str = "meeting") -> None:
@@ -389,6 +598,49 @@ def count_statuses(status_counts: dict[str, int], statuses: frozenset[str]) -> i
 # 会議候補の一覧が、前回のこれを下回るほど減ったら上書きしない。
 # 取得元から一斉に会議が消えることは、まず無い。
 PLAN_SHRINK_ALLOWANCE = 0.8
+
+
+def merge_dropped_non_minutes(
+    work_dir: Path,
+    extra_reasons: dict[str, int] | None,
+) -> None:
+    """本文判定で追加で落とした件数を、走査記録の理由内訳へ足す。"""
+    if not extra_reasons:
+        return
+    payload = load_source_coverage(work_dir)
+    if not payload:
+        return
+    reasons = dict(payload.get("dropped_non_minutes_reasons") or {})
+    added = 0
+    for key, count in extra_reasons.items():
+        try:
+            n = max(0, int(count))
+        except (TypeError, ValueError):
+            continue
+        if n <= 0:
+            continue
+        reasons[str(key)] = int(reasons.get(key) or 0) + n
+        added += n
+    if added <= 0:
+        return
+    payload["dropped_non_minutes"] = int(payload.get("dropped_non_minutes") or 0) + added
+    payload["dropped_non_minutes_reasons"] = reasons
+    save_source_coverage(work_dir, payload)
+
+
+def explained_non_minutes_drops(
+    *,
+    dropped_count: int,
+    missed_pages: int = 0,
+    limit_reached: bool = False,
+) -> int:
+    """取り切れた走査で落とした会議録でない文書だけを、縮小の説明にする。
+
+    ページを取りこぼしている途中の件数減は、東郷町と同じく発見失敗を疑う。
+    """
+    if limit_reached or int(missed_pages or 0) > 0:
+        return 0
+    return max(0, int(dropped_count or 0))
 
 
 def now_ts() -> str:
@@ -465,11 +717,19 @@ def _demote_coverage_for_shrink(work_dir: Path, current: int, previous: int) -> 
         print(f"[WARN] 走査記録を直せませんでした: {error}", flush=True)
 
 
-def meetings_index_would_shrink(path: Path, payload: list[Any]) -> bool:
+def meetings_index_would_shrink(
+    path: Path,
+    payload: list[Any],
+    *,
+    explained_drop_count: int = 0,
+) -> bool:
     """この一覧で保存すると、前回より大きく減って拒否されるか。
 
     拒否されるのに走査記録だけ「今回の件数を完全に歩けた」と書くと、
     正本は前回の 100 件、記録は「50 件を取り切った」という食い違いになる。
+
+    取り切れた走査で、会議録でないと判定して落とした分は縮小の理由が
+    分かっている。その件数は `explained_drop_count` で渡し、ガードは外さない。
     """
     try:
         existing = json.loads(path.read_text(encoding="utf-8"))
@@ -477,10 +737,22 @@ def meetings_index_would_shrink(path: Path, payload: list[Any]) -> bool:
         return False
     if not isinstance(existing, list) or not existing:
         return False
-    return len(payload) < len(existing) * PLAN_SHRINK_ALLOWANCE
+    current = len(payload)
+    previous = len(existing)
+    if current >= previous * PLAN_SHRINK_ALLOWANCE:
+        return False
+    explained = current + max(0, int(explained_drop_count or 0))
+    if explained >= previous * PLAN_SHRINK_ALLOWANCE:
+        return False
+    return True
 
 
-def save_meetings_index(path: Path, payload: list[Any]) -> None:
+def save_meetings_index(
+    path: Path,
+    payload: list[Any],
+    *,
+    explained_drop_count: int = 0,
+) -> None:
     """会議候補の一覧を保存する。空では上書きしない。
 
     発見に失敗した実行が `[]` を書くと、既に取れているファイルがあるのに
@@ -493,9 +765,22 @@ def save_meetings_index(path: Path, payload: list[Any]) -> None:
     except Exception:
         existing = None
     if isinstance(existing, list) and existing:
-        # 空だけでなく、大きく減ったときも守る。1202 件が 1 件になっても
+        # 空は発見失敗として残す。全部が会議録でなかった、という結論は
+        # 0 件で上書きせず、縮小ガードと走査記録で見えるようにする。
+        if not payload:
+            print(
+                f"[WARN] 今回見つけた会議候補は 0件です。前回の分を残します: {path}",
+                flush=True,
+            )
+            _demote_coverage_for_shrink(path.parent, 0, len(existing))
+            return
+        # 大きく減ったときも守る。1202 件が 1 件になっても
         # 「取得元から会議が消えた」より「発見が途中で終わった」を疑う。
-        if len(payload) < len(existing) * PLAN_SHRINK_ALLOWANCE:
+        # ただし取り切れた走査で会議録でないと判定して落とした分は、
+        # 縮小の理由が分かっているので置き換えてよい。
+        if meetings_index_would_shrink(
+            path, payload, explained_drop_count=explained_drop_count
+        ):
             print(
                 f"[WARN] 今回見つけた会議候補は {len(payload)}件で、"
                 f"前回の {len(existing)}件より大きく減っています。"
@@ -509,9 +794,7 @@ def save_meetings_index(path: Path, payload: list[Any]) -> None:
             return
     path.parent.mkdir(parents=True, exist_ok=True)
     body = json.dumps(payload, ensure_ascii=False, indent=2)
-    temporary = path.with_suffix(".json.tmp")
-    temporary.write_text(body, encoding="utf-8")
-    os.replace(temporary, path)
+    _write_bytes_atomically(path, body.encode("utf-8"), compress=False)
 
 
 def classified_scrape_summary(

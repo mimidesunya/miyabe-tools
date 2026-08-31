@@ -31,6 +31,10 @@ import reiki_targets
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 DELAY = 0.5
+# 原典が変わらない限り変換を飛ばす運用では、コードだけ直しても既存成果物へ届かない。
+# d1_parser の抽出規則を変えたときは、この値を明示的に上げて保存済み source を変換し直す。
+PARSER_VERSION = 1
+UNPARSED_VERSION = 0
 OPENSEARCH_TOP_LEVEL_RE = re.compile(r"mkjG\('([0-9]{3}:[0-9]{2}:[0-9]{2})'\)")
 OPENSEARCH_RESULT_RE = re.compile(
     r"doViewJobunFromJsp\('(?P<jctcd>[^']+)',\s*'(?P<houcd>[^']+)',\s*"
@@ -259,6 +263,29 @@ def first_manifest_catalog_version(records) -> str:
     return ""
 
 
+def is_parser_version_current(record: dict | None) -> bool:
+    if not isinstance(record, dict):
+        return False
+    return str(record.get("parser_version", "")).strip() == str(PARSER_VERSION)
+
+
+def parser_version_for_manifest(
+    previous_manifest: dict | None,
+    *,
+    parse_required: bool,
+    parse_succeeded: bool,
+) -> int | str:
+    previous_manifest = previous_manifest if isinstance(previous_manifest, dict) else {}
+    previous_version = previous_manifest.get("parser_version", UNPARSED_VERSION)
+    if not parse_required:
+        return PARSER_VERSION if is_parser_version_current(previous_manifest) else previous_version
+    if parse_succeeded:
+        return PARSER_VERSION
+    # 新しい source の変換に失敗した場合、前回が現行世代でもその印を残せない。
+    # 未変換へ戻しておけば、次の周期が同じ保存 source を必ず再処理する。
+    return UNPARSED_VERSION if is_parser_version_current(previous_manifest) else previous_version
+
+
 def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None):
     """目録を辿って例規 ID を集める。
 
@@ -483,8 +510,12 @@ def build_source_plan(
         logical_source = reiki_io.logical_path(source_file_path)
         html_output = html_dir / f"{logical_source.stem}.html"
         markdown_output = reiki_io.existing_path(markdown_dir / f"{logical_source.stem}.md")
+        previous_manifest = previous_manifest_by_source.get(filename)
+        previous_manifest = previous_manifest if isinstance(previous_manifest, dict) else {}
         has_source = existing_source_path is not None and existing_source_path.stat().st_size > 0
-        is_incomplete = not has_source or not html_output.exists() or markdown_output is None
+        outputs_missing = not html_output.exists() or markdown_output is None
+        parser_outdated = not is_parser_version_current(previous_manifest)
+        is_incomplete = not has_source or outputs_missing
         if is_incomplete:
             incomplete_count += 1
         plans.append(
@@ -498,7 +529,10 @@ def build_source_plan(
                 "source_file_path": source_file_path,
                 "html_output": html_output,
                 "markdown_output": markdown_output,
-                "previous_manifest": previous_manifest_by_source.get(filename),
+                "previous_manifest": previous_manifest,
+                "has_source": has_source,
+                "outputs_missing": outputs_missing,
+                "parser_outdated": parser_outdated,
                 "is_incomplete": is_incomplete,
             }
         )
@@ -514,20 +548,94 @@ def assign_work_mode(
 ) -> dict[str, int | bool]:
     total = len(plans)
     incomplete_count = sum(1 for plan in plans if bool(plan["is_incomplete"]))
+    parser_outdated_count = sum(1 for plan in plans if bool(plan["parser_outdated"]))
     resume_mode = not force and incomplete_count > 0
     update_mode = not force and not resume_mode and check_updates and catalog_changed is not False
     for plan in plans:
-        plan["should_work"] = bool(force or plan["is_incomplete"] or update_mode)
+        # parser 世代だけが古いときに個票へ問い合わせると、原典不変の全件を無駄に取得する。
+        # 保存 source がある計画は変換だけを仕事にし、取得は source 不在か更新確認時に限る。
+        plan["should_fetch"] = bool(force or not plan["has_source"] or update_mode)
+        plan["should_work"] = bool(
+            plan["should_fetch"] or plan["outputs_missing"] or plan["parser_outdated"]
+        )
     work_count = sum(1 for plan in plans if plan["should_work"])
+    parser_reparse_only_count = sum(
+        1 for plan in plans if plan["parser_outdated"] and not plan["should_fetch"]
+    )
     return {
         "total": total,
         "incomplete_count": incomplete_count,
+        "parser_outdated_count": parser_outdated_count,
+        "parser_reparse_only_count": parser_reparse_only_count,
         "resume_mode": resume_mode,
         "update_mode": update_mode,
         "catalog_changed": catalog_changed,
         "work_count": work_count,
         "progress_base": max(0, total - work_count),
     }
+
+
+def fetch_source_for_plan(
+    plan: dict,
+    *,
+    force: bool,
+    update_mode: bool,
+) -> tuple[bool, Path, str, dict]:
+    previous_manifest = plan["previous_manifest"] if isinstance(plan.get("previous_manifest"), dict) else {}
+    source_file_path = Path(plan["source_file_path"])
+    source_hash = str(previous_manifest.get("source_sha256") or "")
+    metadata = {
+        "status_code": "",
+        "not_modified": False,
+        "conditional": False,
+        "etag": str(previous_manifest.get("source_etag") or ""),
+        "last_modified": str(previous_manifest.get("source_last_modified") or ""),
+    }
+    if not bool(plan["should_fetch"]):
+        if source_hash == "" and source_file_path.exists():
+            source_hash = reiki_io.sha256_path(source_file_path)
+        return False, source_file_path, source_hash, metadata
+    return download_file(
+        str(plan["url"]),
+        plan["dest_path"],
+        force=force,
+        check_updates=update_mode,
+        session=plan["session"],
+        previous_manifest=previous_manifest,
+    )
+
+
+def parse_source_for_plan(
+    plan: dict,
+    source_file_path: Path,
+    *,
+    downloaded: bool,
+    force: bool,
+    markdown_dir: Path,
+    html_dir: Path,
+    base_url: str,
+    images_dir: Path,
+    image_public_url: str,
+) -> tuple[bool, bool]:
+    parse_required = bool(
+        downloaded or force or plan["outputs_missing"] or plan["parser_outdated"]
+    )
+    if not parse_required:
+        return False, False
+    if not source_file_path.exists():
+        return True, False
+    # process_file 自身にも mtime による省略がある。世代不一致でここへ来たのに
+    # 旧成果物を再利用しないよう、必要と判断した変換は常に強制する。
+    parse_succeeded = d1_parser.process_file(
+        source_file_path,
+        markdown_dir,
+        html_dir,
+        base_url=base_url,
+        images_dir=images_dir,
+        image_public_url=image_public_url,
+        force=True,
+    )
+    return True, bool(parse_succeeded)
 
 
 # d1_law.py が扱える system_type。reiki.html は D1-Law の静的書き出し版で、
@@ -635,6 +743,8 @@ def main():
         catalog_changed=catalog_changed,
     )
     incomplete_count = int(work_mode["incomplete_count"])
+    parser_outdated_count = int(work_mode["parser_outdated_count"])
+    parser_reparse_only_count = int(work_mode["parser_reparse_only_count"])
     resume_mode = bool(work_mode["resume_mode"])
     update_mode = bool(work_mode["update_mode"])
     work_count = int(work_mode["work_count"])
@@ -648,6 +758,13 @@ def main():
         print("[MODE] catalog unchanged; update check skipped.", flush=True)
     else:
         print("[MODE] complete; no update check requested.", flush=True)
+    if parser_outdated_count:
+        print(
+            f"[MODE] parser generation {PARSER_VERSION}: rebuild "
+            f"{parser_outdated_count}/{total_regulations}; "
+            f"saved-source only {parser_reparse_only_count}",
+            flush=True,
+        )
 
     progress_base = int(work_mode["progress_base"])
     emit_progress(progress_base, total_regulations, state_path)
@@ -657,6 +774,9 @@ def main():
     not_modified_count = 0
     conditional_count = 0
     parsed_count = 0
+    reparsed_saved_count = 0
+    parse_failure_count = 0
+    parse_failure_urls: list[str] = []
     skipped_count = 0
     processed_work_count = 0
     manifest_entries = []
@@ -664,30 +784,15 @@ def main():
         source_item = plan["source_item"]
         code = str(plan["code"])
         url = str(plan["url"])
-        filename = str(plan["filename"])
-        dest_path = plan["dest_path"]
-        session = plan["session"]
-        source_file_path = plan["source_file_path"]
         previous_manifest = plan["previous_manifest"] if isinstance(plan["previous_manifest"], dict) else {}
         should_work = bool(plan["should_work"])
-        source_hash = str(previous_manifest.get("source_sha256") or "")
-        metadata = {
-            "status_code": "",
-            "not_modified": False,
-            "conditional": False,
-            "etag": str(previous_manifest.get("source_etag") or ""),
-            "last_modified": str(previous_manifest.get("source_last_modified") or ""),
-        }
-
-        if should_work:
-            downloaded, source_file_path, source_hash, metadata = download_file(
-                url,
-                dest_path,
-                force=args.force,
-                check_updates=update_mode,
-                session=session,
-                previous_manifest=previous_manifest,
-            )
+        should_fetch = bool(plan["should_fetch"])
+        downloaded, source_file_path, source_hash, metadata = fetch_source_for_plan(
+            plan,
+            force=args.force,
+            update_mode=update_mode,
+        )
+        if should_fetch:
             if metadata.get("conditional"):
                 conditional_count += 1
             if metadata.get("not_modified"):
@@ -696,32 +801,30 @@ def main():
                 downloaded_count += 1
             elif update_mode:
                 checked_count += 1
-        else:
-            downloaded = False
+        if not should_work:
             skipped_count += 1
-            if source_hash == "" and source_file_path.exists():
-                source_hash = reiki_io.sha256_path(source_file_path)
 
         logical_source = reiki_io.logical_path(source_file_path)
-        html_output = html_dir / f"{logical_source.stem}.html"
-        markdown_output = reiki_io.existing_path(markdown_dir / f"{logical_source.stem}.md")
-
-        if source_file_path.exists() and (
-            downloaded
-            or args.force
-            or not html_output.exists()
-            or markdown_output is None
-        ):
-            d1_parser.process_file(
-                source_file_path,
-                markdown_dir,
-                html_dir,
-                base_url=base_url,
-                images_dir=images_dir,
-                image_public_url=image_public_url,
-                force=args.force,
-            )
-            parsed_count += 1
+        parse_required, parse_succeeded = parse_source_for_plan(
+            plan,
+            source_file_path,
+            downloaded=downloaded,
+            force=args.force,
+            markdown_dir=markdown_dir,
+            html_dir=html_dir,
+            base_url=base_url,
+            images_dir=images_dir,
+            image_public_url=image_public_url,
+        )
+        if parse_required:
+            if parse_succeeded:
+                parsed_count += 1
+                if plan["parser_outdated"] and not downloaded:
+                    reparsed_saved_count += 1
+            else:
+                if url not in DOWNLOAD_FAILURES:
+                    parse_failure_count += 1
+                    parse_failure_urls.append(url)
 
         manifest_entries.append(
             {
@@ -730,6 +833,11 @@ def main():
                 "source_file": logical_source.name,
                 "stored_source_file": source_file_path.name,
                 "source_sha256": source_hash or (reiki_io.sha256_path(source_file_path) if source_file_path.exists() else ""),
+                "parser_version": parser_version_for_manifest(
+                    previous_manifest,
+                    parse_required=parse_required,
+                    parse_succeeded=parse_succeeded,
+                ),
                 "source_etag": str(metadata.get("etag") or ""),
                 "source_last_modified": str(metadata.get("last_modified") or ""),
                 "source_http_status": str(metadata.get("status_code") or ""),
@@ -757,11 +865,12 @@ def main():
             existing_partial.unlink()
     except Exception:
         pass
-    # 目録を最後まで開けて、個票の取得にも失敗が無ければ取り切れたと言える。
+    # 目録・取得・変換のどこかが欠けた実行を完了扱いすると、索引更新が古い成果物を拾う。
     missed_pages = int(catalog_walk.get("missed_pages") or 0)
-    # d1-law に --limit は無いので、目録を開けたかと個票の失敗で判断する。
+    # d1-law に --limit は無いので、目録を開けたかと個票・変換の失敗で判断する。
     detail_failures = len(DOWNLOAD_FAILURES)
-    walk_complete = missed_pages == 0 and detail_failures == 0
+    total_failures = detail_failures + parse_failure_count
+    walk_complete = missed_pages == 0 and total_failures == 0
     manifest_result = reiki_io.write_manifest_guarded(
         manifest_path,
         manifest_entries,
@@ -779,8 +888,8 @@ def main():
             "scanned_pages": int(catalog_walk.get("scanned_pages") or 0),
             "missed_pages": missed_pages,
             "missed_examples": catalog_walk.get("missed_examples") or [],
-            "failed": detail_failures,
-            "failed_examples": DOWNLOAD_FAILURES[:10],
+            "failed": total_failures,
+            "failed_examples": (DOWNLOAD_FAILURES + parse_failure_urls)[:10],
             "collected": len(manifest_entries),
             "manifest_shrunk": not manifest_result["written"],
             "manifest_previous": manifest_result["previous"],
@@ -798,13 +907,27 @@ def main():
             f"[WARN] 例規本体を {detail_failures} 件取得できませんでした。",
             flush=True,
         )
+    if parse_failure_count:
+        print(
+            f"[WARN] 保存 source から {parse_failure_count} 件を変換できませんでした。"
+            "parser_version は進めず、次の周期で再試行します。",
+            flush=True,
+        )
     print(f"Finished. Downloaded {downloaded_count} files.")
     print(f"Checked existing: {checked_count}")
     print(f"Conditional requests: {conditional_count}")
     print(f"Not modified (304): {not_modified_count}")
     print(f"Skipped existing: {skipped_count}")
     print(f"Parsed outputs: {parsed_count}")
+    print(f"Reparsed saved sources: {reparsed_saved_count}")
+    print(f"Parser generation: {PARSER_VERSION}")
     print(f"Manifest: {manifest_path}")
+    if parsed_count and walk_complete and manifest_result["written"]:
+        print(
+            f"[INDEX-REQUIRED] slug={target['slug']} doc_type=reiki parsed={parsed_count} "
+            "clean HTML/Markdown を再生成したため、例規索引を更新してください。",
+            flush=True,
+        )
     if opensearch_session is not None:
         opensearch_session.close()
 

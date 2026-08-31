@@ -32,6 +32,15 @@ class ClassifiedScrapeSummaryTest(unittest.TestCase):
         )
         self.assertEqual(summary["warning_lines"], ["会議録本体ではない候補を除外 10件"])
 
+    def test_skipped_not_minutes_is_an_exclusion(self) -> None:
+        summary = gijiroku_storage.classified_scrape_summary(
+            discovered_count=100,
+            downloaded_count=20,
+            status_counts={"skipped_not_minutes": 80},
+        )
+        self.assertEqual(summary["excluded_count"], 80)
+        self.assertEqual(summary["warning_lines"], ["会議録本体ではない候補を除外 80件"])
+
     def test_both_kinds_are_listed_separately(self) -> None:
         summary = gijiroku_storage.classified_scrape_summary(
             discovered_count=100,

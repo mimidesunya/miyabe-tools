@@ -32,6 +32,11 @@ import gijiroku_planning
 import gijiroku_storage
 import gijiroku_targets
 
+try:
+    import minutes_kind
+except ModuleNotFoundError:  # pragma: no cover
+    from tools.gijiroku import minutes_kind
+
 
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -39,7 +44,10 @@ DEFAULT_USER_AGENT = (
 )
 YEAR_LABEL_RE = re.compile(r"(昭和|平成|令和)\s*([元\d０-９]+)年")
 WESTERN_REIWA_LABEL_RE = re.compile(r"(20\d{2})（令和([元\d０-９]+)）年")
-PDF_SIZE_SUFFIX_RE = re.compile(r"\s*[［\[]PDFファイル／[^］\]]+[］\]]\s*$")
+PDF_SIZE_SUFFIX_RE = re.compile(
+    r"\s*[［\[(（]?\s*PDF(?:ファイル)?\s*[／/：:｜|]\s*[^］\]）)]+[］\]）)]?\s*$",
+    re.IGNORECASE,
+)
 KAMI_MINUTES_PAGE_RE = re.compile(r"^/site/gikai/kaigiroku(?:\d{4}|sokuhou)\.html$")
 ATTACHMENT_ID_RE = re.compile(r"/uploaded/attachment/(\d+)\.pdf$", re.I)
 ERA_BASE_YEAR = {"昭和": 1925, "平成": 1988, "令和": 2018}
@@ -165,8 +173,11 @@ def sanitize_filename(text: str, fallback: str) -> str:
 
 
 def clean_pdf_label(value: str) -> str:
-    cleaned = PDF_SIZE_SUFFIX_RE.sub("", normalize_space(value))
-    cleaned = re.sub(r"\s*PDFファイル\s*$", "", cleaned).strip()
+    # 全角・半角の「[PDFファイル／248KB]」が残ると、題名末尾がファイル注記になる。
+    cleaned = minutes_kind.strip_pdf_notes(value)
+    if not cleaned:
+        cleaned = PDF_SIZE_SUFFIX_RE.sub("", normalize_space(value))
+        cleaned = re.sub(r"\s*PDFファイル\s*$", "", cleaned, flags=re.I).strip()
     return cleaned or "会議録"
 
 
@@ -355,6 +366,7 @@ def discover_pdf_items(
     """`walk` を渡すと、解析できなかった一覧ページの数を控える。"""
     items_by_url: dict[str, PdfMeetingItem] = {}
     missed: list[str] = []
+    dropped_by_url: dict[str, str] = {}
 
     for page_url in page_urls:
         try:
@@ -395,6 +407,10 @@ def discover_pdf_items(
             if label == "会議録":
                 fallback_id = attachment_id(pdf_url)
                 label = f"{title} {fallback_id}" if fallback_id is not None else title
+            skip_reason = minutes_kind.non_minutes_reason(label, "")
+            if skip_reason:
+                dropped_by_url.setdefault(pdf_url, skip_reason)
+                continue
             year_label, source_year = extract_year_info(label, current_group or "", title)
             if year_label == "不明":
                 year_label = page_year_label
@@ -411,12 +427,17 @@ def discover_pdf_items(
             )
             items_by_url.setdefault(pdf_url, item)
 
+    dropped_reasons: dict[str, int] = {}
+    for reason in dropped_by_url.values():
+        dropped_reasons[reason] = dropped_reasons.get(reason, 0) + 1
     if walk is not None:
         walk.update(
             {
                 "missed_pages": len(missed),
                 "missed_examples": missed[:10],
                 "visited_pages": len(page_urls),
+                "dropped_non_minutes": len(dropped_by_url),
+                "dropped_non_minutes_reasons": dropped_reasons,
             }
         )
     return list(items_by_url.values())
@@ -453,10 +474,105 @@ def normalize_pdf_text(value: str) -> str:
     return text.strip()
 
 
-def composed_minutes_text(item: PdfMeetingItem, pdf_text: str) -> str:
+def process_pdf_meeting_plan(
+    session,
+    plan: dict,
+    *,
+    no_resume: bool,
+    timeout_ms: int,
+) -> dict:
+    """既存テキストも会議録か判定する。ヘッダ付き保存文を本文として再保存しない。"""
+    item = plan["item"]
+    pdf_path = plan["pdf_path"]
+    existing_output = None if no_resume else plan.get("existing_output")
+    downloaded = False
+
+    def fetch_pdf_text() -> str:
+        nonlocal downloaded
+        pdf_bytes = request_bytes(session, item.url, timeout_ms)
+        gijiroku_storage.write_bytes(pdf_path, pdf_bytes, compress=False)
+        downloaded = True
+        return extract_pdf_text(pdf_bytes)
+
+    extracted = ""
+    if existing_output is not None:
+        try:
+            existing_text = gijiroku_storage.read_text_auto(Path(existing_output))
+        except Exception:
+            existing_text = ""
+            existing_output = None
+        if existing_text:
+            probe = minutes_kind.adopt_minutes_document(
+                item.title,
+                existing_text,
+                url=item.url,
+                year_label=item.year_label,
+                source_year=getattr(item, "source_year", None),
+            )
+            if not probe.accepted:
+                gijiroku_storage.quarantine_invalid_file(
+                    Path(existing_output), reason=probe.reason or "not_minutes"
+                )
+                return {
+                    "status": "skipped_not_minutes",
+                    "output_path": "",
+                    "item": item,
+                    "reason": probe.reason,
+                    "downloaded": False,
+                }
+            held_ok = not probe.held_on or f"Held-On: {probe.held_on}" in existing_text
+            if probe.title == item.title and held_ok:
+                return {
+                    "status": "skipped_existing",
+                    "output_path": str(existing_output),
+                    "item": item,
+                    "reason": None,
+                    "downloaded": False,
+                }
+            if pdf_path.exists():
+                try:
+                    extracted = extract_pdf_text(gijiroku_storage.read_bytes(pdf_path))
+                except Exception:
+                    extracted = ""
+    try:
+        if not extracted:
+            extracted = fetch_pdf_text()
+    except Exception as exc:
+        return {
+            "status": "error",
+            "output_path": "",
+            "item": item,
+            "reason": None,
+            "downloaded": downloaded,
+            "error": str(exc),
+        }
+    if not extracted:
+        return {
+            "status": "empty_pdf_text",
+            "output_path": "",
+            "item": item,
+            "reason": None,
+            "downloaded": downloaded,
+        }
+    result = gijiroku_planning.persist_adopted_minutes(
+        plan,
+        extracted,
+        compose=composed_minutes_text,
+        existing_output=Path(existing_output) if existing_output else None,
+        output_key="text_base",
+    )
+    result["downloaded"] = downloaded
+    result["error"] = ""
+    return result
+
+
+def composed_minutes_text(
+    item: PdfMeetingItem, pdf_text: str, *, held_on: str | None = None
+) -> str:
     header = [item.year_label, item.title]
     if item.meeting_group and normalize_space(item.meeting_group) != normalize_space(item.title):
         header.append(item.meeting_group)
+    header.extend(minutes_kind.held_on_header_lines(held_on))
     header.append(f"出典: {item.url}")
     return "\n".join(header) + "\n\n" + pdf_text.strip() + "\n"
 
@@ -523,8 +639,16 @@ def main() -> int:
     # 解析できなかった一覧ページと、ページ数の上限を残す。残さないと
     # 「発見数＝保存数」で完了に見え、キューは 30 日巡ってこない。
     # 一覧の置き換えが拒まれるなら、今回の走査を取り切れたとは言えない。
+    crawl_dropped = int(catalog_walk.get("dropped_non_minutes") or 0)
+    explained_drops = gijiroku_storage.explained_non_minutes_drops(
+        dropped_count=crawl_dropped,
+        missed_pages=int(catalog_walk.get("missed_pages") or 0),
+        limit_reached=bool(LIST_PAGE_LIMIT_HIT) or args.max_meetings > 0,
+    )
     plan_shrank = gijiroku_storage.meetings_index_would_shrink(
-        index_json, [asdict(item) for item in meeting_items]
+        index_json,
+        [asdict(item) for item in meeting_items],
+        explained_drop_count=explained_drops,
     )
     gijiroku_storage.record_catalog_walk(
         work_dir,
@@ -533,11 +657,19 @@ def main() -> int:
         missed_pages=int(catalog_walk.get("missed_pages") or 0),
         missed_examples=catalog_walk.get("missed_examples") or [],
         limit_reached=bool(LIST_PAGE_LIMIT_HIT) or args.max_meetings > 0,
-        extra={"visited_pages": int(catalog_walk.get("visited_pages") or 0)},
+        extra={
+            "visited_pages": int(catalog_walk.get("visited_pages") or 0),
+            "dropped_non_minutes": crawl_dropped,
+            "dropped_non_minutes_reasons": catalog_walk.get("dropped_non_minutes_reasons") or {},
+        },
     )
 
     index_json.parent.mkdir(parents=True, exist_ok=True)
-    gijiroku_storage.save_meetings_index(index_json, [asdict(item) for item in meeting_items])
+    gijiroku_storage.save_meetings_index(
+        index_json,
+        [asdict(item) for item in meeting_items],
+        explained_drop_count=explained_drops,
+    )
 
     state = gijiroku_storage.load_state(state_path)
     emit_progress(0, len(meeting_items), state_path, state)
@@ -573,44 +705,40 @@ def main() -> int:
                 print(f"[INFO] Update check found new outputs: {missing_count}/{len(planned_items)}", flush=True)
             else:
                 print(f"[INFO] Resume missing outputs first: {missing_count}/{len(planned_items)}", flush=True)
-        if not args.no_resume and not work_items:
-            print("[INFO] All expected outputs already exist; skipping download loop.", flush=True)
-            emit_progress(len(meeting_items), len(meeting_items), state_path, state)
-
         # PDF 候補数には、本文抽出できない添付や会議録本体ではない PDF が混ざることがある。
         # 保存済み本文・除外・実エラーを分けて、親バッチの完了判定が候補数だけに引っ張られないようにする。
-        saved_count = 0 if args.no_resume else sum(1 for plan in planned_items if plan.get("existing_output") is not None)
+        # 既存ファイルも本文判定する。リンク題名のまま残ると、公開題名が嘘のままになる。
+        saved_count = 0
         status_counts: dict[str, int] = {}
+        accepted_items: list = []
+        body_drop_reasons: dict[str, int] = {}
         emit_progress(saved_count, len(meeting_items), state_path, state)
+        work_ids = {id(plan) for plan in work_items}
+        ordered_plans = list(work_items) + [plan for plan in planned_items if id(plan) not in work_ids]
 
-        for idx, plan in enumerate(work_items, start=1):
+        for idx, plan in enumerate(ordered_plans, start=1):
             item = plan["item"]
-            print(f"[{idx}/{len(work_items)}] {item.year_label} {item.title}")
+            print(f"[{idx}/{len(ordered_plans)}] {item.year_label} {item.title}")
             resume_key = plan["resume_key"]
-            text_base = plan["text_base"]
             pdf_path = plan["pdf_path"]
-            existing_output = plan["existing_output"]
             status = ""
             output_path = ""
             error_msg = ""
-
-            if not args.no_resume and existing_output is not None:
-                status = "skipped_existing"
-                output_path = str(existing_output)
-            else:
-                try:
-                    pdf_bytes = request_bytes(session, item.url, args.timeout_ms)
-                    gijiroku_storage.write_bytes(pdf_path, pdf_bytes, compress=False)
-                    extracted = extract_pdf_text(pdf_bytes)
-                    if not extracted:
-                        status = "empty_pdf_text"
-                    else:
-                        dest = gijiroku_storage.write_text(text_base, composed_minutes_text(item, extracted), compress=True)
-                        output_path = str(dest)
-                        status = "saved_text"
-                except Exception as exc:
-                    status = "error"
-                    error_msg = str(exc)
+            downloaded = False
+            result = process_pdf_meeting_plan(
+                session, plan, no_resume=args.no_resume, timeout_ms=args.timeout_ms
+            )
+            status = str(result.get("status") or "")
+            output_path = str(result.get("output_path") or "")
+            item = result.get("item") or item
+            downloaded = bool(result.get("downloaded"))
+            error_msg = str(result.get("error") or "")
+            if status == "skipped_not_minutes":
+                reason = str(result.get("reason") or "non_minutes_body")
+                body_drop_reasons[reason] = body_drop_reasons.get(reason, 0) + 1
+            elif status in {"saved_text", "skipped_existing"}:
+                accepted_items.append(item)
+                saved_count += 1
 
             if status:
                 status_counts[status] = status_counts.get(status, 0) + 1
@@ -639,11 +767,18 @@ def main() -> int:
                 }
             )
             handle.flush()
-            if status == "saved_text":
-                saved_count += 1
             emit_progress(saved_count, len(meeting_items), state_path, state)
-            if args.delay_seconds > 0 and idx < len(work_items):
+            if downloaded and args.delay_seconds > 0 and idx < len(ordered_plans):
                 time.sleep(args.delay_seconds)
+
+        if accepted_items:
+            extra_explained = explained_drops + sum(body_drop_reasons.values()) if explained_drops else 0
+            gijiroku_storage.save_meetings_index(
+                index_json,
+                [asdict(item) for item in accepted_items],
+                explained_drop_count=extra_explained,
+            )
+        gijiroku_storage.merge_dropped_non_minutes(work_dir, body_drop_reasons)
 
     validation = gijiroku_storage.apply_classified_scrape_validation(
         state_path,

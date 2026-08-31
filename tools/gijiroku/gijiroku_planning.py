@@ -10,11 +10,16 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, is_dataclass, replace
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 import gijiroku_storage
+
+try:
+    import minutes_kind
+except ModuleNotFoundError:  # pragma: no cover
+    from tools.gijiroku import minutes_kind
 
 
 FULLWIDTH_DIGITS = str.maketrans("０１２３４５６７８９", "0123456789")
@@ -234,6 +239,106 @@ def build_base_plans(
         )
 
     return plans
+
+
+def retitle_plan(plan: dict[str, Any], new_title: str, *, output_key: str = "text_base") -> Any:
+    """リンク文言が題名として使えないとき、本文から読んだ題名で保存名を付け直す。
+
+    公開検索の題名は保存ファイル名から作られる。リンクが「開議」や「18日」の
+    ままだと、本文が名乗っている会議名と食い違う。
+    """
+    item = plan["item"]
+    new_title = str(new_title or "").strip()
+    if not new_title:
+        return item
+    old_title = str(item_value(item, "title", "") or "")
+    if new_title == old_title:
+        return item
+    if is_dataclass(item):
+        try:
+            item = replace(item, title=new_title)
+        except TypeError:
+            pass
+    elif isinstance(item, dict):
+        item = {**item, "title": new_title}
+    else:
+        try:
+            item.title = new_title
+        except Exception:
+            pass
+    plan["item"] = item
+    raw_stem = sanitize_filename(new_title, "meeting")
+    plan["stem"] = gijiroku_storage.disambiguated_stem(raw_stem, plan["resume_key"], 0)
+    if output_key:
+        attach_text_output(plan, key=output_key)
+    return item
+
+
+def persist_adopted_minutes(
+    plan: dict[str, Any],
+    extracted: str,
+    *,
+    compose: Callable[..., str],
+    existing_output: Path | None,
+    output_key: str = "text_base",
+) -> dict[str, Any]:
+    """本文を見て会議録か判定し、題名と開催日を直して保存する。"""
+    item = plan["item"]
+    adoption = minutes_kind.adopt_minutes_document(
+        str(item_value(item, "title", "") or ""),
+        extracted,
+        url=str(item_value(item, "url", "") or ""),
+        year_label=str(item_value(item, "year_label", "") or ""),
+        source_year=item_value(item, "source_year", None),
+    )
+    if not adoption.accepted:
+        if existing_output is not None:
+            gijiroku_storage.quarantine_invalid_file(
+                Path(existing_output), reason=adoption.reason or "not_minutes"
+            )
+        return {
+            "status": "skipped_not_minutes",
+            "output_path": "",
+            "item": item,
+            "adoption": adoption,
+            "reason": adoption.reason,
+        }
+    existing_text = extracted if existing_output is not None else ""
+    already_good = (
+        existing_output is not None
+        and adoption.title == str(item_value(item, "title", "") or "")
+        and (
+            not adoption.held_on
+            or f"Held-On: {adoption.held_on}" in existing_text
+        )
+    )
+    if already_good:
+        return {
+            "status": "skipped_existing",
+            "output_path": str(existing_output),
+            "item": item,
+            "adoption": adoption,
+            "reason": None,
+        }
+    old_existing = existing_output
+    item = retitle_plan(plan, adoption.title, output_key=output_key)
+    composed = compose(item, extracted, held_on=adoption.held_on)
+    dest = gijiroku_storage.write_text(plan[output_key], composed, compress=True)
+    if old_existing is not None:
+        try:
+            old_path = Path(old_existing).resolve()
+            new_path = Path(dest).resolve()
+            if old_path != new_path and old_path.exists():
+                gijiroku_storage.quarantine_invalid_file(old_path, reason="retitle")
+        except Exception:
+            pass
+    return {
+        "status": "saved_text",
+        "output_path": str(dest),
+        "item": item,
+        "adoption": adoption,
+        "reason": None,
+    }
 
 
 def attach_text_output(plan: dict[str, Any], *, key: str = "dest_base") -> dict[str, Any]:

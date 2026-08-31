@@ -20,6 +20,11 @@ const TAIKEI_FETCH_RATE_LIMIT_BASE_USEC = 20000000;
 const TAIKEI_FETCH_RATE_LIMIT_MAX_USEC = 120000000;
 const TAIKEI_FETCH_RATE_LIMIT_MAX_ATTEMPTS = 8;
 const TAIKEI_LIKE_SYSTEM_TYPES = ['taikei' => true, 'g-reiki' => true];
+// 原典が同じでも変換規則を直せば成果物は変わる。パーサを変更したときは
+// この値を必ず上げ、保存済み source に新しい規則を適用させる。
+const TAIKEI_PARSER_VERSION = 2;
+// 一覧に現れない本文改正も拾うため、個票を最後に実照会した時刻で巡回する。
+const TAIKEI_VALIDATION_INTERVAL_SECONDS = 90 * 86400;
 
 main($argv);
 
@@ -103,34 +108,44 @@ function main(array $argv): void
         return;
     }
 
-    $selectedRecords = $limit > 0 ? array_slice($records, 0, $limit) : $records;
-    $total = count($selectedRecords);
-
     $planState = build_source_plan(
-        $selectedRecords,
+        $records,
         $sourceDir,
         $htmlDir,
         $markdownDir,
         $previousManifestBySource
     );
-    $plans = $planState['plans'];
+    // 一覧差分は「問い合わせるか」の唯一の条件にしない。差分が見えた個票を
+    // 先に確認しつつ、一覧が不変でも期限が来た個票を同じ巡回で確認する。
+    $plans = prioritize_source_plans($planState['plans'], $checkUpdates);
+    if ($limit > 0) {
+        $plans = array_slice($plans, 0, $limit);
+    }
+    $total = count($plans);
     $workMode = assign_work_mode($plans, $force, $checkUpdates, $catalogChanged);
     $incompleteCount = (int)$workMode['incomplete_count'];
-    $listedChangeCount = (int)$planState['listed_change_count'];
+    $listedChangeCount = (int)$workMode['listed_change_count'];
+    $validationDueCount = (int)$workMode['validation_due_count'];
+    $parserRefreshCount = (int)$workMode['parser_refresh_count'];
     $resumeMode = (bool)$workMode['resume_mode'];
     $updateMode = (bool)$workMode['update_mode'];
     $workCount = (int)$workMode['work_count'];
 
-    if ($resumeMode) {
-        echo "[MODE] resume missing ordinances only: {$incompleteCount}/{$total}\n";
-    } elseif ($updateMode) {
-        echo "[MODE] update check from listing metadata: {$listedChangeCount}/{$total} candidates\n";
-    } elseif ($force) {
+    if ($force) {
         echo "[MODE] force rebuild: {$total}/{$total}\n";
-    } elseif ($checkUpdates && $catalogChanged === false) {
-        echo "[MODE] catalog unchanged; update check skipped.\n";
-    } else {
-        echo "[MODE] complete; no update check requested.\n";
+    } elseif ($resumeMode) {
+        echo "[MODE] resume missing ordinances only: {$incompleteCount}/{$total}\n";
+    }
+    if (!$force && $updateMode) {
+        echo "[MODE] update validation: listed={$listedChangeCount} due={$validationDueCount} total={$workMode['validation_count']}/{$total}\n";
+    }
+    if (!$force && $parserRefreshCount > 0) {
+        echo "[MODE] rebuild saved sources for parser generation: {$parserRefreshCount}/{$total}\n";
+    }
+    if (!$force && $workCount === 0) {
+        echo $checkUpdates
+            ? "[MODE] complete; no ordinance validation is due.\n"
+            : "[MODE] complete; no update check requested.\n";
     }
 
     $progressBase = (int)$workMode['progress_base'];
@@ -141,6 +156,7 @@ function main(array $argv): void
     $skipped = 0;
     $parsed = 0;
     $reused = 0;
+    $parserGenerationRefreshed = 0;
     $failed = 0;
     $manifests = [];
     $processedWork = 0;
@@ -154,81 +170,110 @@ function main(array $argv): void
         $storedSourcePath = $existingSourcePath ?? gzip_path($sourcePath);
         $previousManifest = is_array($plan['previous_manifest'] ?? null) ? $plan['previous_manifest'] : null;
         $shouldWork = (bool)($plan['should_work'] ?? false);
+        $shouldFetch = (bool)($plan['should_fetch'] ?? false);
 
         $sourceHtml = '';
-        $sourceHash = $existingSourcePath !== null ? sha256_file_auto($existingSourcePath) : '';
+        $sourceHash = (string)($plan['source_sha256'] ?? '');
         $sourceChanged = false;
+        $validationResponse = null;
+        $validatedAt = null;
 
         if (!$shouldWork) {
             $skipped++;
             $manifestEntry = merge_manifest_record($previousManifest ?? [], $record, $sourceFileName);
-        } elseif (!$force && $existingSourcePath !== null && filesize($existingSourcePath) > 0 && !$updateMode) {
-            $skipped++;
-            $storedMarkdownPath = existing_path((string)$plan['markdown_path']);
-            $needsParse = !is_file($htmlPath) || $storedMarkdownPath === null || !is_array($previousManifest);
-            if ($needsParse) {
-                $sourceHtml = read_text_file_auto($storedSourcePath);
-                $parsedRecord = parse_taikei_ordinance_html($sourceHtml, (string)$record['detail_url'], $record);
-                write_text_file($htmlPath, $parsedRecord['clean_html']);
-                $storedMarkdownPath = write_text_file((string)$plan['markdown_path'], $parsedRecord['markdown'], true);
-                unset($parsedRecord['clean_html'], $parsedRecord['markdown']);
-                $manifestEntry = $parsedRecord;
-                $parsed++;
-            } else {
-                $manifestEntry = merge_manifest_record($previousManifest ?? [], $record, $sourceFileName);
-                $reused++;
-            }
         } else {
-            // 1 件が取れないだけで走査全体を落とすと、その回で取れたはずの
-            // 残りも取り逃がす。取得済みは manifest に残し、失敗した例規は
-            // 次回の resume で拾い直す。
-            try {
-                $fetchedHtml = fetch_url((string)$record['detail_url']);
-            } catch (RuntimeException $exception) {
-                $failed++;
-                fwrite(STDERR, sprintf(
-                    "Warning: skipping %s: %s
-",
-                    (string)$record['detail_url'],
-                    $exception->getMessage()
-                ));
-                throttled_sleep();
-                continue;
-            }
-            $fetchedHash = sha256_string($fetchedHtml);
-
-            if (!$force && $existingSourcePath !== null && $sourceHash === $fetchedHash) {
-                $storedSourcePath = $existingSourcePath;
-                $sourceHash = $fetchedHash;
-                $checked++;
-            } else {
-                $storedSourcePath = write_text_file($sourcePath, $fetchedHtml, true);
-                $sourceHtml = $fetchedHtml;
-                $sourceHash = $fetchedHash;
-                $sourceChanged = true;
-                $downloaded++;
-            }
-
-            throttled_sleep();
-
-            $storedMarkdownPath = existing_path((string)$plan['markdown_path']);
-            $needsParse = $force
-                || $sourceChanged
-                || !is_file($htmlPath)
-                || $storedMarkdownPath === null
-                || !is_array($previousManifest);
-
-            if ($needsParse) {
-                if ($sourceHtml === '') {
-                    $sourceHtml = read_text_file_auto($storedSourcePath);
+            if ($shouldFetch) {
+                // 1 件が取れないだけで走査全体を落とすと、その回で取れたはずの
+                // 残りも取り逃がす。取得済みは manifest に残し、失敗した例規は
+                // 次回の resume で拾い直す。
+                try {
+                    $requestHeaders = (!$force && $existingSourcePath !== null)
+                        ? taikei_conditional_request_headers($previousManifest)
+                        : [];
+                    $validationResponse = fetch_url_response((string)$record['detail_url'], $requestHeaders);
+                    $validatedAt = gmdate('c');
+                } catch (RuntimeException $exception) {
+                    $failed++;
+                    fwrite(STDERR, sprintf(
+                        "Warning: skipping %s: %s\n",
+                        (string)$record['detail_url'],
+                        $exception->getMessage()
+                    ));
+                    throttled_sleep();
+                    continue;
                 }
 
-                $parsedRecord = parse_taikei_ordinance_html($sourceHtml, (string)$record['detail_url'], $record);
-                write_text_file($htmlPath, $parsedRecord['clean_html']);
-                $storedMarkdownPath = write_text_file((string)$plan['markdown_path'], $parsedRecord['markdown'], true);
-                unset($parsedRecord['clean_html'], $parsedRecord['markdown']);
-                $manifestEntry = $parsedRecord;
+                if ((bool)($validationResponse['not_modified'] ?? false)) {
+                    if ($existingSourcePath === null) {
+                        $failed++;
+                        fwrite(STDERR, sprintf(
+                            "Warning: received HTTP 304 without a saved source for %s\n",
+                            (string)$record['detail_url']
+                        ));
+                        throttled_sleep();
+                        continue;
+                    }
+                    $storedSourcePath = $existingSourcePath;
+                    $checked++;
+                } else {
+                    $fetchedHtml = (string)($validationResponse['body'] ?? '');
+                    try {
+                        $changedByHash = taikei_source_changed($sourceHash, $fetchedHtml, $force);
+                    } catch (RuntimeException $exception) {
+                        $failed++;
+                        fwrite(STDERR, sprintf(
+                            "Warning: skipping %s: %s\n",
+                            (string)$record['detail_url'],
+                            $exception->getMessage()
+                        ));
+                        throttled_sleep();
+                        continue;
+                    }
+                    $fetchedHash = sha256_string($fetchedHtml);
+                    if ($existingSourcePath !== null && !$changedByHash) {
+                        // validator を返さない取得元でも、本文 hash が同じなら保存済み
+                        // source を正本のまま使える。
+                        $storedSourcePath = $existingSourcePath;
+                        $sourceHash = $fetchedHash;
+                        $checked++;
+                    } else {
+                        $storedSourcePath = write_text_file($sourcePath, $fetchedHtml, true);
+                        $sourceHtml = $fetchedHtml;
+                        $sourceHash = $fetchedHash;
+                        $sourceChanged = true;
+                        $downloaded++;
+                    }
+                }
+
+                throttled_sleep();
+            } else {
+                // パーサ世代だけが進んだ場合は取得元へ問い合わせず、保存済み
+                // source を変換する。個票を見ていないので検証時刻は進めない。
+                $skipped++;
+            }
+
+            $needsParse = $force
+                || $sourceChanged
+                || (bool)($plan['needs_parse'] ?? false);
+
+            if ($needsParse) {
+                $parsedRecord = parse_and_store_taikei_source(
+                    $record,
+                    $storedSourcePath,
+                    $htmlPath,
+                    (string)$plan['markdown_path'],
+                    $sourceHtml
+                );
+                // 304 で再変換した場合にも、前回の validator と検証履歴を失わない。
+                $manifestEntry = merge_manifest_record(
+                    array_merge($previousManifest ?? [], $parsedRecord),
+                    $record,
+                    $sourceFileName
+                );
                 $parsed++;
+                if ((bool)($plan['needs_parser_refresh'] ?? false)) {
+                    $parserGenerationRefreshed++;
+                }
             } else {
                 $manifestEntry = merge_manifest_record($previousManifest ?? [], $record, $sourceFileName);
                 $reused++;
@@ -237,7 +282,13 @@ function main(array $argv): void
 
         $manifestEntry['source_file'] = $sourceFileName;
         $manifestEntry['stored_source_file'] = basename($storedSourcePath);
-        $manifestEntry['source_sha256'] = $sourceHash !== '' ? $sourceHash : sha256_file_auto($storedSourcePath);
+        $sourceHash = $sourceHash !== '' ? $sourceHash : sha256_file_auto($storedSourcePath);
+        $manifestEntry = finalize_taikei_manifest(
+            $manifestEntry,
+            $sourceHash,
+            $validationResponse,
+            $validatedAt
+        );
         $manifestEntry['catalog_content_current'] = $catalogVersion;
         $manifestEntry['checked_updates'] = $checkUpdates;
         $manifestEntry['updated_at'] = gmdate('c');
@@ -263,6 +314,13 @@ function main(array $argv): void
             );
         }
     }
+
+    // 問い合わせの優先順は状態で変わるが、正本 manifest の並びは source 名で
+    // 安定させ、毎周期の無意味な全行差分を作らない。
+    usort($manifests, static fn(array $a, array $b): int => strcmp(
+        (string)($a['source_file'] ?? ''),
+        (string)($b['source_file'] ?? '')
+    ));
 
     // 目録に並んだ件数が、この取得元の申告そのもの。失敗した分は取れていない。
     $declaredTotal = count($records);
@@ -313,8 +371,12 @@ function main(array $argv): void
     echo "  Checked existing: {$checked}\n";
     echo "  Skipped existing: {$skipped}\n";
     echo "  Parsed: {$parsed}\n";
+    echo "  Parser generation refreshed: {$parserGenerationRefreshed}\n";
     echo "  Reused manifest: {$reused}\n";
     echo "  Failed: {$failed}\n";
+    if ($parserGenerationRefreshed > 0) {
+        echo "[ACTION] Saved sources were regenerated; enqueue the OpenSearch index update.\n";
+    }
 }
 
 function cli_option_value(array $options, array $argv, string $name, string $default = ''): string
@@ -684,23 +746,54 @@ function parse_taikei_ordinance_html(string $html, string $sourceUrl, array $rec
     ];
 }
 
+function parse_and_store_taikei_source(
+    array $record,
+    string $storedSourcePath,
+    string $htmlPath,
+    string $markdownPath,
+    string $sourceHtml = ''
+): array {
+    if ($sourceHtml === '') {
+        $sourceHtml = read_text_file_auto($storedSourcePath);
+    }
+    $parsedRecord = parse_taikei_ordinance_html(
+        $sourceHtml,
+        (string)$record['detail_url'],
+        $record
+    );
+    write_text_file($htmlPath, $parsedRecord['clean_html']);
+    write_text_file($markdownPath, $parsedRecord['markdown'], true);
+    unset($parsedRecord['clean_html'], $parsedRecord['markdown']);
+    return $parsedRecord;
+}
+
 function fetch_url(string $url): string
 {
+    $response = fetch_url_response($url);
+    if (!is_string($response['body'] ?? null)) {
+        throw new RuntimeException("Unexpected empty response for {$url}");
+    }
+    return (string)$response['body'];
+}
+
+function fetch_url_response(string $url, array $requestHeaders = []): array
+{
+    $requestHeaders = normalize_http_request_headers($requestHeaders);
     if (extension_loaded('curl')) {
         $verifySsl = true;
         $lastStatus = 0;
         $lastError = '';
 
         for ($attempt = 1; $attempt <= TAIKEI_FETCH_RATE_LIMIT_MAX_ATTEMPTS; $attempt++) {
-            [$body, $status, $error] = curl_fetch($url, $verifySsl);
+            [$body, $status, $error, $responseHeaders] = curl_fetch($url, $verifySsl, $requestHeaders);
             if (($body === false || $status >= 400) && $verifySsl && should_retry_insecure($error)) {
                 warn_retry_insecure();
                 $verifySsl = false;
-                [$body, $status, $error] = curl_fetch($url, false);
+                [$body, $status, $error, $responseHeaders] = curl_fetch($url, false, $requestHeaders);
             }
 
-            if ($body !== false && $status < 400) {
-                return ensure_utf8((string)$body);
+            if ($status === 304 || ($body !== false && $status < 400)) {
+                return build_fetch_response($body, $status, $responseHeaders);
             }
 
             $lastStatus = $status;
@@ -720,15 +813,15 @@ function fetch_url(string $url): string
     $lastError = '';
 
     for ($attempt = 1; $attempt <= TAIKEI_FETCH_RATE_LIMIT_MAX_ATTEMPTS; $attempt++) {
-        [$body, $status, $error] = stream_fetch($url, $verifySsl);
-        if ($body === false && $verifySsl && should_retry_insecure($error)) {
+        [$body, $status, $error, $responseHeaders] = stream_fetch($url, $verifySsl, $requestHeaders);
+        if ($body === false && $status !== 304 && $verifySsl && should_retry_insecure($error)) {
             warn_retry_insecure();
             $verifySsl = false;
-            [$body, $status, $error] = stream_fetch($url, false);
+            [$body, $status, $error, $responseHeaders] = stream_fetch($url, false, $requestHeaders);
         }
 
-        if ($body !== false && $status < 400) {
-            return ensure_utf8($body);
+        if ($status === 304 || ($body !== false && $status < 400)) {
+            return build_fetch_response($body, $status, $responseHeaders);
         }
 
         $lastStatus = $status;
@@ -743,12 +836,44 @@ function fetch_url(string $url): string
     throw new RuntimeException("Failed to fetch {$url}: " . format_fetch_failure($lastStatus, $lastError));
 }
 
-function curl_fetch(string $url, bool $verifySsl): array
+function normalize_http_request_headers(array $headers): array
+{
+    $normalized = [];
+    foreach ($headers as $header) {
+        if (!is_string($header)) {
+            continue;
+        }
+        $header = trim($header);
+        if ($header === '') {
+            continue;
+        }
+        if (str_contains($header, "\r") || str_contains($header, "\n")) {
+            throw new InvalidArgumentException('HTTP request header must not contain newlines.');
+        }
+        $normalized[] = $header;
+    }
+    return $normalized;
+}
+
+function build_fetch_response(string|false $body, int $status, array $responseHeaders): array
+{
+    $notModified = $status === 304;
+    return [
+        'body' => $notModified ? null : ensure_utf8((string)$body),
+        'status' => $status,
+        'not_modified' => $notModified,
+        'etag' => response_header_value($responseHeaders, 'ETag'),
+        'last_modified' => response_header_value($responseHeaders, 'Last-Modified'),
+    ];
+}
+
+function curl_fetch(string $url, bool $verifySsl, array $requestHeaders = []): array
 {
     $ch = curl_init($url);
     if ($ch === false) {
         throw new RuntimeException("Failed to initialize curl for {$url}");
     }
+    $responseHeaders = [];
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_FOLLOWLOCATION => true,
@@ -757,7 +882,21 @@ function curl_fetch(string $url, bool $verifySsl): array
         CURLOPT_TIMEOUT => 120,
         CURLOPT_USERAGENT => TAIKEI_USER_AGENT,
         CURLOPT_ENCODING => '',
-        CURLOPT_HTTPHEADER => ['Accept-Language: ja,en-US;q=0.9,en;q=0.8'],
+        CURLOPT_HTTPHEADER => array_merge(
+            ['Accept-Language: ja,en-US;q=0.9,en;q=0.8'],
+            $requestHeaders
+        ),
+        CURLOPT_HEADERFUNCTION => static function ($handle, string $line) use (&$responseHeaders): int {
+            $length = strlen($line);
+            $trimmed = rtrim($line, "\r\n");
+            // redirect や proxy 応答を越えた最終 response の validator だけを使う。
+            if (preg_match('/^HTTP\/\S+\s+\d{3}/i', $trimmed) === 1) {
+                $responseHeaders = [$trimmed];
+            } elseif ($trimmed !== '') {
+                $responseHeaders[] = $trimmed;
+            }
+            return $length;
+        },
         CURLOPT_SSL_VERIFYPEER => $verifySsl,
         CURLOPT_SSL_VERIFYHOST => $verifySsl ? 2 : 0,
     ]);
@@ -765,20 +904,22 @@ function curl_fetch(string $url, bool $verifySsl): array
     $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     $error = curl_error($ch);
     curl_close($ch);
-    return [$body, $status, $error];
+    return [$body, $status, $error, $responseHeaders];
 }
 
-function stream_fetch(string $url, bool $verifySsl): array
+function stream_fetch(string $url, bool $verifySsl, array $requestHeaders = []): array
 {
+    $headers = array_merge([
+        'User-Agent: ' . TAIKEI_USER_AGENT,
+        'Accept-Language: ja,en-US;q=0.9,en;q=0.8',
+    ], $requestHeaders);
     $context = stream_context_create([
         'http' => [
             'method' => 'GET',
-            'header' => implode("\r\n", [
-                'User-Agent: ' . TAIKEI_USER_AGENT,
-                'Accept-Language: ja,en-US;q=0.9,en;q=0.8',
-            ]),
+            'header' => implode("\r\n", $headers),
             'timeout' => 120,
             'follow_location' => 1,
+            'ignore_errors' => true,
         ],
         'ssl' => [
             'verify_peer' => $verifySsl,
@@ -787,15 +928,17 @@ function stream_fetch(string $url, bool $verifySsl): array
     ]);
 
     $body = @file_get_contents($url, false, $context);
-    $headers = isset($http_response_header) && is_array($http_response_header) ? $http_response_header : [];
-    $status = http_status_from_headers($headers);
+    $responseHeaders = isset($http_response_header) && is_array($http_response_header)
+        ? final_http_header_lines($http_response_header)
+        : [];
+    $status = http_status_from_headers($responseHeaders);
     $error = '';
     if ($body === false) {
         $lastError = error_get_last();
         $error = is_array($lastError) ? (string)($lastError['message'] ?? 'unknown error') : 'unknown error';
     }
 
-    return [$body, $status, $error];
+    return [$body, $status, $error, $responseHeaders];
 }
 
 function should_retry_insecure(string $error): bool
@@ -902,15 +1045,46 @@ function warn_retry_insecure(): void
 
 function http_status_from_headers(array $headers): int
 {
+    $status = 0;
     foreach ($headers as $header) {
         if (!is_string($header)) {
             continue;
         }
         if (preg_match('/^HTTP\/\S+\s+(\d{3})/i', $header, $matches) === 1) {
-            return (int)$matches[1];
+            $status = (int)$matches[1];
         }
     }
-    return 0;
+    return $status;
+}
+
+function final_http_header_lines(array $headers): array
+{
+    $final = [];
+    foreach ($headers as $header) {
+        if (!is_string($header)) {
+            continue;
+        }
+        $header = rtrim($header, "\r\n");
+        if (preg_match('/^HTTP\/\S+\s+\d{3}/i', $header) === 1) {
+            $final = [$header];
+        } elseif ($header !== '') {
+            $final[] = $header;
+        }
+    }
+    return $final;
+}
+
+function response_header_value(array $headers, string $name): string
+{
+    foreach (array_reverse($headers) as $header) {
+        if (!is_string($header)) {
+            continue;
+        }
+        if (preg_match('/^' . preg_quote($name, '/') . '\s*:\s*(.*)$/i', $header, $matches) === 1) {
+            return trim((string)$matches[1]);
+        }
+    }
+    return '';
 }
 
 function create_dom(string $html): DOMDocument
@@ -1629,6 +1803,19 @@ function sha256_string(string $content): string
     return hash('sha256', $content);
 }
 
+function taikei_source_changed(string $sourceHash, string $fetchedHtml, bool $force = false): bool
+{
+    // 空の 200 応答は「本文が削除された」と断定できない。既存 source を
+    // 上書きすると次の周期でも壊れた成果物を正本として使うため、失敗に戻す。
+    if (trim($fetchedHtml) === '') {
+        throw new RuntimeException('Received an empty ordinance response.');
+    }
+    if ($force || $sourceHash === '') {
+        return true;
+    }
+    return !hash_equals($sourceHash, sha256_string($fetchedHtml));
+}
+
 function sha256_file_auto(string $path): string
 {
     return sha256_string(read_file_bytes_auto($path));
@@ -1708,6 +1895,69 @@ function first_manifest_catalog_version(array $records): string
     return '';
 }
 
+function taikei_validation_due(?array $manifestRecord, ?int $now = null): bool
+{
+    $lastValidatedAt = trim((string)($manifestRecord['last_validated_at'] ?? ''));
+    if ($lastValidatedAt === '') {
+        return true;
+    }
+    $lastValidated = strtotime($lastValidatedAt);
+    if ($lastValidated === false) {
+        return true;
+    }
+    return ($now ?? time()) - $lastValidated >= TAIKEI_VALIDATION_INTERVAL_SECONDS;
+}
+
+function taikei_conditional_request_headers(?array $manifestRecord): array
+{
+    if ($manifestRecord === null) {
+        return [];
+    }
+    $headers = [];
+    foreach ([
+        'source_etag' => 'If-None-Match',
+        'source_last_modified' => 'If-Modified-Since',
+    ] as $key => $name) {
+        $value = trim((string)($manifestRecord[$key] ?? ''));
+        // remote 由来の値を次の HTTP header へ渡すので、改行を含む値は再利用しない。
+        if ($value === '' || str_contains($value, "\r") || str_contains($value, "\n")) {
+            continue;
+        }
+        $headers[] = $name . ': ' . $value;
+    }
+    return $headers;
+}
+
+function finalize_taikei_manifest(
+    array $manifestEntry,
+    string $sourceHash,
+    ?array $validationResponse,
+    ?string $validatedAt
+): array {
+    $manifestEntry['source_sha256'] = $sourceHash;
+    $manifestEntry['parser_version'] = TAIKEI_PARSER_VERSION;
+    if ($validationResponse === null) {
+        // source を再変換しただけでは、原典を見ていない時刻を検証済みにしない。
+        return $manifestEntry;
+    }
+
+    $manifestEntry['last_validated_at'] = $validatedAt ?? gmdate('c');
+    $notModified = (bool)($validationResponse['not_modified'] ?? false);
+    foreach ([
+        'etag' => 'source_etag',
+        'last_modified' => 'source_last_modified',
+    ] as $responseKey => $manifestKey) {
+        $value = trim((string)($validationResponse[$responseKey] ?? ''));
+        if ($value !== '') {
+            $manifestEntry[$manifestKey] = $value;
+        } elseif (!$notModified) {
+            // 200 応答で消えた validator を送り続けず、次回は本文 hash で確かめる。
+            unset($manifestEntry[$manifestKey]);
+        }
+    }
+    return $manifestEntry;
+}
+
 function listed_metadata_changed(?array $manifestRecord, array $crawlRecord): bool
 {
     if ($manifestRecord === null) {
@@ -1719,7 +1969,13 @@ function listed_metadata_changed(?array $manifestRecord, array $crawlRecord): bo
         if ($current === '') {
             continue;
         }
-        $previous = normalize_whitespace((string)($manifestRecord[$key] ?? ''));
+        // parse 済みの題名等は個票由来なので、一覧の表記と恒常的に違うことがある。
+        // 一覧同士を比較しないと、毎周期すべてを「差分あり」にしてしまう。
+        $listedKey = 'listed_' . $key;
+        $previousValue = array_key_exists($listedKey, $manifestRecord)
+            ? $manifestRecord[$listedKey]
+            : ($manifestRecord[$key] ?? '');
+        $previous = normalize_whitespace((string)$previousValue);
         if ($previous === '' || $previous !== $current) {
             return true;
         }
@@ -1750,10 +2006,32 @@ function build_source_plan(
         $storedMarkdownPath = existing_path($markdownPath);
         $previousManifest = $previousManifestBySource[$sourceFileName] ?? null;
         $hasSource = $existingSourcePath !== null && filesize($existingSourcePath) > 0;
-        $isIncomplete = !$hasSource || !is_file($htmlPath) || $storedMarkdownPath === null;
+        $sourceHash = $hasSource ? sha256_file_auto($existingSourcePath) : '';
+        $manifestSourceHash = trim((string)($previousManifest['source_sha256'] ?? ''));
+        $hasManifest = is_array($previousManifest);
+        $needsSource = !$hasSource;
+        $needsParserRefresh = $hasSource && (
+            !$hasManifest
+            || (int)($previousManifest['parser_version'] ?? 0) !== TAIKEI_PARSER_VERSION
+        );
+        $needsParse = $hasSource && (
+            !is_file($htmlPath)
+            || $storedMarkdownPath === null
+            || !$hasManifest
+            || $manifestSourceHash === ''
+            || $manifestSourceHash !== $sourceHash
+            || $needsParserRefresh
+        );
+        $isIncomplete = $needsSource
+            || !is_file($htmlPath)
+            || $storedMarkdownPath === null
+            || !$hasManifest;
         $listedMetadataChanged = listed_metadata_changed(
             is_array($previousManifest) ? $previousManifest : null,
             $record
+        );
+        $validationDue = $hasSource && taikei_validation_due(
+            is_array($previousManifest) ? $previousManifest : null
         );
         if ($isIncomplete) {
             $incompleteCount++;
@@ -1770,8 +2048,13 @@ function build_source_plan(
             'existing_source_path' => $existingSourcePath,
             'stored_markdown_path' => $storedMarkdownPath,
             'previous_manifest' => $previousManifest,
+            'source_sha256' => $sourceHash,
+            'needs_source' => $needsSource,
+            'needs_parse' => $needsParse,
+            'needs_parser_refresh' => $needsParserRefresh,
             'is_incomplete' => $isIncomplete,
             'listed_metadata_changed' => $listedMetadataChanged,
+            'validation_due' => $validationDue,
         ];
     }
 
@@ -1780,6 +2063,43 @@ function build_source_plan(
         'incomplete_count' => $incompleteCount,
         'listed_change_count' => $listedChangeCount,
     ];
+}
+
+function prioritize_source_plans(array $plans, bool $checkUpdates): array
+{
+    if (!$checkUpdates) {
+        return $plans;
+    }
+    foreach ($plans as $index => &$plan) {
+        $plan['_stable_order'] = $index;
+    }
+    unset($plan);
+    usort($plans, static function (array $left, array $right): int {
+        $priority = static function (array $plan): int {
+            if ((bool)($plan['listed_metadata_changed'] ?? false)) {
+                return 0;
+            }
+            if ((bool)($plan['needs_source'] ?? false)) {
+                return 1;
+            }
+            if ((bool)($plan['needs_parse'] ?? false)) {
+                return 2;
+            }
+            if ((bool)($plan['validation_due'] ?? false)) {
+                return 3;
+            }
+            return 4;
+        };
+        $compared = $priority($left) <=> $priority($right);
+        return $compared !== 0
+            ? $compared
+            : (int)($left['_stable_order'] ?? 0) <=> (int)($right['_stable_order'] ?? 0);
+    });
+    foreach ($plans as &$plan) {
+        unset($plan['_stable_order']);
+    }
+    unset($plan);
+    return $plans;
 }
 
 function assign_work_mode(array &$plans, bool $force, bool $checkUpdates, ?bool $catalogChanged = null): array
@@ -1793,17 +2113,39 @@ function assign_work_mode(array &$plans, bool $force, bool $checkUpdates, ?bool 
     }
 
     $resumeMode = !$force && $incompleteCount > 0;
-    $updateMode = !$force && !$resumeMode && $checkUpdates && $catalogChanged !== false;
     $workCount = 0;
+    $validationCount = 0;
+    $validationDueCount = 0;
+    $listedChangeCount = 0;
+    $parserRefreshCount = 0;
     foreach ($plans as $index => $plan) {
-        $shouldWork = $force
-            || (bool)($plan['is_incomplete'] ?? false)
-            || ($updateMode && (bool)($plan['listed_metadata_changed'] ?? false));
+        $listedMetadataChanged = (bool)($plan['listed_metadata_changed'] ?? false);
+        $validationDue = (bool)($plan['validation_due'] ?? false);
+        $needsSource = (bool)($plan['needs_source'] ?? false);
+        $needsParse = (bool)($plan['needs_parse'] ?? false);
+        $shouldValidate = !$force && $checkUpdates && ($listedMetadataChanged || $validationDue);
+        $shouldFetch = $force || $needsSource || $shouldValidate;
+        $shouldWork = $shouldFetch || $needsParse;
+        $plans[$index]['should_validate'] = $shouldValidate;
+        $plans[$index]['should_fetch'] = $shouldFetch;
         $plans[$index]['should_work'] = $shouldWork;
+        if ($listedMetadataChanged) {
+            $listedChangeCount++;
+        }
+        if ($validationDue) {
+            $validationDueCount++;
+        }
+        if ((bool)($plan['needs_parser_refresh'] ?? false)) {
+            $parserRefreshCount++;
+        }
+        if ($shouldValidate) {
+            $validationCount++;
+        }
         if ($shouldWork) {
             $workCount++;
         }
     }
+    $updateMode = !$force && $checkUpdates && $validationCount > 0;
 
     return [
         'total' => $total,
@@ -1812,6 +2154,10 @@ function assign_work_mode(array &$plans, bool $force, bool $checkUpdates, ?bool 
         'update_mode' => $updateMode,
         'catalog_changed' => $catalogChanged,
         'work_count' => $workCount,
+        'validation_count' => $validationCount,
+        'validation_due_count' => $validationDueCount,
+        'listed_change_count' => $listedChangeCount,
+        'parser_refresh_count' => $parserRefreshCount,
         'progress_base' => max(0, $total - $workCount),
     ];
 }
@@ -1829,6 +2175,9 @@ function merge_manifest_record(array $manifestRecord, array $crawlRecord, string
     $merged['number'] = trim((string)($merged['number'] ?? '')) !== ''
         ? (string)$merged['number']
         : (string)($crawlRecord['number'] ?? '');
+    foreach (['title', 'date', 'number'] as $key) {
+        $merged['listed_' . $key] = (string)($crawlRecord[$key] ?? '');
+    }
     $merged['detail_url'] = (string)($crawlRecord['detail_url'] ?? $merged['detail_url'] ?? '');
     $merged['taxonomy_url'] = (string)($crawlRecord['taxonomy_url'] ?? $merged['taxonomy_url'] ?? '');
     $merged['taxonomy_path'] = (string)($crawlRecord['taxonomy_path'] ?? $merged['taxonomy_path'] ?? '');
@@ -1921,4 +2270,3 @@ function h(string $value): string
 {
     return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
-

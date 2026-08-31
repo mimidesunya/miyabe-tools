@@ -585,10 +585,17 @@ def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_
             with page.expect_download(timeout=5_000) as dl_info:
                 locator.click(timeout=2_000)
             download = dl_info.value
-            ext = Path(download.suggested_filename).suffix or ".dat"
+            ext = Path(download.suggested_filename).suffix
+            if ext.lower() not in gijiroku_storage.MINUTES_NAMED_OUTPUT_SUFFIXES:
+                # 正体不明の拡張子を完了名で置くと、次周期の存在判定だけを
+                # すり抜ける。別の本文取得経路を試せるよう、この候補は使わない。
+                continue
             filename = stem + ext
             dest = output_dir / filename
-            download.save_as(str(dest))
+            gijiroku_storage.write_via_temporary_file(
+                dest,
+                lambda temporary: download.save_as(str(temporary)),
+            )
             return "downloaded", str(dest)
         except Exception:
             continue

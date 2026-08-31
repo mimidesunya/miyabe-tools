@@ -33,6 +33,11 @@ import gijiroku_planning
 import gijiroku_storage
 import gijiroku_targets
 
+try:
+    import minutes_kind
+except ModuleNotFoundError:  # pragma: no cover
+    from tools.gijiroku import minutes_kind
+
 
 DEFAULT_WAIT_MS = 10_000
 DEFAULT_USER_AGENT = (
@@ -466,10 +471,19 @@ def fetch_meeting_text(opener, item: MeetingItem, timeout_ms: int) -> tuple[int,
     if not body_text:
         raise RuntimeError(f"本文テキストを抽出できませんでした: {item.url}")
 
+    # OCR が「令和６年」を「令和９年」と読むと、年ラベルより未来の開催日になる。
+    # 曜日と年ラベルで検算した日付だけを Held-On として残す。
+    held_on = minutes_kind.extract_plausible_held_on(
+        body_text,
+        title=item.title,
+        year_label=item.year_label,
+        filename=item.url,
+    )
     header_lines = [item.title]
     if item.meeting_group:
         header_lines.append(item.meeting_group)
     header_lines.append(item.year_label)
+    header_lines.extend(minutes_kind.held_on_header_lines(held_on))
     header_lines.append(f"Source URL: {item.url}")
     header_lines.append("")
     header_lines.append(body_text)
