@@ -28,8 +28,13 @@ TEXT_ENCODINGS = ("utf-8", "utf-8-sig", "cp932", "shift_jis", "euc_jp")
 FULLWIDTH_DIGITS = str.maketrans("０１２３４５６７８９", "0123456789")
 ERA_BASE_YEAR = {"昭和": 1925, "平成": 1988, "令和": 2018}
 ERA_MAX_YEAR = {"昭和": 64, "平成": 31, "令和": 99}
+# 取得元は「令和４年（2022年）３月11日」と西暦を併記することがある。
+# 「年」の直後に月を求めると、その括弧で切れて開催日が読めない。
+_WESTERN_IN_PARENS = r"(?:\s*[（(]\s*(?:19|20)[\d０-９]{2}\s*年?\s*[）)])?"
 MINUTES_DATE_PATTERN = re.compile(
-    r"(昭和|平成|令和)\s*([元\d０-９]+)年(?:・(昭和|平成|令和)元年)?\s*([\d０-９]{1,2})月\s*([\d０-９]{1,2})日"
+    r"(昭和|平成|令和)\s*([元\d０-９]+)年(?:・(昭和|平成|令和)元年)?"
+    + _WESTERN_IN_PARENS
+    + r"\s*([\d０-９]{1,2})月\s*([\d０-９]{1,2})日"
 )
 YEAR_LABEL_PATTERN = re.compile(r"(昭和|平成|令和)\s*([元\d０-９]+)年(?:・(昭和|平成|令和)元年)?")
 FILE_DATE_PATTERN = re.compile(r"([0-9]{2})月([0-9]{2})日")
@@ -211,9 +216,23 @@ def choose_minutes_source_files(downloads_dir: Path) -> list[Path]:
     return sorted(preferred.values())
 
 
+# 同じ保存名が 2 件目以降にぶつかると、保存側が SHA1 先頭 8 桁を足す
+# （`gijiroku_storage.disambiguated_stem()`）。それは保存先を分けるための印で、
+# 会議の名前ではない。付いたまま一覧行と照合すると当たらず、原典 URL も
+# 開催日も落ちる。本番で suffix 付き 45,731 件のうち 10,696 件がこの形だった。
+DISAMBIGUATION_SUFFIX_PATTERN = re.compile(r"-[0-9a-f]{8}$")
+
+
+def strip_disambiguation_suffix(title: str) -> str:
+    stripped = DISAMBIGUATION_SUFFIX_PATTERN.sub("", str(title or "").strip())
+    # 題名が印だけになるなら落とさない。名前が消える方が困る。
+    return stripped or str(title or "").strip()
+
+
 def normalize_title(file_path: Path) -> str:
     logical = logical_path(file_path)
-    return logical.stem.strip() or logical.name
+    stem = logical.stem.strip() or logical.name
+    return strip_disambiguation_suffix(stem)
 
 
 def decode_query_component(value: str) -> str:

@@ -98,6 +98,13 @@ class ReikiBodyIsSourceOnlyTest(unittest.TestCase):
         for kept in (AI_STANCE, AI_COMBINED_REASON, AI_REASON):
             self.assertIn(kept, evaluation)
 
+    def test_internal_identifiers_are_not_search_terms(self) -> None:
+        # `necessityScore` は AI 評価の内部の項目名で、利用者が探す語ではない。
+        # 検索語に残していたので、本文にその語が無い条例が 13 件ヒットしていた。
+        terms = self._only_document().get("body_terms") or ""
+        for identifier in ("necessityScore", "fiscalImpactScore", "primaryClass"):
+            self.assertNotIn(identifier, terms)
+
     def test_evaluation_stays_searchable(self) -> None:
         # 本文から外しても検索語としては残す。従来の検索が効かなくならないように。
         terms = self._only_document().get("body_terms") or ""

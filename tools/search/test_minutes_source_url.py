@@ -92,6 +92,44 @@ class MinutesSourceUrlTest(unittest.TestCase):
         self.assertIsNotNone(record)
         self.assertEqual(record.source_url, URL)
 
+    def test_collision_suffix_is_not_part_of_the_title(self) -> None:
+        # 同じ保存名がぶつかると保存側が SHA1 先頭 8 桁を足す。それは保存先を
+        # 分けるための印で、会議の名前ではない。付いたまま照合すると当たらず、
+        # 原典 URL も開催日も落ちる。本番で 10,696 件がこの形だった。
+        self._meta = self._write_index(
+            [
+                {
+                    "title": "03月11日-01号",
+                    "year_label": "令和4年",
+                    "url": URL,
+                    "meeting_name": "予算特別委員会会議録",
+                    "source_year": 2022,
+                }
+            ]
+        )
+        record = self._record(
+            "令和4年",
+            "予算決算,分科会",
+            "03月11日-01号-2cbd47d6.txt",
+            "令和４年（2022年）３月11日（金曜日）\n予算特別委員会会議録\n開議\n",
+        )
+        self.assertIsNotNone(record)
+        self.assertEqual(record.title, "03月11日-01号")
+        self.assertEqual(record.source_url, URL)
+
+    def test_parenthesised_western_year_is_readable(self) -> None:
+        # 取得元は「令和４年（2022年）３月11日」と併記することがある。
+        # 「年」の直後に月を求めると、その括弧で切れて開催日が読めない。
+        self._meta = self._write_index([])
+        record = self._record(
+            "令和4年",
+            "予算特別",
+            "03月11日-01号.txt",
+            "予算特別委員会会議録\n令和４年（2022年）３月11日（金曜日）\n開議\n出席議員\n",
+        )
+        self.assertIsNotNone(record)
+        self.assertEqual(record.held_on, "2022-03-11")
+
     def test_canonical_year_label_drops_separators(self) -> None:
         self.assertEqual(canonical_year_label("平成31年・_令和元年"), "平成31年・令和元年")
         self.assertEqual(canonical_year_label("平成31年・\n令和元年"), "平成31年・令和元年")

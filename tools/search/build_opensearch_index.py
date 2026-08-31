@@ -409,6 +409,19 @@ def stable_local_id(*parts: str) -> str:
     return hashlib.sha1(material.encode("utf-8", errors="replace")).hexdigest()
 
 
+# 内部の識別子（`necessityScore`、`fiscalImpactScore`、`Class` など）は
+# 利用者が探す語ではない。検索語から外す。日本語は残す。
+_ASCII_IDENTIFIER_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+
+
+def drop_internal_identifiers(terms: str) -> str:
+    return " ".join(
+        token
+        for token in str(terms or "").split()
+        if not _ASCII_IDENTIFIER_RE.match(token)
+    )
+
+
 def clean_text(value: Any) -> str:
     return str(value or "").strip()
 
@@ -798,8 +811,12 @@ def iter_reiki_documents(
                 for part in [
                     clean_text(record.get("content_terms")),
                     clean_text(record.get("department_terms")),
-                    clean_text(record.get("combined_reason_terms")),
-                    clean_text(record.get("reason_terms")),
+                    # AI 評価の文には `necessityScore` `Class G` のような内部の
+                    # 識別子が混ざる。そのまま検索語に入れると、本文に無い語で
+                    # 条例が当たる（実際 `necessityScore` で 13 件出ていた）。
+                    # 日本語の評価語は残し、英数字だけの識別子を落とす。
+                    drop_internal_identifiers(clean_text(record.get("combined_reason_terms"))),
+                    drop_internal_identifiers(clean_text(record.get("reason_terms"))),
                     clean_text(record.get("secondary_terms")),
                     clean_text(record.get("lens_terms")),
                     clean_text(record.get("taxonomy_terms")),
