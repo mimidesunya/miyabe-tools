@@ -176,6 +176,47 @@ class Cp932MojibakeTest(unittest.TestCase):
             "2013-06-10",
         )
 
+    def test_a_closing_date_is_not_the_opening_date(self) -> None:
+        # 連日開催の本文には前日の閉議と当日の開議が並ぶ。「閉議」が続く日付は
+        # その会議が終わった日なので、開議の日として採らない。
+        body = (
+            "令和6年6月19日（水曜日）" + chr(10) + "閉議 午後5時" + chr(10)
+            + "令和6年6月20日（木曜日）" + chr(10) + "開議 午前10時"
+        )
+        self.assertEqual(
+            minutes_kind.extract_plausible_held_on(
+                body, title="第2回定例会", year_label="令和6年", filename="x.txt.gz"
+            ),
+            "2024-06-20",
+        )
+
+    def test_a_long_preamble_does_not_hide_the_date(self) -> None:
+        # 表紙・目次が長い取得元がある。行数で頭を切ると開議行に届かない。
+        body = (
+            "表紙" + chr(10) + "目次" + chr(10)
+            + chr(10).join(f"項目{i}" for i in range(28)) + chr(10)
+            + "令和6年6月20日（木曜日）" + chr(10) + "開議"
+        )
+        self.assertEqual(
+            minutes_kind.extract_plausible_held_on(
+                body, title="第2回定例会", year_label="令和6年", filename="x.txt.gz"
+            ),
+            "2024-06-20",
+        )
+
+    def test_a_meeting_about_the_convening_notice_is_not_excluded(self) -> None:
+        # 「招集告示について協議した委員会」は会議名に告示の語が入るだけ。
+        body = (
+            "招集告示について協議した議会運営委員会" + chr(10)
+            + "令和6年6月20日（木曜日）" + chr(10) + "開議"
+        )
+        self.assertEqual(
+            minutes_kind.extract_plausible_held_on(
+                body, title="第2回定例会", year_label="令和6年", filename="x.txt.gz"
+            ),
+            "2024-06-20",
+        )
+
     def test_empty_stays_empty(self) -> None:
         self.assertEqual(minutes_kind.repair_cp932_mojibake(""), "")
 

@@ -661,7 +661,9 @@ def _candidates_from_text(raw_text: str) -> list[_DateCandidate]:
         seen.add(key)
         found.append(_DateCandidate(year, month, day, weekday, source))
 
-    haystack = _head_text(text, limit=20)
+    # 表紙・目次が長い取得元があるので、行数ではなく文字数で頭を切る。
+    # 20 行で切ると、目次のあとに開議行が来る本文で日付が読めなかった。
+    haystack = normalize_compatibility_forms(str(text or "")[:6000])
     for match in ERA_DATE_RE.finditer(haystack):
         add(
             era_to_gregorian(match.group(1), match.group(2)),
@@ -738,7 +740,8 @@ _OPENING_MARKERS = ("開議", "開会", "開　議", "開　会", "出席議員"
 
 
 def _month_days_before_opening(text: str) -> set[tuple[int, int]]:
-    head = normalize_compatibility_forms(_head_text(text, limit=30))
+    # 表紙・目次が長い取得元があるので、行数ではなく文字数で頭を切る。
+    head = normalize_compatibility_forms(str(text or "")[:6000])
     found: set[tuple[int, int]] = set()
     for pattern in (ERA_DATE_RE, WESTERN_DATE_RE):
         for match in pattern.finditer(head):
@@ -749,6 +752,10 @@ def _month_days_before_opening(text: str) -> set[tuple[int, int]]:
                 continue
             tail = head[match.end() : match.end() + 60]
             squeezed = _MARKER_SPACE_RE.sub("", tail)
+            # 「閉議」「散会」が続く日付は、その会議が終わった日である。
+            # 連日開催の本文には前日の閉議と当日の開議が並ぶ（前日を採っていた）。
+            if any(word in squeezed[:12] for word in ("閉議", "閉会", "散会")):
+                continue
             if not any(marker.replace(" ", "").replace("　", "") in squeezed for marker in _OPENING_MARKERS):
                 continue
             if pattern is ERA_DATE_RE:
@@ -779,7 +786,8 @@ def extract_plausible_held_on(
     expected_year = gregorian_year_from_label(year_label, source_year)
     today = today or date.today()
     haystack = "\n".join(
-        part for part in (title, _head_text(text, limit=20), filename) if part
+        # 表紙・目次が長い取得元があるので、行数ではなく文字数で頭を切る。
+        part for part in (title, str(text or "")[:6000], filename) if part
     )
     candidates = _candidates_from_text(haystack)
     filename_candidates = _candidates_from_filename(filename)
