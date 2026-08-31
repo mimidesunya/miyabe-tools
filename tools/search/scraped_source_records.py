@@ -562,6 +562,47 @@ def classify_doc_type(title: str, text: str, *, ext: str = "") -> str:
     return "minutes"
 
 
+# 会議名の候補一覧を同じ辞書へ間借りさせるための印。実在しない会議名を使う。
+MEETING_CANDIDATES_KEY = "﻿会議名の候補"
+
+
+def meeting_dir_from_path(file_path: Path, downloads_dir: Path) -> str:
+    """保存先の会議ディレクトリ名。年ディレクトリと本文ファイルの間にある。"""
+    try:
+        parts = file_path.relative_to(downloads_dir).parts
+    except ValueError:
+        return ""
+    return normalize_space(parts[-2]) if len(parts) >= 3 else ""
+
+
+def pick_meta_by_meeting_dir(
+    meta_map: dict[tuple[str, str, str], Any],
+    title: str,
+    year_labels: Iterable[str | None],
+    meeting_dir: str,
+) -> MinutesSourceMeta | None:
+    """保存先の会議ディレクトリと会議名が重なる候補を選ぶ。
+
+    ディレクトリ名は会議名を短くしたものなので、前方一致で足りる。
+    重なる候補が二つ以上あるなら選べないので、選ばない。"""
+    hint = normalize_space(meeting_dir)
+    if hint == "":
+        return None
+    for label in year_labels:
+        for candidate_label in year_label_variants(label):
+            candidates = meta_map.get((candidate_label, title, MEETING_CANDIDATES_KEY))
+            if not isinstance(candidates, list) or len(candidates) < 2:
+                continue
+            matched = [
+                meta
+                for meta in candidates
+                if hint and normalize_space(meta.meeting_name_hint or "").startswith(hint)
+            ]
+            if len(matched) == 1:
+                return matched[0]
+    return None
+
+
 def parse_minutes_source_meta(
     index_json: Path, *, strict: bool = False
 ) -> dict[tuple[str, str, str], MinutesSourceMeta]:
@@ -590,6 +631,15 @@ def parse_minutes_source_meta(
         for label_key in {year_label, canonical_year_label(year_label)}:
             metas.setdefault((label_key, title, meeting_key), meta)
             metas.setdefault((label_key, title, ""), meta)
+            if meeting_key:
+                # 同じ年・同じ題名の行が複数あると、会議名なしの鍵は最初の
+                # 1 件に固定される。飯塚市では 75 文書が同じ PDF を指していた。
+                # 保存先の会議ディレクトリで選び直せるよう、候補を控えておく。
+                candidates = metas.setdefault(
+                    (label_key, title, MEETING_CANDIDATES_KEY), []
+                )
+                if isinstance(candidates, list):
+                    candidates.append(meta)
     return metas
 
 
@@ -626,6 +676,8 @@ def lookup_minutes_source_meta(
     title: str,
     meeting_name: str | None,
     year_labels: Iterable[str | None],
+    *,
+    allow_any_meeting: bool = True,
 ) -> MinutesSourceMeta | None:
     meeting_key = normalize_space(meeting_name or "")
     seen: set[str] = set()
@@ -634,8 +686,10 @@ def lookup_minutes_source_meta(
             if candidate in seen:
                 continue
             seen.add(candidate)
-            meta = meta_map.get((candidate, title, meeting_key)) or meta_map.get((candidate, title, ""))
-            if meta is not None:
+            meta = meta_map.get((candidate, title, meeting_key))
+            if meta is None and allow_any_meeting:
+                meta = meta_map.get((candidate, title, ""))
+            if isinstance(meta, MinutesSourceMeta):
                 return meta
     return None
 
@@ -677,12 +731,23 @@ def build_minutes_record(
     # 「令和2年第2回定例会」と書かれていることがあり、そのまま照合すると
     # 一覧行に当たらず原典 URL も開催日も落ちる。実データで 917 件がこの形だった。
     # 保存先の年ラベルは計画時に一覧行から決めた値なので、そちらでも照合する。
+    year_labels = (extracted_year_label, fallback_year_label)
+    # まず本文の会議名でぴったり引く。
     meta = lookup_minutes_source_meta(
-        meta_map,
-        title,
-        meeting_name,
-        (extracted_year_label, fallback_year_label),
+        meta_map, title, meeting_name, year_labels, allow_any_meeting=False
     )
+    if meta is None:
+        # 会議名で引けないときに会議名なしの鍵へ落とすと、同じ年・同じ題名の
+        # 行が複数あれば最初の 1 件へ固定される。飯塚市では 75 文書が同じ PDF を
+        # 原典として指していた。先に保存先の会議ディレクトリで選び直す。
+        meta = pick_meta_by_meeting_dir(
+            meta_map,
+            title,
+            year_labels,
+            meeting_dir_from_path(file_path, downloads_dir),
+        )
+    if meta is None:
+        meta = lookup_minutes_source_meta(meta_map, title, meeting_name, year_labels)
     source_url = clean_source_url(meta.source_url if meta else "") or extract_source_url_from_text(content)
     source_year = meta.source_year if meta else None
     source_fino = meta.source_fino if meta else None

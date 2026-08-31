@@ -130,6 +130,45 @@ class MinutesSourceUrlTest(unittest.TestCase):
         self.assertIsNotNone(record)
         self.assertEqual(record.held_on, "2022-03-11")
 
+    def test_same_title_twice_does_not_share_one_url(self) -> None:
+        # 同じ年・同じ題名の一覧行が複数あると、会議名なしの鍵は最初の 1 件へ
+        # 固定される。飯塚市では 75 文書が同じ PDF を原典として指していた。
+        # 本文から会議名が読めなくても、保存先の会議ディレクトリで選び直せる。
+        other = "https://example.invalid/other.pdf"
+        self._meta = self._write_index(
+            [
+                {
+                    "title": "報告事項1",
+                    "year_label": "令和8年",
+                    "url": URL,
+                    "meeting_name": "総務委員会",
+                },
+                {
+                    "title": "報告事項1",
+                    "year_label": "令和8年",
+                    "url": other,
+                    "meeting_name": "厚生委員会",
+                },
+            ]
+        )
+        record = self._record(
+            "令和8年",
+            "厚生委員会",
+            "報告事項1.txt",
+            "コミュニティ交通運行計画について" + "\n" + "資料" + "\n",
+        )
+        self.assertIsNotNone(record)
+        self.assertEqual(record.source_url, other)
+
+    def test_a_single_row_still_resolves_without_a_meeting_name(self) -> None:
+        # 候補が一つしかないときは、従来どおり会議名なしで引ける。
+        self._meta = self._write_index(
+            [{"title": "報告事項1", "year_label": "令和8年", "url": URL, "meeting_name": "総務委員会"}]
+        )
+        record = self._record("令和8年", "別の名前", "報告事項1.txt", "資料" + "\n")
+        self.assertIsNotNone(record)
+        self.assertEqual(record.source_url, URL)
+
     def test_canonical_year_label_drops_separators(self) -> None:
         self.assertEqual(canonical_year_label("平成31年・_令和元年"), "平成31年・令和元年")
         self.assertEqual(canonical_year_label("平成31年・\n令和元年"), "平成31年・令和元年")
