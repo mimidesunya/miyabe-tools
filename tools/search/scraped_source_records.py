@@ -1163,14 +1163,35 @@ def first_wareki_date_in_head(text: str, *, limit: int = 1200) -> str:
             and not promulgation_date_in_line(following)
         ):
             continue
-        previous = lines[position - 1] if position > 0 else ""
         # 手前の行は「(この要綱の失効)」のような**見出しのときだけ**見る。
         # 「限り効力を失う」のように文の続きなら、その前の日付の説明であって、
         # この行の説明ではない。括弧で囲まれた短い行を見出しとみなす。
-        if _looks_like_heading(previous) and _line_disqualifies_promulgation(previous):
+        #
+        # 見出しと日付の間には項番号だけの行（`2`）が挟まる。飛ばして遡る。
+        if _preceding_heading_disqualifies(lines, position):
             continue
         return iso
     return ""
+
+
+# 項番号だけの行。見出しと本文の間に挟まる。
+_ITEM_NUMBER_RE = re.compile(r"^[0-9０-９]{1,2}$")
+
+
+def _preceding_heading_disqualifies(lines: list[str], position: int) -> bool:
+    """手前をさかのぼって、最初に見つけた見出しが公布日を否定するかを返す。"""
+    index = position - 1
+    steps = 0
+    while index >= 0 and steps < 3:
+        previous = lines[index]
+        if _ITEM_NUMBER_RE.match(previous):
+            index -= 1
+            steps += 1
+            continue
+        if not _looks_like_heading(previous):
+            return False
+        return _line_disqualifies_promulgation(previous)
+    return False
 
 
 # 「(この要綱の失効)」のように、括弧で囲まれた短い行は条文の見出しである。

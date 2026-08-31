@@ -56,3 +56,36 @@ class WarekiDateTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExpiryHeadingTest(unittest.TestCase):
+    """失効日を制定日にしない。
+
+    出雲市の要綱は附則がこうなっている。
+
+        (この要綱の失効)
+        2
+        この要綱は、令和9年3月31日限り、その効力を失う。
+
+    見出しと日付の間に項番号の行が挟まる。手前一行だけを見ていたので
+    見出しに届かず、2027-03-31 を制定日として索引に載せていた。
+    """
+
+    def test_expiry_heading_above_item_number(self):
+        from scraped_source_records import first_wareki_date_in_head
+
+        body = (
+            "○出雲市土地改良区運営費補助金交付要綱\n"
+            "附 則\n"
+            "(この要綱の失効)\n"
+            "2\n"
+            "この要綱は、令和9年3月31日限り、その効力を失う。\n"
+        )
+        self.assertEqual(first_wareki_date_in_head(body), "")
+
+    def test_promulgation_below_a_plain_item_number(self):
+        """項番号の手前が見出しでなければ、日付はそのまま公布日。"""
+        from scraped_source_records import first_wareki_date_in_head
+
+        body = "○○要綱\n本文\n2\n平成24年3月31日告示第386号\n"
+        self.assertEqual(first_wareki_date_in_head(body), "2012-03-31")
