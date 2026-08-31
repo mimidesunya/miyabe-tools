@@ -983,6 +983,51 @@ REIKI_DATE_TEXT_PATTERN = re.compile(
 )
 
 
+# 古い例規は「昭和三一年九月二九日」と漢数字で書かれる。算用数字しか
+# 見ていなかったので公布日が読めず、本番で 37,325 件が空だった
+# （東京都 2,418・千葉県 1,989・埼玉県 1,702）。
+_KANJI_DIGITS = {"〇": 0, "零": 0, "一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
+                 "六": 6, "七": 7, "八": 8, "九": 9}
+_KANJI_NUMBER_RE = re.compile(r"[〇零一二三四五六七八九十百]+")
+
+
+def kanji_number_to_int(text: str) -> int | None:
+    """「三一」「三十一」「十」いずれの書き方でも読む。"""
+    raw = str(text or "").strip()
+    if raw == "":
+        return None
+    if all(ch in _KANJI_DIGITS for ch in raw):
+        # 「三一」のように桁を並べただけの書き方。
+        value = 0
+        for ch in raw:
+            value = value * 10 + _KANJI_DIGITS[ch]
+        return value
+    # 「三十一」「十」「百二十」のような位取りの書き方。
+    total = 0
+    current = 0
+    for ch in raw:
+        if ch in _KANJI_DIGITS:
+            current = _KANJI_DIGITS[ch]
+        elif ch == "十":
+            total += (current or 1) * 10
+            current = 0
+        elif ch == "百":
+            total += (current or 1) * 100
+            current = 0
+        else:
+            return None
+    return total + current
+
+
+def kanji_digits_to_ascii(text: str) -> str:
+    """日付として読めるよう、漢数字の並びを算用数字へ直す。"""
+    def replace(match: "re.Match[str]") -> str:
+        value = kanji_number_to_int(match.group(0))
+        return str(value) if value is not None else match.group(0)
+
+    return _KANJI_NUMBER_RE.sub(replace, str(text or ""))
+
+
 def wareki_to_iso(text: str) -> str:
     """和暦を YYYY-MM-DD へ。日まで揃っていなければ空文字。"""
     if not text:
@@ -990,6 +1035,8 @@ def wareki_to_iso(text: str) -> str:
     normalized = text.replace("元年", "1年").translate(
         str.maketrans("０１２３４５６７８９", "0123456789")
     )
+    if not WAREKI_DATE_PATTERN.search(normalized):
+        normalized = kanji_digits_to_ascii(normalized)
     match = WAREKI_DATE_PATTERN.search(normalized)
     if not match:
         return ""
@@ -1006,7 +1053,21 @@ def extract_date_from_html(html_content: str) -> str:
         return match.group(1)
     text_match = REIKI_DATE_TEXT_PATTERN.search(html_content)
     if text_match:
-        return wareki_to_iso(TAG_PATTERN.sub("", text_match.group(1)))
+        iso = wareki_to_iso(TAG_PATTERN.sub("", text_match.group(1)))
+        if iso:
+            return iso
+    # `law-date` を持たない取得元がある。条例は題名のすぐあとに公布日と
+    # 番号を並べる形なので、本文の頭からも探す。読めないより、そこから読む。
+    return first_wareki_date_in_head(TAG_PATTERN.sub("\n", html_content))
+
+
+# 本文の頭にある最初の和暦日付。番号や施行日より前に公布日が来る。
+def first_wareki_date_in_head(text: str, *, limit: int = 1200) -> str:
+    head = str(text or "")[:limit]
+    for line in head.splitlines():
+        iso = wareki_to_iso(line)
+        if iso:
+            return iso
     return ""
 
 
