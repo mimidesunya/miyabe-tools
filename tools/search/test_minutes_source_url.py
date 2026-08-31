@@ -225,6 +225,21 @@ class MinutesSourceUrlTest(unittest.TestCase):
         self.assertIsNotNone(record)
         self.assertEqual(record.source_url, other)
 
+    def test_a_date_far_from_the_year_label_is_not_the_meeting_date(self) -> None:
+        # 本文が引用している別の年の日付を開催日にしていた。本番で
+        # 「平成16年」の委員会記録に 1932-10-01 が入るなど 10 件あった。
+        from scraped_source_records import extract_held_on
+
+        body = (
+            "宇都宮市議会厚生常任委員会" + "\n"
+            + "昭和7年10月1日に制定された条例について" + "\n"
+            + "平成16年3月16日（火曜日）" + "\n" + "開議" + "\n"
+        )
+        held_on, _, _, _ = extract_held_on(
+            body, "厚生常任委員会", None, source_hint="x", year_label="平成16年"
+        )
+        self.assertEqual(held_on, "2004-03-16")
+
     def test_canonical_year_label_drops_separators(self) -> None:
         self.assertEqual(canonical_year_label("平成31年・_令和元年"), "平成31年・令和元年")
         self.assertEqual(canonical_year_label("平成31年・\n令和元年"), "平成31年・令和元年")

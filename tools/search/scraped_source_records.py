@@ -413,6 +413,18 @@ def accept_minutes_date(
 # 曜日と年ラベルで開催日を検算する。取得側と同じ判定を借りる。
 # PDF の OCR が「６／７」を「９」と読むと、年ラベルが令和6年なのに開催日が
 # 2027 年になる（田川市）。本文の曜日はその年と合わないので、そこで落とせる。
+# 年ラベルから西暦を読む。会議の年が分かっているなら、本文中の別の日付を
+# 開催日として採らないための当たりに使う。
+YEAR_LABEL_GAP = 2
+
+
+def year_from_label(year_label: str) -> int | None:
+    match = YEAR_LABEL_PATTERN.search(normalize_space(year_label))
+    if not match:
+        return None
+    return era_to_gregorian(match.group(1), match.group(2))
+
+
 def _plausible_held_on(
     text: str,
     title: str,
@@ -470,9 +482,14 @@ def extract_held_on(
         )
         if accepted is not None:
             return accepted
+    label_year = year_from_label(year_label)
     for match in MINUTES_DATE_PATTERN.finditer(joined_head_text(text, limit=20)):
         gregorian_year = era_to_gregorian(match.group(1), match.group(2))
         if gregorian_year is None:
+            continue
+        # 年ラベルと大きく離れた年は、本文中の別の日付を拾っている。
+        # 「平成16年」の委員会記録に 1932-10-01 が入っていた（本番で 10 件）。
+        if label_year is not None and abs(gregorian_year - label_year) > YEAR_LABEL_GAP:
             continue
         accepted = accept_minutes_date(
             match.group(0),
