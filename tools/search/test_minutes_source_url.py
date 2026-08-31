@@ -240,6 +240,40 @@ class MinutesSourceUrlTest(unittest.TestCase):
         )
         self.assertEqual(held_on, "2004-03-16")
 
+    def test_a_possible_year_label_is_not_collapsed(self) -> None:
+        # `平成11年` を `平成1年` に畳んではいけない。元号の年は 2 桁までありうる。
+        from scraped_source_records import collapse_repeated_year_label
+
+        for label in ("平成11年", "平成22年", "令和33年", "昭和64年"):
+            with self.subTest(label=label):
+                self.assertEqual(collapse_repeated_year_label(label), label)
+        # 実在しない桁数のときだけ畳む。
+        self.assertEqual(collapse_repeated_year_label("平成28282828年"), "平成28年")
+
+    def test_the_source_url_is_a_date_hint(self) -> None:
+        # 原典 URL にも開催日が入っている（`fileName=R070220A` は 2025-02-20）。
+        # 保存パスだけを渡していたので、kensakusystem の 16,312 件が
+        # 開催日を持てなかった。取れているのに使っていなかった。
+        url = "https://ssp.kaigiroku.net/tenant/izumo/View.html?fileName=R070220A"
+        self._meta = self._write_index(
+            [
+                {
+                    "title": "令和 6年度第6回定例会（第2号 2月20日）",
+                    "year_label": "令和6年",
+                    "url": url,
+                    "meeting_name": "定例会",
+                }
+            ]
+        )
+        record = self._record(
+            "令和6年",
+            "定例会",
+            "令和 6年度第6回定例会（第2号 2月20日）.txt",
+            "出雲市議会定例会" + "\n" + "開議" + "\n",
+        )
+        self.assertIsNotNone(record)
+        self.assertEqual(record.held_on, "2025-02-20")
+
     def test_canonical_year_label_drops_separators(self) -> None:
         self.assertEqual(canonical_year_label("平成31年・_令和元年"), "平成31年・令和元年")
         self.assertEqual(canonical_year_label("平成31年・\n令和元年"), "平成31年・令和元年")

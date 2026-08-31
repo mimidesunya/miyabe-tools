@@ -343,24 +343,33 @@ def canonical_year_label(value: str | None) -> str:
 
 # OCR が段組を横に読むと、年ラベルも `平成28282828年` のように繰り返しになる。
 # 平川市で 20 件あった。日付順には載るが、年ラベルでの検索と集計が壊れる。
-_REPEATED_DIGITS_RE = re.compile(r"([0-9０-９]){2,}")
+#
+# **`平成11年` を `平成1年` に畳んではいけない。**元号の年は 2 桁までありうるので、
+# 桁数が 2 桁以内のものは繰り返しに見えても実在の年である。畳むのは、
+# 元号の最大年（昭和64・平成31・令和は当面 99）を超える桁数のときだけにする。
+ERA_MAX_YEAR_FOR_LABEL = {"昭和": 64, "平成": 31, "令和": 99}
 
 
 def collapse_repeated_year_label(value: str) -> str:
     text = normalize_space(value)
-    if text == "":
+    match = re.fullmatch(r"(昭和|平成|令和)([0-9０-９]+)年", text)
+    if not match:
         return text
-    # 「2828」のように同じ 2 桁が続く形も、1 桁が続く形もある。
-    collapsed = _REPEATED_DIGITS_RE.sub(r"", text)
-    match = re.fullmatch(r"(昭和|平成|令和)((?:[0-9０-９]{1,2})+)年", text)
-    if match:
-        digits = match.group(2)
-        for unit in (1, 2):
-            if len(digits) > unit and len(digits) % unit == 0:
-                head = digits[:unit]
-                if head * (len(digits) // unit) == digits:
-                    return f"{match.group(1)}{head}年"
-    return collapsed
+    era = match.group(1)
+    digits = to_ascii_digits(match.group(2))
+    if len(digits) <= 2:
+        # 実在しうる年。畳まない。
+        return text
+    for unit in (1, 2):
+        if len(digits) % unit != 0:
+            continue
+        head = digits[:unit]
+        if head * (len(digits) // unit) != digits:
+            continue
+        year = int(head)
+        if 1 <= year <= ERA_MAX_YEAR_FOR_LABEL.get(era, 99):
+            return f"{era}{head}年"
+    return text
 
 
 def normalize_year_label_candidate(value: str) -> str | None:
@@ -834,7 +843,14 @@ def build_minutes_record(
         content,
         title,
         source_year,
-        source_hint=file_path.relative_to(downloads_dir).as_posix(),
+        # 原典 URL にも開催日が入っている（`fileName=R070220A` は 2025-02-20）。
+        # 保存パスだけを渡していたので、kensakusystem の 16,312 件が
+        # 開催日を持てなかった。取れているのに使っていなかった。
+        source_hint=" ".join(
+            part
+            for part in (file_path.relative_to(downloads_dir).as_posix(), source_url)
+            if part
+        ),
         year_label=meta.year_label if meta else (fallback_year_label or ""),
     )
     return MinuteRecord(
