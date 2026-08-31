@@ -12,6 +12,7 @@ from deploy.scraper_runtime.celery.app import app
 from deploy.scraper_runtime.celery import runtime as celery_runtime
 from tools.tasks.runner import process_group_popen_kwargs, terminate_process_group
 from tools.tasks import status as batch_status
+from tools.tasks import generation_sweep_state
 from tools.tasks import index_outbox
 from tools.gijiroku import gijiroku_targets
 from tools.gijiroku import audit_minutes_robots
@@ -708,7 +709,14 @@ def sweep_stale_parser_generation(limit: int = 0) -> dict[str, object]:
             # 索引が読めないのは掃き取り側の都合。次の周回でやり直す。
             print(f"[CELERY] {kind} 世代の照会に失敗しました: {exc}", flush=True)
             continue
-        for slug, count in stale:
+        # 大きい自治体から積むので、1 回の間隔では捌けないことがある。
+        # まだ待っている自治体をもう一度積むと、キューだけが伸びる。
+        counts = dict(stale)
+        pending = generation_sweep_state.filter_recently_queued(
+            doc_type, [slug for slug, _ in stale]
+        )
+        queued_now: list[str] = []
+        for slug in pending:
             try:
                 app.send_task(
                     f"deploy.scraper_runtime.celery.tasks.{task_name}",
@@ -718,7 +726,9 @@ def sweep_stale_parser_generation(limit: int = 0) -> dict[str, object]:
             except Exception as exc:
                 print(f"[CELERY] {kind} {slug} の再索引を積めませんでした: {exc}", flush=True)
                 continue
-            requeued.setdefault(kind, []).append(f"{slug}({count})")
+            queued_now.append(slug)
+            requeued.setdefault(kind, []).append(f"{slug}({counts.get(slug, 0)})")
+        generation_sweep_state.mark_queued(doc_type, queued_now)
     total = sum(len(items) for items in requeued.values())
     if total > 0:
         print(
