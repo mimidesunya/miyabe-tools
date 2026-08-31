@@ -304,9 +304,23 @@ def should_follow_minutes_page(start_url: str, href: str, anchor_text: str, stri
     return absolute if looks_like_generic_minutes_page(anchor_text, absolute) else None
 
 
+# 自治体サイトが添付 PDF を置く場所。CMS ごとに違う。`/uploaded/attachment/`
+# だけを見ていたので、`assets/files/` に置く取得元では PDF が 95 件並んで
+# いても 1 件も通らなかった（南種子町・御宿町）。
+SITE_ATTACHMENT_DIRS = (
+    "/uploaded/attachment/",
+    "/assets/files/",
+    "/content/files/",
+    "/files/",
+    "/data/",
+)
+
+
 def is_site_attachment_pdf(url: str) -> bool:
     path = urlsplit(url).path.lower()
-    return path.endswith(".pdf") and "/uploaded/attachment/" in path
+    if not path.endswith(".pdf"):
+        return False
+    return any(directory in path for directory in SITE_ATTACHMENT_DIRS)
 
 
 def load_supported_target(slug: str) -> dict:
@@ -383,7 +397,18 @@ def discover_pdf_items(
             filename = sanitize_filename(Path(urlsplit(page_url).path).stem, "page") + ".html"
             gijiroku_storage.write_text(pages_dir / filename, page_html, compress=True)
 
-        content = soup.select_one("#main_body .detail_free") or soup.select_one("#main_body") or soup
+        # 本文の入れ物は取得元ごとに違う。決め打ちに当たらないサイトでは
+        # PDF が 95 件並んでいても候補 0 件になり、しかも成功として終わって
+        # いた（南種子町・御宿町）。当たらなければページ全体を見る。
+        content = None
+        for selector in ("#main_body .detail_free", "#main_body", "main", "#content", ".contents"):
+            found = soup.select_one(selector)
+            # 入れ物に PDF が 1 つも無いなら、それは本文ではない。
+            if found is not None and found.select_one('a[href$=".pdf"], a[href$=".PDF"]') is not None:
+                content = found
+                break
+        if content is None:
+            content = soup
         current_group: str | None = None
         for node in content.descendants:
             node_name = getattr(node, "name", None)
@@ -636,6 +661,17 @@ def main() -> int:
     if args.max_meetings > 0:
         meeting_items = meeting_items[: args.max_meetings]
     print(f"[INFO] PDF候補 {len(meeting_items)} 件")
+    # 0 件で成功にしない。取得元の作りが変われば PDF は見つからなくなる。
+    # 成功として記録されると 30 日ごとに同じ 0 件を繰り返すだけで、誰も
+    # 気づかない。南種子町は PDF が 95 件並んでいるのに候補 0 件で「完了」
+    # していた。例規側は既にこうしてある。
+    #
+    # 一覧ページすら開けなかったのなら、それは別の失敗として既に記録される。
+    if not meeting_items and page_urls:
+        raise SystemExit(
+            "[ERROR] 会議録の PDF を 1 件も見つけられませんでした。"
+            f"取得元の作りが変わった可能性があります: {target['source_url']}"
+        )
     # 解析できなかった一覧ページと、ページ数の上限を残す。残さないと
     # 「発見数＝保存数」で完了に見え、キューは 30 日巡ってこない。
     # 一覧の置き換えが拒まれるなら、今回の走査を取り切れたとは言えない。
