@@ -217,6 +217,20 @@ class Cp932MojibakeTest(unittest.TestCase):
             "2024-06-20",
         )
 
+    def test_a_convening_word_after_the_date_is_seen_too(self) -> None:
+        # 「平成25年5月27日招集告示」のように、告示の語が日付の後ろに来る
+        # 取得元もある。前だけ見ていると会議日として拾ってしまう。
+        body = "出雲市議会" + chr(10) + "平成25年5月27日招集告示" + chr(10) + "開議"
+        self.assertEqual(
+            minutes_kind.extract_plausible_held_on(
+                body,
+                title="度第2回定例会（第5号 6月10日）",
+                year_label="平成25年",
+                filename="x https://x/?fileName=H250610A",
+            ),
+            "2013-06-10",
+        )
+
     def test_empty_stays_empty(self) -> None:
         self.assertEqual(minutes_kind.repair_cp932_mojibake(""), "")
 

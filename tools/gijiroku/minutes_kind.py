@@ -742,7 +742,7 @@ _OPENING_MARKERS = ("開議", "開会", "開　議", "開　会", "出席議員"
 def _month_days_before_opening(text: str) -> set[tuple[int, int]]:
     # 表紙・目次が長い取得元があるので、行数ではなく文字数で頭を切る。
     head = normalize_compatibility_forms(str(text or "")[:6000])
-    found: set[tuple[int, int]] = set()
+    found: list[tuple[int, int]] = []
     for pattern in (ERA_DATE_RE, WESTERN_DATE_RE):
         for match in pattern.finditer(head):
             # 「招集告示 令和6年5月27日」のように、会議の日ではない日付が
@@ -756,6 +756,10 @@ def _month_days_before_opening(text: str) -> set[tuple[int, int]]:
             # 連日開催の本文には前日の閉議と当日の開議が並ぶ（前日を採っていた）。
             if any(word in squeezed[:12] for word in ("閉議", "閉会", "散会")):
                 continue
+            # 「平成25年5月27日招集告示」のように、告示の語が日付の後ろに来る
+            # 取得元もある。前だけ見ていると会議日として拾ってしまう。
+            if any(word in squeezed[:10] for word in ("招集", "告示", "公示", "通知")):
+                continue
             if not any(marker.replace(" ", "").replace("　", "") in squeezed for marker in _OPENING_MARKERS):
                 continue
             if pattern is ERA_DATE_RE:
@@ -765,7 +769,10 @@ def _month_days_before_opening(text: str) -> set[tuple[int, int]]:
                 month = int(to_ascii_digits(match.group(2)))
                 day = int(to_ascii_digits(match.group(3)))
             if 1 <= month <= 12 and 1 <= day <= 31:
-                found.add((month, day))
+                found.append((month, day))
+    # 連日にわたる本文では、前の日の開議も同じ本文に載る。この号の会議日は
+    # **最後に開いた日**ではなく最初の日でもなく、題名やファイル名と一致する日
+    # である。一致が無いときは、本文に出た順の最初を採る（従来どおり）。
     return found
 
 
