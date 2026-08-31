@@ -348,6 +348,18 @@ def strip_trailing_parens(title: str) -> str:
     return stripped or str(title or "").strip()
 
 
+# 題名が丸ごと括弧に入っていることがある。`（資料）`（出席表）は本番で
+# **18,733 件**あり、うち 13,566 件は開催日も無い。会議に付いた資料であって
+# 会議の記録ではない。囲みを外してからもう一度みる。
+_WRAPPING_PARENS_RE = re.compile(r"^[（(【［\[]\s*(.+?)\s*[）)】］\]]$")
+
+
+def strip_wrapping_parens(title: str) -> str:
+    text = normalize_space(title)
+    match = _WRAPPING_PARENS_RE.fullmatch(text)
+    return match.group(1) if match else text
+
+
 def _label_reason(title: str) -> str | None:
     cleaned = strip_pdf_notes(title)
     if cleaned == "":
@@ -359,7 +371,11 @@ def _label_reason(title: str) -> str | None:
         if SKIP_LABEL_RE.match(cleaned):
             return "non_minutes_label"
         return None
-    if SKIP_LABEL_RE.match(cleaned) or SKIP_LABEL_RE.match(strip_trailing_parens(cleaned)):
+    if (
+        SKIP_LABEL_RE.match(cleaned)
+        or SKIP_LABEL_RE.match(strip_trailing_parens(cleaned))
+        or SKIP_LABEL_RE.match(strip_wrapping_parens(cleaned))
+    ):
         return "non_minutes_label"
     if COVER_IN_TITLE_RE.search(cleaned):
         return "cover_only"

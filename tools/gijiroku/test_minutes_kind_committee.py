@@ -161,6 +161,24 @@ class CommitteeRecordTest(unittest.TestCase):
         body = "町田市議会会議録" + chr(10) + "開議" + chr(10) + "議員の発言。" * 80
         self.assertIsNone(minutes_kind.non_minutes_reason("12月10日-01号", body))
 
+    def test_a_title_wrapped_in_parentheses_is_still_a_material(self) -> None:
+        # 題名が丸ごと括弧に入っていることがある。`（資料）`（出席表）は
+        # 本番で 18,733 件あり、うち 13,566 件は開催日も無い。
+        body = "令和6年12月定例会（第4回）" + chr(10) + "出席表" + chr(10) + "議席番号 氏名"
+        for title in ("（資料）", "(資料)", "【資料】", "資料"):
+            with self.subTest(title=title):
+                self.assertEqual(
+                    minutes_kind.non_minutes_reason(title, body), "non_minutes_label"
+                )
+
+    def test_a_parenthesised_prefix_is_not_a_material(self) -> None:
+        # 「（仮称）市民会館条例の審議」のような本物の題名は落とさない。
+        for title in ("（仮称）市民会館条例の審議", "（令和6年第4回定例会）", "（議案）"):
+            with self.subTest(title=title):
+                self.assertIsNone(
+                    minutes_kind.non_minutes_reason(title, SAPPORO_COMMITTEE)
+                )
+
     def test_a_real_bill_is_still_dropped(self) -> None:
         bill = "61\n\n議案第６１号\n　　財産の取得について\n提案理由\n"
         self.assertIsNotNone(minutes_kind.non_minutes_reason("61", bill))
