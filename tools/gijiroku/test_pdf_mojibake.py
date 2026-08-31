@@ -43,6 +43,28 @@ class Cp932MojibakeTest(unittest.TestCase):
         body = "éèêüöä " * 40
         self.assertEqual(minutes_kind.repair_cp932_mojibake(body), body)
 
+    def test_a_japanese_header_before_the_mojibake_is_kept(self) -> None:
+        # 保存ファイルはスクレイパが日本語で `出典:` と題名を足してから
+        # PDF 本文を繋げる。全体をまとめて読み直すと、日本語が 1 字でもあれば
+        # latin-1 へ戻せず、化けた本文がそのまま残る。行ごとに直す。
+        original = "小海町議会定例会会議録" + chr(10) + "平成27年6月9日" + chr(10) + "開議 午前10時"
+        mixed = "不明" + chr(10) + "pdf" + chr(10) + "出典: https://example.jp/a.pdf" + chr(10) + chr(10) + sjis_as_latin1(original)
+        repaired = minutes_kind.repair_cp932_mojibake(mixed)
+        self.assertIn("出典: https://example.jp/a.pdf", repaired)
+        self.assertIn("小海町議会定例会会議録", repaired)
+        self.assertIn("開議 午前10時", repaired)
+
+    def test_glyph_name_bodies_are_not_minutes(self) -> None:
+        # PDF の抽出に失敗するとグリフ名が並ぶ。垂水市の本文 190 万字は
+        # `/g5140 /g5777 /g14814` で始まる。ラテン補助は 0 なので
+        # 文字化けの判定には当たらないが、日本語としては読めない。
+        glyphs = "/g5140 /g5777 /g14814/g14817 " * 80
+        self.assertEqual(
+            minutes_kind.non_minutes_reason("会議録", glyphs), "unreadable_glyph_names"
+        )
+        real = "垂水市議会会議録" + chr(10) + "開議 午前10時" + chr(10) + "出席議員 15名" + chr(10) + "議員の発言。" * 50
+        self.assertIsNone(minutes_kind.non_minutes_reason("会議録", real))
+
     def test_empty_stays_empty(self) -> None:
         self.assertEqual(minutes_kind.repair_cp932_mojibake(""), "")
 

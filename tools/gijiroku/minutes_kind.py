@@ -208,21 +208,41 @@ _LATIN1_SUPPLEMENT_RE = re.compile(r"[-ÿ]")
 
 
 def repair_cp932_mojibake(text: str) -> str:
-    """1 バイト文字として読まれた Shift_JIS を読み直す。直せないなら元のまま返す。"""
-    sample = text[:4000]
-    if sample == "":
+    """1 バイト文字として読まれた Shift_JIS を読み直す。直せないなら元のまま返す。
+
+    保存ファイルは、スクレイパが日本語で `出典:` と題名を足してから PDF 本文を
+    繋げている。全体をまとめて読み直そうとすると、日本語が 1 字でもあれば
+    latin-1 へ戻せず、化けた本文が残る。**行ごとに見て、化けている行だけ直す。**
+    """
+    if text == "":
         return text
-    latin1_count = len(_LATIN1_SUPPLEMENT_RE.findall(sample))
+    lines = text.split("\n")
+    repaired_lines: list[str] = []
+    repaired_any = False
+    for line in lines:
+        fixed = _repair_line(line)
+        if fixed != line:
+            repaired_any = True
+        repaired_lines.append(fixed)
+    if not repaired_any:
+        return text
+    return "\n".join(repaired_lines)
+
+
+def _repair_line(line: str) -> str:
+    if line == "":
+        return line
+    latin1_count = len(_LATIN1_SUPPLEMENT_RE.findall(line))
     # 日本語の本文にラテン補助が 1 割も出ることはない。出るなら復号が誤っている。
-    if latin1_count * 10 < len(sample):
-        return text
+    if latin1_count * 10 < len(line):
+        return line
     try:
-        repaired = text.encode("latin-1").decode("cp932")
+        repaired = line.encode("latin-1").decode("cp932")
     except (UnicodeEncodeError, UnicodeDecodeError):
-        return text
+        return line
     # 直したつもりで壊さない。日本語が増えたときだけ採る。
-    if _japanese_ratio(repaired) <= _japanese_ratio(text):
-        return text
+    if _japanese_ratio(repaired) <= _japanese_ratio(line):
+        return line
     return repaired
 
 
@@ -374,6 +394,23 @@ def minutes_marker_count(text: str) -> int:
     return sum(1 for marker in MINUTES_BODY_MARKERS if marker in squeezed)
 
 
+# PDF の抽出に失敗すると、文字ではなくグリフ名が並ぶ（垂水市の本文 190 万字は
+# `/g5140 /g5777 /g14814` で始まる）。ラテン補助は 0 なので文字化けの判定には
+# 当たらないが、日本語としては読めない。会議録として載せる意味がない。
+_GLYPH_NAME_RE = re.compile(r"/g[0-9]{2,}")
+
+
+def body_is_unreadable_glyph_names(text: str) -> bool:
+    sample = str(text or "")[:4000]
+    if sample.strip() == "":
+        return False
+    if _japanese_ratio(sample) >= 0.05:
+        return False
+    glyphs = _GLYPH_NAME_RE.findall(sample)
+    # 本文の大半がグリフ名で埋まっているときだけ。
+    return len("".join(glyphs)) * 2 >= len(sample)
+
+
 def body_is_only_a_pdf_notice(text: str) -> bool:
     """本文が PDF への案内文や巻末資料の見出しだけかを返す。
 
@@ -474,6 +511,8 @@ def non_minutes_reason(title: str, text: str = "", *, url: str = "") -> str | No
     # 下の「名乗っているなら会議録」より先に見る。
     if body_is_only_a_pdf_notice(text):
         return "pdf_notice_only"
+    if body_is_unreadable_glyph_names(text):
+        return "unreadable_glyph_names"
     if looks_like_minutes_title(display) or looks_like_minutes_title(
         extract_meeting_title_from_text(text) or ""
     ):

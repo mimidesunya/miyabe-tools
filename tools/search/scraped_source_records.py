@@ -341,6 +341,28 @@ def canonical_year_label(value: str | None) -> str:
     return re.sub(r"[\s_]+", "", str(value or ""))
 
 
+# OCR が段組を横に読むと、年ラベルも `平成28282828年` のように繰り返しになる。
+# 平川市で 20 件あった。日付順には載るが、年ラベルでの検索と集計が壊れる。
+_REPEATED_DIGITS_RE = re.compile(r"([0-9０-９]){2,}")
+
+
+def collapse_repeated_year_label(value: str) -> str:
+    text = normalize_space(value)
+    if text == "":
+        return text
+    # 「2828」のように同じ 2 桁が続く形も、1 桁が続く形もある。
+    collapsed = _REPEATED_DIGITS_RE.sub(r"", text)
+    match = re.fullmatch(r"(昭和|平成|令和)((?:[0-9０-９]{1,2})+)年", text)
+    if match:
+        digits = match.group(2)
+        for unit in (1, 2):
+            if len(digits) > unit and len(digits) % unit == 0:
+                head = digits[:unit]
+                if head * (len(digits) // unit) == digits:
+                    return f"{match.group(1)}{head}年"
+    return collapsed
+
+
 def normalize_year_label_candidate(value: str) -> str | None:
     match = YEAR_LABEL_PATTERN.fullmatch(normalize_space(value))
     if not match:
@@ -749,6 +771,8 @@ def build_minutes_record(
         return None
     fallback_year_label = fallback_year_label_from_path(file_path, downloads_dir)
     extracted_year_label = extract_year_label(content, fallback=fallback_year_label) or fallback_year_label or "不明"
+    # OCR の繰り返し（`平成28282828年`）は年ラベルとして使えない。1 回へ畳む。
+    extracted_year_label = collapse_repeated_year_label(extracted_year_label)
     meeting_name = extract_meeting_name(content)
     # 本文冒頭の年は「会期名の年」であって開催年ではない。令和3年2月の会議が
     # 「令和2年第2回定例会」と書かれていることがあり、そのまま照合すると

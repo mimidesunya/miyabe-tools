@@ -33,6 +33,16 @@ class ErrorPageTest(unittest.TestCase):
         body = "第1条 この条例は…" + "あ" * 300 + "404"
         self.assertFalse(looks_like_error_page("個人情報保護条例", body))
 
+    def test_an_ordinance_citing_article_404_is_kept(self) -> None:
+        # `404` を単独のマーカーにすると、「地方税法（…）第404条」を引く
+        # 固定資産評価員設置条例のような短い本物が落ちる。公開に 17 件あった。
+        body = (
+            "地方税法（昭和25年法律第226号）第404条第2項の規定により、"
+            "固定資産評価員を置く。"
+        )
+        self.assertFalse(looks_like_error_page("八街市固定資産評価員設置条例", body))
+        self.assertFalse(looks_like_error_page("勅令第404号の取扱いについて", body))
+
     def test_error_title_with_a_real_body_is_kept(self) -> None:
         # 題名がエラーでも、条文があるなら落とさない。
         body = "第1条 この条例は、" + "い" * 300
