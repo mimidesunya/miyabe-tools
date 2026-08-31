@@ -98,6 +98,15 @@ class ReikiBodyIsSourceOnlyTest(unittest.TestCase):
         for kept in (AI_STANCE, AI_COMBINED_REASON, AI_REASON):
             self.assertIn(kept, evaluation)
 
+    def test_ordinary_abbreviations_survive(self) -> None:
+        # CamelCase を一律に消したところ、評価文から `DX` `IoT` `RPA` `WebAPI` まで
+        # 消え、「DX推進の基盤となる規則」が「 推進の基盤となる規則」になった。
+        # 落とすのは AI 評価が使う項目名だけにする。
+        import build_opensearch_index as indexer
+
+        text = "DX推進等による効率化。IoT推進とRPA導入。WebAPIを公開する。"
+        self.assertEqual(indexer.drop_internal_identifiers(text), text)
+
     def test_identifiers_glued_to_japanese_are_dropped(self) -> None:
         # 評価文は `necessityScoreを-1とし、Class Gに分類する` のように、
         # 識別子と日本語が地続きで書かれる。空白で切ってトークンごとに見ると

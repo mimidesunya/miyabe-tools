@@ -413,17 +413,60 @@ def stable_local_id(*parts: str) -> str:
 # 利用者が探す語ではない。検索語から外す。日本語は残す。
 # 識別子は日本語と地続きで書かれる（`necessityScoreを-1とし、Class Gに分類する`）。
 # 空白で切ってトークンごとに見ると、日本語がくっついた分が残る。文字列として除く。
-_CAMEL_IDENTIFIER_RE = re.compile(r"[A-Za-z]+[A-Z][A-Za-z0-9_]*")
-_CLASS_LABEL_RE = re.compile(r"(?<![A-Za-z])Class[ 　]*[A-Z](?![A-Za-z])")
+#
+# **CamelCase を一律に消してはいけない。**一度そうしたところ、評価文から
+# `DX` `IoT` `RPA` `WebAPI` まで消え、「DX推進の基盤となる規則」が
+# 「 推進の基盤となる規則」になった。落とすのは、AI 評価が使う項目名だけにする。
+INTERNAL_IDENTIFIERS = (
+    "necessityScore",
+    "fiscalImpactScore",
+    "regulatoryBurdenScore",
+    "policyEffectivenessScore",
+    "primaryClass",
+    "secondaryTags",
+    "lensTags",
+    "lensEvaluation",
+    "combinedStance",
+    "analyzedAt",
+    "documentType",
+    "responsibleDepartment",
+    "readingKana",
+)
+_INTERNAL_IDENTIFIER_RE = re.compile(
+    "(?:" + "|".join(re.escape(name) for name in INTERNAL_IDENTIFIERS) + ")",
+    re.IGNORECASE,
+)
+# `Class G` は分類の記号で、利用者が探す語ではない。
+_CLASS_LABEL_RE = re.compile(r"(?<![A-Za-z])Class[ 　]*[A-G](?![A-Za-z])")
 
 
 def drop_internal_identifiers(terms: str) -> str:
-    text = str(terms or "")
-    text = _CAMEL_IDENTIFIER_RE.sub(" ", text)
+    text = _INTERNAL_IDENTIFIER_RE.sub(" ", str(terms or ""))
     text = _CLASS_LABEL_RE.sub(" ", text)
-    # 単独で並ぶ英数字だけのトークンも識別子とみなす。
-    kept = [token for token in text.split() if not token.isascii() or not token.isalnum()]
-    return " ".join(kept)
+    return " ".join(text.split())
+
+
+# 取得元が返したエラーページは条例ではない。題名と本文の両方で見る。
+ERROR_PAGE_TITLES = {"エラー", "error", "Error", "ページが見つかりません"}
+ERROR_PAGE_BODY_MARKERS = (
+    "ご指定のページは見つかりませんでした",
+    "指定されたページは見つかりません",
+    "ページが見つかりませんでした",
+    "Not Found",
+    "404",
+)
+# 本文がこの長さを超えるなら、たまたま文言を含む条例とみなして落とさない。
+ERROR_PAGE_BODY_MAX_LENGTH = 200
+
+
+def looks_like_error_page(title: str, content_text: str) -> bool:
+    body = " ".join(str(content_text or "").split())
+    stripped_title = str(title or "").strip()
+    if stripped_title in ERROR_PAGE_TITLES and len(body) <= ERROR_PAGE_BODY_MAX_LENGTH:
+        return True
+    if len(body) > ERROR_PAGE_BODY_MAX_LENGTH:
+        return False
+    return any(marker in body for marker in ERROR_PAGE_BODY_MARKERS)
 
 
 def clean_text(value: Any) -> str:
@@ -789,6 +832,15 @@ def iter_reiki_documents(
             filename = clean_text(record.get("filename")) or key
             local_id = stable_local_id(meta["slug"], filename)
             title = clean_text(record.get("title")) or Path(filename).name
+            # 取得元のエラーページを例規として公開しない。題名「エラー」が
+            # 17 件、本文が「ご指定のページは見つかりませんでした」だけのものが
+            # 13 件（上里町）あった。条文は無いのに「例規が 17 件ある」と見える。
+            if looks_like_error_page(title, str(record.get("content_text") or "")):
+                kind_counts["error_page"] = kind_counts.get("error_page", 0) + 1
+                record_source_integrity_outcome(
+                    "reiki", target_slug, html_path, "error_page"
+                )
+                continue
             # 本文は取得元の原文だけにする。AI 評価や所管課をここへ混ぜると、
             # 検索結果の本文が評価文から始まり、自治体の見解や法文と読み違える。
             body = str(record.get("content_text") or "")
