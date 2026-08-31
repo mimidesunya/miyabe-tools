@@ -382,11 +382,16 @@ def _label_reason(title: str) -> str | None:
         if SKIP_LABEL_RE.match(cleaned):
             return "non_minutes_label"
         return None
-    if (
-        SKIP_LABEL_RE.match(cleaned)
-        or SKIP_LABEL_RE.match(strip_trailing_parens(cleaned))
-        or SKIP_LABEL_RE.match(strip_wrapping_parens(cleaned))
-    ):
+    # 字間に空白を入れて組む取得元がある（`議 案 一 覧 表`）。弱い題名の判定では
+    # 詰めていたのに、落とす題名の判定では詰めていなかった。同じ形を通す。
+    candidates = {
+        cleaned,
+        strip_trailing_parens(cleaned),
+        strip_wrapping_parens(cleaned),
+        squeeze_letter_spacing(cleaned),
+        strip_wrapping_parens(squeeze_letter_spacing(cleaned)),
+    }
+    if any(SKIP_LABEL_RE.match(candidate) for candidate in candidates if candidate):
         return "non_minutes_label"
     if COVER_IN_TITLE_RE.search(cleaned):
         return "cover_only"

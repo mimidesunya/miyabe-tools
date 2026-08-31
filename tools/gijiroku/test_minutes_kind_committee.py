@@ -179,6 +179,15 @@ class CommitteeRecordTest(unittest.TestCase):
                     minutes_kind.non_minutes_reason(title, SAPPORO_COMMITTEE)
                 )
 
+    def test_letter_spaced_material_titles_are_dropped(self) -> None:
+        # 字間に空白を入れて組む取得元がある。弱い題名の判定では詰めていたのに、
+        # 落とす題名の判定では詰めていなかった。
+        for title in ("議 案 一 覧 表", "会 期 日 程", "請 願 文 書 表", "（ 資 料 ）"):
+            with self.subTest(title=title):
+                self.assertEqual(
+                    minutes_kind.non_minutes_reason(title, "資料"), "non_minutes_label"
+                )
+
     def test_a_real_bill_is_still_dropped(self) -> None:
         bill = "61\n\n議案第６１号\n　　財産の取得について\n提案理由\n"
         self.assertIsNotNone(minutes_kind.non_minutes_reason("61", bill))
