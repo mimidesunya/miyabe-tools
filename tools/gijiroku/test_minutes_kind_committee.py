@@ -47,6 +47,27 @@ class CommitteeRecordTest(unittest.TestCase):
         self.assertIsNotNone(title)
         self.assertTrue(minutes_kind.looks_like_minutes_title(title or ""))
 
+    def test_material_titles_with_branch_numbers_are_dropped(self) -> None:
+        # 飯塚市を取り直したら「案件1」は消えたが「案件1_補足資料」「案件2-2」
+        # 「報告事項1-5」「…一覧表」が会議録として残っていた。番号のあとに
+        # 枝番や添え名が付いても、会議録ではなく資料である。
+        body = "窓口時間短縮について\n議案第79号\n提案理由\n"
+        for title in (
+            "案件1_補足資料",
+            "案件2-2",
+            "報告2-1",
+            "報告事項1-5",
+            "選挙管理委員及び選挙管理委員補充員選出一覧表",
+        ):
+            with self.subTest(title=title):
+                self.assertIsNotNone(minutes_kind.non_minutes_reason(title, body))
+
+    def test_a_date_only_title_is_not_dropped(self) -> None:
+        # 「令和8年6月26日」は会議録の題名としてありうる。落とさない。
+        self.assertIsNone(
+            minutes_kind.non_minutes_reason("令和8年6月26日", SAPPORO_COMMITTEE)
+        )
+
     def test_a_real_bill_is_still_dropped(self) -> None:
         bill = "61\n\n議案第６１号\n　　財産の取得について\n提案理由\n"
         self.assertIsNotNone(minutes_kind.non_minutes_reason("61", bill))
