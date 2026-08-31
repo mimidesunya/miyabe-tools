@@ -37,7 +37,12 @@ MINUTES_DATE_PATTERN = re.compile(
     + r"\s*([\d０-９]{1,2})月\s*([\d０-９]{1,2})日"
 )
 YEAR_LABEL_PATTERN = re.compile(r"(昭和|平成|令和)\s*([元\d０-９]+)年(?:・(昭和|平成|令和)元年)?")
-FILE_DATE_PATTERN = re.compile(r"([0-9]{2})月([0-9]{2})日")
+# 題名の日付はゼロ埋め 2 桁とは限らない。`第3日目 3月 5日` のように 1 桁で
+# 空白が入る取得元がある（宇都宮市の空開催日 771 件）。全角数字も来る。
+# 題名に月日があって開催日が空の文書は全国 44,581 件あった。
+FILE_DATE_PATTERN = re.compile(
+    r"([0-9０-９]{1,2})\s*月\s*([0-9０-９]{1,2})\s*日"
+)
 REIKI_DATE_PATTERN = re.compile(r'<div class="law-date">.*?\((\d{4}-\d{2}-\d{2})\)</div>', re.IGNORECASE | re.DOTALL)
 REIKI_TITLE_PATTERN = re.compile(r'<div class="law-title">([^<]+)</div>', re.IGNORECASE)
 REIKI_NUMBER_PATTERN = re.compile(r'<div class="law-number">([^<]+)</div>', re.IGNORECASE)
@@ -526,12 +531,15 @@ def extract_held_on(
         if accepted is not None:
             return accepted
     match = FILE_DATE_PATTERN.search(title)
-    if match and source_year is not None:
+    # 年は一覧行の `source_year` が正だが、無いなら年ラベルから読む。
+    # 年が分からないだけで題名の月日を捨てていた。
+    title_year = source_year if source_year is not None else label_year
+    if match and title_year is not None:
         accepted = accept_minutes_date(
             match.group(0),
-            source_year,
-            int(match.group(1)),
-            int(match.group(2)),
+            title_year,
+            int(to_ascii_digits(match.group(1))),
+            int(to_ascii_digits(match.group(2))),
             source_label,
         )
         if accepted is not None:

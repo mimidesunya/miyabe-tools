@@ -265,6 +265,25 @@ class MinutesSourceUrlTest(unittest.TestCase):
         )
         self.assertEqual(held_on, "2008-12-04")
 
+    def test_a_one_digit_month_in_the_title_is_a_date(self) -> None:
+        # 題名の日付はゼロ埋め 2 桁とは限らない。`第3日目 3月 5日` のように
+        # 1 桁で空白が入る取得元がある（宇都宮市の空開催日 771 件）。
+        # 題名に月日があって開催日が空の文書は全国 44,581 件あった。
+        from scraped_source_records import extract_held_on
+
+        cases = {
+            "第3日目 3月 5日": ("平成16年", "2004-03-05"),
+            "（第2号 2月20日）": ("令和6年", "2024-02-20"),
+            "２月２０日": ("令和6年", "2024-02-20"),
+            "06月17日－本文": ("令和6年", "2024-06-17"),
+        }
+        for title, (label, expected) in cases.items():
+            with self.subTest(title=title):
+                held_on, _, _, _ = extract_held_on(
+                    "本文", title, None, source_hint="x", year_label=label
+                )
+                self.assertEqual(held_on, expected)
+
     def test_the_source_url_is_a_date_hint(self) -> None:
         # 原典 URL にも開催日が入っている（`fileName=R070220A` は 2025-02-20）。
         # 保存パスだけを渡していたので、kensakusystem の 16,312 件が
