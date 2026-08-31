@@ -715,6 +715,19 @@ def display_minutes_title(title: str, text: str) -> str:
     return display or title
 
 
+# 取得側と同じ修復を索引でも通す。既に保存された文字化けは取り直すまで直らない。
+def repair_saved_mojibake(text: str) -> str:
+    try:
+        from tools.gijiroku import minutes_kind
+    except Exception:
+        return text
+    try:
+        return minutes_kind.repair_cp932_mojibake(text)
+    except Exception as exc:
+        print(f"[WARN] mojibake repair failed: {exc}", file=sys.stderr)
+        return text
+
+
 def build_minutes_record(
     file_path: Path,
     downloads_dir: Path,
@@ -728,6 +741,10 @@ def build_minutes_record(
     except Exception:
         return None
     content = html_to_text(raw_text) if ext in {".html", ".htm"} else raw_text.strip()
+    # 保存済みの本文が文字化けしていることがある。PDF から取り出した Shift_JIS を
+    # 1 バイト 1 文字として保存していたためで、日本語では二度と検索に当たらない。
+    # 取得側は直したが、既に保存された分は取り直すまで直らないので、ここでも読み直す。
+    content = repair_saved_mojibake(content)
     if content == "":
         return None
     fallback_year_label = fallback_year_label_from_path(file_path, downloads_dir)

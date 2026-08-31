@@ -188,6 +188,44 @@ REIWA_FILE_COMPACT_RE = re.compile(
 )
 
 
+# pypdf は、ToUnicode を持たない CID フォント（日本語 PDF の 90ms-RKSJ-H など）から
+# Shift_JIS のバイト列をそのまま 1 バイト 1 文字として返す。保存すると本文が
+# 文字化けしたまま索引され、日本語では二度と検索に当たらない。
+# 小海町の `平 成 ２ ７ 年` は `½ ¬ Q V N` だった。
+_LATIN1_SUPPLEMENT_RE = re.compile(r"[-ÿ]")
+
+
+def repair_cp932_mojibake(text: str) -> str:
+    """1 バイト文字として読まれた Shift_JIS を読み直す。直せないなら元のまま返す。"""
+    sample = text[:4000]
+    if sample == "":
+        return text
+    latin1_count = len(_LATIN1_SUPPLEMENT_RE.findall(sample))
+    # 日本語の本文にラテン補助が 1 割も出ることはない。出るなら復号が誤っている。
+    if latin1_count * 10 < len(sample):
+        return text
+    try:
+        repaired = text.encode("latin-1").decode("cp932")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return text
+    # 直したつもりで壊さない。日本語が増えたときだけ採る。
+    if _japanese_ratio(repaired) <= _japanese_ratio(text):
+        return text
+    return repaired
+
+
+def _japanese_ratio(text: str) -> float:
+    sample = text[:4000]
+    if sample == "":
+        return 0.0
+    japanese = sum(
+        1
+        for ch in sample
+        if "぀" <= ch <= "ヿ" or "一" <= ch <= "鿿" or "＀" <= ch <= "￯"
+    )
+    return japanese / len(sample)
+
+
 def normalize_space(value: str) -> str:
     value = html.unescape(str(value or "")).replace("\u200b", "")
     return re.sub(r"[ \t\r\n\u3000]+", " ", value).strip()

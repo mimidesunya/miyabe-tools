@@ -459,7 +459,7 @@ def extract_pdf_text(pdf_bytes: bytes) -> str:
         text = text.replace("\r\n", "\n").replace("\r", "\n").strip()
         if text:
             parts.append(text)
-    return normalize_pdf_text("\n\n".join(parts))
+    return normalize_pdf_text(minutes_kind.repair_cp932_mojibake("\n\n".join(parts)))
 
 
 def normalize_pdf_text(value: str) -> str:
