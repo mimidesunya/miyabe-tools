@@ -477,6 +477,20 @@ def discover_meeting_items(
 
         frame = page.frame(name="BOTTOM")
         if frame is None:
+            # 会議一覧を `<iframe name="BOTTOM">` ではなく別の名前や順番で
+            # 埋め込む取得元がある。名前で引けないなら、会議へのリンクを
+            # 持っている枠を探す。富士市はこれで年度を 1 件も辿れず、
+            # 旧経路の 14 件（直近の年だけ）に落ちていた。
+            for candidate in page.frames:
+                if candidate == page.main_frame:
+                    continue
+                try:
+                    if candidate.locator("a[href*='FINO=']").count() > 0:
+                        frame = candidate
+                        break
+                except Exception:
+                    continue
+        if frame is None:
             skipped_years += 1
             continue
         walked_years += 1
@@ -490,7 +504,11 @@ def discover_meeting_items(
             text = safe_inner_text(locator, 700)
             href = safe_href(locator)
 
-            if "voiweb.exe?ACT=100" in href and "FINO=" in href:
+            # 会議へのリンクは取得元によって `ACT=100`（一覧の枝）と
+            # `ACT=200`（本文）に分かれる。`ACT=100` だけを見ていたので、
+            # 富士市は年度を 144 件辿りながら 1 件も拾えず、旧経路の
+            # 直近 14 件に落ちていた。
+            if "voiweb.exe?ACT=" in href and "FINO=" in href:
                 abs_href = urljoin(frame.url, href)
                 if text:
                     meetings.append(
