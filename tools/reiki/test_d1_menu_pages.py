@@ -46,3 +46,19 @@ class MenuPagesFromEntryTest(unittest.TestCase):
     def test_no_duplicates(self):
         html = '<a href="reiki_kana/kana_default.html">a</a><a href="reiki_kana/kana_default.html">b</a>'
         self.assertEqual(menu_pages_from_entry(html), ["reiki_kana/kana_default.html"])
+
+
+class GuessedMenuTest(unittest.TestCase):
+    """目次を推測で辿ったかどうかを残す。
+
+    取得元が目次の名前を変えたとき、次に壊れるのは決め打ちで拾えている
+    自治体である。牛久市・福岡市はそれで例規 0 件になった。壊れてから
+    探すのではなく、推測に頼っている自治体を一覧で見えるようにする。
+    """
+
+    def test_a_declared_menu_is_not_a_guess(self):
+        html = '<li><a href="reiki_kana/kana_default.html">五十音順目次</a></li>'
+        self.assertEqual(menu_pages_from_entry(html), ["reiki_kana/kana_default.html"])
+
+    def test_no_menu_link_means_we_are_guessing(self):
+        self.assertEqual(menu_pages_from_entry('<link href="css/base.css">'), [])

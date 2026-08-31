@@ -339,10 +339,15 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None
 
     print("Fetching index pages...")
     # 入口ページが目次を指しているなら、それを使う。指していなければ決め打ち。
-    to_scan = menu_pages_from_entry(entry_html)
+    declared_menus = menu_pages_from_entry(entry_html)
+    to_scan = list(declared_menus)
     for name in FALLBACK_MENU_PAGES:
         if name not in to_scan:
             to_scan.append(name)
+    # 推測に頼ったかどうかを残す。取得元が名前を変えたとき、次に壊れるのは
+    # 推測で拾えている自治体である。事前に一覧で見えるようにしておく。
+    if not declared_menus:
+        print("[WARN] 入口ページに目次リンクがありません。決め打ちの名前で辿ります。")
     for name in list(to_scan):
         download_file(base_url + name, data_dir / name, force=force, check_updates=check_updates)
 
@@ -403,6 +408,10 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None
                 "scanned_pages": len(scanned),
                 "missed_pages": len(missed_pages),
                 "missed_examples": missed_pages[:10],
+                # 目次を入口ページから読めたか。読めていないなら、決め打ちの
+                # 名前に頼っている。取得元が名前を変えれば次に壊れる。
+                "menus_declared": len(declared_menus),
+                "guessed_menu": not declared_menus,
             }
         )
     # 相対パス形が見つかったなら、そちらが本文の正しい場所である。
@@ -959,6 +968,8 @@ def main():
             "observed_at": time.strftime("%Y%m%d_%H%M%S"),
             "declared_total": total_regulations,
             "scanned_pages": int(catalog_walk.get("scanned_pages") or 0),
+            "menus_declared": int(catalog_walk.get("menus_declared") or 0),
+            "guessed_menu": bool(catalog_walk.get("guessed_menu")),
             "missed_pages": missed_pages,
             "missed_examples": catalog_walk.get("missed_examples") or [],
             "failed": total_failures,
