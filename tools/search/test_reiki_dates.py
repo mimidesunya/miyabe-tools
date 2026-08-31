@@ -115,7 +115,68 @@ class ItemNumberNotationTest(unittest.TestCase):
 
     def test_an_ordinary_line_is_not_a_number(self):
         """番号でない行の下の日付は、公布日のまま残す。"""
-        for previous in ("本文", "第1条", "出雲市告示", "", "2"):
+        # `第1条` は入れない。本則の始まりなので、そこで探索を打ち切る。
+        for previous in ("本文", "出雲市告示", "", "2"):
             with self.subTest(previous=previous):
                 body = f"○○要綱\n{previous}\n平成24年3月31日告示第386号\n"
                 self.assertEqual(self.extract(body), "2012-03-31")
+
+
+class BodyStartTest(unittest.TestCase):
+    """本則が始まったら公布日探しを打ち切る。
+
+    出雲市の要綱は制定表記が年だけなので、頭では日が読めない。そのまま読み
+    進めて第3条の「令和8年4月1日(以下「基準日」)」や、附則の改正日を制定日に
+    していた。2012 年の要綱が 2026 年制定として日付順の先頭に並ぶ。空より悪い。
+    """
+
+    def setUp(self):
+        from scraped_source_records import first_wareki_date_in_head
+
+        self.extract = first_wareki_date_in_head
+
+    def test_a_reference_date_inside_a_clause_is_not_the_promulgation(self):
+        body = (
+            "○高齢者物価高騰対策支援給付金支給事務実施要綱\n"
+            "令和8年出雲市告示第150号\n"
+            "(趣旨)\n第1条\nこの要綱は…\n"
+            "第3条\n令和8年4月1日(以下「基準日」)\n"
+        )
+        self.assertEqual(self.extract(body), "")
+
+    def test_an_amending_supplementary_provision_is_not_the_promulgation(self):
+        body = (
+            "○同和教育推進指定事業実施要綱\n"
+            "平成24年出雲市告示第205号\n"
+            "改正\n平成27年2月19日告示第52号\n"
+            "附則(令和8年3月30日告示第25号)\n"
+        )
+        self.assertEqual(self.extract(body), "")
+
+    def test_a_real_promulgation_before_the_body_survives(self):
+        body = (
+            "○条例\n平成24年3月31日告示第386号\n"
+            "改正\n令和7年3月18日告示\n(趣旨)\n第1条\n"
+        )
+        self.assertEqual(self.extract(body), "2012-03-31")
+
+
+class PromulgationClauseTest(unittest.TestCase):
+    """「…をここに公布する。」は除外の理由ではなく、公布日である証拠。
+
+    三重県の条例は題名に「施行に伴う」が入る。公布文がその題名を繰り返すので、
+    次行の除外語に当たって本物の公布日 1989-02-21 を捨てていた。
+    """
+
+    def setUp(self):
+        from scraped_source_records import first_wareki_date_in_head
+
+        self.extract = first_wareki_date_in_head
+
+    def test_the_promulgation_clause_confirms_the_date(self):
+        title = "昭和天皇の大喪の礼の行われる日を休日とする法律の施行に伴う関係条例の特例を定める条例"
+        body = f"〔旧〕{title}\n平成元年二月二十一日三重県条例第一号\n{title}をここに公布する。\n"
+        self.assertEqual(self.extract(body), "1989-02-21")
+
+    def test_a_commencement_line_still_disqualifies(self):
+        self.assertEqual(self.extract("○○要綱\n平成24年4月1日\nから施行する\n"), "")

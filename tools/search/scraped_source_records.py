@@ -1136,11 +1136,19 @@ def first_wareki_date_in_head(text: str, *, limit: int = 1200) -> str:
     - 次の行にその語がある（タグを改行にすると語が別の行へ移る）
     - 手前の行が「(この要綱の失効)」のような、日付を持たない見出しである
     - `改正` の下に並ぶ改正履歴（制定日はそこには無い）
+
+    本則が始まったらそこで打ち切る。公布日は題名と本則の間にしか無い。
+    先まで読むと、条文の基準日や附則の改正日を制定日にしてしまう。出雲市の
+    要綱は制定表記が年だけなので、頭では日が読めず、そのまま読み進めて
+    第3条の「令和8年4月1日(以下「基準日」)」を拾っていた。2012 年の要綱が
+    2026 年制定として日付順の先頭に並ぶ。空より悪い。
     """
     lines = [normalize_space(line) for line in str(text or "")[:limit].splitlines()]
     lines = [line for line in lines if line]
     in_amendment_block = False
     for position, line in enumerate(lines):
+        if _BODY_START_RE.match(line):
+            return ""
         if line in AMENDMENT_BLOCK_HEADS:
             in_amendment_block = True
             continue
@@ -1172,6 +1180,19 @@ def first_wareki_date_in_head(text: str, *, limit: int = 1200) -> str:
             continue
         return iso
     return ""
+
+
+# 本則の始まり。ここから先に公布日は無い。
+# `附 則` `目次` `第1条` `第一条`。`附則` は改正附則の日付を連れているので、
+# 読み進めると改正日を制定日にする。
+_BODY_START_RE = re.compile(
+    r"^(?:"
+    r"附[\s　]*則"
+    r"|目[\s　]*次"
+    r"|本[\s　]*則"
+    r"|第[0-9０-９一二三四五六七八九十百]+条"
+    r")"
+)
 
 
 # 項番号だけの行。見出しと本文の間に挟まる。表記は自治体ごとにばらつく。
@@ -1210,8 +1231,16 @@ def _looks_like_heading(line: str) -> bool:
     return bool(_HEADING_RE.match(line.strip()))
 
 
+# 公布文そのもの。「…をここに公布する。」の行は、手前の日付が公布日である
+# 証拠であって、除外の理由ではない。三重県の条例は題名に「施行に伴う」が
+# 入るので、公布文が除外語に当たって本物の公布日を捨てていた。
+PROMULGATION_CLAUSE_WORDS = ("公布する", "公布された")
+
+
 def _line_disqualifies_promulgation(line: str) -> bool:
     if line == "":
+        return False
+    if any(word in line for word in PROMULGATION_CLAUSE_WORDS):
         return False
     if any(word in line for word in TITLE_AMENDMENT_WORDS):
         # 題名に「一部を改正する条例」が入るのは普通のこと。

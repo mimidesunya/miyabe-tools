@@ -75,10 +75,25 @@ class BodyHeadDateTest(unittest.TestCase):
         from scraped_source_records import first_wareki_date_in_head
 
         body = (
+            "昭和三一年九月二九日" + chr(10) + "条例第六五号" + chr(10)
+            + "第1条 この条例は昭和四〇年四月一日から施行する。"
+        )
+        self.assertEqual(first_wareki_date_in_head(body), "1956-09-29")
+
+    def test_a_date_below_the_first_clause_is_not_the_promulgation_date(self) -> None:
+        """本則が始まったら打ち切る。公布日は題名と本則の間にしか無い。
+
+        実データ 1,000 件で、この打ち切りによって読めていた公布日が落ちる例は
+        無かった。逆に出雲市では、条文の基準日を制定日にしていた 197 件が空に
+        なる（2012 年の要綱が 2026 年制定として並んでいた）。
+        """
+        from scraped_source_records import first_wareki_date_in_head
+
+        body = (
             "第1条 この条例は昭和四〇年四月一日から施行する。" + chr(10)
             + "昭和三一年九月二九日" + chr(10) + "条例第六五号"
         )
-        self.assertEqual(first_wareki_date_in_head(body), "1956-09-29")
+        self.assertEqual(first_wareki_date_in_head(body), "")
 
     def test_a_last_amendment_date_is_not_the_promulgation_date(self) -> None:
         from scraped_source_records import first_wareki_date_in_head
