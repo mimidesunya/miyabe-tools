@@ -82,6 +82,34 @@ class Cp932MojibakeTest(unittest.TestCase):
                     expected,
                 )
 
+    def test_title_and_file_name_agreeing_beats_a_body_date(self) -> None:
+        # 本文の先頭には招集告示の日など別の日付が載ることがある。曜日まで
+        # 揃っているとそちらが勝ってしまう。出雲市は `fileName=H250610A` と
+        # 題名「第5号 6月10日」が一致しているのに、本文の 5月27日 が採られていた。
+        body = (
+            "出雲市議会定例会" + chr(10)
+            + "招集告示 平成25年5月27日（月曜日）" + chr(10) + "開議"
+        )
+        self.assertEqual(
+            minutes_kind.extract_plausible_held_on(
+                body,
+                title="度第2回定例会（第5号 6月10日）",
+                year_label="平成25年",
+                filename="x.txt.gz https://x/?fileName=H250610A",
+            ),
+            "2013-06-10",
+        )
+
+    def test_a_body_date_still_wins_without_agreement(self) -> None:
+        # 題名にもファイル名にも日付が無いなら、本文の日付をそのまま使う。
+        body = "出雲市議会定例会" + chr(10) + "平成25年5月27日（月曜日）" + chr(10) + "開議"
+        self.assertEqual(
+            minutes_kind.extract_plausible_held_on(
+                body, title="本文", year_label="平成25年", filename="x.txt.gz"
+            ),
+            "2013-05-27",
+        )
+
     def test_empty_stays_empty(self) -> None:
         self.assertEqual(minutes_kind.repair_cp932_mojibake(""), "")
 

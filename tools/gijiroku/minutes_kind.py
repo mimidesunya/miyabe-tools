@@ -702,6 +702,20 @@ def _candidates_from_filename(filename: str) -> list[_DateCandidate]:
     return found
 
 
+# 題名やファイル名に同じ月日が書かれているかを見る。`6月10日` も `0610` も
+# 同じ日を指す。どちらの形でも当たるようにする。
+def month_day_in_text(text: str, month: int, day: int) -> bool:
+    haystack = to_ascii_digits(normalize_compatibility_forms(text or ""))
+    if haystack == "":
+        return False
+    patterns = (
+        rf"(?<![0-9]){month}\s*月\s*{day}\s*日",
+        rf"(?<![0-9]){month:02d}\s*月\s*{day:02d}\s*日",
+        rf"(?<![0-9]){month:02d}{day:02d}(?![0-9])",
+    )
+    return any(re.search(pattern, haystack) for pattern in patterns)
+
+
 def extract_plausible_held_on(
     text: str,
     *,
@@ -722,7 +736,10 @@ def extract_plausible_held_on(
         part for part in (title, _head_text(text, limit=20), filename) if part
     )
     candidates = _candidates_from_text(haystack)
-    candidates.extend(_candidates_from_filename(filename))
+    filename_candidates = _candidates_from_filename(filename)
+    candidates.extend(filename_candidates)
+    # ファイル名（URL を含む）が指す月日。題名と一致するなら、それが会議の日である。
+    filename_month_days = {(c.month, c.day) for c in filename_candidates}
 
     scored: list[tuple[int, str]] = []
     for candidate in candidates:
@@ -758,6 +775,15 @@ def extract_plausible_held_on(
             score += 5
         if candidate.source == "era":
             score += 2
+        # 題名とファイル名（URL を含む）が同じ月日を指しているなら、それが会議の日
+        # である。本文の先頭には招集告示の日など別の日付が載ることがあり、
+        # 曜日まで揃っているとそちらが勝ってしまう（出雲市の `fileName=H250610A`
+        # と題名「第5号 6月10日」に対し、本文の 5月27日 が採られていた）。
+        if (
+            month_day_in_text(title, candidate.month, candidate.day)
+            and (candidate.month, candidate.day) in filename_month_days
+        ):
+            score += 14
         scored.append((score, iso))
     if not scored:
         return None
