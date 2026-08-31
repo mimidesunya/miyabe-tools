@@ -113,6 +113,38 @@ class BodyHeadDateTest(unittest.TestCase):
         )
         self.assertEqual(extract_date_from_html(html), "1974-09-27")
 
+    def test_an_amendment_block_does_not_supply_the_promulgation_date(self) -> None:
+        # 「改正」が独立した行として置かれ、その下に改正の履歴が新しい順に並ぶ
+        # 取得元がある。行ごとに見ていたので、いちばん新しい改正日を公布日に
+        # していた。出雲市の行政不服審査会設置条例は制定 2016 年なのに
+        # 2025-03-18 が入っていた。履歴の中でいちばん古い日付が公布日である。
+        from scraped_source_records import first_wareki_date_in_head
+
+        body = (
+            "行政不服審査会設置条例" + chr(10) + "改正" + chr(10)
+            + "令和七年三月一八日条例第五号" + chr(10)
+            + "平成二八年三月二四日条例第二八号"
+        )
+        self.assertEqual(first_wareki_date_in_head(body), "2016-03-24")
+
+    def test_a_term_of_office_is_not_the_promulgation_date(self) -> None:
+        # 「委員の任期は令和一〇年三月三一日までとする」を公布日にしていた。
+        # 本番で唯一の未来の公布日がこれだった。
+        from scraped_source_records import first_wareki_date_in_head
+
+        body = (
+            "委員の任期は令和一〇年三月三一日までとする" + chr(10)
+            + "平成二八年三月二四日条例第二八号"
+        )
+        self.assertEqual(first_wareki_date_in_head(body), "2016-03-24")
+
+    def test_a_title_that_amends_another_ordinance_keeps_its_date(self) -> None:
+        # 題名に「一部を改正する条例」が入るのは普通のこと。その行の日付は捨てない。
+        from scraped_source_records import first_wareki_date_in_head
+
+        body = "○○条例の一部を改正する条例 平成二八年三月二四日条例第二八号"
+        self.assertEqual(first_wareki_date_in_head(body), "2016-03-24")
+
     def test_no_date_stays_empty(self) -> None:
         self.assertEqual(extract_date_from_html("<p>本文だけ</p>"), "")
 

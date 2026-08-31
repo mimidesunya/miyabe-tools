@@ -1082,26 +1082,61 @@ def is_real_calendar_date(value: str) -> bool:
 NOT_PROMULGATION_WORDS = (
     "施行",
     "最終改正",
-    "改正",
     "適用",
     "失効",
     "廃止",
     "効力",
     "から起算",
     "までに",
+    # 「委員の任期は令和一〇年三月三一日までとする」を公布日にしていた。
+    # 本番で唯一の未来の公布日がこれだった。
+    "までとする",
+    "任期",
+    "有効期間",
+    "期限",
 )
+# 「改正」が独立した行として置かれ、その下に改正の履歴が並ぶ取得元がある。
+# 行ごとに見ていたので、履歴の先頭（いちばん新しい改正日）を公布日にしていた。
+# 出雲市の行政不服審査会設置条例は制定 2016 年なのに 2025-03-18 になっていた。
+AMENDMENT_BLOCK_HEADS = ("改正", "改正経過", "沿革", "改正履歴")
+# 題名に「一部を改正する条例」が入るのは普通のことなので、その行の日付は捨てない。
+TITLE_AMENDMENT_WORDS = ("一部を改正する", "の一部改正")
 
 
 # 本文の頭にある最初の和暦日付。条例は題名のすぐあとに公布日と番号を並べる。
 def first_wareki_date_in_head(text: str, *, limit: int = 1200) -> str:
     head = str(text or "")[:limit]
+    in_amendment_block = False
+    oldest: str | None = None
     for line in head.splitlines():
-        if any(word in line for word in NOT_PROMULGATION_WORDS):
+        stripped = normalize_space(line)
+        if stripped == "":
             continue
-        iso = wareki_to_iso(line)
+        if stripped in AMENDMENT_BLOCK_HEADS:
+            # ここから下は改正の履歴。公布日はこのブロックには無い。
+            in_amendment_block = True
+            continue
+        if in_amendment_block:
+            # 履歴は新しい順に並び、最後に制定時の日付と番号が来る取得元がある。
+            # 履歴の中で**いちばん古い**日付が公布日である。日付でない行が
+            # 来たら履歴の終わり。
+            iso = wareki_to_iso(stripped)
+            if iso:
+                oldest = iso if oldest is None or iso < oldest else oldest
+                continue
+            in_amendment_block = False
+            if oldest is not None:
+                return oldest
+        if any(word in stripped for word in NOT_PROMULGATION_WORDS):
+            continue
+        if "改正" in stripped and not any(
+            word in stripped for word in TITLE_AMENDMENT_WORDS
+        ):
+            continue
+        iso = wareki_to_iso(stripped)
         if iso:
             return iso
-    return ""
+    return oldest or ""
 
 
 def join_strings(value: object) -> str:
