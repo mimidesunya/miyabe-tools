@@ -654,6 +654,19 @@ def sweep_index_outbox(limit: int = 0) -> dict[str, object]:
 # それで、直しても再索引するまで公開検索は古いままになる。再取得は 30 日周期
 # なので、放っておくと最大 30 日ずれる。群馬県の空公布日 710 件がこの形だった。
 # ダウンロードはやり直さない。保存済みのファイルを読み直すだけである。
+# index キューにこれ以上待っているなら、世代の追いつきは積まない。
+STALE_SWEEP_QUEUE_LIMIT = celery_runtime.env_int("CELERY_STALE_SWEEP_QUEUE_LIMIT", 8, minimum=1)
+
+
+# broker の待ち行列の長さ。読めなければ None を返し、呼び出し側は制限しない。
+def _queue_length(queue: str) -> int | None:
+    try:
+        with app.connection_or_acquire() as connection:
+            return int(connection.default_channel.client.llen(queue))
+    except Exception:
+        return None
+
+
 @app.task(name="deploy.scraper_runtime.celery.tasks.sweep_stale_parser_generation")
 def sweep_stale_parser_generation(limit: int = 0) -> dict[str, object]:
     import sys as _sys
@@ -691,6 +704,17 @@ def sweep_stale_parser_generation(limit: int = 0) -> dict[str, object]:
             "run_reiki_index_update",
         ),
     ):
+        # 取得のあとの通常の索引更新が、追いつき分の後ろで待たされないようにする。
+        # 積む速さは 20 件/時だが、大きい自治体から積むので捌く速さがそれに
+        # 届かない。行列が伸びている間は積むのをやめて、次の周回に回す。
+        waiting = _queue_length(queue)
+        if waiting is not None and waiting >= STALE_SWEEP_QUEUE_LIMIT:
+            print(
+                f"[CELERY] {kind} index キューに {waiting} 件待っています。"
+                "世代の追いつきは次の周回に回します。",
+                flush=True,
+            )
+            continue
         alias = celery_runtime.env_text(alias_env, alias_default)
         # mapping に世代の項目が無いまま積むと、書いた世代が捨てられて
         # 同じ自治体を毎回積み直す。移行が済むまでは何もしない。
