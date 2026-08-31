@@ -731,6 +731,37 @@ def month_day_in_text(text: str, month: int, day: int) -> bool:
     return any(re.search(pattern, haystack) for pattern in patterns)
 
 
+# 日付のすぐあとに「開議」「開会」が続く行を探す。会議録はその形で始まる。
+# 題名とファイル名は会期の初日を指したままのことがあるので、実際に開いた日は
+# 本文のこの行から取る。
+_OPENING_MARKERS = ("開議", "開会", "開　議", "開　会", "出席議員", "出席委員")
+
+
+def _month_days_before_opening(text: str) -> set[tuple[int, int]]:
+    head = normalize_compatibility_forms(_head_text(text, limit=30))
+    found: set[tuple[int, int]] = set()
+    for pattern in (ERA_DATE_RE, WESTERN_DATE_RE):
+        for match in pattern.finditer(head):
+            # 「招集告示 令和6年5月27日」のように、会議の日ではない日付が
+            # 開議行の直前に並ぶことがある。手前に告示・招集の語があるなら見ない。
+            lead = head[max(0, match.start() - 24) : match.start()]
+            if any(word in lead for word in ("招集", "告示", "公示", "通知")):
+                continue
+            tail = head[match.end() : match.end() + 60]
+            squeezed = _MARKER_SPACE_RE.sub("", tail)
+            if not any(marker.replace(" ", "").replace("　", "") in squeezed for marker in _OPENING_MARKERS):
+                continue
+            if pattern is ERA_DATE_RE:
+                month = int(to_ascii_digits(match.group(3)))
+                day = int(to_ascii_digits(match.group(4)))
+            else:
+                month = int(to_ascii_digits(match.group(2)))
+                day = int(to_ascii_digits(match.group(3)))
+            if 1 <= month <= 12 and 1 <= day <= 31:
+                found.add((month, day))
+    return found
+
+
 def extract_plausible_held_on(
     text: str,
     *,
@@ -755,6 +786,7 @@ def extract_plausible_held_on(
     candidates.extend(filename_candidates)
     # ファイル名（URL を含む）が指す月日。題名と一致するなら、それが会議の日である。
     filename_month_days = {(c.month, c.day) for c in filename_candidates}
+    opening_month_days = _month_days_before_opening(text)
 
     scored: list[tuple[int, str]] = []
     for candidate in candidates:
@@ -799,6 +831,11 @@ def extract_plausible_held_on(
             and (candidate.month, candidate.day) in filename_month_days
         ):
             score += 14
+        # 日付のすぐあとに「開議」「開会」が続く行は、その会議が開かれた日である。
+        # 題名とファイル名は会期の初日を指したままのことがあり（`第5号` なのに
+        # `6月10日開会`）、一致だけで決めると実際の開議日を捨てる。
+        if (candidate.month, candidate.day) in opening_month_days:
+            score += 18
         scored.append((score, iso))
     if not scored:
         return None

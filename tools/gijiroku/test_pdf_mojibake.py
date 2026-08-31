@@ -142,6 +142,40 @@ class Cp932MojibakeTest(unittest.TestCase):
             "2024-05-27",
         )
 
+    def test_the_opening_line_beats_the_session_first_day(self) -> None:
+        # 題名とファイル名がどちらも会期の初日を指したままのことがある
+        # （`第5号` なのに `6月10日開会`）。一致だけで決めると、この号が
+        # 実際に開かれた日を捨てる。日付のすぐあとに「開議」が続く行を優先する。
+        body = (
+            "令和6年第2回定例会" + chr(10) + "令和6年6月20日（木曜日）" + chr(10)
+            + "開議 午前10時" + chr(10) + "出席議員"
+        )
+        self.assertEqual(
+            minutes_kind.extract_plausible_held_on(
+                body,
+                title="第2回定例会（6月10日開会）第5号",
+                year_label="令和6年",
+                filename="x https://a/R060610A.pdf",
+            ),
+            "2024-06-20",
+        )
+
+    def test_a_convening_notice_is_not_the_meeting_day(self) -> None:
+        # 「招集告示 平成25年5月27日」は会議の日ではない。手前の語で見分ける。
+        body = (
+            "出雲市議会定例会" + chr(10) + "招集告示 平成25年5月27日（月曜日）"
+            + chr(10) + "開議"
+        )
+        self.assertEqual(
+            minutes_kind.extract_plausible_held_on(
+                body,
+                title="度第2回定例会（第5号 6月10日）",
+                year_label="平成25年",
+                filename="x https://x/?fileName=H250610A",
+            ),
+            "2013-06-10",
+        )
+
     def test_empty_stays_empty(self) -> None:
         self.assertEqual(minutes_kind.repair_cp932_mojibake(""), "")
 
