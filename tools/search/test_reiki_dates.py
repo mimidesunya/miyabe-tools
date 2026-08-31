@@ -180,3 +180,65 @@ class PromulgationClauseTest(unittest.TestCase):
 
     def test_a_commencement_line_still_disqualifies(self):
         self.assertEqual(self.extract("○○要綱\n平成24年4月1日\nから施行する\n"), "")
+
+
+class ExclusionOrderTest(unittest.TestCase):
+    """題名の「一部を改正する」免除が、施行の判定より先に効いていた。
+
+    出雲市の「○○条例の一部を改正する条例の施行期日を定める規則」は、
+    本文が `…の施行期日は、令和6年11月7日とする。` で終わる。題名の免除が
+    先に効いて施行の判定を飛ばし、令和6年規則の公布日を 2024-11-07 に
+    していた。番号は年だけなので、正しくは空である。
+    """
+
+    def setUp(self):
+        from scraped_source_records import first_wareki_date_in_head
+
+        self.extract = first_wareki_date_in_head
+
+    def test_a_commencement_line_wins_over_the_title_exemption(self):
+        body = (
+            "出雲市児童クラブ条例の一部を改正する条例の施行期日を定める規則\n"
+            "令和6年出雲市規則第51号\n"
+            "(令和6年出雲市規則第51号)\n"
+            "出雲市児童クラブ条例の一部を改正する条例(令和6年出雲市条例第53号)"
+            "の施行期日は、令和6年11月7日とする。\n"
+        )
+        self.assertEqual(self.extract(body), "")
+
+    def test_the_title_exemption_still_keeps_a_real_promulgation(self):
+        body = "○○条例の一部を改正する条例 平成二八年三月二四日条例第二八号\n"
+        self.assertEqual(self.extract(body), "2016-03-24")
+
+
+class AfterAmendmentBlockTest(unittest.TestCase):
+    """改正履歴が終わったら打ち切る。制定表記は必ず `改正` より上にある。
+
+    出雲市の建築基準法告示は条を使わず `1` `2` で項を書くので、本則の
+    打ち切りが効かなかった。`令和7年6月20日から令和10年6月19日まで` という
+    検査期間を、平成19年告示の公布日 2025-06-20 にしていた。
+    """
+
+    def setUp(self):
+        from scraped_source_records import first_wareki_date_in_head
+
+        self.extract = first_wareki_date_in_head
+
+    def test_nothing_below_the_amendment_history_is_the_promulgation(self):
+        body = (
+            "建築基準法に基づく中間検査に係る特定工程等を指定する告示\n"
+            "平成19年出雲市告示第153号\n"
+            "(平成19年出雲市告示第153号)\n"
+            "改正\n平成20年10月1日告示第379号\n"
+            "1\n中間検査を行う区域\n出雲市全域\n"
+            "2\n中間検査を行う期間\n令和7年6月20日から令和10年6月19日まで\n"
+        )
+        self.assertEqual(self.extract(body), "")
+
+    def test_a_promulgation_above_the_amendment_history_survives(self):
+        body = "○条例\n平成24年3月31日告示第386号\n改正\n令和7年3月18日告示第1号\n1\n本文\n"
+        self.assertEqual(self.extract(body), "2012-03-31")
+
+    def test_a_period_is_not_a_promulgation(self):
+        body = "○○告示\n令和7年6月20日から令和10年6月19日まで\n"
+        self.assertEqual(self.extract(body), "")

@@ -1155,7 +1155,12 @@ def first_wareki_date_in_head(text: str, *, limit: int = 1200) -> str:
         if in_amendment_block:
             if promulgation_date_in_line(line):
                 continue
-            in_amendment_block = False
+            # 改正履歴が終わったら、その先は本文である。制定表記は必ず
+            # `改正` より上にあるので、ここまで見つからなければ無い。
+            # 出雲市の告示は条を使わず `1` `2` で項を書くので、本則の
+            # 打ち切りが効かず、`令和7年6月20日から令和10年6月19日まで` を
+            # 平成19年告示の公布日にしていた。
+            return ""
         iso = promulgation_date_in_line(line)
         if not iso:
             continue
@@ -1240,14 +1245,21 @@ PROMULGATION_CLAUSE_WORDS = ("公布する", "公布された")
 def _line_disqualifies_promulgation(line: str) -> bool:
     if line == "":
         return False
+    # 「令和7年6月20日から令和10年6月19日まで」は期間の指定であって公布日ではない。
+    if "から" in line and "まで" in line:
+        return True
     if any(word in line for word in PROMULGATION_CLAUSE_WORDS):
         return False
-    if any(word in line for word in TITLE_AMENDMENT_WORDS):
-        # 題名に「一部を改正する条例」が入るのは普通のこと。
-        return False
-    if "改正" in line:
+    if any(word in line for word in NOT_PROMULGATION_WORDS):
+        # 施行・適用・失効などが先。題名に「一部を改正する条例」が入っていても
+        # 施行期日の行は公布日ではない。出雲市の「施行期日を定める規則」は
+        # 題名の免除が先に効いてしまい、`令和6年11月7日とする` を制定日に
+        # していた（令和6年規則第51号なのに公布日 2024-11-07）。
         return True
-    return any(word in line for word in NOT_PROMULGATION_WORDS)
+    if "改正" in line:
+        # 題名に「一部を改正する条例」が入るのは普通のこと。改正履歴とは違う。
+        return not any(word in line for word in TITLE_AMENDMENT_WORDS)
+    return False
 
 
 def join_strings(value: object) -> str:
