@@ -884,11 +884,16 @@ def extract_plausible_held_on(
         # である。本文の先頭には招集告示の日など別の日付が載ることがあり、
         # 曜日まで揃っているとそちらが勝ってしまう（出雲市の `fileName=H250610A`
         # と題名「第5号 6月10日」に対し、本文の 5月27日 が採られていた）。
-        if (
-            month_day_in_text(title, candidate.month, candidate.day)
-            and (candidate.month, candidate.day) in filename_month_days
-        ):
+        title_has_month_day = month_day_in_text(title, candidate.month, candidate.day)
+        if title_has_month_day and (candidate.month, candidate.day) in filename_month_days:
             score += 14
+        elif title_has_month_day:
+            # 題名だけが月日を持つときも、本文のよその日付よりは強い。年ラベルと
+            # 年が合うだけの日付に負けていた。横須賀市の `12月19日－02号`
+            # （年ラベル `令和 ８年 ３月定例議会`）は、本文の 2026-01-09 が
+            # 年一致の加点で勝ち、題名の 12月19日 を捨てていた。
+            # 開議行（+18）よりは弱くする。題名は会期の初日を指すことがある。
+            score += 10
         # 日付のすぐあとに「開議」「開会」が続く行は、その会議が開かれた日である。
         # 題名とファイル名は会期の初日を指したままのことがあり（`第5号` なのに
         # `6月10日開会`）、一致だけで決めると実際の開議日を捨てる。

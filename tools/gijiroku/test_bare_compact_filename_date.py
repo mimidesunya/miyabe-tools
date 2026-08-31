@@ -56,3 +56,33 @@ class BareCompactFilenameDateTest(unittest.TestCase):
         """`R010513` のような元号記号つきが先。6 桁の推測へは落ちない。"""
         found = _candidates_from_filename("R010513_honbun.pdf", era_year=1, era_base=2018)
         self.assertEqual([(c.year, c.month, c.day) for c in found], [(2019, 5, 13)])
+
+
+class TitleMonthDayWeightTest(unittest.TestCase):
+    """題名だけが月日を持つときも、本文のよその日付より強くする。
+
+    横須賀市の `12月19日－02号`（年ラベル `令和 ８年 ３月定例議会 広報広聴会議`）は、
+    本文の 2026-01-09 が年ラベル一致の加点で勝ち、題名の 12月19日 を捨てていた。
+    実データ 7 自治体・10,224 ファイルで、変わったのは 34 件。すべて題名の月日に
+    一致する側へ動いた（`11月26日－05号` が 2021-01-05 → 2020-11-26）。
+    """
+
+    def setUp(self):
+        from minutes_kind import extract_plausible_held_on
+
+        self.extract = extract_plausible_held_on
+
+    def test_the_title_month_day_beats_a_body_date(self):
+        body = "12月19日－02号\n令和 ８年 ３月定例議会 広報広聴会議\n令和7年12月19日\n令和8年1月9日に資料を配付した。\n"
+        self.assertEqual(
+            self.extract(body, title="12月19日－02号", year_label="令和8年", filename="12月19日－02号.txt"),
+            "2025-12-19",
+        )
+
+    def test_an_opening_line_still_wins_over_the_title(self):
+        """題名は会期の初日を指すことがある。開議行のほうが強い。"""
+        body = "第5号 6月10日\n令和5年6月17日（土曜日） 午前10時00分開議\n"
+        self.assertEqual(
+            self.extract(body, title="第5号 6月10日", year_label="令和5年", filename="第5号.txt"),
+            "2023-06-17",
+        )
