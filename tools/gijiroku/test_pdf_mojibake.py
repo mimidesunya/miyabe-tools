@@ -110,6 +110,38 @@ class Cp932MojibakeTest(unittest.TestCase):
             "2013-05-27",
         )
 
+    def test_western_file_names_agree_with_the_title_too(self) -> None:
+        # 一致ボーナスは元号のファイル名（`R060610A`）でしか乗っていなかった。
+        # `20240610.pdf` `2024-06-10.pdf` `2024.06.10.pdf` でも同じ日を指すので、
+        # 題名と一致するなら本文の招集告示より優先する。
+        body = "本文" + chr(10) + "招集告示 令和6年5月27日（月曜日）" + chr(10) + "開議"
+        title = "第2回定例会（6月10日）"
+        for filename in (
+            "x.txt.gz https://a/?fileName=R060610A",
+            "x.txt.gz https://a/m/20240610.pdf",
+            "x.txt.gz https://a/2024.06.10.pdf",
+            "x.txt.gz https://a/2024-06-10.pdf",
+        ):
+            with self.subTest(filename=filename):
+                self.assertEqual(
+                    minutes_kind.extract_plausible_held_on(
+                        body, title=title, year_label="令和6年", filename=filename
+                    ),
+                    "2024-06-10",
+                )
+
+    def test_without_a_file_date_the_body_still_wins(self) -> None:
+        body = "本文" + chr(10) + "招集告示 令和6年5月27日（月曜日）" + chr(10) + "開議"
+        self.assertEqual(
+            minutes_kind.extract_plausible_held_on(
+                body,
+                title="第2回定例会（6月10日）",
+                year_label="令和6年",
+                filename="x.txt.gz https://a/abc.pdf",
+            ),
+            "2024-05-27",
+        )
+
     def test_empty_stays_empty(self) -> None:
         self.assertEqual(minutes_kind.repair_cp932_mojibake(""), "")
 

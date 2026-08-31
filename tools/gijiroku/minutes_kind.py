@@ -204,6 +204,11 @@ ERA_FILE_DATE_RE = re.compile(
     r"(?:^|[=_\-/])([RHS])(\d{1,2})[_\-](\d{2})[_\-](\d{2})(?:[_\-.]|$)",
     re.IGNORECASE,
 )
+# ファイル名は西暦でも書かれる。`20240610.pdf` `2024-06-10.pdf` `2024.06.10.pdf`。
+# 元号の形しか読んでいなかったので、これらでは題名との一致が効かなかった。
+WESTERN_FILE_DATE_RE = re.compile(
+    r"(?:^|[=_\-/.])((?:19|20)\d{2})[-_./]?(\d{2})[-_./]?(\d{2})(?![0-9])"
+)
 ERA_FILE_COMPACT_RE = re.compile(
     r"(?:^|[=_\-/])([RHS])(\d{2})(\d{2})(\d{2})(?:[A-Za-z_\-.]|$)",
     re.IGNORECASE,
@@ -698,6 +703,16 @@ def _candidates_from_filename(filename: str) -> list[_DateCandidate]:
         year = base + int(match.group(2))
         found.append(
             _DateCandidate(year, int(match.group(3)), int(match.group(4)), None, "filename")
+        )
+    if found:
+        return found
+    for match in WESTERN_FILE_DATE_RE.finditer(text):
+        month = int(match.group(2))
+        day = int(match.group(3))
+        if not (1 <= month <= 12 and 1 <= day <= 31):
+            continue
+        found.append(
+            _DateCandidate(int(match.group(1)), month, day, None, "filename")
         )
     return found
 
