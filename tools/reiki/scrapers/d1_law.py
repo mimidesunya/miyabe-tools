@@ -333,6 +333,8 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None
     その先の例規がまるごと見えなくなるのに、これまで数えていなかった。
     """
     hno_set = set()
+    # 新しい Reiki-Base の本文。ID ではなく目次からの相対パスで持つ。
+    honbun_paths: set[str] = set()
     missed_pages: list[str] = []
 
     print("Fetching index pages...")
@@ -391,8 +393,9 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None
             hno_set.add(hno)
 
         # 新しい Reiki-Base は本文を `../reiki_honbun/x000RG….html` に置く。
-        for hno in re.findall(r'href="[^"]*reiki_honbun/([A-Za-z0-9]+)\.html"', content):
-            hno_set.add(hno)
+        # `{id}/{id}_j.html` とは形が違うので、組み立て直さず相対パスで控える。
+        for path in re.findall(r'href="([^"]*reiki_honbun/[A-Za-z0-9]+\.html)"', content):
+            honbun_paths.add(urljoin(prefix, path))
 
     if walk is not None:
         walk.update(
@@ -402,6 +405,9 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None
                 "missed_examples": missed_pages[:10],
             }
         )
+    # 相対パス形が見つかったなら、そちらが本文の正しい場所である。
+    if honbun_paths:
+        return sorted(honbun_paths)
     return sorted(hno_set)
 
 
@@ -557,8 +563,14 @@ def build_source_plan(
             session = opensearch_session
         else:
             code = str(source_item)
-            filename = f"{code}_j.html"
-            url = f"{base_url}{code}/{filename}"
+            if code.endswith(".html"):
+                # 目次から拾った相対パス（`reiki_honbun/z500RG00000122.html`）。
+                # 保存名は末尾の識別子だけにして、従来と同じ形に揃える。
+                url = urljoin(base_url, code)
+                filename = f"{Path(code).stem}_j.html"
+            else:
+                filename = f"{code}_j.html"
+                url = f"{base_url}{code}/{filename}"
             session = None
 
         dest_path = source_dir / filename
