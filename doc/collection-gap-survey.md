@@ -1540,10 +1540,12 @@ grok に、第31ラウンドで直したことを**疑ってかかって**本番
   通していた（第31ラウンドは案件N・数字題名・議会だより・表紙まで）
 - AI 評価の文に `necessityScore` `Class G` のような内部の識別子が混ざり、
   検索語に入っていた。本文にその語が無い条例が 13 件ヒットしていた
-- 公開 index の mapping は `dynamic: false` で `evaluation_text` が無い。
+- 公開 index の mapping は `dynamic: false` で `evaluation_text` が無かった。
   indexer が書いても OpenSearch は黙って捨てる。**分けたつもりのフィールドは
-  本番に存在しない。**全量 rebuild で mapping を入れるまで、評価を別項目として
-  使う実装は空振りする（未対応）
+  本番に存在しなかった。**現行 index へ mapping を足して確かめた
+  （川崎市 1,396 件すべてに `evaluation_text` が入り、`necessityScore` は
+  `body_terms` から消えた）。`tools/search/index_mappings.json` には既にあるので、
+  次の全量 rebuild でも入る
 - 例規の `amended_on` は、再索引していない自治体では取得日のまま
   （1,377,709 件中 1,357,077 件が 2026 年）。周期取得で順次直る
 
