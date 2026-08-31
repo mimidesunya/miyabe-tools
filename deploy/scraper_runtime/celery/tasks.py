@@ -868,3 +868,80 @@ def sweep_never_indexed(limit: int = 0) -> dict[str, object]:
     if total > 0:
         print(f"[CELERY] 索引に無い {total} 件を積みました: {requeued}", flush=True)
     return {"ok": True, "task": "sweep_never_indexed", "requeued": requeued}
+
+
+# 取りこぼしの台帳を書き出す。**直す仕組みではなく、見える仕組み。**
+#
+# 工程ごとの成功は既に記録している。足りないのは端から端までの答えで、
+# 「この自治体は公開検索に出ているか」を誰も見ていなかった。能代市は取得の
+# 失敗が記録され続けていたのに、何ヶ月も誰の目にも入らなかった。
+@app.task(name="deploy.scraper_runtime.celery.tasks.write_coverage_ledger")
+def write_coverage_ledger() -> dict[str, object]:
+    import sys as _sys
+
+    search_dir = str(ROOT / "tools" / "search")
+    if search_dir not in _sys.path:
+        _sys.path.insert(0, search_dir)
+    from opensearch_client import OpenSearchClient  # type: ignore
+    import stale_generation  # type: ignore
+    from tools.search import build_opensearch_index as search_index
+    from tools.tasks import coverage_ledger
+
+    client = OpenSearchClient(
+        celery_runtime.env_text("OPENSEARCH_URL", "http://localhost:9200"),
+        user=celery_runtime.env_text("OPENSEARCH_USER", ""),
+        password=celery_runtime.env_text("OPENSEARCH_PASSWORD", ""),
+        insecure_dev=celery_runtime.env_text("OPENSEARCH_INSECURE_DEV", "").lower() in ("1", "true", "yes", "on"),
+    )
+    sections: list[dict[str, object]] = []
+    for kind, doc_type, alias_env, alias_default, iter_targets, counter in (
+        (
+            "gijiroku",
+            "minutes",
+            "MIYABE_MINUTES_ALIAS",
+            "miyabe-minutes-current",
+            gijiroku_targets.iter_gijiroku_targets,
+            search_index.count_minutes_documents_by_slug,
+        ),
+        (
+            "reiki",
+            "reiki",
+            "MIYABE_REIKI_ALIAS",
+            "miyabe-reiki-current",
+            reiki_targets.iter_reiki_targets,
+            search_index.count_reiki_documents_by_slug,
+        ),
+    ):
+        alias = celery_runtime.env_text(alias_env, alias_default)
+        try:
+            published = stale_generation.slugs_with_documents(client, alias, doc_type)
+        except Exception as exc:
+            print(f"[CELERY] {kind} 索引の自治体一覧を読めませんでした: {exc}", flush=True)
+            continue
+        try:
+            section = coverage_ledger.build_section(
+                doc_type,
+                iter_targets(),
+                published,
+                lambda slugs, _counter=counter: _counter(slugs=slugs),
+            )
+        except Exception as exc:
+            print(f"[CELERY] {kind} 台帳を組み立てられませんでした: {exc}", flush=True)
+            continue
+        sections.append(section)
+        print(
+            f"[CELERY] {kind}: 対象 {section['targets']} 件のうち "
+            f"公開 {section['published']} 件、未公開 {section['missing']} 件 "
+            f"{section['reasons']}",
+            flush=True,
+        )
+    if sections:
+        coverage_ledger.write_ledger(sections)
+    return {
+        "ok": True,
+        "task": "write_coverage_ledger",
+        "sections": [
+            {"doc_type": s["doc_type"], "missing": s["missing"], "reasons": s["reasons"]}
+            for s in sections
+        ],
+    }

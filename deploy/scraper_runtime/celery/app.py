@@ -42,6 +42,12 @@ NEVER_INDEXED_SWEEP_SECONDS = celery_runtime.env_int(
     6 * 60 * 60,
     minimum=600,
 )
+# 取りこぼし台帳を書き出す間隔。見るための仕組みなので、1 日 2 回で足りる。
+COVERAGE_LEDGER_SECONDS = celery_runtime.env_int(
+    "CELERY_COVERAGE_LEDGER_SECONDS",
+    12 * 60 * 60,
+    minimum=600,
+)
 
 app = Celery(
     "miyabe_tools_scraping",
@@ -110,6 +116,17 @@ app.conf.update(
             "options": {
                 "queue": "maintenance",
                 "expires": max(5, NEVER_INDEXED_SWEEP_SECONDS - 5),
+            },
+        },
+        # 公開に 1 件も出ていない自治体を、原因まで分けて数えて書き出す。
+        # 直す仕組みではなく、見える仕組み。能代市は取得の失敗が記録され
+        # 続けていたのに、何ヶ月も誰の目にも入らなかった。
+        "write-coverage-ledger": {
+            "task": "deploy.scraper_runtime.celery.tasks.write_coverage_ledger",
+            "schedule": float(COVERAGE_LEDGER_SECONDS),
+            "options": {
+                "queue": "maintenance",
+                "expires": max(5, COVERAGE_LEDGER_SECONDS - 5),
             },
         },
     },
