@@ -1174,8 +1174,16 @@ def first_wareki_date_in_head(text: str, *, limit: int = 1200) -> str:
     return ""
 
 
-# 項番号だけの行。見出しと本文の間に挟まる。
-_ITEM_NUMBER_RE = re.compile(r"^[0-9０-９]{1,2}$")
+# 項番号だけの行。見出しと本文の間に挟まる。表記は自治体ごとにばらつく。
+# `2` `２` `2.` `(2)` `②` `二` `第2項` を同じものとして飛ばす。
+# 飛ばすのは 3 行までで、その先が括弧の見出しでなければ何もしない。
+_ITEM_NUMBER_RE = re.compile(
+    r"^(?:"
+    r"第?[0-9０-９一二三四五六七八九十]{1,3}[項号]?"
+    r"|[（(][0-9０-９一二三四五六七八九十]{1,3}[）)]"
+    r"|[①-⑳㈠-㈩]"
+    r")[.．、,，]?$"
+)
 
 
 def _preceding_heading_disqualifies(lines: list[str], position: int) -> bool:

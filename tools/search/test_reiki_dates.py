@@ -89,3 +89,33 @@ class ExpiryHeadingTest(unittest.TestCase):
 
         body = "○○要綱\n本文\n2\n平成24年3月31日告示第386号\n"
         self.assertEqual(first_wareki_date_in_head(body), "2012-03-31")
+
+
+class ItemNumberNotationTest(unittest.TestCase):
+    """項番号の書き方は自治体ごとに違う。
+
+    見出しと日付の間に挟まる番号を `2` としか読めないと、`(2)` や `②` を
+    使う自治体では見出しに届かず、失効日をまた公布日にしてしまう。
+    """
+
+    def setUp(self):
+        from scraped_source_records import first_wareki_date_in_head
+
+        self.extract = first_wareki_date_in_head
+
+    def test_every_notation_reaches_the_heading(self):
+        for number in ("2", "２", "2.", "(2)", "（2）", "②", "二", "第2項", "2　"):
+            with self.subTest(number=number):
+                body = (
+                    "○○要綱\n附 則\n(この要綱の失効)\n"
+                    f"{number}\n"
+                    "この要綱は、令和9年3月31日限り、\n"
+                )
+                self.assertEqual(self.extract(body), "")
+
+    def test_an_ordinary_line_is_not_a_number(self):
+        """番号でない行の下の日付は、公布日のまま残す。"""
+        for previous in ("本文", "第1条", "出雲市告示", "", "2"):
+            with self.subTest(previous=previous):
+                body = f"○○要綱\n{previous}\n平成24年3月31日告示第386号\n"
+                self.assertEqual(self.extract(body), "2012-03-31")
