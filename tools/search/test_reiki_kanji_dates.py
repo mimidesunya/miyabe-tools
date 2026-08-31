@@ -70,6 +70,40 @@ class BodyHeadDateTest(unittest.TestCase):
         html = '<div class="law-date">昭和12年6月25日 (1937-06-25)</div>'
         self.assertEqual(extract_date_from_html(html), "1937-06-25")
 
+    def test_an_enforcement_date_is_not_the_promulgation_date(self) -> None:
+        # 「昭和四〇年四月一日から施行する」を公布日として拾っていた。
+        from scraped_source_records import first_wareki_date_in_head
+
+        body = (
+            "第1条 この条例は昭和四〇年四月一日から施行する。" + chr(10)
+            + "昭和三一年九月二九日" + chr(10) + "条例第六五号"
+        )
+        self.assertEqual(first_wareki_date_in_head(body), "1956-09-29")
+
+    def test_a_last_amendment_date_is_not_the_promulgation_date(self) -> None:
+        from scraped_source_records import first_wareki_date_in_head
+
+        body = (
+            "最終改正 平成二〇年三月三一日" + chr(10)
+            + "昭和三一年九月二九日" + chr(10) + "条例第六五号"
+        )
+        self.assertEqual(first_wareki_date_in_head(body), "1956-09-29")
+
+    def test_only_an_enforcement_date_means_no_promulgation_date(self) -> None:
+        # 公布日が読めないなら空にする。施行日で埋めない。
+        from scraped_source_records import first_wareki_date_in_head
+
+        self.assertEqual(
+            first_wareki_date_in_head("第1条 この条例は昭和四〇年四月一日から施行する。"),
+            "",
+        )
+
+    def test_a_number_with_hundred_is_not_a_date(self) -> None:
+        from scraped_source_records import first_wareki_date_in_head
+
+        body = "条例第百二十号" + chr(10) + "昭和三一年九月二九日"
+        self.assertEqual(first_wareki_date_in_head(body), "1956-09-29")
+
     def test_no_date_stays_empty(self) -> None:
         self.assertEqual(extract_date_from_html("<p>本文だけ</p>"), "")
 

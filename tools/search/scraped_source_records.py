@@ -1061,10 +1061,28 @@ def extract_date_from_html(html_content: str) -> str:
     return first_wareki_date_in_head(TAG_PATTERN.sub("\n", html_content))
 
 
-# 本文の頭にある最初の和暦日付。番号や施行日より前に公布日が来る。
+# 公布日ではない日付を示す語。これが同じ行にあるなら公布日として採らない。
+# 「昭和四〇年四月一日から施行する」「最終改正 平成二〇年三月三一日」を
+# 公布日として拾っていた。
+NOT_PROMULGATION_WORDS = (
+    "施行",
+    "最終改正",
+    "改正",
+    "適用",
+    "失効",
+    "廃止",
+    "効力",
+    "から起算",
+    "までに",
+)
+
+
+# 本文の頭にある最初の和暦日付。条例は題名のすぐあとに公布日と番号を並べる。
 def first_wareki_date_in_head(text: str, *, limit: int = 1200) -> str:
     head = str(text or "")[:limit]
     for line in head.splitlines():
+        if any(word in line for word in NOT_PROMULGATION_WORDS):
+            continue
         iso = wareki_to_iso(line)
         if iso:
             return iso
