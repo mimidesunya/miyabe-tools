@@ -46,6 +46,13 @@ SKIP_LABEL_RE = re.compile(
     # 「○○一覧表」は会議の記録ではなく、その会議に付いた資料である。
     # 会議録が「一覧表」で終わる題名になることはない。
     r"|(?:.+一覧表)"
+    # 飯塚市を取り直したあとも会議録の席に残っていたもの。会議に付いた
+    # 書類であって、会議の記録ではない。
+    r"|(?:.*会期日程(?:表)?)"
+    r"|(?:.*請願(?:書|文書表))"
+    r"|(?:.*陳情(?:書|文書表))"
+    r"|(?:.*議案一覧(?:表)?)"
+    r"|(?:.*付託表)"
     r"|(?:.*請願(?:・|、)?陳情一覧(?:表)?)"
     r")$"
 )
@@ -205,6 +212,17 @@ def link_title_is_weak(title: str) -> bool:
     return len(cleaned) <= 2
 
 
+# 「議員名簿（令和8年2月20日現在）（PDFファイル／104KB）」のように、
+# 注記を剥いでも括弧が残ると `.*議員名簿$` に当たらない。末尾の括弧も落として
+# もう一度みる。中身のある題名まで削らないよう、末尾だけを対象にする。
+_TRAILING_PARENS_RE = re.compile(r"(?:[\s　]*[（(][^（()）]*[）)])+$")
+
+
+def strip_trailing_parens(title: str) -> str:
+    stripped = _TRAILING_PARENS_RE.sub("", str(title or "")).strip()
+    return stripped or str(title or "").strip()
+
+
 def _label_reason(title: str) -> str | None:
     cleaned = strip_pdf_notes(title)
     if cleaned == "":
@@ -216,7 +234,7 @@ def _label_reason(title: str) -> str | None:
         if SKIP_LABEL_RE.match(cleaned):
             return "non_minutes_label"
         return None
-    if SKIP_LABEL_RE.match(cleaned):
+    if SKIP_LABEL_RE.match(cleaned) or SKIP_LABEL_RE.match(strip_trailing_parens(cleaned)):
         return "non_minutes_label"
     if COVER_IN_TITLE_RE.search(cleaned):
         return "cover_only"

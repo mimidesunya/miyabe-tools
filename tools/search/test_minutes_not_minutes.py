@@ -68,6 +68,35 @@ class NotMinutesTest(unittest.TestCase):
         self.assertEqual(classify_doc_type("06月10日-01号", text), "minutes")
 
 
+class DisplayTitleTest(unittest.TestCase):
+    """リンク文言が会議を名乗れないときは、本文先頭の会議名を題名にする。
+
+    取得側を直しても、既に `開議.txt` として保存された分は再索引しても
+    題名が変わらない。索引側でも同じ判定を通す。本番で題名が「開議」だけの
+    文書が 23 件あった（長井市）。
+    """
+
+    BODY = (
+        "長井市議会決算特別委員会記録" + "\n" + "平成28年9月20日（火曜日）"
+        + "\n" + "開議 午前10時" + "\n" + "出席議員 15名" + "\n"
+    )
+
+    def test_weak_link_text_is_replaced_by_the_meeting_name(self) -> None:
+        from scraped_source_records import display_minutes_title
+
+        self.assertEqual(display_minutes_title("開議", self.BODY), "長井市議会決算特別委員会記録")
+
+    def test_a_normal_stem_is_left_alone(self) -> None:
+        from scraped_source_records import display_minutes_title
+
+        self.assertEqual(display_minutes_title("03月11日-01号", self.BODY), "03月11日-01号")
+
+    def test_unreadable_body_keeps_the_stem(self) -> None:
+        from scraped_source_records import display_minutes_title
+
+        self.assertEqual(display_minutes_title("61", "議案第６１号"), "61")
+
+
 class HeldOnSanityTest(unittest.TestCase):
     def test_ocr_year_is_corrected_by_the_weekday(self) -> None:
         from scraped_source_records import extract_held_on

@@ -62,6 +62,28 @@ class CommitteeRecordTest(unittest.TestCase):
             with self.subTest(title=title):
                 self.assertIsNotNone(minutes_kind.non_minutes_reason(title, body))
 
+    def test_meeting_paperwork_titles_are_dropped(self) -> None:
+        # 飯塚市を取り直したあとも会議録の席に残っていたもの。会議に付いた
+        # 書類であって、会議の記録ではない。
+        body = "会期は8日間とする" + chr(10) + "議案第79号" + chr(10)
+        for title in (
+            "会期日程",
+            "請願文書表",
+            "陳情書",
+            "議案一覧表",
+            "付託表",
+            "議員名簿（令和8年2月20日現在）（PDFファイル／104KB）",
+        ):
+            with self.subTest(title=title):
+                self.assertIsNotNone(minutes_kind.non_minutes_reason(title, body))
+
+    def test_a_record_that_merely_mentions_paperwork_is_kept(self) -> None:
+        self.assertIsNone(
+            minutes_kind.non_minutes_reason(
+                "会期日程について協議した議会運営委員会記録", SAPPORO_COMMITTEE
+            )
+        )
+
     def test_a_date_only_title_is_not_dropped(self) -> None:
         # 「令和8年6月26日」は会議録の題名としてありうる。落とさない。
         self.assertIsNone(

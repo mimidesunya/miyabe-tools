@@ -640,6 +640,21 @@ def lookup_minutes_source_meta(
     return None
 
 
+# 公開する題名。取得側と同じ判定を借りる。リンク文言が会議を名乗れないときだけ
+# 本文先頭の会議名に置き換える。読めなければ保存名のまま。
+def display_minutes_title(title: str, text: str) -> str:
+    try:
+        from tools.gijiroku import minutes_kind
+    except Exception:
+        return title
+    try:
+        display = str(minutes_kind.minutes_display_title(title, text) or "").strip()
+    except Exception as exc:
+        print(f"[WARN] display title failed title={title!r}: {exc}", file=sys.stderr)
+        return title
+    return display or title
+
+
 def build_minutes_record(
     file_path: Path,
     downloads_dir: Path,
@@ -684,7 +699,10 @@ def build_minutes_record(
     )
     return MinuteRecord(
         rel_path=file_path.relative_to(downloads_dir).as_posix(),
-        title=title,
+        # 一覧行との照合には保存名（`title`）を使うが、公開する題名は会議の名前に
+        # したい。リンク文言が「開議」「61」「18日」だけだと、検索結果に会議名が
+        # 出ず、会議名で探せない（本番で題名「開議」が 23 件あった）。
+        title=display_minutes_title(title, content),
         meeting_name=meeting_name,
         year_label=meta.year_label if meta else extracted_year_label,
         held_on=held_on,
