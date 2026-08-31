@@ -30,7 +30,11 @@ from static_catalog import Article, ParsedArticle  # noqa: E402
 
 
 FRAME_HREF_RE = re.compile(r"""["'][^"']*act/frame/frame([0-9A-Za-z]+)\.html?["']""", re.IGNORECASE)
-DATE_LINE_RE = re.compile(r"[（(]\s*((?:明治|大正|昭和|平成|令和)[^（）()]*?第[0-9０-９]+号)\s*[）)]")
+# 番号には枝番が付く。えびの市の組合規約は `第217号の328` である。
+# `号` の直後に閉じ括弧を求めていたので、この形は日付ごと落ちていた。
+DATE_LINE_RE = re.compile(
+    r"[（(]\s*((?:明治|大正|昭和|平成|令和)[^（）()]*?第[0-9０-９]+号(?:の[0-9０-９]+)*)\s*[）)]"
+)
 
 
 def _base_dir(source_url: str) -> str:
