@@ -1049,7 +1049,9 @@ def wareki_to_iso(text: str) -> str:
 
 def extract_date_from_html(html_content: str) -> str:
     match = REIKI_DATE_PATTERN.search(html_content)
-    if match:
+    if match and is_real_calendar_date(match.group(1)):
+        # 取得元が `(0000-00-00)` を併記することがある（千葉県 1,989 件・
+        # 埼玉県 1,702 件）。そのまま返すと、同じ行にある和暦を読まない。
         return match.group(1)
     text_match = REIKI_DATE_TEXT_PATTERN.search(html_content)
     if text_match:
@@ -1059,6 +1061,19 @@ def extract_date_from_html(html_content: str) -> str:
     # `law-date` を持たない取得元がある。条例は題名のすぐあとに公布日と
     # 番号を並べる形なので、本文の頭からも探す。読めないより、そこから読む。
     return first_wareki_date_in_head(TAG_PATTERN.sub("\n", html_content))
+
+
+# `0000-00-00` のような、暦に無い日付を弾く。
+def is_real_calendar_date(value: str) -> bool:
+    text = str(value or "").strip()
+    if len(text) != 10:
+        return False
+    try:
+        year, month, day = (int(part) for part in text.split("-"))
+        date(year, month, day)
+    except (TypeError, ValueError):
+        return False
+    return year >= 1868
 
 
 # 公布日ではない日付を示す語。これが同じ行にあるなら公布日として採らない。

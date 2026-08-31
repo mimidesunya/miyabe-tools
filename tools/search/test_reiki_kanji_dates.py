@@ -104,6 +104,15 @@ class BodyHeadDateTest(unittest.TestCase):
         body = "条例第百二十号" + chr(10) + "昭和三一年九月二九日"
         self.assertEqual(first_wareki_date_in_head(body), "1956-09-29")
 
+    def test_a_zero_date_is_not_a_date(self) -> None:
+        # 取得元が `(0000-00-00)` を併記することがある（千葉県 1,989 件・
+        # 埼玉県 1,702 件）。そのまま返すと、同じ行にある和暦を読まない。
+        html = (
+            '<div class="law-date">昭和四十九年九月二十七日規則第六十六号'
+            " (0000-00-00)</div>"
+        )
+        self.assertEqual(extract_date_from_html(html), "1974-09-27")
+
     def test_no_date_stays_empty(self) -> None:
         self.assertEqual(extract_date_from_html("<p>本文だけ</p>"), "")
 
