@@ -101,6 +101,16 @@ function main(array $argv): void
     write_json_file($taxonomyPath, array_values($crawl['pages']), true);
 
     echo 'Found ' . count($records) . " ordinance pages across " . count($crawl['pages']) . " taxonomy pages.\n";
+    // 0 件で成功にしない。取得元の作りが変わって目次を辿れなくなっても、
+    // 成功として記録されると 30 日ごとに同じ 0 件を繰り返すだけで、
+    // 誰も気づかない。能代市はこの形で例規が 1 件も無いまま残っていた。
+    // d1-law 側は同じ状況で落ちるようにしてある。
+    if (count($records) === 0) {
+        throw new RuntimeException(
+            'No ordinance pages were collected; refusing to mark the target as '
+            . 'successfully scraped.'
+        );
+    }
     if ($crawlOnly) {
         emit_progress(count($records), count($records), $statePath);
         write_json_file($manifestPath, $records, true);
@@ -488,7 +498,11 @@ function extract_taxonomy_path(DOMXPath $xpath): string
 function extract_taxonomy_links(DOMXPath $xpath, string $pageUrl): array
 {
     $links = [];
-    foreach ($xpath->query('//ul[@id="navigation"]//a[@href]') as $node) {
+    // 入口が `reiki_menu.html` の自治体がある。体系目次はそこからのリンクで、
+    // `ul#navigation` には入っていない。能代市はこれで 1 ページも辿れず、
+    // 例規 0 件のまま成功として記録されていた。
+    $query = '//ul[@id="navigation"]//a[@href] | //ul[contains(@class,"menu-list")]//a[@href]';
+    foreach ($xpath->query($query) as $node) {
         if (!$node instanceof DOMElement) {
             continue;
         }
@@ -1089,6 +1103,15 @@ function response_header_value(array $headers, string $name): string
 
 function create_dom(string $html): DOMDocument
 {
+    // 本文は取得時に UTF-8 へ直してある。ところがページ先頭の XML 宣言は
+    // `encoding="Shift_JIS"` と名乗ったままのことがあり、libxml はそちらを
+    // 信じて読む。結果、DOM が空になりリンクが 1 本も取れない。能代市は
+    // これで体系目次を辿れず、例規 0 件のまま成功として記録されていた。
+    // 先頭の XML 宣言は落としてから渡す。
+    $html = preg_replace('/^\s*<\?xml.*?\?>/i', '', $html, 1) ?? $html;
+    // meta の charset も取得元の宣言のまま残る。libxml は宣言を信じるので、
+    // UTF-8 に直した本文を Shift_JIS として読んでしまう。両方 utf-8 にする。
+    $html = preg_replace('/charset\s*=\s*["\']?[A-Za-z0-9_-]+/i', 'charset=utf-8', $html) ?? $html;
     $dom = new DOMDocument('1.0', 'UTF-8');
     libxml_use_internal_errors(true);
     $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
