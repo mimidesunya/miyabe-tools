@@ -436,6 +436,8 @@ function crawl_taxonomy(string $entryUrl): array
     $visited = [];
     $pages = [];
     $records = [];
+    // 開けなかった目次ページ。その先の例規はまるごと見えなくなる。
+    $missed = [];
 
     while ($queue !== []) {
         $url = array_shift($queue);
@@ -444,7 +446,17 @@ function crawl_taxonomy(string $entryUrl): array
         }
 
         $visited[$url] = true;
-        $html = fetch_url($url);
+        try {
+            $html = fetch_url($url);
+        } catch (RuntimeException $exception) {
+            // 目次の枝が 1 本開けないだけで自治体をまるごと落とさない。
+            // 与那国町は空白入りのリンク 1 本で例規 0 件になっていた。
+            // 数えておいて、最後に 0 件なら失敗として扱う。
+            $missed[] = $url;
+            fwrite(STDERR, "[WARN] taxonomy page unavailable: {$url}
+");
+            continue;
+        }
         $dom = create_dom($html);
         $xpath = new DOMXPath($dom);
         $currentPath = extract_taxonomy_path($xpath);
@@ -479,9 +491,15 @@ function crawl_taxonomy(string $entryUrl): array
         throttled_sleep();
     }
 
+    if ($missed !== []) {
+        echo '[WARN] ' . count($missed) . " taxonomy pages could not be opened.
+";
+    }
+
     return [
         'pages' => $pages,
         'records' => $records,
+        'missed' => $missed,
     ];
 }
 
@@ -493,6 +511,15 @@ function extract_taxonomy_path(DOMXPath $xpath): string
     }
 
     return normalize_whitespace($node->textContent ?? '');
+}
+
+// 取得元のリンクに余分な空白が混ざることがある。与那国町の体系目次は
+// `r_taikei_13_08_01_ 1.html` と書くが、実体は空白の無い名前である。
+// そのまま辿ると 404 になり、その枝の先が丸ごと見えなくなる。
+// 符号化された `%20` は本物なので触らない。生の空白だけ落とす。
+function strip_href_whitespace(string $href): string
+{
+    return (string)preg_replace('/\s+/u', '', trim($href));
 }
 
 function extract_taxonomy_links(DOMXPath $xpath, string $pageUrl): array
@@ -507,7 +534,7 @@ function extract_taxonomy_links(DOMXPath $xpath, string $pageUrl): array
             continue;
         }
 
-        $href = trim($node->getAttribute('href'));
+        $href = strip_href_whitespace($node->getAttribute('href'));
         if ($href === '' || str_starts_with($href, 'javascript:')) {
             continue;
         }
