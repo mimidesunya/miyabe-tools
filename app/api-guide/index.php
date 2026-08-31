@@ -73,14 +73,14 @@ function api_guide_asset_url(string $relativePath): string
             <p class="kicker">おすすめ</p>
             <h2>Claudeにつなぐ</h2>
             <ol class="docs-steps">
-                <li>Claudeを開き、左下の名前を押して、<strong>「カスタマイズ」</strong>を開きます。</li>
-                <li><strong>「コネクタ」</strong>→<strong>「＋」</strong>→<strong>「カスタムコネクタを追加」</strong>へ進みます。</li>
+                <li>Claudeの<strong>「カスタマイズ」</strong>→<strong>「コネクタ」</strong>を開きます（<a href="https://claude.ai/customize/connectors" target="_blank" rel="noopener">直接開く</a>）。</li>
+                <li><strong>「＋」</strong>→<strong>「カスタムコネクタを追加」</strong>へ進みます。</li>
                 <li>名前を「自治体マップ」、アドレスを <code>https://tools.miya.be/mcp</code> にして追加します。</li>
                 <li>新しい会話で<strong>「＋」</strong>→<strong>「コネクタ」</strong>を開き、「自治体マップ」を有効にします。</li>
             </ol>
             <p>
-                認証方法を聞かれた場合は「なし」です。無料版はカスタムコネクタを1つまで追加できます。
-                Team・Enterpriseでは、先に会社や団体の管理者による追加が必要です。
+                認証は不要です（OAuthの入力欄は空のままにします）。無料版はカスタムコネクタを1つまで追加できます。
+                Team・Enterpriseでは、先に組織のオーナーが組織側へ追加し、そのあと各自が接続します。
                 <a href="https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp" target="_blank" rel="noopener">Claude公式の説明</a>
             </p>
         </section>
@@ -88,7 +88,9 @@ function api_guide_asset_url(string $relativePath): string
         <section class="docs-section">
             <h2>ChatGPTにつなぐ</h2>
             <p>
-                ChatGPTでは、自治体マップはプラグイン「日本自治体会議録例規集横断調査」として登録します。
+                ChatGPTでは、外部サービスとの接続を「アプリ」と呼びます
+                （2026年7月9日に、それまでのアプリディレクトリがプラグインディレクトリへ変わりました）。
+                自治体マップは「日本自治体会議録例規集横断調査」という名前で登録しています。
                 名前は違いますが、本サイトと同じサービスです。
             </p>
             <p>
@@ -101,18 +103,34 @@ function api_guide_asset_url(string $relativePath): string
                 <li>アプリを作成する画面で、アドレスに <code>https://tools.miya.be/mcp</code> を指定します。</li>
             </ol>
             <p class="docs-note">
-                Business・Enterprise・Eduでは、管理者の許可が必要です。Proでは読み取り用MCPを使える案内がありますが、
-                機能は段階的に提供されています。契約や設定によっては、この手順を使えません。
+                Business・Enterprise・Eduでは、管理者の許可が必要です。
+                Proを含むそれ以外の契約では、開発者モードで検索と本文取得までは使えますが、
+                MCPの全機能はBusiness・Enterprise・Eduに限られます。自治体マップは検索と本文取得だけなので、
+                開発者モードで使えます。
             </p>
             <p>
                 MCPを追加できない場合でも、「GPTを作成」の「アクション」が使える契約なら、
                 <a href="/openapi.json">OpenAPI JSON</a>を読み込ませる方法があります。認証は「なし」です。
                 なお、1つのGPTで「アプリ」と「アクション」を同時には使えません。
+                Proモードの応答ではアクションを使えません。
             </p>
             <p>
                 <a href="https://help.openai.com/en/articles/12584461-developer-mode-apps-and-full-mcp-connectors-in-chatgpt-beta" target="_blank" rel="noopener">ChatGPTのMCPに関する公式説明</a>
                 ／
                 <a href="https://help.openai.com/en/articles/9442513" target="_blank" rel="noopener">GPTアクションの公式説明</a>
+            </p>
+        </section>
+
+        <section class="docs-section">
+            <h2>Grokにつなぐ</h2>
+            <ol class="docs-steps">
+                <li><a href="https://grok.com/connectors" target="_blank" rel="noopener">grok.com/connectors</a> を開きます。</li>
+                <li><strong>「New Connector」</strong>→<strong>「Custom」</strong>へ進みます。</li>
+                <li>アドレスに <code>https://tools.miya.be/mcp</code> を入れて追加します。認証は不要です。</li>
+            </ol>
+            <p>
+                Business・Enterpriseでは、先にチームの管理者が用意する必要があります。
+                <a href="https://docs.x.ai/grok/connectors" target="_blank" rel="noopener">xAI公式の説明</a>
             </p>
         </section>
 
@@ -169,6 +187,12 @@ function api_guide_asset_url(string $relativePath): string
                     ふつうのGeminiのウェブ画面やスマートフォンアプリの設定ではありません。
                     <a href="https://geminicli.com/docs/tools/mcp-server/" target="_blank" rel="noopener">Gemini CLI公式の説明</a>
                 </p>
+                <p class="docs-note">
+                    無償枠とGoogle One経由のGemini CLIは2026年6月18日で受付を終了し、Antigravity CLIへ移りました。
+                    Gemini Code AssistのStandard・Enterprise、または有償APIキー経由なら引き続き使えます。
+                    Antigravity CLIでの書き方は公式の説明を確認してください。
+                    <a href="https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli" target="_blank" rel="noopener">Google公式の告知</a>
+                </p>
                 <pre><code>{
   "mcpServers": {
     "自治体マップ": {
@@ -176,8 +200,43 @@ function api_guide_asset_url(string $relativePath): string
     }
   }
 }</code></pre>
+                <h2>Claude Code</h2>
+                <pre><code>claude mcp add --transport http 自治体マップ https://tools.miya.be/mcp</code></pre>
                 <p>
-                    Claude CodeやCursorなどでも、Streamable HTTP方式のMCPサーバーとして同じアドレスを設定します。
+                    <a href="https://code.claude.com/docs/en/mcp" target="_blank" rel="noopener">Claude Code公式の説明</a>
+                </p>
+
+                <h2>Cursor</h2>
+                <p>
+                    <code>~/.cursor/mcp.json</code>（プロジェクト単位なら <code>.cursor/mcp.json</code>）に書きます。
+                    <a href="https://cursor.com/docs/context/mcp" target="_blank" rel="noopener">Cursor公式の説明</a>
+                </p>
+                <pre><code>{
+  "mcpServers": {
+    "自治体マップ": {
+      "url": "https://tools.miya.be/mcp"
+    }
+  }
+}</code></pre>
+
+                <h2>VS Code（GitHub Copilot Chat）</h2>
+                <p>
+                    MCPサーバーの設定に次のように書きます。ふつうのMicrosoft Copilotのチャットとは別の機能です。
+                    <a href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers" target="_blank" rel="noopener">VS Code公式の説明</a>
+                </p>
+                <pre><code>{
+  "servers": {
+    "自治体マップ": {
+      "type": "http",
+      "url": "https://tools.miya.be/mcp"
+    }
+  }
+}</code></pre>
+
+                <p>
+                    そのほかのツールでも、Streamable HTTP方式のリモートMCPサーバーとして同じアドレスを設定します。
+                    Mistral Le Chatも任意のリモートMCPサーバーにつなげますが、
+                    公式の画面手順は確認できていません。
                 </p>
             </div>
         </details>
