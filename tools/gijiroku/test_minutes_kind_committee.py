@@ -188,6 +188,30 @@ class CommitteeRecordTest(unittest.TestCase):
                     minutes_kind.non_minutes_reason(title, "資料"), "non_minutes_label"
                 )
 
+    def test_rosters_and_result_lists_are_dropped(self) -> None:
+        # 「03月12日－名簿」「議事日程・名簿」「３月定例会議決結果一覧」も
+        # 会議の記録ではない。本番で「名簿」で終わる題名が 2,624 件、
+        # 「一覧」で終わるものが 746 件あった。
+        for title in (
+            "議事日程・名簿",
+            "12月07日－名簿",
+            "議決一覧",
+            "３月定例会議決結果一覧",
+            "第１回定例会－質問一覧",
+            "議事日程",
+        ):
+            with self.subTest(title=title):
+                self.assertEqual(
+                    minutes_kind.non_minutes_reason(title, "資料"), "non_minutes_label"
+                )
+
+    def test_a_record_that_discusses_the_agenda_is_kept(self) -> None:
+        self.assertIsNone(
+            minutes_kind.non_minutes_reason(
+                "議事日程について協議した議会運営委員会記録", SAPPORO_COMMITTEE
+            )
+        )
+
     def test_a_real_bill_is_still_dropped(self) -> None:
         bill = "61\n\n議案第６１号\n　　財産の取得について\n提案理由\n"
         self.assertIsNotNone(minutes_kind.non_minutes_reason("61", bill))
