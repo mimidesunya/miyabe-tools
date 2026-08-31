@@ -250,6 +250,21 @@ class MinutesSourceUrlTest(unittest.TestCase):
         # 実在しない桁数のときだけ畳む。
         self.assertEqual(collapse_repeated_year_label("平成28282828年"), "平成28年")
 
+    def test_kangxi_radicals_in_the_date_are_read(self) -> None:
+        # PDF から取り出した日付に康煕部首が混ざる（`12⽉4⽇` の `⽉` は U+2F49）。
+        # 日付の正規表現は U+6708 の `月` しか見ないので読めなかった。清里町 65 件。
+        from scraped_source_records import extract_held_on
+
+        body = (
+            "第10回産業福祉常任委員会会議録" + "\n"
+            + "平成20年12" + chr(0x2F49) + " 4" + chr(0x2F47)
+            + "(" + chr(0x2F4A) + "曜" + chr(0x2F47) + ")" + "\n" + "開議" + "\n"
+        )
+        held_on, _, _, _ = extract_held_on(
+            body, "x", None, source_hint="y", year_label="平成20年"
+        )
+        self.assertEqual(held_on, "2008-12-04")
+
     def test_the_source_url_is_a_date_hint(self) -> None:
         # 原典 URL にも開催日が入っている（`fileName=R070220A` は 2025-02-20）。
         # 保存パスだけを渡していたので、kensakusystem の 16,312 件が

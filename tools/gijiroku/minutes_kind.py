@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import html
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date
 from urllib.parse import urlsplit
@@ -256,6 +257,13 @@ def _japanese_ratio(text: str) -> float:
         if "぀" <= ch <= "ヿ" or "一" <= ch <= "鿿" or "＀" <= ch <= "￯"
     )
     return japanese / len(sample)
+
+
+# PDF から取り出した日付に康煕部首が混ざる（`平成20年12⽉4⽇` の `⽉` は
+# U+2F49、`⽇` は U+2F47）。日付の正規表現は U+6708 の `月` しか見ないので、
+# 開催日が読めない。清里町で 65 件あった。NFKC で普通の字へ寄せる。
+def normalize_compatibility_forms(value: str) -> str:
+    return unicodedata.normalize("NFKC", str(value or ""))
 
 
 def normalize_space(value: str) -> str:
@@ -620,7 +628,8 @@ class _DateCandidate:
     source: str
 
 
-def _candidates_from_text(text: str) -> list[_DateCandidate]:
+def _candidates_from_text(raw_text: str) -> list[_DateCandidate]:
+    text = normalize_compatibility_forms(raw_text)
     found: list[_DateCandidate] = []
     seen: set[tuple[int, int, int, str]] = set()
 

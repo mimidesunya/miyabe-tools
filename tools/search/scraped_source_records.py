@@ -424,7 +424,19 @@ def accept_minutes_date(
 # 2027 年になる（田川市）。本文の曜日はその年と合わないので、そこで落とせる。
 # 年ラベルから西暦を読む。会議の年が分かっているなら、本文中の別の日付を
 # 開催日として採らないための当たりに使う。
+# 年ラベルとの差をこれ以上離すと、本文が引用している別の年を拾っている。
+# 取得側（`minutes_kind`）と同じ値・同じ比較にする。**年度会期は 1 年ずれる**
+# ので、1 に締めてはいけない（出雲市の令和6年度第6回定例会は 2025-02-20）。
 YEAR_LABEL_GAP = 2
+
+
+def normalize_compatibility_forms(value: str) -> str:
+    """康煕部首などの互換字を普通の字へ寄せる。取得側と同じ扱いにする。"""
+    try:
+        from tools.gijiroku import minutes_kind
+    except Exception:
+        return str(value or "")
+    return minutes_kind.normalize_compatibility_forms(value)
 
 
 def year_from_label(year_label: str) -> int | None:
@@ -492,13 +504,17 @@ def extract_held_on(
         if accepted is not None:
             return accepted
     label_year = year_from_label(year_label)
-    for match in MINUTES_DATE_PATTERN.finditer(joined_head_text(text, limit=20)):
+    # 康煕部首（`12⽉4⽇`）は日付の正規表現に当たらない。読む直前に寄せる。
+    head_text = normalize_compatibility_forms(joined_head_text(text, limit=20))
+    for match in MINUTES_DATE_PATTERN.finditer(head_text):
         gregorian_year = era_to_gregorian(match.group(1), match.group(2))
         if gregorian_year is None:
             continue
         # 年ラベルと大きく離れた年は、本文中の別の日付を拾っている。
         # 「平成16年」の委員会記録に 1932-10-01 が入っていた（本番で 10 件）。
-        if label_year is not None and abs(gregorian_year - label_year) > YEAR_LABEL_GAP:
+        # 判定は取得側と揃える。片方が `>=`、片方が `>` だと、2 年差の引用が
+        # 後段だけ通る（多度津・周防大島の 2 件が実際にそうだった）。
+        if label_year is not None and abs(gregorian_year - label_year) >= YEAR_LABEL_GAP:
             continue
         accepted = accept_minutes_date(
             match.group(0),
