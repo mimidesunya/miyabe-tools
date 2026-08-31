@@ -36,6 +36,54 @@ def ledger_path() -> Path:
     return batch_status.status_root() / "coverage_ledger.json"
 
 
+# 同じ系統の仲間と比べて、これを下回るなら少なすぎるとみなす。
+# 0 件でなくても取りこぼしは起きる。富士市は 1,666 件あるところを 14 件しか
+# 公開していなかったが、台帳では健全に見えていた。
+THIN_RATIO = 0.1
+# 仲間が少ないと中央値が当てにならない。この数を下回る系統は見ない。
+THIN_MIN_PEERS = 8
+
+
+def thin_slugs(
+    counts_by_slug: dict[str, int],
+    system_by_slug: dict[str, str],
+    *,
+    ratio: float = THIN_RATIO,
+    min_peers: int = THIN_MIN_PEERS,
+) -> list[dict[str, Any]]:
+    """同じ系統の中央値と比べて極端に少ない自治体を返す。
+
+    「0 件かどうか」だけでは取りこぼしを捕まえられない。取得元の作りが
+    少し変われば、全部ではなく**一部だけ**取れなくなる。富士市は年度を
+    144 件辿りながら直近の 14 件しか拾えていなかった。
+    """
+    import statistics
+
+    by_system: dict[str, list[tuple[str, int]]] = {}
+    for slug, count in counts_by_slug.items():
+        if int(count) <= 0:
+            continue
+        by_system.setdefault(system_by_slug.get(slug, "?"), []).append((slug, int(count)))
+    found: list[dict[str, Any]] = []
+    for system, rows in by_system.items():
+        if len(rows) < int(min_peers):
+            continue
+        median = statistics.median(sorted(count for _, count in rows))
+        threshold = median * float(ratio)
+        for slug, count in rows:
+            if count < threshold:
+                found.append(
+                    {
+                        "slug": slug,
+                        "system_type": system,
+                        "documents": count,
+                        "peer_median": int(median),
+                    }
+                )
+    found.sort(key=lambda row: (row["system_type"], row["documents"]))
+    return found
+
+
 def classify(slug: str, *, published: bool, saved_files: int, excluded: bool) -> str:
     """その自治体が公開に出ていない理由を返す。出ているなら空。"""
     if published:

@@ -102,3 +102,38 @@ class WriteReadTest(unittest.TestCase):
     def test_a_broken_file_reads_as_empty(self):
         ledger.ledger_path().write_text("{ broken", encoding="utf-8")
         self.assertEqual(ledger.read_ledger(), {})
+
+
+class ThinSlugsTest(unittest.TestCase):
+    """0 件でなくても取りこぼしは起きる。
+
+    富士市は 1,666 件あるところを 14 件しか公開していなかった。台帳は
+    「0 件かどうか」しか見ていないので健全に見えていた。
+    """
+
+    def test_finds_a_town_far_below_its_peers(self):
+        counts = {f"peer{i}": 800 for i in range(10)}
+        counts["22210-fuji-shi"] = 14
+        systems = {slug: "gijiroku.com" for slug in counts}
+        found = ledger.thin_slugs(counts, systems)
+        self.assertEqual([row["slug"] for row in found], ["22210-fuji-shi"])
+        self.assertEqual(found[0]["peer_median"], 800)
+
+    def test_a_small_system_is_not_judged(self):
+        """仲間が少ないと中央値が当てにならない。"""
+        counts = {"a": 1000, "b": 5}
+        systems = {"a": "rare", "b": "rare"}
+        self.assertEqual(ledger.thin_slugs(counts, systems), [])
+
+    def test_a_town_within_range_is_not_flagged(self):
+        counts = {f"peer{i}": 800 for i in range(10)}
+        counts["ok"] = 400
+        systems = {slug: "taikei" for slug in counts}
+        self.assertEqual(ledger.thin_slugs(counts, systems), [])
+
+    def test_zero_is_left_to_the_missing_rows(self):
+        """0 件は原因まで分けて別に数えている。ここでは重ねない。"""
+        counts = {f"peer{i}": 800 for i in range(10)}
+        counts["zero"] = 0
+        systems = {slug: "taikei" for slug in counts}
+        self.assertEqual(ledger.thin_slugs(counts, systems), [])

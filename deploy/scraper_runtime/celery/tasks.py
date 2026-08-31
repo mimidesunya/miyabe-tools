@@ -918,21 +918,42 @@ def write_coverage_ledger() -> dict[str, object]:
         except Exception as exc:
             print(f"[CELERY] {kind} 索引の自治体一覧を読めませんでした: {exc}", flush=True)
             continue
+        targets = list(iter_targets())
         try:
             section = coverage_ledger.build_section(
                 doc_type,
-                iter_targets(),
+                targets,
                 published,
                 lambda slugs, _counter=counter: _counter(slugs=slugs),
             )
         except Exception as exc:
             print(f"[CELERY] {kind} 台帳を組み立てられませんでした: {exc}", flush=True)
             continue
+        # 0 件でなくても取りこぼしは起きる。同じ系統の仲間と比べて極端に
+        # 少ない自治体を挙げる。富士市は 1,666 件あるところを 14 件しか
+        # 公開しておらず、0 件ではないので健全に見えていた。
+        try:
+            response = client.request(
+                "POST",
+                f"/{alias}/_search",
+                body={"size": 0, "aggs": {"slugs": {"terms": {"field": "slug", "size": 5000}}}},
+            )
+            buckets = (response.get("aggregations") or {}).get("slugs", {}).get("buckets") or []
+            counts_by_slug = {str(b["key"]): int(b["doc_count"]) for b in buckets}
+            system_by_slug = {
+                str(t.get("slug") or ""): str(t.get("system_type") or "?") for t in targets
+            }
+            section["thin_rows"] = coverage_ledger.thin_slugs(counts_by_slug, system_by_slug)
+            section["thin"] = len(section["thin_rows"])
+        except Exception as exc:
+            print(f"[CELERY] {kind} 件数の偏りを見られませんでした: {exc}", flush=True)
+            section["thin_rows"] = []
+            section["thin"] = 0
         sections.append(section)
         print(
             f"[CELERY] {kind}: 対象 {section['targets']} 件のうち "
             f"公開 {section['published']} 件、未公開 {section['missing']} 件 "
-            f"{section['reasons']}",
+            f"{section['reasons']}、仲間より極端に少ない {section.get('thin', 0)} 件",
             flush=True,
         )
     if sections:
@@ -941,7 +962,12 @@ def write_coverage_ledger() -> dict[str, object]:
         "ok": True,
         "task": "write_coverage_ledger",
         "sections": [
-            {"doc_type": s["doc_type"], "missing": s["missing"], "reasons": s["reasons"]}
+            {
+                "doc_type": s["doc_type"],
+                "missing": s["missing"],
+                "reasons": s["reasons"],
+                "thin": s.get("thin", 0),
+            }
             for s in sections
         ],
     }
