@@ -1104,11 +1104,37 @@ TITLE_AMENDMENT_WORDS = ("一部を改正する", "の一部改正")
 
 
 # 本文の頭にある最初の和暦日付。条例は題名のすぐあとに公布日と番号を並べる。
+# 要綱は西暦で書かれることがある（中野区の 802 件が `1993年3月12日`）。
+# 和暦しか見ていなかったので公布日が空になっていた。
+WESTERN_PROMULGATION_RE = re.compile(
+    r"(?<![0-9])((?:18|19|20)\d{2})\s*年\s*([0-9]{1,2})\s*月\s*([0-9]{1,2})\s*日"
+)
+
+
+def western_date_to_iso(text: str) -> str:
+    match = WESTERN_PROMULGATION_RE.search(to_ascii_digits(str(text or "")))
+    if not match:
+        return ""
+    try:
+        value = date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+    except ValueError:
+        return ""
+    return value.isoformat()
+
+
+def promulgation_date_in_line(line: str) -> str:
+    """1 行から公布日を読む。和暦でも西暦でもよい。"""
+    return wareki_to_iso(line) or western_date_to_iso(line)
+
+
 def first_wareki_date_in_head(text: str, *, limit: int = 1200) -> str:
     head = str(text or "")[:limit]
     in_amendment_block = False
-    for line in head.splitlines():
+    previous_was_excluded = False
+    lines = head.splitlines()
+    for position, line in enumerate(lines):
         stripped = normalize_space(line)
+        next_line = normalize_space(lines[position + 1]) if position + 1 < len(lines) else ""
         if stripped == "":
             continue
         if stripped in AMENDMENT_BLOCK_HEADS:
@@ -1120,16 +1146,23 @@ def first_wareki_date_in_head(text: str, *, limit: int = 1200) -> str:
             # 公布日は読めない。**「平成28年出雲市条例第28号」のように年だけで
             # 日が無い制定表記の取得元があり、改正の日を制定日にしていた
             # （出雲市の行政不服審査会設置条例は制定 2016 年なのに 2025-03-18）。
-            if wareki_to_iso(stripped):
+            if promulgation_date_in_line(stripped):
                 continue
             in_amendment_block = False
         if any(word in stripped for word in NOT_PROMULGATION_WORDS):
+            previous_was_excluded = True
+            continue
+        # タグを改行へ置き換えると「2027年3月31日」と「限り効力を失う」が
+        # 別の行になる。次の行に除外語が来るなら、この日付も公布日ではない。
+        # 出雲市の土地改良区要綱が失効日 2027-03-31 を制定日にしていた
+        # （本番で唯一の未来の公布日）。
+        if any(word in next_line for word in NOT_PROMULGATION_WORDS):
             continue
         if "改正" in stripped and not any(
             word in stripped for word in TITLE_AMENDMENT_WORDS
         ):
             continue
-        iso = wareki_to_iso(stripped)
+        iso = promulgation_date_in_line(stripped)
         if iso:
             return iso
     return ""

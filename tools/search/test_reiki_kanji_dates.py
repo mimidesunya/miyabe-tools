@@ -161,6 +161,26 @@ class BodyHeadDateTest(unittest.TestCase):
         body = "○○条例の一部を改正する条例 平成二八年三月二四日条例第二八号"
         self.assertEqual(first_wareki_date_in_head(body), "2016-03-24")
 
+    def test_a_western_promulgation_date_is_read(self) -> None:
+        # 要綱は西暦で書かれることがある。中野区の 802 件が `1993年3月12日` で、
+        # 和暦しか見ていなかったので公布日が空だった。
+        from scraped_source_records import first_wareki_date_in_head
+
+        body = "中野区○○要綱" + chr(10) + "1993年3月12日" + chr(10) + "区長決定"
+        self.assertEqual(first_wareki_date_in_head(body), "1993-03-12")
+
+    def test_an_expiry_date_split_across_lines_is_excluded(self) -> None:
+        # タグを改行へ置き換えると「2027年3月31日」と「限り効力を失う」が
+        # 別の行になる。出雲市の土地改良区要綱が失効日を制定日にしていた
+        # （本番で唯一の未来の公布日）。
+        from scraped_source_records import first_wareki_date_in_head
+
+        body = (
+            "○○要綱" + chr(10) + "2027年3月31日" + chr(10)
+            + "限り効力を失う" + chr(10) + "2016年4月1日"
+        )
+        self.assertEqual(first_wareki_date_in_head(body), "2016-04-01")
+
     def test_no_date_stays_empty(self) -> None:
         self.assertEqual(extract_date_from_html("<p>本文だけ</p>"), "")
 
