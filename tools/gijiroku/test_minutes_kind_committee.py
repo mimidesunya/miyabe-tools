@@ -90,6 +90,27 @@ class CommitteeRecordTest(unittest.TestCase):
             minutes_kind.non_minutes_reason("令和8年6月26日", SAPPORO_COMMITTEE)
         )
 
+    def test_link_text_that_is_not_a_meeting_name_is_weak(self) -> None:
+        # 保存名がリンク文言のままの取得元。会議の名前になっていない。
+        # 本番で釧路町の「会議録」224 件、和木町の「初日」「最終日」、
+        # 舟橋村の「招集告示」があった。
+        body = (
+            "釧路町議会定例会会議録" + chr(10) + "令和6年6月10日（月曜日）"
+            + chr(10) + "開議" + chr(10) + "出席議員" + chr(10)
+        )
+        for title in ("会議録", "初日", "最終日", "招集告示", "第2日", "第3日目", "12月9日"):
+            with self.subTest(title=title):
+                self.assertEqual(
+                    minutes_kind.minutes_display_title(title, body),
+                    "釧路町議会定例会会議録",
+                )
+
+    def test_a_real_meeting_name_is_left_alone(self) -> None:
+        body = "厚生委員会記録" + chr(10) + "開　会" + chr(10)
+        self.assertEqual(
+            minutes_kind.minutes_display_title("03月11日-01号", body), "03月11日-01号"
+        )
+
     def test_a_real_bill_is_still_dropped(self) -> None:
         bill = "61\n\n議案第６１号\n　　財産の取得について\n提案理由\n"
         self.assertIsNotNone(minutes_kind.non_minutes_reason("61", bill))
