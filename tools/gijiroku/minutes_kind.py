@@ -879,16 +879,21 @@ def extract_plausible_held_on(
     # 題名に月日があって、年ラベルに年がある。年と月日が離れていて日付として
     # 読めない取得元がある（世田谷区 `令和 元年 １２月 定例会 11月26日-01号`）。
     # 二つを組み合わせた候補を足す。既に同じ月日の候補があれば足さない。
+    candidates.extend(filename_candidates)
+    # ファイル名（URL を含む）が指す月日。題名と一致するなら、それが会議の日である。
+    filename_month_days = {(c.month, c.day) for c in filename_candidates}
     if expected_year is not None:
         seen = {(c.month, c.day) for c in candidates}
         for month, day in month_days_in_text(title):
             if (month, day) in seen:
                 continue
+            # ファイル名や原典 URL が同じ月日の日付を持っているなら、年もそちらが
+            # 正しい。年ラベルは会計年度のことがある（出雲市の `令和6年度` の
+            # 2月20日 は 2025 年）。推測した年でそれを上書きしない。
+            if (month, day) in filename_month_days:
+                continue
             candidates.append(_DateCandidate(expected_year, month, day, None, "title"))
             seen.add((month, day))
-    candidates.extend(filename_candidates)
-    # ファイル名（URL を含む）が指す月日。題名と一致するなら、それが会議の日である。
-    filename_month_days = {(c.month, c.day) for c in filename_candidates}
     opening_month_days = _month_days_before_opening(text)
 
     scored: list[tuple[int, str]] = []

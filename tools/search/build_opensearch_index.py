@@ -39,6 +39,7 @@ import build_locks  # type: ignore
 from opensearch_mappings import build_index_body
 from parser_generation import PARSER_GENERATION  # type: ignore
 from scraped_source_records import (  # type: ignore
+    SOURCE_URL_HEADER_PATTERN,
     build_alias_map,
     build_minutes_record,
     build_reiki_record,
@@ -550,6 +551,16 @@ def write_document_kind_counts(
         print(f"[WARN] failed to write {path}: {exc}", file=sys.stderr)
 
 
+# 保存ファイルの頭には、年ラベル・題名に続けて `出典: <URL>` が入る。
+# 取得元の住所であって文書の中身ではない。同じ文書かどうかの判定から外す。
+def body_without_source_header(text: str) -> str:
+    return "\n".join(
+        line
+        for line in str(text or "").split("\n")
+        if not SOURCE_URL_HEADER_PATTERN.search(line)
+    )
+
+
 def iter_minutes_documents(
     limit: int = 0,
     slugs: set[str] | None = None,
@@ -670,7 +681,13 @@ def iter_minutes_documents(
                 continue
 
             indexable_before_dedupe += 1
-            body_key = hashlib.sha1(str(record.content or "").encode("utf-8")).hexdigest()
+            # 同じ PDF を別のパスで配る取得元がある。南国市の議決一覧は
+            # `fd_17file` と `fd_21file` の下に同じ `downfile105294.pdf` があり、
+            # 本文は同じで `出典:` 行だけが違う。その行を含めて比べていたので
+            # 別物として二つとも載せていた。取得元の住所は文書の中身ではない。
+            body_key = hashlib.sha1(
+                body_without_source_header(str(record.content or "")).encode("utf-8")
+            ).hexdigest()
             if body_key in seen_bodies:
                 kind_counts["duplicate_body"] = kind_counts.get("duplicate_body", 0) + 1
                 record_source_integrity_outcome(
