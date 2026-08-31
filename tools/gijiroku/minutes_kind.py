@@ -191,12 +191,15 @@ WESTERN_DATE_RE = re.compile(
 ISO_DATE_RE = re.compile(r"\b(19\d{2}|20\d{2})-(\d{2})-(\d{2})\b")
 YEAR_LABEL_RE = re.compile(r"(昭和|平成|令和)\s*([元\d０-９]+)年")
 # 原典ファイル名の R7_09_18 / R060912 は OCR を経由しない開催日の手がかり。
-REIWA_FILE_DATE_RE = re.compile(
-    r"(?:^|[=_\-/])R(\d{1,2})[_\-](\d{2})[_\-](\d{2})(?:[_\-.]|$)",
+# 元号の頭文字はファイル名でも URL でも使われる。令和だけを見ていたので、
+# 平成の `fileName=H160310A` が読めなかった（kensakusystem で 10,546 件）。
+FILE_ERA_BASE_YEAR = {"R": ERA_BASE_YEAR["令和"], "H": ERA_BASE_YEAR["平成"], "S": ERA_BASE_YEAR["昭和"]}
+ERA_FILE_DATE_RE = re.compile(
+    r"(?:^|[=_\-/])([RHS])(\d{1,2})[_\-](\d{2})[_\-](\d{2})(?:[_\-.]|$)",
     re.IGNORECASE,
 )
-REIWA_FILE_COMPACT_RE = re.compile(
-    r"(?:^|[=_\-/])R(\d{2})(\d{2})(\d{2})(?:[A-Za-z_\-.]|$)",
+ERA_FILE_COMPACT_RE = re.compile(
+    r"(?:^|[=_\-/])([RHS])(\d{2})(\d{2})(\d{2})(?:[A-Za-z_\-.]|$)",
     re.IGNORECASE,
 )
 
@@ -667,17 +670,23 @@ def _candidates_from_text(raw_text: str) -> list[_DateCandidate]:
 def _candidates_from_filename(filename: str) -> list[_DateCandidate]:
     text = str(filename or "")
     found: list[_DateCandidate] = []
-    for match in REIWA_FILE_DATE_RE.finditer(text):
-        year = ERA_BASE_YEAR["令和"] + int(match.group(1))
+    for match in ERA_FILE_DATE_RE.finditer(text):
+        base = FILE_ERA_BASE_YEAR.get(match.group(1).upper())
+        if base is None:
+            continue
+        year = base + int(match.group(2))
         found.append(
-            _DateCandidate(year, int(match.group(2)), int(match.group(3)), None, "filename")
+            _DateCandidate(year, int(match.group(3)), int(match.group(4)), None, "filename")
         )
     if found:
         return found
-    for match in REIWA_FILE_COMPACT_RE.finditer(text):
-        year = ERA_BASE_YEAR["令和"] + int(match.group(1))
+    for match in ERA_FILE_COMPACT_RE.finditer(text):
+        base = FILE_ERA_BASE_YEAR.get(match.group(1).upper())
+        if base is None:
+            continue
+        year = base + int(match.group(2))
         found.append(
-            _DateCandidate(year, int(match.group(2)), int(match.group(3)), None, "filename")
+            _DateCandidate(year, int(match.group(3)), int(match.group(4)), None, "filename")
         )
     return found
 

@@ -65,6 +65,23 @@ class Cp932MojibakeTest(unittest.TestCase):
         real = "垂水市議会会議録" + chr(10) + "開議 午前10時" + chr(10) + "出席議員 15名" + chr(10) + "議員の発言。" * 50
         self.assertIsNone(minutes_kind.non_minutes_reason("会議録", real))
 
+    def test_heisei_file_names_carry_a_date_too(self) -> None:
+        # 元号の頭文字はファイル名でも URL でも使われる。令和だけを見ていたので
+        # 平成の `fileName=H160310A` が読めなかった（kensakusystem で 10,546 件）。
+        cases = {
+            "https://x/?fileName=R070220A": ("令和6年", "2025-02-20"),
+            "https://x/?fileName=H160310A": ("平成16年", "2004-03-10"),
+            "https://x/?fileName=H280614B": ("平成28年", "2016-06-14"),
+        }
+        for url, (label, expected) in cases.items():
+            with self.subTest(url=url):
+                self.assertEqual(
+                    minutes_kind.extract_plausible_held_on(
+                        "本文", title="x", year_label=label, filename="downloads/x.txt.gz " + url
+                    ),
+                    expected,
+                )
+
     def test_empty_stays_empty(self) -> None:
         self.assertEqual(minutes_kind.repair_cp932_mojibake(""), "")
 
