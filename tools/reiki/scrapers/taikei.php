@@ -528,8 +528,10 @@ function extract_taxonomy_links(DOMXPath $xpath, string $pageUrl): array
     // 入口が `reiki_menu.html` の自治体がある。体系目次はそこからのリンクで、
     // `ul#navigation` には入っていない。能代市はこれで 1 ページも辿れず、
     // 例規 0 件のまま成功として記録されていた。
-    $query = '//ul[@id="navigation"]//a[@href] | //ul[contains(@class,"menu-list")]//a[@href]';
-    foreach ($xpath->query($query) as $node) {
+    // 枝がどの入れ物に入っているかは取得元ごとに違う（`ul#navigation` の
+    // ことも、五十音目次のように別の並びのこともある）。入れ物を決め打ち
+    // せず、**行き先で選ぶ**。下の絞り込みが目次だけを通す。
+    foreach ($xpath->query('//a[@href]') as $node) {
         if (!$node instanceof DOMElement) {
             continue;
         }
@@ -540,7 +542,10 @@ function extract_taxonomy_links(DOMXPath $xpath, string $pageUrl): array
         }
 
         $absolute = resolve_url($pageUrl, $href);
-        if (!str_contains($absolute, '/reiki_taikei/')) {
+        // 登録されている入口が五十音順目次のことがある（矢祭町・廿日市市）。
+        // 体系目次の枝しか辿らないと、そこから 1 歩も進めず 0 件で終わる。
+        // どちらの目次からも辿れるようにする。
+        if (!str_contains($absolute, '/reiki_taikei/') && !str_contains($absolute, '/reiki_kana/')) {
             continue;
         }
 
@@ -1649,7 +1654,7 @@ function default_slug_for_system(string $expectedSystem): string
 
 // 中継ページに並ぶ「体系目次」「五十音順目次」から、走査の入口を選ぶ。
 // 体系目次を優先する（分野ごとに辿れて、重複が少ない）。
-function find_reiki_index_link(string $sourceUrl): string
+function find_reiki_index_link(string $sourceUrl, int $depth = 2): string
 {
     try {
         $html = fetch_url($sourceUrl);
@@ -1657,13 +1662,22 @@ function find_reiki_index_link(string $sourceUrl): string
         return '';
     }
     $best = '';
+    $relay = '';
     if (preg_match_all('#<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>#si', $html, $matches, PREG_SET_ORDER) < 1) {
         return '';
     }
     foreach ($matches as $match) {
         $text = trim(preg_replace('#\s+#u', ' ', strip_tags($match[2])));
         $href = resolve_url($sourceUrl, html_entity_decode($match[1], ENT_QUOTES, 'UTF-8'));
-        if ($text === '' || $href === '') {
+        if ($href === '') {
+            continue;
+        }
+        // 行き先が目次そのものなら、リンクの文言は要らない。廿日市市は
+        // 画像リンクで文言が空のまま、別ホストの目次を指している。
+        if (preg_match('#/reiki_(?:taikei|kana)/[a-z0-9_]*default\.html?$#i', $href) === 1) {
+            return $href;
+        }
+        if ($text === '') {
             continue;
         }
         if (str_contains($text, '体系')) {
@@ -1672,8 +1686,26 @@ function find_reiki_index_link(string $sourceUrl): string
         if ($best === '' && (str_contains($text, '目次') || str_contains($text, '五十音'))) {
             $best = $href;
         }
+        // 案内ページが目次を直接指していることがある（廿日市市は別ホストの
+        // `.../reiki_taikei/taikei_default.html` へ絶対 URL で送る）。
+        // 文言に「目次」が無くても、行き先の形で分かる。
+        if ($best === '' && preg_match('#/reiki_(?:taikei|kana)/[a-z0-9_]*default\.html?$#i', $href) === 1) {
+            $best = $href;
+        }
+        // 自治体サイトの案内ページが、例規サービス側の入口を指しているだけの
+        // ことがある。釧路町は `reiki.html` から `g-reiki.net/.../reiki_menu.html`
+        // へ送っている。1 段だけ見ていたので目次に届かなかった。
+        if ($relay === '' && $href !== $sourceUrl && preg_match('#/reiki[_-]?menu\.html?$#i', $href) === 1) {
+            $relay = $href;
+        }
     }
-    return $best;
+    if ($best !== '') {
+        return $best;
+    }
+    if ($relay !== '' && $depth > 1) {
+        return find_reiki_index_link($relay, $depth - 1);
+    }
+    return '';
 }
 
 
@@ -1690,7 +1722,8 @@ function derive_taikei_entry_url(string $sourceUrl, bool $mayFetch = true): stri
     }
 
     $lowerPath = strtolower($path);
-    if (str_contains($lowerPath, '/reiki_taikei/')) {
+    // 既に目次を指しているならそのまま使う。体系でも五十音でもよい。
+    if (str_contains($lowerPath, '/reiki_taikei/') || str_contains($lowerPath, '/reiki_kana/')) {
         return $sourceUrl;
     }
     // 体系目次と五十音目次への入口だけを置く中継ページがある。例規への
@@ -1698,17 +1731,16 @@ function derive_taikei_entry_url(string $sourceUrl, bool $mayFetch = true): stri
     // 春日井市・京都市など）。綴りは reiki_menu / reiki-menu / reiki.html
     // と揺れるうえ目次の場所も取得元によって違うので、まずページに書かれた
     // 目次リンクを使い、読めないときだけ既定の場所へ読み替える。
-    if (
-        str_ends_with($lowerPath, '/')
-        || preg_match('#/(reiki[_-]?menu|reiki|index)\.html?$#i', $path) === 1
-    ) {
-        // 台帳を読むだけの場面（対象一覧の組み立て）では取りに行かない。
-        // 全国分の入口ページを一度に叩くことになり 429 を招く。
-        $mokuji = $mayFetch ? find_reiki_index_link($sourceUrl) : '';
-        return $mokuji !== '' ? $mokuji : resolve_url($sourceUrl, 'reiki_taikei/taikei_default.html');
-    }
-
-    return $sourceUrl;
+    // ここへ来た時点で、登録されている URL は目次ではない。案内ページか、
+    // 自治体サイトの普通のページである。**URL の形で見分けるのをやめる。**
+    // 廿日市市は `/soshiki/2/15161.html` から別ホストの目次へ送っていて、
+    // `reiki.html` の形を探す限り永久に見つからなかった。ページを開いて
+    // 目次へのリンクを探す。
+    //
+    // 台帳を読むだけの場面（対象一覧の組み立て）では取りに行かない。
+    // 全国分の入口ページを一度に叩くことになり 429 を招く。
+    $mokuji = $mayFetch ? find_reiki_index_link($sourceUrl) : '';
+    return $mokuji !== '' ? $mokuji : resolve_url($sourceUrl, 'reiki_taikei/taikei_default.html');
 }
 
 function gzip_path(string $path): string
