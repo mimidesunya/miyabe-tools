@@ -280,7 +280,16 @@ def is_same_site_html_page(start_url: str, url: str) -> bool:
     path = target.path.lower()
     if path.endswith(".pdf") or path.endswith((".jpg", ".jpeg", ".png", ".gif", ".zip", ".doc", ".docx", ".xls", ".xlsx")):
         return False
-    return "/site/" in path
+    # `/site/` を含む CMS だけを見ていた。使わない自治体では一覧を 1 ページも
+    # 辿れず、入口に並ぶぶんしか取れない（一宮町は 83 件の一覧に対して 5 件）。
+    # 同じサイトの中で、入口と同じ議会の階層にいるページを辿る。
+    if "/site/" in path:
+        return True
+    start_path = start.path.lower()
+    # 入口のディレクトリを 1 つ上まで遡った範囲を「同じ階層」とみなす。
+    # `/info/gikai/2/16.html` なら `/info/gikai/` の下。
+    base = start_path.rsplit("/", 2)[0] + "/" if start_path.count("/") >= 2 else "/"
+    return path.startswith(base)
 
 
 def looks_like_generic_minutes_page(anchor_text: str, url: str) -> bool:
@@ -348,19 +357,35 @@ def discover_minutes_pages(
     if pages_dir is not None:
         gijiroku_storage.write_text(pages_dir / "start.html", start_html, compress=True)
 
-    soup = BeautifulSoup(start_html, "html.parser")
     pages: dict[str, None] = {start_url: None}
+    # 年度別の一覧が親ページからぶら下がることがある。入口だけを見ていると、
+    # 入口に並ぶぶんしか取れない（一宮町は 83 件の一覧に対して 5 件）。
+    # 辿った先からも探す。深さは 2 まで。議会の階層から出ない。
+    frontier = [(start_url, start_html, 0)]
     selectors = "#subsite_menu_wrap a[href], #site_navi a[href], #main_body a[href], a[href]"
-    for anchor in soup.select(selectors):
-        href = str(anchor.get("href", "")).strip()
-        if not href:
-            continue
-        page_url = should_follow_minutes_page(start_url, href, anchor.get_text(" ", strip=True), strict_kami)
-        if page_url:
+    while frontier:
+        current_url, current_html, depth = frontier.pop(0)
+        soup = BeautifulSoup(current_html, "html.parser")
+        for anchor in soup.select(selectors):
+            href = str(anchor.get("href", "")).strip()
+            if not href:
+                continue
+            page_url = should_follow_minutes_page(
+                start_url, urljoin(current_url, href), anchor.get_text(" ", strip=True), strict_kami
+            )
+            if not page_url or page_url in pages:
+                continue
             pages[page_url] = None
             if max_pages > 0 and len(pages) >= max_pages:
                 LIST_PAGE_LIMIT_HIT.append(start_url)
-                break
+                return list(pages.keys())
+            if depth + 1 >= 2:
+                continue
+            try:
+                child_html = request_text(session, page_url, timeout_ms)
+            except Exception:
+                continue
+            frontier.append((page_url, child_html, depth + 1))
     return list(pages.keys())
 
 

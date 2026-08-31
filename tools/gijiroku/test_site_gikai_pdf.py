@@ -47,3 +47,43 @@ class SiteAttachmentTest(unittest.TestCase):
         for directory in SITE_ATTACHMENT_DIRS:
             self.assertTrue(directory.startswith("/"), directory)
             self.assertTrue(directory.endswith("/"), directory)
+
+
+class SameSiteHtmlPageTest(unittest.TestCase):
+    """一覧ページを辿る範囲。
+
+    `/site/` を含む CMS だけを見ていたので、使わない自治体では一覧を 1 ページも
+    辿れず、入口に並ぶぶんしか取れなかった（一宮町は 83 件の一覧に対して 5 件）。
+    """
+
+    def setUp(self):
+        from kami_city_pdf import is_same_site_html_page
+
+        self.follows = is_same_site_html_page
+        self.start = "https://www.town.ichinomiya.chiba.jp/info/gikai/2/16.html"
+
+    def test_the_site_cms_still_works(self):
+        self.assertTrue(
+            self.follows(
+                "https://www.town.kuriyama.hokkaido.jp/site/gikai/7389.html",
+                "https://www.town.kuriyama.hokkaido.jp/site/gikai/7390.html",
+            )
+        )
+
+    def test_the_parent_listing_is_followed(self):
+        self.assertTrue(self.follows(self.start, "https://www.town.ichinomiya.chiba.jp/info/gikai/2/"))
+        self.assertTrue(self.follows(self.start, "https://www.town.ichinomiya.chiba.jp/info/gikai/"))
+
+    def test_another_section_of_the_same_site_is_not_followed(self):
+        """議会の階層から出ない。"""
+        self.assertFalse(
+            self.follows(self.start, "https://www.town.ichinomiya.chiba.jp/info/kurashi/1.html")
+        )
+
+    def test_another_site_is_not_followed(self):
+        self.assertFalse(self.follows(self.start, "https://other.example.jp/info/gikai/2/"))
+
+    def test_a_pdf_is_not_a_listing_page(self):
+        self.assertFalse(
+            self.follows(self.start, "https://www.town.ichinomiya.chiba.jp/info/gikai/2/x.pdf")
+        )
