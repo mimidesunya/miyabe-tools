@@ -121,11 +121,27 @@ class BodyHeadDateTest(unittest.TestCase):
         from scraped_source_records import first_wareki_date_in_head
 
         body = (
-            "行政不服審査会設置条例" + chr(10) + "改正" + chr(10)
-            + "令和七年三月一八日条例第五号" + chr(10)
-            + "平成二八年三月二四日条例第二八号"
+            "行政不服審査会設置条例" + chr(10)
+            + "平成二八年三月二四日条例第二八号" + chr(10) + "改正" + chr(10)
+            + "令和七年三月一八日条例第五号"
         )
         self.assertEqual(first_wareki_date_in_head(body), "2016-03-24")
+
+    def test_an_enactment_without_a_day_leaves_the_date_empty(self) -> None:
+        """制定表記に日が無いなら、改正の日で埋めない。
+
+        「平成28年出雲市条例第28号」のように年だけの取得元がある。
+        改正ブロックの `令和7年3月18日` を制定日にしていた。
+        制定 2016 年の条例が 2025 年と表示されていた。
+        """
+        from scraped_source_records import first_wareki_date_in_head
+
+        body = (
+            "出雲市行政不服審査会設置条例" + chr(10)
+            + "平成28年出雲市条例第28号" + chr(10) + "改正" + chr(10)
+            + "令和7年3月18日条例第27号" + chr(10) + "(設置)" + chr(10) + "第1条"
+        )
+        self.assertEqual(first_wareki_date_in_head(body), "")
 
     def test_a_term_of_office_is_not_the_promulgation_date(self) -> None:
         # 「委員の任期は令和一〇年三月三一日までとする」を公布日にしていた。

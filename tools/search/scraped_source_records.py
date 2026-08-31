@@ -1107,7 +1107,6 @@ TITLE_AMENDMENT_WORDS = ("一部を改正する", "の一部改正")
 def first_wareki_date_in_head(text: str, *, limit: int = 1200) -> str:
     head = str(text or "")[:limit]
     in_amendment_block = False
-    oldest: str | None = None
     for line in head.splitlines():
         stripped = normalize_space(line)
         if stripped == "":
@@ -1117,16 +1116,13 @@ def first_wareki_date_in_head(text: str, *, limit: int = 1200) -> str:
             in_amendment_block = True
             continue
         if in_amendment_block:
-            # 履歴は新しい順に並び、最後に制定時の日付と番号が来る取得元がある。
-            # 履歴の中で**いちばん古い**日付が公布日である。日付でない行が
-            # 来たら履歴の終わり。
-            iso = wareki_to_iso(stripped)
-            if iso:
-                oldest = iso if oldest is None or iso < oldest else oldest
+            # 履歴に並ぶのは改正の日である。**制定日がここに無いなら、
+            # 公布日は読めない。**「平成28年出雲市条例第28号」のように年だけで
+            # 日が無い制定表記の取得元があり、改正の日を制定日にしていた
+            # （出雲市の行政不服審査会設置条例は制定 2016 年なのに 2025-03-18）。
+            if wareki_to_iso(stripped):
                 continue
             in_amendment_block = False
-            if oldest is not None:
-                return oldest
         if any(word in stripped for word in NOT_PROMULGATION_WORDS):
             continue
         if "改正" in stripped and not any(
@@ -1136,7 +1132,7 @@ def first_wareki_date_in_head(text: str, *, limit: int = 1200) -> str:
         iso = wareki_to_iso(stripped)
         if iso:
             return iso
-    return oldest or ""
+    return ""
 
 
 def join_strings(value: object) -> str:
