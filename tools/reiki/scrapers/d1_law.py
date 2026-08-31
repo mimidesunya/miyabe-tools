@@ -115,6 +115,18 @@ def fetch_catalog_version(source_url: str, session: requests.Session | None = No
     return version
 
 
+# 入口ページの HTML。目次のリンクを読むために使う。取得は 1 回で済ませる。
+def fetch_entry_html(source_url: str, session: requests.Session | None = None) -> str:
+    requester = session or requests
+    try:
+        response = requester.get(source_url, headers={"User-Agent": USER_AGENT}, timeout=15)
+        response.raise_for_status()
+    except Exception as exc:
+        print(f"[WARN] entry page fetch failed: {exc}", flush=True)
+        return ""
+    return response_text_auto(response)
+
+
 def discover_d1_law_base_url(source_url: str, source_html: str) -> str:
     """入口ページ内の d1w_reiki リンクから実際の静的目次ルートを見つける。"""
     for href in D1W_REIKI_LINK_RE.findall(source_html):
@@ -291,7 +303,30 @@ def parser_version_for_manifest(
     return UNPARSED_VERSION if is_parser_version_current(previous_manifest) else previous_version
 
 
-def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None):
+# 入口ページが並べる目次への相対リンク。
+# 新しい Reiki-Base は `reiki_kana/kana_default.html` のような下位ディレクトリに
+# 目次を置く。古い版の `mokuji_index_index.html` を決め打ちしていたので、
+# 牛久市・福岡市のように入口は 200 でも目録が 1 件も開けない自治体があった。
+MENU_LINK_RE = re.compile(
+    r'href="((?:reiki_[a-z]+/)?[a-z_]*(?:default|index|bunya|kana|taikei|miseko)[a-z_]*\.html)"',
+    re.IGNORECASE,
+)
+# 決め打ちの目次。入口ページからリンクが読めないときの控え。
+FALLBACK_MENU_PAGES = ("mokuji_index_index.html", "mokuji_bunya_index.html")
+
+
+def menu_pages_from_entry(entry_html: str) -> list[str]:
+    """入口ページが指している目次ページを、書かれている順で返す。"""
+    found: list[str] = []
+    for link in MENU_LINK_RE.findall(str(entry_html or "")):
+        if link.startswith(("http://", "https://", "/")):
+            continue
+        if link not in found:
+            found.append(link)
+    return found
+
+
+def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None, entry_html=""):
     """目録を辿って例規 ID を集める。
 
     `walk` を渡すと、開けなかった目録ページの数を控える。枝が落ちると
@@ -301,10 +336,14 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None
     missed_pages: list[str] = []
 
     print("Fetching index pages...")
-    download_file(base_url + "mokuji_index_index.html", data_dir / "mokuji_index_index.html", force=force, check_updates=check_updates)
-    download_file(base_url + "mokuji_bunya_index.html", data_dir / "mokuji_bunya_index.html", force=force, check_updates=check_updates)
+    # 入口ページが目次を指しているなら、それを使う。指していなければ決め打ち。
+    to_scan = menu_pages_from_entry(entry_html)
+    for name in FALLBACK_MENU_PAGES:
+        if name not in to_scan:
+            to_scan.append(name)
+    for name in list(to_scan):
+        download_file(base_url + name, data_dir / name, force=force, check_updates=check_updates)
 
-    to_scan = ["mokuji_index_index.html", "mokuji_bunya_index.html"]
     scanned = set()
 
     while to_scan:
@@ -329,9 +368,18 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None
             missed_pages.append(current)
             continue
 
-        for link in re.findall(r"(index_\d+\.html|bunya_\d+\.html)", content):
-            if link not in scanned:
-                to_scan.append(link)
+        # 目次の枝。名前は取得元ごとに違う（`bunya_01.html` `r_taikei_01.html`
+        # `r_50_a.html`）。決め打ちせず、目次に書かれている相対リンクを辿る。
+        # 同じディレクトリの html だけを見る。上位や別サイトへは出ない。
+        prefix = current.rsplit("/", 1)[0] + "/" if "/" in current else ""
+        for link in re.findall(r'href="([A-Za-z0-9_.-]+\.html)"', content):
+            branch = prefix + link
+            if branch in scanned or branch in to_scan:
+                continue
+            # 本文ページは目次ではない。目録として開くと無駄に取りに行く。
+            if link.endswith("_j.html"):
+                continue
+            to_scan.append(branch)
 
         for hno in re.findall(r"OpenResDataWin\('([^']+)'\)", content):
             hno_set.add(hno)
@@ -340,6 +388,10 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None
         # （京都市・留寿都村）。H…/H…_j.html の形なので、ディレクトリ名を
         # そのまま例規 ID として拾う。
         for hno in re.findall(r'href="([A-Za-z0-9]+)/\1_j\.html"', content):
+            hno_set.add(hno)
+
+        # 新しい Reiki-Base は本文を `../reiki_honbun/x000RG….html` に置く。
+        for hno in re.findall(r'href="[^"]*reiki_honbun/([A-Za-z0-9]+)\.html"', content):
             hno_set.add(hno)
 
     if walk is not None:
@@ -686,6 +738,9 @@ def main():
     source_dir.mkdir(parents=True, exist_ok=True)
 
     catalog_version = fetch_catalog_version(str(target["source_url"]))
+    # 入口ページが目次を指している。決め打ちの `mokuji_index_index.html` は
+    # 古い Reiki-Base のもので、牛久市・福岡市では 404 になる。
+    entry_html = fetch_entry_html(str(target["source_url"]))
     opensearch_session: requests.Session | None = None
     hno_list: list[str] = []
     opensearch_entries: list[dict[str, str]] = []
@@ -706,6 +761,7 @@ def main():
             force=args.force,
             check_updates=args.check_updates,
             walk=catalog_walk,
+            entry_html=entry_html,
         )
         print(f"Found {len(hno_list)} unique regulation IDs.")
 
