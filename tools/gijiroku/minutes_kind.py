@@ -213,6 +213,10 @@ ERA_FILE_COMPACT_RE = re.compile(
     r"(?:^|[=_\-/])([RHS])(\d{2})(\d{2})(\d{2})(?:[A-Za-z_\-.]|$)",
     re.IGNORECASE,
 )
+# 元号の記号を付けずに `（010513）` と書く取得元がある。下田市の
+# `会議録本文（010513）.pdf` は令和元年5月13日。6 桁の並びは議案番号にも
+# 見えるので、**年ラベルの元号年と先頭 2 桁が一致するときだけ**日付として読む。
+BARE_COMPACT_DATE_RE = re.compile(r"(?<![0-9])(\d{2})(\d{2})(\d{2})(?![0-9])")
 
 
 # pypdf は、ToUnicode を持たない CID フォント（日本語 PDF の 90ms-RKSJ-H など）から
@@ -304,6 +308,25 @@ def era_to_gregorian(era: str, year_text: str) -> int | None:
     if era_year is None or base_year is None:
         return None
     return base_year + era_year
+
+
+# 年ラベルの元号年と、その元号の起点。`令和1年` なら (1, 2018)。
+def _era_parts_from_label(year_label: str) -> tuple[int | None, int | None]:
+    match = YEAR_LABEL_RE.search(normalize_space(year_label))
+    if not match:
+        return None, None
+    era = match.group(1)
+    raw = str(match.group(2))
+    year = 1 if raw in {"元", "1", "01"} else None
+    if year is None:
+        try:
+            year = int(to_ascii_digits(raw))
+        except ValueError:
+            return None, None
+    base = ERA_BASE_YEAR.get(era)
+    if base is None:
+        return None, None
+    return year, base
 
 
 def gregorian_year_from_label(year_label: str, source_year: int | None = None) -> int | None:
@@ -685,7 +708,9 @@ def _candidates_from_text(raw_text: str) -> list[_DateCandidate]:
     return found
 
 
-def _candidates_from_filename(filename: str) -> list[_DateCandidate]:
+def _candidates_from_filename(
+    filename: str, *, era_year: int | None = None, era_base: int | None = None
+) -> list[_DateCandidate]:
     text = str(filename or "")
     found: list[_DateCandidate] = []
     for match in ERA_FILE_DATE_RE.finditer(text):
@@ -715,6 +740,21 @@ def _candidates_from_filename(filename: str) -> list[_DateCandidate]:
             continue
         found.append(
             _DateCandidate(int(match.group(1)), month, day, None, "filename")
+        )
+    if found:
+        return found
+    # 元号の記号が無い 6 桁。年ラベルの元号年と先頭 2 桁が一致するときだけ読む。
+    if era_year is None or era_base is None:
+        return found
+    for match in BARE_COMPACT_DATE_RE.finditer(to_ascii_digits(text)):
+        if int(match.group(1)) != int(era_year):
+            continue
+        month = int(match.group(2))
+        day = int(match.group(3))
+        if not (1 <= month <= 12 and 1 <= day <= 31):
+            continue
+        found.append(
+            _DateCandidate(int(era_base) + int(era_year), month, day, None, "filename")
         )
     return found
 
@@ -797,7 +837,10 @@ def extract_plausible_held_on(
         part for part in (title, str(text or "")[:6000], filename) if part
     )
     candidates = _candidates_from_text(haystack)
-    filename_candidates = _candidates_from_filename(filename)
+    era_year, era_base = _era_parts_from_label(year_label)
+    filename_candidates = _candidates_from_filename(
+        filename, era_year=era_year, era_base=era_base
+    )
     candidates.extend(filename_candidates)
     # ファイル名（URL を含む）が指す月日。題名と一致するなら、それが会議の日である。
     filename_month_days = {(c.month, c.day) for c in filename_candidates}
