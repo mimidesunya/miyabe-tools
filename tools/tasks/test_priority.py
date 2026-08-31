@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
+import os
 import sys
+import tempfile
 import unittest
 from datetime import timedelta
 from pathlib import Path
@@ -98,8 +101,113 @@ class FailureIsRetryableTest(unittest.TestCase):
         ).strftime("%Y-%m-%d %H:%M:%S")
         self.assertTrue(priority.failure_is_retryable(old))
 
-    def test_unknown_failure_time_is_left_to_manual_handling(self) -> None:
-        self.assertFalse(priority.failure_is_retryable(""))
+    def test_unknown_failure_time_does_not_become_permanent_manual_work(self) -> None:
+        self.assertTrue(priority.failure_is_retryable(""))
+
+
+class FailureReferenceTimeTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        priority.batch_status.configure_status_root(self.tmp.name)
+        priority._TASK_STATUS_CACHE.clear()
+
+    def tearDown(self) -> None:
+        priority._TASK_STATUS_CACHE.clear()
+        priority.batch_status.configure_status_root(None)
+        self.tmp.cleanup()
+
+    def _write_failed(self, item: dict[str, object], *, task_name: str = "gijiroku") -> Path:
+        path = priority.batch_status.status_path(task_name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"items": {"x": item}}), encoding="utf-8")
+        priority._TASK_STATUS_CACHE.clear()
+        return path
+
+    def test_updated_at_is_used_when_finished_at_is_invalid(self) -> None:
+        old = (priority.freshness_metadata.now_tokyo() - timedelta(days=8)).strftime("%Y-%m-%d %H:%M:%S")
+        item = {"status": "failed", "finished_at": "broken", "updated_at": old}
+        self._write_failed(item)
+        loaded = priority.task_item("gijiroku", "x")
+        self.assertEqual(old, priority.failure_reference_time("gijiroku", "x", loaded))
+        self.assertTrue(priority.failure_is_retryable(old))
+
+    def test_last_checked_at_is_the_next_fallback(self) -> None:
+        old = (priority.freshness_metadata.now_tokyo() - timedelta(days=8)).strftime("%Y-%m-%d %H:%M:%S")
+        item = {"status": "failed", "finished_at": "", "updated_at": "bad", "last_checked_at": old}
+        self._write_failed(item)
+        loaded = priority.task_item("gijiroku", "x")
+        self.assertEqual(old, priority.failure_reference_time("gijiroku", "x", loaded))
+
+    def test_state_mtime_is_fixed_before_later_writes_move_it(self) -> None:
+        item = {"status": "failed", "finished_at": "", "updated_at": "", "last_checked_at": ""}
+        path = self._write_failed(item)
+        old_timestamp = (priority.freshness_metadata.now_tokyo() - timedelta(days=8)).timestamp()
+        os.utime(path, (old_timestamp, old_timestamp))
+        loaded = priority.task_item("gijiroku", "x")
+        observed = priority.failure_reference_time("gijiroku", "x", loaded)
+        self.assertTrue(priority.failure_is_retryable(observed))
+        persisted = json.loads(path.read_text(encoding="utf-8"))["items"]["x"]
+        self.assertEqual(observed, persisted["failure_observed_at"])
+        self.assertEqual("state_mtime", persisted["failure_observed_basis"])
+
+        # 別itemの更新でstate自体のmtimeが動いても、最初の観測値は動かさない。
+        os.utime(path, None)
+        priority._TASK_STATUS_CACHE.clear()
+        loaded_again = priority.task_item("gijiroku", "x")
+        self.assertEqual(observed, priority.failure_reference_time("gijiroku", "x", loaded_again))
+
+    def test_future_values_fall_back_to_a_bounded_observation(self) -> None:
+        future = (priority.freshness_metadata.now_tokyo() + timedelta(days=3650)).strftime("%Y-%m-%d %H:%M:%S")
+        item = {"status": "failed", "finished_at": future, "updated_at": future, "last_checked_at": future}
+        self._write_failed(item)
+        loaded = priority.task_item("gijiroku", "x")
+        observed = priority.failure_reference_time("gijiroku", "x", loaded)
+        parsed = priority.freshness_metadata.parse_datetime_text(observed)
+        self.assertIsNotNone(parsed)
+        self.assertLessEqual(parsed, priority.freshness_metadata.now_tokyo())
+
+
+class InputFingerprintPriorityTest(unittest.TestCase):
+    def setUp(self) -> None:
+        priority._TASK_STATUS_CACHE.clear()
+
+    def tearDown(self) -> None:
+        priority._TASK_STATUS_CACHE.clear()
+
+    def test_recent_success_with_old_url_is_not_recent_complete(self) -> None:
+        old_target = {"source_url": "https://old.example/", "system_type": "dbsr"}
+        current_target = {"source_url": "https://new.example/", "system_type": "dbsr"}
+        item = {
+            **old_target,
+            "status": "snapshot",
+            "returncode": 0,
+            "progress_current": 10,
+            "progress_total": 10,
+            "finished_at": priority.batch_status.now_text(),
+            "input_fingerprint": priority.input_generation.input_fingerprint("minutes", old_target),
+            "index_status": "ok",
+        }
+        with mock.patch.object(priority, "task_item", return_value=item):
+            recent, _ = priority.recently_completed_successfully(
+                "gijiroku", "x", 10, 10, current_target
+            )
+        self.assertFalse(recent)
+
+    def test_recent_success_with_current_fingerprint_is_skipped(self) -> None:
+        target = {"source_url": "https://example.test/", "system_type": "d1-law"}
+        item = {
+            **target,
+            "status": "snapshot",
+            "returncode": 0,
+            "progress_current": 3,
+            "progress_total": 3,
+            "finished_at": priority.batch_status.now_text(),
+            "input_fingerprint": priority.input_generation.input_fingerprint("reiki", target),
+            "index_status": "ok",
+        }
+        with mock.patch.object(priority, "task_item", return_value=item):
+            recent, _ = priority.recently_completed_successfully("reiki", "x", 3, 3, target)
+        self.assertTrue(recent)
 
 
 if __name__ == "__main__":

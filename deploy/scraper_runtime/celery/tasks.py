@@ -7,13 +7,24 @@ import time
 import re
 from pathlib import Path
 
+from deploy.scraper_runtime.celery import app as app_module
 from deploy.scraper_runtime.celery.app import app
 from deploy.scraper_runtime.celery import runtime as celery_runtime
 from tools.tasks.runner import process_group_popen_kwargs, terminate_process_group
 from tools.tasks import status as batch_status
+from tools.tasks import index_outbox
 from tools.gijiroku import gijiroku_targets
 from tools.gijiroku import audit_minutes_robots
 from tools.reiki import reiki_targets
+
+
+# 一時的な失敗をその場で投げ直す回数。これを超えたものは待ち行列側に任せる。
+INDEX_UPDATE_MAX_RETRIES = celery_runtime.env_int("INDEX_UPDATE_MAX_RETRIES", 3, minimum=0)
+
+
+# その場の投げ直しは短く。長く空けるのは待ち行列の掃き取りの役目。
+def _index_retry_countdown(retries: int) -> int:
+    return min(15 * 60, 60 * (2 ** max(0, int(retries))))
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -224,6 +235,11 @@ def _index_update_command(doc_type: str, slug: str) -> list[str]:
 
 
 # slug から target 定義を探し、見つからない場合も表示用の最低限情報を返す。
+# 待ち行列のファイル名に使う doc_type。会議録は minutes、例規は reiki。
+def _index_doc_type(kind: str) -> str:
+    return "minutes" if kind in {"gijiroku", "minutes"} else "reiki"
+
+
 def _target_by_slug(kind: str, slug: str) -> dict[str, object]:
     targets = gijiroku_targets.iter_gijiroku_targets() if kind == "gijiroku" else reiki_targets.iter_reiki_targets()
     for target in targets:
@@ -378,7 +394,13 @@ def _run_index_update_impl(kind: str, slug: str) -> None:
         )
     except Exception as exc:
         message = str(exc)
+        # 取得は成功しているのに公開へ載っていない。待ち行列へ残し、
+        # 次の取得（最大 30 日後）を待たずに掃き取りが投げ直せるようにする。
+        index_outbox.mark_failed(_index_doc_type(kind), slug, message)
         raise
+    else:
+        # 成功したときだけ待ち行列から消す。投げた時点では消さない。
+        index_outbox.mark_done(_index_doc_type(kind), slug)
     finally:
         finished_at = batch_status.now_text()
         batch_status.update_item(
@@ -524,10 +546,19 @@ def run_gijiroku_rebuild(name_filter: str = "") -> dict[str, object]:
     return {"ok": True, "task": "gijiroku_rebuild", "filter": name_filter}
 
 
-@app.task(name="deploy.scraper_runtime.celery.tasks.run_gijiroku_index_update")
+@app.task(
+    bind=True,
+    name="deploy.scraper_runtime.celery.tasks.run_gijiroku_index_update",
+    max_retries=INDEX_UPDATE_MAX_RETRIES,
+)
 # 会議録の自治体別 OpenSearch 増分更新タスク。
-def run_gijiroku_index_update(slug: str) -> dict[str, object]:
-    _run_index_update_impl("gijiroku", slug)
+# 一時的な失敗はここで少しだけ待って投げ直す。決定的な失敗は待ち行列に残り、
+# `sweep_index_outbox` が間隔を空けて拾い直す。
+def run_gijiroku_index_update(self, slug: str) -> dict[str, object]:
+    try:
+        _run_index_update_impl("gijiroku", slug)
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=_index_retry_countdown(self.request.retries))
     return {"ok": True, "task": "gijiroku_index_update", "slug": slug}
 
 
@@ -563,8 +594,54 @@ def run_reiki_rebuild(name_filter: str = "") -> dict[str, object]:
     return {"ok": True, "task": "reiki_rebuild", "filter": name_filter}
 
 
-@app.task(name="deploy.scraper_runtime.celery.tasks.run_reiki_index_update")
+@app.task(
+    bind=True,
+    name="deploy.scraper_runtime.celery.tasks.run_reiki_index_update",
+    max_retries=INDEX_UPDATE_MAX_RETRIES,
+)
 # 例規集の自治体別 OpenSearch 増分更新タスク。
-def run_reiki_index_update(slug: str) -> dict[str, object]:
-    _run_index_update_impl("reiki", slug)
+def run_reiki_index_update(self, slug: str) -> dict[str, object]:
+    try:
+        _run_index_update_impl("reiki", slug)
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=_index_retry_countdown(self.request.retries))
     return {"ok": True, "task": "reiki_index_update", "slug": slug}
+
+
+# 待ち行列に残っている自治体を投げ直す。**取得のやり直しを待たない。**
+#
+# celery の retry はメッセージが生きている間しか効かない。worker が強制終了
+# されたり、メッセージそのものが失われたりすると、失敗の記録すら残らない。
+# 待ち行列は消えない場所にあるので、そこから拾い直すのがこの掃き取りである。
+@app.task(name="deploy.scraper_runtime.celery.tasks.sweep_index_outbox")
+def sweep_index_outbox(limit: int = 0) -> dict[str, object]:
+    requeued: dict[str, list[str]] = {}
+    for kind, doc_type, queue, task_name in (
+        ("gijiroku", "minutes", app_module.GIJIROKU_INDEX_QUEUE, "run_gijiroku_index_update"),
+        ("reiki", "reiki", app_module.REIKI_INDEX_QUEUE, "run_reiki_index_update"),
+    ):
+        slugs = index_outbox.due_slugs(doc_type, limit=int(limit or 0))
+        for slug in slugs:
+            try:
+                app.send_task(
+                    f"deploy.scraper_runtime.celery.tasks.{task_name}",
+                    kwargs={"slug": slug},
+                    queue=queue,
+                )
+            except Exception as exc:
+                index_outbox.mark_failed(doc_type, slug, f"再投入に失敗: {exc}")
+                continue
+            # 投げ直したことを記録して、次の掃き取りまで間を空ける。
+            index_outbox.mark_attempted(doc_type, slug)
+            requeued.setdefault(kind, []).append(slug)
+        stuck = index_outbox.stuck_entries(doc_type)
+        if stuck:
+            print(
+                f"[CELERY] {kind} index outbox: 試行上限に達した自治体 {len(stuck)} 件 "
+                f"({', '.join(sorted(stuck)[:10])})",
+                flush=True,
+            )
+    total = sum(len(items) for items in requeued.values())
+    if total > 0:
+        print(f"[CELERY] index outbox から {total} 件を投げ直しました: {requeued}", flush=True)
+    return {"ok": True, "task": "sweep_index_outbox", "requeued": requeued}

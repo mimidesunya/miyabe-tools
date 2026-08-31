@@ -209,7 +209,9 @@ def build_scraping_compose(
                     "--pool=solo",
                     "--concurrency=1",
                     "-Q",
-                    "gijiroku-index",
+                    # index worker に maintenance も持たせる。掃き取りタスクを
+                    # 受ける worker が居ないと、待ち行列は溜まるだけになる。
+                    "gijiroku-index,maintenance",
                     "-n",
                     "gijiroku-index@%h",
                 ],
@@ -240,7 +242,9 @@ def build_scraping_compose(
                     "--pool=solo",
                     "--concurrency=1",
                     "-Q",
-                    "reiki-index",
+                    # index worker に maintenance も持たせる。掃き取りタスクを
+                    # 受ける worker が居ないと、待ち行列は溜まるだけになる。
+                    "reiki-index,maintenance",
                     "-n",
                     "reiki-index@%h",
                 ],

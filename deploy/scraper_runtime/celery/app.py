@@ -24,6 +24,11 @@ REIKI_SCHEDULE_SECONDS = celery_runtime.env_int(
     6 * 60 * 60,
     minimum=60,
 )
+INDEX_OUTBOX_SWEEP_SECONDS = celery_runtime.env_int(
+    "CELERY_INDEX_OUTBOX_SWEEP_SECONDS",
+    10 * 60,
+    minimum=60,
+)
 
 app = Celery(
     "miyabe_tools_scraping",
@@ -59,6 +64,17 @@ app.conf.update(
             "options": {
                 "queue": REIKI_QUEUE,
                 "expires": max(5, DISPATCH_INTERVAL_SECONDS - 5),
+            },
+        },
+        # 索引へ載せられなかった自治体を、取得のやり直しを待たずに投げ直す。
+        # これが無いと、索引だけが落ちた自治体は次の取得（最大 30 日後）まで
+        # 公開へ反映されない。決定的な失敗なら永久に反映されない。
+        "sweep-index-outbox": {
+            "task": "deploy.scraper_runtime.celery.tasks.sweep_index_outbox",
+            "schedule": float(INDEX_OUTBOX_SWEEP_SECONDS),
+            "options": {
+                "queue": "maintenance",
+                "expires": max(5, INDEX_OUTBOX_SWEEP_SECONDS - 5),
             },
         },
     },

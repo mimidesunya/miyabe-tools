@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Any
 
 import freshness_metadata
+from tools.tasks import input_fingerprint as input_generation
+from tools.tasks import status as batch_status
 
 # 走査記録の読み方は 1 箇所に置く。ここで書き写すと、公開画面・監査・キューで
 # 別々の答えを出すことになる（実際にそうなっていた）。
@@ -79,7 +81,9 @@ ProgressReader = Callable[[dict[str, Any]], tuple[int, int]]
 def task_status(task_name: str) -> dict[str, Any]:
     if task_name in _TASK_STATUS_CACHE:
         return _TASK_STATUS_CACHE[task_name]
-    path = Path(__file__).resolve().parents[2] / "data" / "background_tasks" / f"{task_name}.json"
+    # status.py と別の保存先を組み立てると、復旧ツールやテストが切り替えた正本を
+    # 読まず、古い失敗を永久に保持し得る。同じ resolver を必ず使う。
+    path = batch_status.status_path(task_name)
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
@@ -167,9 +171,82 @@ def failure_is_retryable(finished_at: str) -> bool:
     """失敗から十分に時間が経っていれば、自動で 1 度やり直してよい。"""
     finished = freshness_metadata.parse_datetime_text(finished_at)
     if finished is None:
-        # 失敗時刻が分からないものは、従来どおり手動の対処に任せる。
-        return False
+        # 呼び出し側が durable な観測時刻すら確定できなかった場合に、永久な
+        # score=0 へ戻す方が危険なので fail-open にする。
+        return True
     return (freshness_metadata.now_tokyo() - finished) >= timedelta(days=FAILED_RETRY_DAYS)
+
+
+def _valid_failure_time(value: object) -> str:
+    """待ち時間の基準にできる、現在以前の時刻だけを返す。"""
+    text = str(value or "").strip()
+    parsed = freshness_metadata.parse_datetime_text(text)
+    if parsed is None or parsed > freshness_metadata.now_tokyo():
+        # 未来時刻を採用すると、時計ずれや壊れた移行値ひとつで永久待ちになる。
+        return ""
+    return text
+
+
+def _persist_failure_observation(
+    task_name: str,
+    slug: str,
+    item: dict[str, Any],
+    observed_at: str,
+    basis: str,
+) -> bool:
+    """初回に採った代替時刻を、以後動かない item field として固定する。"""
+    state = batch_status.read_state(task_name)
+    items = state.get("items") if isinstance(state, dict) else None
+    stored = items.get(slug) if isinstance(items, dict) else None
+    if not isinstance(stored, dict):
+        return False
+
+    existing = _valid_failure_time(stored.get("failure_observed_at"))
+    if existing:
+        item["failure_observed_at"] = existing
+        item["failure_observed_basis"] = str(stored.get("failure_observed_basis") or "first_observed")
+        return True
+
+    stored["failure_observed_at"] = observed_at
+    stored["failure_observed_basis"] = basis
+    item["failure_observed_at"] = observed_at
+    item["failure_observed_basis"] = basis
+    batch_status.write_state(task_name, state)
+
+    # write_state は運用継続のため例外を握る。読み戻して確認できなければ、
+    # 次回も now を採り直して永久待ちになるので呼び出し側を fail-open にする。
+    persisted = batch_status.read_state(task_name)
+    persisted_items = persisted.get("items") if isinstance(persisted, dict) else None
+    persisted_item = persisted_items.get(slug) if isinstance(persisted_items, dict) else None
+    if not isinstance(persisted_item, dict):
+        return False
+    if _valid_failure_time(persisted_item.get("failure_observed_at")) != observed_at:
+        return False
+    _TASK_STATUS_CACHE[task_name] = persisted
+    return True
+
+
+def failure_reference_time(task_name: str, slug: str, item: dict[str, Any]) -> str:
+    """欠けた finished_at に代わる、durable な失敗観測時刻を返す。"""
+    for key in ("finished_at", "updated_at", "last_checked_at", "failure_observed_at"):
+        candidate = _valid_failure_time(item.get(key))
+        if candidate:
+            return candidate
+
+    path = batch_status.status_path(task_name)
+    try:
+        observed_at = batch_status.format_timestamp_text(path.stat().st_mtime)
+        basis = "state_mtime"
+    except OSError:
+        observed_at = batch_status.now_text()
+        basis = "first_observed"
+    if not _valid_failure_time(observed_at):
+        observed_at = batch_status.now_text()
+        basis = "first_observed"
+
+    if _persist_failure_observation(task_name, slug, item, observed_at, basis):
+        return observed_at
+    return ""
 
 
 # 取得完了かつ 30 日以内に成功していれば、今回の scrape 対象から外せるか判定する。
@@ -178,6 +255,7 @@ def recently_completed_successfully(
     slug: str,
     current_count: int,
     total_count: int,
+    target: dict[str, Any],
 ) -> tuple[bool, str]:
     if total_count <= 0 or current_count != total_count:
         return False, ""
@@ -189,6 +267,9 @@ def recently_completed_successfully(
         if (candidate_current, candidate_total) != (current_count, total_count):
             # 以前の件数上限付き実行（例: 25/25）の成功時刻を、後から判明した
             # 全件数（例: 1675/1675）の成功時刻として流用しない。
+            continue
+        if not input_generation.fingerprint_matches_published(task_name, target, candidate_item):
+            # 件数と時刻が同じでも、URLや取得方式を直した後の成功証明にはならない。
             continue
         finished_at = successful_item_finished_at(candidate_item)
         if finished_at and not fallback_finished_at:
@@ -414,11 +495,22 @@ class PriorityCalculator:
         elif previous_item_failed_with_error(self.reflect_task_name, slug):
             failed_task_name = self.reflect_task_name
 
+        if failed_task_name:
+            failed_item = task_item(failed_task_name, slug)
+            if not input_generation.fingerprint_matches_observed_input(
+                self.task_name,
+                target,
+                failed_item,
+            ):
+                # registryを直した後まで旧URLの失敗待ちを引き継ぐと、修正した入力を
+                # 最大7日試せない。入力世代が変わった失敗は現在世代を止めない。
+                failed_task_name = ""
+
         freshness = freshness_metadata.item_freshness(self.task_name, target)
         retry_after_failure = False
         if failed_task_name:
             failed_item = task_item(failed_task_name, slug)
-            failed_at = str(failed_item.get("finished_at") or "").strip()
+            failed_at = failure_reference_time(failed_task_name, slug, failed_item)
             if not failure_is_retryable(failed_at):
                 return {
                     "priority_group": 5,
@@ -445,7 +537,12 @@ class PriorityCalculator:
             slug,
             current_count,
             total_count,
+            target,
         )
+        if retry_after_failure:
+            # 失敗の待機上限を7日にしても、30日 freshness をもう一度通すと
+            # index失敗などが最大30日眠る。待ち終えた失敗は今回の対象に戻す。
+            recently_complete = False
 
         if total_count > 0 and current_count < total_count:
             priority_group = 1

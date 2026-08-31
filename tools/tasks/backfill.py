@@ -58,6 +58,15 @@ JSON_TASKS = {"gijiroku", "reiki"}
 HTML_SUFFIXES = {".html", ".htm"}
 MINUTES_SUFFIXES = {".txt", ".html", ".htm"}
 STOP_RETURN_CODES = {-15, -2, 130, 143}
+PUBLISHED_ACK_FIELDS = {
+    "input_fingerprint",
+    "scrape_input_fingerprint",
+    "scrape_generation",
+    "published_at",
+    "index_status",
+    "index_returncode",
+    "index_finished_at",
+}
 
 
 def now_run_id() -> str:
@@ -266,6 +275,22 @@ def previous_failed_items(task_name: str) -> dict[str, dict[str, Any]]:
     return failures
 
 
+def preserve_published_acknowledgements(task_name: str, items: dict[str, dict[str, Any]]) -> None:
+    """実データからは再現できない索引ackだけを、以前のsnapshotから引き継ぐ。"""
+    previous = batch_status.read_state(f"{task_name}_snapshot")
+    previous_items = previous.get("items") if isinstance(previous, dict) else None
+    if not isinstance(previous_items, dict):
+        return
+    for slug, rebuilt in items.items():
+        old = previous_items.get(slug)
+        if not isinstance(rebuilt, dict) or not isinstance(old, dict):
+            continue
+        for field in PUBLISHED_ACK_FIELDS:
+            if field in old:
+                # raw件数からfingerprintを作ると、索引未成功なのに公開済みを捏造する。
+                rebuilt[field] = old[field]
+
+
 # 会議録は index JSON / ダウンロード済み本文から snapshot を復元する。
 def gijiroku_snapshot_items(*, fast: bool = False) -> dict[str, dict[str, Any]]:
     items: dict[str, dict[str, Any]] = {}
@@ -373,6 +398,7 @@ def write_snapshot(task_name: str, *, fast: bool = False) -> tuple[Path, Path, i
     else:
         raise ValueError(f"Unsupported task: {task_name}")
 
+    preserve_published_acknowledgements(task_name, items)
     snapshot_state = build_snapshot_state(task_name, items)
     main_items = dict(items)
     main_items.update(previous_failed_items(task_name))

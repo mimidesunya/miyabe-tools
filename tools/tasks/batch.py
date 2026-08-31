@@ -21,6 +21,8 @@ from pathlib import Path
 
 from tools.gijiroku import build_locks
 from tools.tasks import backfill as task_backfill
+from tools.tasks import index_outbox
+from tools.tasks import input_fingerprint as input_generation
 from tools.tasks import priority as scraping_priority
 from tools.tasks import status as batch_status
 from tools.tasks.runner import (
@@ -545,6 +547,12 @@ def record_target_result(
         "warning_lines": warning_lines,
         "freshness_date": latest_freshness["freshness_date"],
         "freshness_basis": latest_freshness["freshness_basis"],
+        # どの入力（URL・取得方式・スクレイパ世代）で取った結果かを残す。
+        # これが無いと、登録 URL を直しても「30 日以内に成功済み」で落ちて
+        # 修正が取得へ伝わらない。
+        "scrape_input_fingerprint": input_generation.input_fingerprint(
+            spec.index_doc_type, target
+        ),
     }
     if overall_status == "ok":
         extra_fields["last_checked_at"] = finished_at
@@ -934,11 +942,21 @@ def run_batch(spec: BatchSpec, args: argparse.Namespace, targets: list[dict]) ->
                     index_status = "queued"
                     index_message = f"{summary} / インデックス更新を別キューへ投入"
                     index_returncode: int | str = ""
+                    # 投げただけでは公開へ載っていない。索引が成功したと
+                    # 確認できるまで待ち行列へ残す。落ちても掃き取りが拾い直す。
+                    index_outbox.record_pending(
+                        spec.index_doc_type, str(target["slug"]), task_id=index_task_id
+                    )
                 except Exception as exc:
                     index_task_id = ""
                     index_status = "failed"
                     index_message = f"{summary} / インデックス更新投入失敗: {exc}"
                     index_returncode = -1
+                    # 投入そのものに失敗した分も待ち行列へ残す。ここで捨てると、
+                    # 取得は成功しているのに公開へ載らないまま 30 日忘れられる。
+                    index_outbox.record_pending(
+                        spec.index_doc_type, str(target["slug"]), error=str(exc)
+                    )
                 record_target_result(
                     spec,
                     writer,
@@ -1032,6 +1050,13 @@ def run_batch(spec: BatchSpec, args: argparse.Namespace, targets: list[dict]) ->
             progress = extract_worker_progress_for_display(spec, scrape_worker)
             finished_at = batch_status.now_text()
             status_state["index_finished_at"] = finished_at
+            # 同じプロセスで索引まで走らせた場合も、成否は待ち行列で確定させる。
+            if returncode == 0:
+                index_outbox.mark_done(spec.index_doc_type, str(target["slug"]))
+            else:
+                index_outbox.mark_failed(
+                    spec.index_doc_type, str(target["slug"]), index_summary
+                )
             record_target_result(
                 spec,
                 writer,
