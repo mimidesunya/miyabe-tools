@@ -83,6 +83,23 @@ class ReikiBodyIsSourceOnlyTest(unittest.TestCase):
         self.assertEqual(len(documents), 1, "実データ 1 件を通せていない")
         return documents[0][1]
 
+    def test_the_error_page_branch_is_walked(self) -> None:
+        """エラーページを落とす分岐を、繰り返し子を通して踏む。
+
+        本番を 10 時間止めたのは、この繰り返し子を実データ 1 件で通す
+        テストが無かったからである。分岐を足すたびにここを通す。
+        """
+        root = Path(self._tmp.name)
+        (root / "html" / "9999.html").write_text(
+            '<html><body><div class="law-title">エラー</div>'
+            '<div class="law-content">その他 エラー</div></body></html>',
+            encoding="utf-8",
+        )
+        documents = list(indexer.iter_reiki_documents(strict=True))
+        titles = [doc.get("title") for _, doc in documents]
+        self.assertIn("市制記念日", titles)
+        self.assertNotIn("エラー", titles)
+
     def test_iterator_runs(self) -> None:
         # NameError で最初の 1 件が落ちる回帰は、ここで必ず止まる。
         self._only_document()

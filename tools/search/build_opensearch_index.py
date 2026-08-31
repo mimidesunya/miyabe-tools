@@ -836,7 +836,6 @@ def iter_reiki_documents(
             # 17 件、本文が「ご指定のページは見つかりませんでした」だけのものが
             # 13 件（上里町）あった。条文は無いのに「例規が 17 件ある」と見える。
             if looks_like_error_page(title, str(record.get("content_text") or "")):
-                kind_counts["error_page"] = kind_counts.get("error_page", 0) + 1
                 record_source_integrity_outcome(
                     "reiki", target_slug, html_path, "error_page"
                 )
