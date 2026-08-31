@@ -29,6 +29,13 @@ INDEX_OUTBOX_SWEEP_SECONDS = celery_runtime.env_int(
     10 * 60,
     minimum=60,
 )
+# 索引側の解釈を直した自治体を拾い直す間隔。取得はやり直さないので、
+# 掃き取り自体は軽い。積む自治体の数は `sweep_stale_parser_generation` で絞る。
+STALE_GENERATION_SWEEP_SECONDS = celery_runtime.env_int(
+    "CELERY_STALE_GENERATION_SWEEP_SECONDS",
+    60 * 60,
+    minimum=300,
+)
 
 app = Celery(
     "miyabe_tools_scraping",
@@ -75,6 +82,17 @@ app.conf.update(
             "options": {
                 "queue": "maintenance",
                 "expires": max(5, INDEX_OUTBOX_SWEEP_SECONDS - 5),
+            },
+        },
+        # 索引側のパーサを直しても、その自治体を再索引するまで公開は古いまま。
+        # 再取得は 30 日周期なので、放っておくと直した日から最大 30 日ずれる。
+        # 世代印が古い自治体を少しずつ積み直して、取得を待たずに追いつかせる。
+        "sweep-stale-parser-generation": {
+            "task": "deploy.scraper_runtime.celery.tasks.sweep_stale_parser_generation",
+            "schedule": float(STALE_GENERATION_SWEEP_SECONDS),
+            "options": {
+                "queue": "maintenance",
+                "expires": max(5, STALE_GENERATION_SWEEP_SECONDS - 5),
             },
         },
     },

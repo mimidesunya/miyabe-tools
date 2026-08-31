@@ -645,3 +645,84 @@ def sweep_index_outbox(limit: int = 0) -> dict[str, object]:
     if total > 0:
         print(f"[CELERY] index outbox から {total} 件を投げ直しました: {requeued}", flush=True)
     return {"ok": True, "task": "sweep_index_outbox", "requeued": requeued}
+
+
+# 索引側パーサの世代印が古い自治体を、取得のやり直しを待たずに積み直す。
+#
+# 保存済みのファイルはそのままに、解釈だけを直すことがある。公布日の見出し判定が
+# それで、直しても再索引するまで公開検索は古いままになる。再取得は 30 日周期
+# なので、放っておくと最大 30 日ずれる。群馬県の空公布日 710 件がこの形だった。
+# ダウンロードはやり直さない。保存済みのファイルを読み直すだけである。
+@app.task(name="deploy.scraper_runtime.celery.tasks.sweep_stale_parser_generation")
+def sweep_stale_parser_generation(limit: int = 0) -> dict[str, object]:
+    import sys as _sys
+
+    search_dir = str(ROOT / "tools" / "search")
+    if search_dir not in _sys.path:
+        _sys.path.insert(0, search_dir)
+    from opensearch_client import OpenSearchClient  # type: ignore
+    from parser_generation import PARSER_GENERATION  # type: ignore
+    import stale_generation  # type: ignore
+
+    sweep_limit = int(limit or 0) or stale_generation.DEFAULT_SWEEP_LIMIT
+    client = OpenSearchClient(
+        celery_runtime.env_text("OPENSEARCH_URL", "http://localhost:9200"),
+        user=celery_runtime.env_text("OPENSEARCH_USER", ""),
+        password=celery_runtime.env_text("OPENSEARCH_PASSWORD", ""),
+        insecure_dev=celery_runtime.env_text("OPENSEARCH_INSECURE_DEV", "").lower() in ("1", "true", "yes", "on"),
+    )
+    requeued: dict[str, list[str]] = {}
+    for kind, doc_type, alias_env, alias_default, queue, task_name in (
+        (
+            "gijiroku",
+            "minutes",
+            "MIYABE_MINUTES_ALIAS",
+            "miyabe-minutes-current",
+            app_module.GIJIROKU_INDEX_QUEUE,
+            "run_gijiroku_index_update",
+        ),
+        (
+            "reiki",
+            "reiki",
+            "MIYABE_REIKI_ALIAS",
+            "miyabe-reiki-current",
+            app_module.REIKI_INDEX_QUEUE,
+            "run_reiki_index_update",
+        ),
+    ):
+        alias = celery_runtime.env_text(alias_env, alias_default)
+        # mapping に世代の項目が無いまま積むと、書いた世代が捨てられて
+        # 同じ自治体を毎回積み直す。移行が済むまでは何もしない。
+        if not stale_generation.generation_field_is_mapped(client, alias):
+            print(
+                f"[CELERY] {alias} の mapping に parser_generation がありません。"
+                "移行が済むまで世代の掃き取りは行いません。",
+                flush=True,
+            )
+            continue
+        try:
+            stale = stale_generation.stale_slugs(
+                client, alias, doc_type, PARSER_GENERATION, limit=sweep_limit
+            )
+        except Exception as exc:
+            # 索引が読めないのは掃き取り側の都合。次の周回でやり直す。
+            print(f"[CELERY] {kind} 世代の照会に失敗しました: {exc}", flush=True)
+            continue
+        for slug, count in stale:
+            try:
+                app.send_task(
+                    f"deploy.scraper_runtime.celery.tasks.{task_name}",
+                    kwargs={"slug": slug},
+                    queue=queue,
+                )
+            except Exception as exc:
+                print(f"[CELERY] {kind} {slug} の再索引を積めませんでした: {exc}", flush=True)
+                continue
+            requeued.setdefault(kind, []).append(f"{slug}({count})")
+    total = sum(len(items) for items in requeued.values())
+    if total > 0:
+        print(
+            f"[CELERY] 世代 {PARSER_GENERATION} より古い {total} 件を再索引に積みました: {requeued}",
+            flush=True,
+        )
+    return {"ok": True, "task": "sweep_stale_parser_generation", "requeued": requeued}

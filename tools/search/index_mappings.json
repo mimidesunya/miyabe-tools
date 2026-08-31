@@ -79,6 +79,9 @@
       "format": "strict_date_optional_time||yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis",
       "ignore_malformed": true
     },
+    "parser_generation": {
+      "type": "integer"
+    },
     "updated_at": {
       "type": "date",
       "format": "strict_date_optional_time||yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis",

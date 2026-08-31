@@ -37,6 +37,7 @@ import gijiroku_targets  # type: ignore
 import reiki_targets  # type: ignore
 import build_locks  # type: ignore
 from opensearch_mappings import build_index_body
+from parser_generation import PARSER_GENERATION  # type: ignore
 from scraped_source_records import (  # type: ignore
     build_alias_map,
     build_minutes_record,
@@ -698,6 +699,7 @@ def iter_minutes_documents(
                 "source_file": record.rel_path,
                 "source_system": source_system,
                 "indexed_at": indexed_at,
+                "parser_generation": PARSER_GENERATION,
                 "updated_at": normalize_datetime(record.indexed_at) or indexed_at,
                 "sort_date": held_on,
                 "assembly_name": assembly_name,
@@ -909,6 +911,7 @@ def iter_reiki_documents(
                 # 例規本文として表示され、自治体の見解と読み違えられる。
                 "evaluation_text": evaluation_text,
                 "indexed_at": indexed_at,
+                "parser_generation": PARSER_GENERATION,
                 "updated_at": updated_at,
                 # 公布日が読めないときに取得日を入れると、昭和 26 年の規則が
                 # 今日の日付で「最新」に見える。日付が無いなら持たせない。
