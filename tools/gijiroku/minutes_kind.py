@@ -338,9 +338,29 @@ def gregorian_year_from_label(year_label: str, source_year: int | None = None) -
     return era_to_gregorian(match.group(1), match.group(2))
 
 
+# リンク文言の末尾に付く操作の説明。会議の名前ではない。
+# 川本町「「予算特別委員会（令和3年3月9日～11日）」をダウンロードする」など。
+DOWNLOAD_NOTE_RE = re.compile(r"[をの]?ダウンロード(?:する|します)?[。．]?$")
+
+
+def strip_download_note(value: str) -> str:
+    """末尾の「をダウンロードする」と、それで開いたままになった括弧を落とす。"""
+    label = normalize_space(value)
+    stripped = DOWNLOAD_NOTE_RE.sub("", label).strip()
+    if stripped == "":
+        return label
+    # `「…」をダウンロードする` は閉じ括弧だけが残る。対になっていれば外す。
+    if stripped.startswith("「") and stripped.endswith("」"):
+        stripped = stripped[1:-1].strip()
+    elif stripped.endswith("」") and "「" not in stripped:
+        stripped = stripped[:-1].strip()
+    return stripped or label
+
+
 def strip_pdf_notes(value: str) -> str:
     """リンク末尾のファイル種別・サイズ注記は題名ではない。"""
     label = normalize_space(value)
+    label = strip_download_note(label)
     prev = None
     while label and label != prev:
         prev = label
