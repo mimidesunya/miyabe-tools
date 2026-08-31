@@ -114,6 +114,40 @@ MINUTES_BODY_MARKERS = (
     "会議録",
     "議事録",
 )
+# 本文が「PDF をごらんください」だけの会議録がある。gijiroku.com の古い年で、
+# 発言そのものは PDF の中にある。会議録として検索に載るが本文が無い。
+# 本番で町田市 529 件・岩見沢市 212 件・港区 131 件（本文 120 字未満は全国 1,241）。
+PDF_NOTICE_MARKERS = (
+    "ＰＤＦファイルをごらんください",
+    "PDFファイルをごらんください",
+    "ＰＤＦファイルをご覧ください",
+    "PDFファイルをご覧ください",
+    "ＰＤＦをごらんください",
+    "PDFをごらんください",
+)
+# 会議が実際に開かれた手がかり。「会議録」のような文書の名前は、案内文にも
+# 出てくるので含めない。
+MEETING_HELD_MARKERS = (
+    "開議",
+    "閉議",
+    "散会",
+    "出席議員",
+    "欠席議員",
+    "会議録署名",
+    "議事日程",
+    "会議に付した事件",
+    "これより会議を開",
+    "開会",
+    "閉会",
+    "出席委員",
+    "欠席委員",
+    "委員長",
+)
+# 巻末資料・付録は会議の記録ではない。ただし本文に開議があるなら会議録である。
+APPENDIX_ONLY_MARKERS = ("巻末資料", "巻末付録")
+# 本文がこの長さに満たなければ、案内文や資料の見出しだけとみなす。
+NOTICE_BODY_MAX_LENGTH = 400
+
 BILL_OR_MATERIAL_MARKERS = (
     "議案第",
     "報告第",
@@ -206,12 +240,27 @@ def looks_like_minutes_title(title: str) -> bool:
     return any(hint in title for hint in MINUTES_TITLE_HINTS)
 
 
+# PDF の題名は「招 集 告 示」のように字間へ空白を入れて組むことがある。
+# そのままでは弱い題名にも落とす題名にも当たらない。字間だけの空白は落とす。
+def squeeze_letter_spacing(title: str) -> str:
+    cleaned = normalize_space(title)
+    if cleaned == "":
+        return cleaned
+    parts = cleaned.split(" ")
+    # 1 文字ずつ並んでいるときだけ詰める。語の区切りは残す。
+    if len(parts) >= 3 and all(len(part) == 1 for part in parts):
+        return "".join(parts)
+    return cleaned
+
+
 def link_title_is_weak(title: str) -> bool:
     """リンク文言だけでは会議を名乗れないとき、本文先頭から題名を読む。"""
     cleaned = strip_pdf_notes(title)
     if cleaned == "":
         return True
     if WEAK_TITLE_RE.fullmatch(cleaned):
+        return True
+    if WEAK_TITLE_RE.fullmatch(squeeze_letter_spacing(cleaned)):
         return True
     if DIGIT_ONLY_RE.fullmatch(to_ascii_digits(cleaned).replace(" ", "")):
         return True
@@ -275,9 +324,44 @@ def minutes_marker_count(text: str) -> int:
     return sum(1 for marker in MINUTES_BODY_MARKERS if marker in squeezed)
 
 
+def body_is_only_a_pdf_notice(text: str) -> bool:
+    """本文が PDF への案内文や巻末資料の見出しだけかを返す。
+
+    発言が入っていないので、会議録として検索に載せる意味がない。
+    長い本文にたまたま案内文が混ざっている場合は落とさない。"""
+    body = normalize_space(text)
+    if body == "" or len(body) > NOTICE_BODY_MAX_LENGTH:
+        return False
+    squeezed = _MARKER_SPACE_RE.sub("", body)
+    if any(marker in squeezed for marker in MEETING_HELD_MARKERS):
+        # 開議・出席議員などがあるなら、短くても会議の記録である。
+        # 「会議録」という語そのものは案内文にも出るので、ここでは見ない。
+        return False
+    if any(marker in body for marker in PDF_NOTICE_MARKERS):
+        return True
+    return any(marker in body for marker in APPENDIX_ONLY_MARKERS)
+
+
 def looks_like_bill_or_material(text: str) -> bool:
     head = _head_text(text, limit=30)
     return sum(1 for marker in BILL_OR_MATERIAL_MARKERS if marker in head) >= 1
+
+
+# PDF の OCR が段組を横に読むと、同じ塊が続けて並ぶ。釧路町では
+# 「釧路町議会臨時会会議録」が 4 回繋がった題名が 7 件公開されていた。
+# 原文は残し、公開する題名だけ 1 回へ畳む。
+def collapse_repeated_run(text: str) -> str:
+    cleaned = normalize_space(text)
+    length = len(cleaned)
+    if length < 6:
+        return cleaned
+    for unit in range(1, length // 2 + 1):
+        if length % unit != 0:
+            continue
+        head = cleaned[:unit]
+        if head * (length // unit) == cleaned and length // unit >= 2:
+            return head
+    return cleaned
 
 
 def extract_meeting_title_from_text(text: str) -> str | None:
@@ -289,6 +373,7 @@ def extract_meeting_title_from_text(text: str) -> str | None:
             continue
         cleaned = strip_pdf_notes(line)
         cleaned = re.sub(r"^[\s\-‐－—・]+", "", cleaned).strip()
+        cleaned = collapse_repeated_run(cleaned)
         if 8 <= len(cleaned) <= 140:
             return cleaned
     return None
@@ -335,6 +420,10 @@ def non_minutes_reason(title: str, text: str = "", *, url: str = "") -> str | No
     label_reason = _label_reason(display) or _label_reason(title)
     if label_reason:
         return label_reason
+    # 本文が案内文だけのときは、そこに「会議録」と書いてあっても会議の記録ではない。
+    # 下の「名乗っているなら会議録」より先に見る。
+    if body_is_only_a_pdf_notice(text):
+        return "pdf_notice_only"
     if looks_like_minutes_title(display) or looks_like_minutes_title(
         extract_meeting_title_from_text(text) or ""
     ):

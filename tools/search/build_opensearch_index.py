@@ -789,12 +789,14 @@ def iter_reiki_documents(
             # 検索結果の本文が評価文から始まり、自治体の見解や法文と読み違える。
             body = str(record.get("content_text") or "")
             # AI が付けた評価。本文とは別に持ち、混ざらないようにする。
+            # 検索対象にもするので、内部の識別子（`necessityScore` `Class G`）は
+            # ここでも落とす。落とさないと、本文に無い語で条例が当たる。
             evaluation_text = "\n".join(
                 part
                 for part in [
-                    clean_text(record.get("combined_stance")),
-                    clean_text(record.get("combined_reason")),
-                    clean_text(record.get("reason")),
+                    drop_internal_identifiers(clean_text(record.get("combined_stance"))),
+                    drop_internal_identifiers(clean_text(record.get("combined_reason"))),
+                    drop_internal_identifiers(clean_text(record.get("reason"))),
                 ]
                 if part
             )

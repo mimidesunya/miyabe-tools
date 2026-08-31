@@ -111,6 +111,56 @@ class CommitteeRecordTest(unittest.TestCase):
             minutes_kind.minutes_display_title("03月11日-01号", body), "03月11日-01号"
         )
 
+    def test_letter_spaced_title_is_recognised(self) -> None:
+        # PDF の題名は「招 集 告 示」のように字間へ空白を入れて組むことがある。
+        # そのままでは弱い題名にも落とす題名にも当たらない（舟橋村）。
+        body = "釧路町議会定例会会議録" + chr(10) + "開議" + chr(10)
+        self.assertEqual(
+            minutes_kind.minutes_display_title("招 集 告 示", body),
+            "釧路町議会定例会会議録",
+        )
+        self.assertEqual(minutes_kind.squeeze_letter_spacing("招 集 告 示"), "招集告示")
+        # 語の区切りは残す。「総務 委員会 記録」は詰めない。
+        self.assertEqual(
+            minutes_kind.squeeze_letter_spacing("総務 委員会 記録"), "総務 委員会 記録"
+        )
+
+    def test_ocr_repeated_title_is_folded(self) -> None:
+        # PDF の OCR が段組を横に読むと同じ塊が続けて並ぶ。釧路町では
+        # 「釧路町議会臨時会会議録」が 4 回繋がった題名が 7 件公開されていた。
+        name = "釧路町議会臨時会会議録"
+        self.assertEqual(minutes_kind.collapse_repeated_run(name * 4), name)
+        self.assertEqual(minutes_kind.collapse_repeated_run(name), name)
+        # 別々の語が並んでいるだけなら畳まない。
+        self.assertEqual(
+            minutes_kind.collapse_repeated_run("総務委員会会議録および建設委員会会議録"),
+            "総務委員会会議録および建設委員会会議録",
+        )
+
+    def test_a_body_that_only_points_at_a_pdf_is_not_minutes(self) -> None:
+        # 発言は PDF の中にあり、本文には案内文しか入っていない。
+        # 会議録として検索に載るが、探している発言は出てこない。
+        # 本番で町田市 529 件・岩見沢市 212 件・港区 131 件。
+        notice = (
+            "町田市議会会議録第22号　左下のＰＤＦファイルをごらんください。"
+            "スマートフォンサイトでアクセスされた方は、ＰＣ版サイトをごらんください。"
+        )
+        self.assertEqual(
+            minutes_kind.non_minutes_reason("12月10日-01号", notice), "pdf_notice_only"
+        )
+        self.assertEqual(
+            minutes_kind.non_minutes_reason("09月29日-付録", "巻末資料"), "pdf_notice_only"
+        )
+
+    def test_a_short_body_with_a_real_opening_is_kept(self) -> None:
+        # 短くても開議・出席議員があるなら会議の記録である。
+        body = "町田市議会会議録" + chr(10) + "開議 午前10時" + chr(10) + "出席議員 30名"
+        self.assertIsNone(minutes_kind.non_minutes_reason("12月10日-01号", body))
+
+    def test_a_long_body_that_mentions_a_pdf_is_kept(self) -> None:
+        body = "町田市議会会議録" + chr(10) + "開議" + chr(10) + "議員の発言。" * 80
+        self.assertIsNone(minutes_kind.non_minutes_reason("12月10日-01号", body))
+
     def test_a_real_bill_is_still_dropped(self) -> None:
         bill = "61\n\n議案第６１号\n　　財産の取得について\n提案理由\n"
         self.assertIsNotNone(minutes_kind.non_minutes_reason("61", bill))
