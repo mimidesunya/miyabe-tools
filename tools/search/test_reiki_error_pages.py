@@ -51,3 +51,26 @@ class ErrorPageTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SakaiminatoErrorPageTest(unittest.TestCase):
+    """境港市は「見つかりません」ではなく「存在しません」と書く。
+
+    公開に 2 件、題名も本文も
+    `お探しのページは存在しません - さかなと鬼太郎のまち境港市` だけの文書が
+    例規として並んでいた。
+    """
+
+    def test_the_page_is_dropped(self):
+        from build_opensearch_index import looks_like_error_page
+
+        title = "お探しのページは存在しません - さかなと鬼太郎のまち境港市 Sakaiminato City Official Web Site"
+        body = "その他 " + title
+        self.assertTrue(looks_like_error_page(title, body))
+
+    def test_a_real_ordinance_saying_the_words_is_kept(self):
+        """長い本文なら、たまたま文言を含む条例とみなして落とさない。"""
+        from build_opensearch_index import looks_like_error_page
+
+        body = "第1条 " + "この条例は、お探しのページは存在しませんという文言を引用する。" * 10
+        self.assertFalse(looks_like_error_page("○○条例", body))
