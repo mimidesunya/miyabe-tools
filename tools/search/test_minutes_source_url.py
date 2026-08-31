@@ -169,6 +169,42 @@ class MinutesSourceUrlTest(unittest.TestCase):
         self.assertIsNotNone(record)
         self.assertEqual(record.source_url, URL)
 
+    def test_the_body_header_beats_the_catalog_row(self) -> None:
+        # 一覧行との照合は題名と会議名の当てもので、同じ日の分科会や委員会が
+        # 同じ題名だと 1 件の URL を全部へ配る（北海道の FINO=9077 が 5 会議、
+        # 滋賀県の FINO=3434 が 6 会議）。本文の `出典:` は、その文書を落とした
+        # ときに書いた 1 件ぶんの URL なので、そちらを正とする。
+        own = "https://www.gikai.example.jp/cgi-bin/index.cgi?YEAR=2022&FINO=3436"
+        self._meta = self._write_index(
+            [
+                {
+                    "title": "04月28日-01号",
+                    "year_label": "令和8年",
+                    "url": URL,
+                    "meeting_name": "4月招集会議会議録",
+                    "source_year": 2021,
+                }
+            ]
+        )
+        record = self._record(
+            "令和8年",
+            "常任",
+            "04月28日-01号-e8c4335d.txt",
+            "観光文スポ・県土・交通常任委員会" + "\n" + "出典: " + own + "\n" + "開議" + "\n",
+        )
+        self.assertIsNotNone(record)
+        self.assertEqual(record.source_url, own)
+        # 一覧行から引き継いだ番号は別の会議のものなので、URL から読み直す。
+        self.assertEqual(record.source_year, 2022)
+
+    def test_the_catalog_row_is_used_when_the_body_has_no_header(self) -> None:
+        self._meta = self._write_index(
+            [{"title": "04月28日-01号", "year_label": "令和8年", "url": URL, "meeting_name": "4月招集会議会議録"}]
+        )
+        record = self._record("令和8年", "本会議", "04月28日-01号.txt", "4月招集会議会議録" + "\n" + "開議" + "\n")
+        self.assertIsNotNone(record)
+        self.assertEqual(record.source_url, URL)
+
     def test_canonical_year_label_drops_separators(self) -> None:
         self.assertEqual(canonical_year_label("平成31年・_令和元年"), "平成31年・令和元年")
         self.assertEqual(canonical_year_label("平成31年・\n令和元年"), "平成31年・令和元年")

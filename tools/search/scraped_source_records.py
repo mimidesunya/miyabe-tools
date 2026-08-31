@@ -748,9 +748,20 @@ def build_minutes_record(
         )
     if meta is None:
         meta = lookup_minutes_source_meta(meta_map, title, meeting_name, year_labels)
-    source_url = clean_source_url(meta.source_url if meta else "") or extract_source_url_from_text(content)
+    # 本文の `出典:` は、その文書を落としたときに書いた 1 件ぶんの URL である。
+    # 一覧行との照合は題名と会議名の当てもので、同じ日の分科会や委員会が
+    # 同じ題名だと 1 件の URL を全部へ配ってしまう（北海道の FINO=9077 が
+    # 5 会議、滋賀県の FINO=3434 が 6 会議、飯塚市の 1 PDF が 75 文書）。
+    # 文書ごとに書いてある方を正とし、無いときだけ一覧行に頼る。
+    body_source_url = extract_source_url_from_text(content)
+    catalog_source_url = clean_source_url(meta.source_url if meta else "")
+    source_url = body_source_url or catalog_source_url
     source_year = meta.source_year if meta else None
     source_fino = meta.source_fino if meta else None
+    if body_source_url and catalog_source_url and body_source_url != catalog_source_url:
+        # 一覧行から引き継いだ番号は、別の会議のものである。捨てて URL から読む。
+        source_year = None
+        source_fino = None
     if source_url:
         url_source_year, url_source_fino = minutes_source_numbers_from_url(source_url)
         source_year = source_year or url_source_year
