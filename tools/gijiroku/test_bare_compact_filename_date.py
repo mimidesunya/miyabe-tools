@@ -86,3 +86,63 @@ class TitleMonthDayWeightTest(unittest.TestCase):
             self.extract(body, title="第5号 6月10日", year_label="令和5年", filename="第5号.txt"),
             "2023-06-17",
         )
+
+
+class TitleMonthDayWithLabelYearTest(unittest.TestCase):
+    """年と月日が離れている題名。
+
+    世田谷区の題名は `令和 元年 １２月 定例会 11月26日-01号` で、年と月日の間に
+    会期名が挟まる。年月日が続いていないので日付として読めず、933 件すべてが
+    開催日を持てなかった。さらに年ラベルの位置には `１２月 定例会－11月26日-01号`
+    が入っていて、年が取れない。年が取れないときは題名から取る。
+    """
+
+    def setUp(self):
+        from minutes_kind import extract_plausible_held_on, month_days_in_text
+
+        self.extract = extract_plausible_held_on
+        self.month_days = month_days_in_text
+
+    def test_reads_month_days_without_a_year(self):
+        self.assertEqual(self.month_days("令和 元年 １２月 定例会 11月26日-01号"), [(11, 26)])
+
+    def test_an_impossible_month_day_is_ignored(self):
+        self.assertEqual(self.month_days("13月40日"), [])
+
+    def test_combines_the_title_month_day_with_the_label_year(self):
+        title = "令和 元年 １２月 定例会 11月26日-01号"
+        self.assertEqual(
+            self.extract("本文" * 80, title=title, year_label="１２月 定例会－11月26日-01号", filename=title),
+            "2019-11-26",
+        )
+
+    def test_a_year_only_label_still_works(self):
+        self.assertEqual(
+            self.extract("本文" * 80, title="第3回定例会（第4日 9月12日）", year_label="令和6年", filename="x.txt"),
+            "2024-09-12",
+        )
+
+    def test_without_any_year_nothing_is_invented(self):
+        self.assertIsNone(
+            self.extract("本文" * 80, title="第3回定例会（第4日 9月12日）", year_label="委員会", filename="x.txt")
+        )
+
+
+class DocumentNumberIsNotADateTest(unittest.TestCase):
+    """`r2-2-8.pdf` は令和2年第2回の8であって、2月8日ではない。
+
+    長井市の `nagaigikai_R4_6_10_taira.pdf` を読もうとして月日を 1 桁まで
+    許したところ、奄美市の文書番号を日付として読んだ。3 件のために多くの
+    自治体で番号を日付に変えるので、元に戻した。
+    """
+
+    def test_a_hyphenated_document_number_is_not_read(self):
+        from minutes_kind import _candidates_from_filename
+
+        self.assertEqual(_candidates_from_filename("r2-2-8.pdf"), [])
+
+    def test_a_zero_padded_date_is_still_read(self):
+        from minutes_kind import _candidates_from_filename
+
+        found = _candidates_from_filename("nagaigikai_R1_06_14_x.pdf")
+        self.assertEqual([(c.year, c.month, c.day) for c in found], [(2019, 6, 14)])

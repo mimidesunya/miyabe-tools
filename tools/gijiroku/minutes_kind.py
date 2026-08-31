@@ -717,9 +717,14 @@ def _candidates_from_filename(
         base = FILE_ERA_BASE_YEAR.get(match.group(1).upper())
         if base is None:
             continue
-        year = base + int(match.group(2))
+        month = int(match.group(3))
+        day = int(match.group(4))
+        # 月日は 1 桁でも書かれる（長井市 `nagaigikai_R4_6_10_taira.pdf`）。
+        # 桁を緩めた分、ここで暦として成り立つかを見る。
+        if not (1 <= month <= 12 and 1 <= day <= 31):
+            continue
         found.append(
-            _DateCandidate(year, int(match.group(3)), int(match.group(4)), None, "filename")
+            _DateCandidate(base + int(match.group(2)), month, day, None, "filename")
         )
     if found:
         return found
@@ -727,9 +732,12 @@ def _candidates_from_filename(
         base = FILE_ERA_BASE_YEAR.get(match.group(1).upper())
         if base is None:
             continue
-        year = base + int(match.group(2))
+        month = int(match.group(3))
+        day = int(match.group(4))
+        if not (1 <= month <= 12 and 1 <= day <= 31):
+            continue
         found.append(
-            _DateCandidate(year, int(match.group(3)), int(match.group(4)), None, "filename")
+            _DateCandidate(base + int(match.group(2)), month, day, None, "filename")
         )
     if found:
         return found
@@ -761,6 +769,26 @@ def _candidates_from_filename(
 
 # 題名やファイル名に同じ月日が書かれているかを見る。`6月10日` も `0610` も
 # 同じ日を指す。どちらの形でも当たるようにする。
+# 題名の中の「11月26日」。年は別の場所にあることがある。世田谷区の題名は
+# `令和 元年 １２月 定例会 11月26日-01号` で、年と月日の間に会期名が挟まる。
+# 年月日が続いていないので、日付として読めていなかった。
+MONTH_DAY_ONLY_RE = re.compile(r"(?<![0-9])([0-9]{1,2})\s*月\s*([0-9]{1,2})\s*日")
+
+
+def month_days_in_text(text: str) -> list[tuple[int, int]]:
+    """文字列の中の月日をすべて返す。年は見ない。"""
+    haystack = to_ascii_digits(normalize_compatibility_forms(str(text or "")))
+    found: list[tuple[int, int]] = []
+    for match in MONTH_DAY_ONLY_RE.finditer(haystack):
+        month = int(match.group(1))
+        day = int(match.group(2))
+        if not (1 <= month <= 12 and 1 <= day <= 31):
+            continue
+        if (month, day) not in found:
+            found.append((month, day))
+    return found
+
+
 def month_day_in_text(text: str, month: int, day: int) -> bool:
     haystack = to_ascii_digits(normalize_compatibility_forms(text or ""))
     if haystack == "":
@@ -831,6 +859,11 @@ def extract_plausible_held_on(
     R6/R7 より OCR が勝つと、まだ開かれていない日が新しい順の先頭に来る。
     """
     expected_year = gregorian_year_from_label(year_label, source_year)
+    if expected_year is None:
+        # 年ラベルの位置に年が入っていない取得元がある。世田谷区は
+        # `１２月 定例会－11月26日-01号` を年ラベルにし、年号は題名
+        # `令和 元年 １２月 定例会 11月26日-01号` の側にある。
+        expected_year = gregorian_year_from_label(title, None)
     today = today or date.today()
     haystack = "\n".join(
         # 表紙・目次が長い取得元があるので、行数ではなく文字数で頭を切る。
@@ -838,9 +871,21 @@ def extract_plausible_held_on(
     )
     candidates = _candidates_from_text(haystack)
     era_year, era_base = _era_parts_from_label(year_label)
+    if era_year is None:
+        era_year, era_base = _era_parts_from_label(title)
     filename_candidates = _candidates_from_filename(
         filename, era_year=era_year, era_base=era_base
     )
+    # 題名に月日があって、年ラベルに年がある。年と月日が離れていて日付として
+    # 読めない取得元がある（世田谷区 `令和 元年 １２月 定例会 11月26日-01号`）。
+    # 二つを組み合わせた候補を足す。既に同じ月日の候補があれば足さない。
+    if expected_year is not None:
+        seen = {(c.month, c.day) for c in candidates}
+        for month, day in month_days_in_text(title):
+            if (month, day) in seen:
+                continue
+            candidates.append(_DateCandidate(expected_year, month, day, None, "title"))
+            seen.add((month, day))
     candidates.extend(filename_candidates)
     # ファイル名（URL を含む）が指す月日。題名と一致するなら、それが会議の日である。
     filename_month_days = {(c.month, c.day) for c in filename_candidates}
