@@ -236,6 +236,10 @@ function miyabe_search_build_query_clause(string $query): array
                     'meeting_name^2',
                     'body^1.5',
                     'body.ngram',
+                    // AI 評価は本文とは別に持っている。本文へ混ぜると自治体の
+                    // 見解と読み違えるが、評価を手がかりに例規を探す使い方は
+                    // 残す。本文より低い重みにして、原文が先に来るようにする。
+                    'evaluation_text^0.3',
                 ],
                 'default_operator' => 'and',
             ],
@@ -512,6 +516,8 @@ function miyabe_search_hit_to_detail(array $hit): array
     $item = miyabe_search_hit_to_item($hit);
     $source = is_array($hit['_source'] ?? null) ? $hit['_source'] : [];
     $item['body'] = (string)($source['body'] ?? '');
+    // AI 評価は本文と分けて返す。混ぜると自治体自身の見解や法文と読み違える。
+    $item['evaluation_text'] = (string)($source['evaluation_text'] ?? '');
     $item['indexed_at'] = (string)($source['indexed_at'] ?? '');
     $item['speaker'] = (string)($source['speaker'] ?? '');
     $item['speaker_role'] = (string)($source['speaker_role'] ?? '');
@@ -550,6 +556,9 @@ function miyabe_search_fetch_detail_document(string $id, string $docType): ?arra
             'title',
             'body',
             'body_length',
+            // 例規に付けた AI 評価。本文とは別に返す。混ぜると自治体自身の
+            // 見解と読み違える。
+            'evaluation_text',
             'source_url',
             'detail_url',
             'source_file',

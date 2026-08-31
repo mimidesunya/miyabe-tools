@@ -8,6 +8,7 @@ clean HTML、Markdown、JSON メタデータ、コピー済み画像参照へ展
 from __future__ import annotations
 
 import argparse
+import copy
 import re
 import sys
 import time
@@ -54,6 +55,23 @@ def wareki_to_seireki(wareki_str):
         seireki_year = era_map[era] + int(year)
         return f"{seireki_year:04d}-{int(month):02d}-{int(day):02d}"
     return "0000-00-00"
+
+
+# 本文を包む `USER-SET-STYLE` が無い取得元がある。段落の div が `<body>` の下へ
+# そのまま並んでいるので、条文はあるのに `law-content` が空になる。
+# 本番で 4 自治体・約 4,900 件がこの形だった（石狩市 1,246 / 京都市 1,156 /
+# 江別市 1,019 / 留寿都村 655）。題名と日付は読めていたので件数では出てこない。
+def fallback_content_container(soup):
+    paragraphs = soup.find_all("div", class_="danraku-normal")
+    if not paragraphs:
+        return None
+    container = soup.new_tag("div")
+    for paragraph in paragraphs:
+        # 画面上部の「条文目次｜閉じる」のような操作リンクは本文ではない。
+        if paragraph.find("a", href=True) and paragraph.get_text(strip=True) in {"", "｜"}:
+            continue
+        container.append(copy.copy(paragraph))
+    return container if container.find(True) is not None else None
 
 
 def extract_wareki_date(raw_text):
@@ -230,7 +248,7 @@ def parse_html(file_path, *, base_url, images_dir, image_public_url, stats=None)
         raw_date_text = date_div.get_text().strip()
         date_str = wareki_to_seireki(raw_date_text)
 
-    content_div = soup.find("div", class_="USER-SET-STYLE")
+    content_div = soup.find("div", class_="USER-SET-STYLE") or fallback_content_container(soup)
     markdown_content = []
     if content_div:
         for element in content_div.find_all(["div", "table"]):

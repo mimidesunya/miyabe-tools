@@ -212,7 +212,12 @@ function formatDocumentText(document: any): string {
     document.id ? `id: ${document.id}` : "",
     document.source_url ? `source: ${document.source_url}` : "",
     document.detail_url ? `detail: ${document.detail_url}` : "",
-    document.body_truncated ? `body: ${body}\n\n[本文は ${body.length}/${document.body_full_length} 文字で省略されています。max_body_chars を増やすと取得量を増やせます。]` : `body: ${body}`
+    document.body_truncated ? `body: ${body}\n\n[本文は ${body.length}/${document.body_full_length} 文字で省略されています。max_body_chars を増やすと取得量を増やせます。]` : `body: ${body}`,
+    // AI が付けた評価。本文とは別に出す。混ぜると自治体自身の見解や
+    // 法文と読み違える。
+    String(document.evaluation_text || "").trim() !== ""
+      ? `evaluation (AI が付けた評価。自治体の見解ではありません): ${document.evaluation_text}`
+      : ""
   ].filter((value) => String(value || "").trim() !== "").join("\n");
 }
 

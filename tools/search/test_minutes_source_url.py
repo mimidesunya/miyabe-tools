@@ -205,6 +205,26 @@ class MinutesSourceUrlTest(unittest.TestCase):
         self.assertIsNotNone(record)
         self.assertEqual(record.source_url, URL)
 
+    def test_comma_joined_meeting_directory_still_matches(self) -> None:
+        # 同じ日に開かれた会議をまとめて「建設常任,建設協議,建設企業」という
+        # 名前の保存先になることがある。そのままでは前方一致が 1 件も当たらず、
+        # 八戸市では最大 9 文書が同じ原典 URL を指していた。
+        other = "https://example.invalid/kensetsu.html"
+        self._meta = self._write_index(
+            [
+                {"title": "09月10日-01号", "year_label": "令和8年", "url": URL, "meeting_name": "総務協議会"},
+                {"title": "09月10日-01号", "year_label": "令和8年", "url": other, "meeting_name": "建設協議会"},
+            ]
+        )
+        record = self._record(
+            "令和8年",
+            "建設常任,建設協議,建設企業",
+            "09月10日-01号.txt",
+            "所管事務調査について" + "\n",
+        )
+        self.assertIsNotNone(record)
+        self.assertEqual(record.source_url, other)
+
     def test_canonical_year_label_drops_separators(self) -> None:
         self.assertEqual(canonical_year_label("平成31年・_令和元年"), "平成31年・令和元年")
         self.assertEqual(canonical_year_label("平成31年・\n令和元年"), "平成31年・令和元年")

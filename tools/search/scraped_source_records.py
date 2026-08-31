@@ -588,18 +588,24 @@ def pick_meta_by_meeting_dir(
     hint = normalize_space(meeting_dir)
     if hint == "":
         return None
+    # 保存先の会議ディレクトリは、同じ日に開かれた会議をまとめて
+    # 「建設常任,建設協議,建設企業」のような名前になることがある。
+    # そのままでは前方一致が 1 件も当たらない（八戸市で最大 9 文書が
+    # 同じ原典 URL を指していた）。区切って 1 つずつ試す。
+    hints = [part for part in (normalize_space(h) for h in hint.split(",")) if part]
     for label in year_labels:
         for candidate_label in year_label_variants(label):
             candidates = meta_map.get((candidate_label, title, MEETING_CANDIDATES_KEY))
             if not isinstance(candidates, list) or len(candidates) < 2:
                 continue
-            matched = [
-                meta
-                for meta in candidates
-                if hint and normalize_space(meta.meeting_name_hint or "").startswith(hint)
-            ]
-            if len(matched) == 1:
-                return matched[0]
+            for part in hints:
+                matched = [
+                    meta
+                    for meta in candidates
+                    if normalize_space(meta.meeting_name_hint or "").startswith(part)
+                ]
+                if len(matched) == 1:
+                    return matched[0]
     return None
 
 

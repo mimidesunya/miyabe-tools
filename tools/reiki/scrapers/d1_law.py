@@ -33,7 +33,12 @@ USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 DELAY = 0.5
 # 原典が変わらない限り変換を飛ばす運用では、コードだけ直しても既存成果物へ届かない。
 # d1_parser の抽出規則を変えたときは、この値を明示的に上げて保存済み source を変換し直す。
-PARSER_VERSION = 1
+#
+# 2 へ上げた理由: 本文を包む `USER-SET-STYLE` が無い取得元で `law-content` が
+# 空のまま保存されていた。本番で 4 自治体・約 4,900 件（石狩市 1,246 /
+# 京都市 1,156 / 江別市 1,019 / 留寿都村 655）。題名と日付は読めていたので
+# 件数では出てこない。原典は変わっていないので、この値を上げないと直らない。
+PARSER_VERSION = 2
 UNPARSED_VERSION = 0
 OPENSEARCH_TOP_LEVEL_RE = re.compile(r"mkjG\('([0-9]{3}:[0-9]{2}:[0-9]{2})'\)")
 OPENSEARCH_RESULT_RE = re.compile(
