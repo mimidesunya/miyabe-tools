@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any
 
 # 1 回の掃き取りで積み直す自治体の数。全国を一度に積むと index キューが
@@ -94,3 +95,47 @@ def generation_field_is_mapped(client: Any, index: str) -> bool:
         if "parser_generation" in properties:
             return True
     return False
+
+
+def slugs_with_documents(client: Any, index: str, doc_type: str) -> set[str]:
+    """その索引に 1 件でも文書がある自治体を返す。"""
+    body = {
+        "size": 0,
+        "query": {"bool": {"filter": [{"term": {"doc_type": doc_type}}]}},
+        "aggs": {"slugs": {"terms": {"field": "slug", "size": 5000}}},
+    }
+    response = client.request("POST", f"/{index}/_search", body=body)
+    buckets = (response.get("aggregations") or {}).get("slugs", {}).get("buckets") or []
+    return {str(bucket.get("key") or "").strip() for bucket in buckets if bucket.get("key")}
+
+
+def never_indexed_slugs(
+    client: Any,
+    index: str,
+    doc_type: str,
+    candidates: "Iterable[tuple[str, int]]",
+    *,
+    limit: int = DEFAULT_SWEEP_LIMIT,
+    present: set[str] | None = None,
+) -> list[tuple[str, int]]:
+    """取得できているのに索引へ 1 件も載っていない自治体を返す。
+
+    世代の掃き取りは「載っている文書の世代」を見るので、**1 件も載っていない
+    自治体は見えない**。鳥栖市は 588 件を取得済みなのに公開に 1 件も無く、
+    待ち行列にも残っていなかった。取得は成功、索引は走らなかった、という
+    形はどの経路にも引っかからない。
+
+    `candidates` は `(slug, 保存ファイル数)` の並び。保存が 0 件の自治体は
+    取得側の問題なので、ここでは扱わない。
+    """
+    if int(limit) <= 0:
+        return []
+    if present is None:
+        present = slugs_with_documents(client, index, doc_type)
+    found = [
+        (str(slug), int(count))
+        for slug, count in candidates
+        if int(count) > 0 and str(slug) not in present
+    ]
+    found.sort(key=lambda item: (-item[1], item[0]))
+    return found[: int(limit)]

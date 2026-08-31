@@ -95,3 +95,51 @@ class MappingGuardTest(unittest.TestCase):
         self.assertFalse(
             generation_field_is_mapped(self.MappingClient({}, raises=True), "x")
         )
+
+
+class NeverIndexedTest(unittest.TestCase):
+    """1 件も載っていない自治体は、世代の掃き取りからは見えない。
+
+    鳥栖市は例規 588 件を取得済みなのに公開へ 1 件も出ておらず、索引の待ち
+    行列にも残っていなかった。取得は成功、索引は走らなかった、という形は
+    どの経路にも引っかからない。手で再索引したら 588 件そのまま載った。
+    """
+
+    class Client:
+        def __init__(self, keys):
+            self.keys = keys
+
+        def request(self, method, path, *, body=None, **kwargs):
+            return {"aggregations": {"slugs": {"buckets": [{"key": k, "doc_count": 1} for k in self.keys]}}}
+
+    def test_finds_a_town_with_files_but_no_documents(self):
+        from stale_generation import never_indexed_slugs
+
+        client = self.Client({"13101-chiyoda-ku"})
+        found = never_indexed_slugs(
+            client, "miyabe-reiki-current", "reiki",
+            [("13101-chiyoda-ku", 900), ("41203-tosu-shi", 588)],
+        )
+        self.assertEqual(found, [("41203-tosu-shi", 588)])
+
+    def test_a_town_without_saved_files_is_left_to_the_scraper(self):
+        from stale_generation import never_indexed_slugs
+
+        client = self.Client(set())
+        self.assertEqual(
+            never_indexed_slugs(client, "i", "reiki", [("a", 0), ("b", 0)]), []
+        )
+
+    def test_the_biggest_comes_first(self):
+        from stale_generation import never_indexed_slugs
+
+        client = self.Client(set())
+        self.assertEqual(
+            never_indexed_slugs(client, "i", "reiki", [("a", 5), ("b", 50)], limit=1),
+            [("b", 50)],
+        )
+
+    def test_limit_zero_asks_nothing(self):
+        from stale_generation import never_indexed_slugs
+
+        self.assertEqual(never_indexed_slugs(None, "i", "reiki", [("a", 5)], limit=0), [])

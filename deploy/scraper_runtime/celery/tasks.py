@@ -656,6 +656,8 @@ def sweep_index_outbox(limit: int = 0) -> dict[str, object]:
 # ダウンロードはやり直さない。保存済みのファイルを読み直すだけである。
 # index キューにこれ以上待っているなら、世代の追いつきは積まない。
 STALE_SWEEP_QUEUE_LIMIT = celery_runtime.env_int("CELERY_STALE_SWEEP_QUEUE_LIMIT", 8, minimum=1)
+# 索引に 1 件も無い自治体は少ないので、1 回に積む数も小さくてよい。
+NEVER_INDEXED_SWEEP_LIMIT = celery_runtime.env_int("CELERY_NEVER_INDEXED_SWEEP_LIMIT", 5, minimum=1)
 
 
 # broker の待ち行列の長さ。読めなければ None を返し、呼び出し側は制限しない。
@@ -760,3 +762,109 @@ def sweep_stale_parser_generation(limit: int = 0) -> dict[str, object]:
             flush=True,
         )
     return {"ok": True, "task": "sweep_stale_parser_generation", "requeued": requeued}
+
+
+# 取得できているのに索引へ 1 件も載っていない自治体を積み直す。
+#
+# 世代の掃き取りは「載っている文書の世代」を見るので、**1 件も載っていない
+# 自治体は見えない**。鳥栖市は例規 588 件を取得済みなのに公開へ 1 件も出て
+# おらず、待ち行列にも残っていなかった。取得は成功、索引は走らなかった、
+# という形はどの経路にも引っかからない。
+@app.task(name="deploy.scraper_runtime.celery.tasks.sweep_never_indexed")
+def sweep_never_indexed(limit: int = 0) -> dict[str, object]:
+    import sys as _sys
+
+    search_dir = str(ROOT / "tools" / "search")
+    if search_dir not in _sys.path:
+        _sys.path.insert(0, search_dir)
+    from opensearch_client import OpenSearchClient  # type: ignore
+    import stale_generation  # type: ignore
+    from tools.search import build_opensearch_index as search_index
+
+    sweep_limit = int(limit or 0) or NEVER_INDEXED_SWEEP_LIMIT
+    client = OpenSearchClient(
+        celery_runtime.env_text("OPENSEARCH_URL", "http://localhost:9200"),
+        user=celery_runtime.env_text("OPENSEARCH_USER", ""),
+        password=celery_runtime.env_text("OPENSEARCH_PASSWORD", ""),
+        insecure_dev=celery_runtime.env_text("OPENSEARCH_INSECURE_DEV", "").lower() in ("1", "true", "yes", "on"),
+    )
+    requeued: dict[str, list[str]] = {}
+    for kind, doc_type, alias_env, alias_default, queue, task_name in (
+        (
+            "gijiroku",
+            "minutes",
+            "MIYABE_MINUTES_ALIAS",
+            "miyabe-minutes-current",
+            app_module.GIJIROKU_INDEX_QUEUE,
+            "run_gijiroku_index_update",
+        ),
+        (
+            "reiki",
+            "reiki",
+            "MIYABE_REIKI_ALIAS",
+            "miyabe-reiki-current",
+            app_module.REIKI_INDEX_QUEUE,
+            "run_reiki_index_update",
+        ),
+    ):
+        waiting = _queue_length(queue)
+        if waiting is not None and waiting >= STALE_SWEEP_QUEUE_LIMIT:
+            continue
+        alias = celery_runtime.env_text(alias_env, alias_default)
+        try:
+            present = stale_generation.slugs_with_documents(client, alias, doc_type)
+        except Exception as exc:
+            print(f"[CELERY] {kind} 索引の自治体一覧を読めませんでした: {exc}", flush=True)
+            continue
+        targets = (
+            gijiroku_targets.iter_gijiroku_targets()
+            if kind == "gijiroku"
+            else reiki_targets.iter_reiki_targets()
+        )
+        missing = {
+            str(target.get("slug") or "").strip()
+            for target in targets
+            if str(target.get("slug") or "").strip()
+        } - present
+        if not missing:
+            continue
+        # 保存ファイルの数は、索引に無い自治体のぶんだけ数える。全国を毎回
+        # 歩くと 100 万件超のファイルを触ることになる。
+        try:
+            if kind == "gijiroku":
+                counts = search_index.count_minutes_documents_by_slug(slugs=missing)
+            else:
+                counts = search_index.count_reiki_documents_by_slug(slugs=missing)
+        except Exception as exc:
+            print(f"[CELERY] {kind} 保存件数を数えられませんでした: {exc}", flush=True)
+            continue
+        found = stale_generation.never_indexed_slugs(
+            client,
+            alias,
+            doc_type,
+            [(slug, int(counts.get(slug, 0))) for slug in sorted(missing)],
+            limit=sweep_limit,
+            present=present,
+        )
+        pending = generation_sweep_state.filter_recently_queued(
+            f"{doc_type}_never", [slug for slug, _ in found]
+        )
+        counts_by_slug = dict(found)
+        queued_now: list[str] = []
+        for slug in pending:
+            try:
+                app.send_task(
+                    f"deploy.scraper_runtime.celery.tasks.{task_name}",
+                    kwargs={"slug": slug},
+                    queue=queue,
+                )
+            except Exception as exc:
+                print(f"[CELERY] {kind} {slug} の初回索引を積めませんでした: {exc}", flush=True)
+                continue
+            queued_now.append(slug)
+            requeued.setdefault(kind, []).append(f"{slug}({counts_by_slug.get(slug, 0)})")
+        generation_sweep_state.mark_queued(f"{doc_type}_never", queued_now)
+    total = sum(len(items) for items in requeued.values())
+    if total > 0:
+        print(f"[CELERY] 索引に無い {total} 件を積みました: {requeued}", flush=True)
+    return {"ok": True, "task": "sweep_never_indexed", "requeued": requeued}

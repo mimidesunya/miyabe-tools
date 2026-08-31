@@ -36,6 +36,12 @@ STALE_GENERATION_SWEEP_SECONDS = celery_runtime.env_int(
     60 * 60,
     minimum=300,
 )
+# 索引に 1 件も無い自治体を拾う間隔。件数は少ないので、間隔は長くてよい。
+NEVER_INDEXED_SWEEP_SECONDS = celery_runtime.env_int(
+    "CELERY_NEVER_INDEXED_SWEEP_SECONDS",
+    6 * 60 * 60,
+    minimum=600,
+)
 
 app = Celery(
     "miyabe_tools_scraping",
@@ -93,6 +99,17 @@ app.conf.update(
             "options": {
                 "queue": "maintenance",
                 "expires": max(5, STALE_GENERATION_SWEEP_SECONDS - 5),
+            },
+        },
+        # 世代の掃き取りは「載っている文書の世代」を見るので、1 件も載って
+        # いない自治体は見えない。鳥栖市は例規 588 件を取得済みなのに公開へ
+        # 1 件も出ておらず、待ち行列にも残っていなかった。
+        "sweep-never-indexed": {
+            "task": "deploy.scraper_runtime.celery.tasks.sweep_never_indexed",
+            "schedule": float(NEVER_INDEXED_SWEEP_SECONDS),
+            "options": {
+                "queue": "maintenance",
+                "expires": max(5, NEVER_INDEXED_SWEEP_SECONDS - 5),
             },
         },
     },
