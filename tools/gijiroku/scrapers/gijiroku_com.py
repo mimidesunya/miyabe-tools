@@ -370,11 +370,25 @@ def parse_legacy_voices_list_page(raw_html: str, page_url: str) -> tuple[list[Me
 
     for anchor in soup.find_all("a", href=True):
         href = str(anchor.get("href", ""))
-        if "voiweb.exe?ACT=100" not in href or "PAGE=" not in href or "FINO=" in href:
+        if "voiweb.exe?ACT=100" not in href or "FINO=" in href:
             continue
-        page_urls.append(urljoin(page_url, href))
+        text = normalize_space(anchor.get_text(" ", strip=True))
+        # ページ送り。
+        if "PAGE=" in href:
+            page_urls.append(urljoin(page_url, href))
+            continue
+        # 年の絞り込み。一覧の中に「令和 07年」のような年リンクが並ぶ取得元が
+        # ある。ページ送りが 1 ページで終わっているので、これを辿らないと
+        # 1,607 件のうち 23 件しか見えない（各務原市・氷見市）。
+        # `FYY=` を持たないので、年度ページの判定にも引っかからなかった。
+        if LEGACY_YEAR_LINK_RE.match(text):
+            page_urls.append(urljoin(page_url, href))
 
     return meetings, unique_preserve_order(page_urls)
+
+
+# 一覧の中に並ぶ年リンクの文言。`令和 07年` `平成 元年`。
+LEGACY_YEAR_LINK_RE = re.compile(r"^(昭和|平成|令和)\s*[元\d０-９]+\s*年$")
 
 
 def discover_legacy_voices_meeting_items(
@@ -396,11 +410,13 @@ def discover_legacy_voices_meeting_items(
 
     while pending_urls:
         page_url = pending_urls.pop(0)
+        # 年リンクはページ番号を持たない。番号だけで重複を見ると、2 件目以降が
+        # すべて「PAGE=1 は見た」として捨てられる。URL そのもので見る。
+        if page_url in visited_pages:
+            continue
+        visited_pages.add(page_url)
         page_number = (parse_qs(urlsplit(page_url).query).get("PAGE") or ["1"])[0]
         pending_pages.discard(page_number)
-        if page_number in visited_pages:
-            continue
-        visited_pages.add(page_number)
 
         raw_html, _ = fetch_response_text(request_context, page_url, timeout_ms)
         if not raw_html:
@@ -410,10 +426,8 @@ def discover_legacy_voices_meeting_items(
         if max_meetings > 0 and len(meetings) >= max_meetings:
             break
         for candidate_url in page_urls:
-            candidate_page = (parse_qs(urlsplit(candidate_url).query).get("PAGE") or ["1"])[0]
-            if candidate_page not in visited_pages and candidate_page not in pending_pages:
+            if candidate_url not in visited_pages and candidate_url not in pending_urls:
                 pending_urls.append(candidate_url)
-                pending_pages.add(candidate_page)
         if delay_seconds > 0 and pending_urls:
             time.sleep(delay_seconds)
 

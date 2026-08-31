@@ -47,3 +47,28 @@ class ScraperUsesTheSameRuleTest(unittest.TestCase):
         )
         self.assertIn('"voiweb.exe?ACT=" in href and "FINO=" in href', source)
         self.assertNotIn('"voiweb.exe?ACT=100" in href and "FINO=" in href', source)
+
+
+class LegacyYearLinkTest(unittest.TestCase):
+    """一覧の中に並ぶ年リンク。
+
+    各務原市は 1,607 件ヒットしているのに 23 件しか並ばない。ページ送りは
+    1 ページで終わっていて、代わりに一覧の中へ `令和 07年` のような年リンクが
+    74 本並ぶ。`FYY=` を持たないので年度ページの判定にも引っかからず、
+    どちらの経路からも見えなかった。
+    """
+
+    def setUp(self):
+        from gijiroku_com import LEGACY_YEAR_LINK_RE
+
+        self.pattern = LEGACY_YEAR_LINK_RE
+
+    def test_matches_a_year_label(self):
+        for text in ("令和 07年", "平成 元年", "昭和64年", "令和7年"):
+            with self.subTest(text=text):
+                self.assertIsNotNone(self.pattern.match(text))
+
+    def test_does_not_match_a_meeting_title(self):
+        for text in ("令和 ６年１１月 総務市民委員会", "11月27日-01号", "次へ", ""):
+            with self.subTest(text=text):
+                self.assertIsNone(self.pattern.match(text))
