@@ -1128,44 +1128,68 @@ def promulgation_date_in_line(line: str) -> str:
 
 
 def first_wareki_date_in_head(text: str, *, limit: int = 1200) -> str:
-    head = str(text or "")[:limit]
+    """本文の頭から公布日を読む。条例は題名のすぐあとに公布日と番号を並べる。
+
+    公布日でない日付が周りに散らばっているので、次の三つを除ける。
+
+    - 同じ行に施行・改正・任期などの語がある
+    - 次の行にその語がある（タグを改行にすると語が別の行へ移る）
+    - 手前の行が「(この要綱の失効)」のような、日付を持たない見出しである
+    - `改正` の下に並ぶ改正履歴（制定日はそこには無い）
+    """
+    lines = [normalize_space(line) for line in str(text or "")[:limit].splitlines()]
+    lines = [line for line in lines if line]
     in_amendment_block = False
-    previous_was_excluded = False
-    lines = head.splitlines()
     for position, line in enumerate(lines):
-        stripped = normalize_space(line)
-        next_line = normalize_space(lines[position + 1]) if position + 1 < len(lines) else ""
-        if stripped == "":
-            continue
-        if stripped in AMENDMENT_BLOCK_HEADS:
-            # ここから下は改正の履歴。公布日はこのブロックには無い。
+        if line in AMENDMENT_BLOCK_HEADS:
             in_amendment_block = True
             continue
         if in_amendment_block:
-            # 履歴に並ぶのは改正の日である。**制定日がここに無いなら、
-            # 公布日は読めない。**「平成28年出雲市条例第28号」のように年だけで
-            # 日が無い制定表記の取得元があり、改正の日を制定日にしていた
-            # （出雲市の行政不服審査会設置条例は制定 2016 年なのに 2025-03-18）。
-            if promulgation_date_in_line(stripped):
+            if promulgation_date_in_line(line):
                 continue
             in_amendment_block = False
-        if any(word in stripped for word in NOT_PROMULGATION_WORDS):
-            previous_was_excluded = True
+        iso = promulgation_date_in_line(line)
+        if not iso:
             continue
-        # タグを改行へ置き換えると「2027年3月31日」と「限り効力を失う」が
-        # 別の行になる。次の行に除外語が来るなら、この日付も公布日ではない。
-        # 出雲市の土地改良区要綱が失効日 2027-03-31 を制定日にしていた
-        # （本番で唯一の未来の公布日）。
-        if any(word in next_line for word in NOT_PROMULGATION_WORDS):
+        if _line_disqualifies_promulgation(line):
             continue
-        if "改正" in stripped and not any(
-            word in stripped for word in TITLE_AMENDMENT_WORDS
+        following = lines[position + 1] if position + 1 < len(lines) else ""
+        # 次の行は、それ自身が日付を持たないときだけ見る。持っているなら
+        # 別の日付の説明であって、この行のものではない（改正履歴の並びなど）。
+        # 次の行が `改正` の見出しなら、この行が制定日である（履歴はその下）。
+        if (
+            following not in AMENDMENT_BLOCK_HEADS
+            and _line_disqualifies_promulgation(following)
+            and not promulgation_date_in_line(following)
         ):
             continue
-        iso = promulgation_date_in_line(stripped)
-        if iso:
-            return iso
+        previous = lines[position - 1] if position > 0 else ""
+        # 手前の行は「(この要綱の失効)」のような**見出しのときだけ**見る。
+        # 「限り効力を失う」のように文の続きなら、その前の日付の説明であって、
+        # この行の説明ではない。括弧で囲まれた短い行を見出しとみなす。
+        if _looks_like_heading(previous) and _line_disqualifies_promulgation(previous):
+            continue
+        return iso
     return ""
+
+
+# 「(この要綱の失効)」のように、括弧で囲まれた短い行は条文の見出しである。
+_HEADING_RE = re.compile(r"^[（(][^）)]{1,20}[）)]$")
+
+
+def _looks_like_heading(line: str) -> bool:
+    return bool(_HEADING_RE.match(line.strip()))
+
+
+def _line_disqualifies_promulgation(line: str) -> bool:
+    if line == "":
+        return False
+    if any(word in line for word in TITLE_AMENDMENT_WORDS):
+        # 題名に「一部を改正する条例」が入るのは普通のこと。
+        return False
+    if "改正" in line:
+        return True
+    return any(word in line for word in NOT_PROMULGATION_WORDS)
 
 
 def join_strings(value: object) -> str:
