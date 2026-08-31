@@ -15,9 +15,10 @@ import os
 import re
 import sys
 import time
-from collections import deque
+from collections import Counter, deque
 from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -190,12 +191,135 @@ def parse_args() -> argparse.Namespace:
             "検索から消えるため）。"
         ),
     )
+    parser.add_argument(
+        "--allow-empty-slug-delete",
+        action="store_true",
+        help=(
+            "--mode update で文書を 1 件も生成できなかった slug の旧文書も削除する。"
+            "取得ディレクトリ欠落と原典での全廃を自動では区別できないため、既定では"
+            "旧文書を残す。"
+        ),
+    )
     return parser.parse_args()
 
 
 # 列挙に失敗して索引から丸ごと落ちた自治体。strict でない全量 rebuild では
 # 警告して先へ進むので、公開に切り替える前にここを見る。
 SKIPPED_SOURCES: list[str] = []
+
+
+@dataclass
+class SourceIntegrityAudit:
+    """候補ファイルを、yield・意図的除外・説明不能dropへ排他的に分ける。"""
+
+    doc_type: str
+    slug: str
+    outcomes: dict[str, str] = field(default_factory=dict)
+    reasons: dict[str, str] = field(default_factory=dict)
+
+
+SOURCE_INTEGRITY_AUDITS: dict[tuple[str, str], SourceIntegrityAudit] = {}
+INTENTIONAL_SOURCE_OUTCOMES = frozenset({"toc", "aux", "duplicate_body", "limit"})
+
+
+def reset_source_integrity_tracking() -> None:
+    """同じプロセスで main やテストを繰り返しても、前回のdropを持ち越さない。"""
+    SKIPPED_SOURCES.clear()
+    SOURCE_INTEGRITY_AUDITS.clear()
+
+
+def start_source_integrity_audit(
+    doc_type: str, slug: str, source_paths: Iterable[Path]
+) -> SourceIntegrityAudit:
+    audit = SourceIntegrityAudit(
+        doc_type=doc_type,
+        slug=slug,
+        outcomes={str(path): "pending" for path in source_paths},
+    )
+    SOURCE_INTEGRITY_AUDITS[(doc_type, slug)] = audit
+    return audit
+
+
+def record_source_integrity_outcome(
+    doc_type: str,
+    slug: str,
+    source_path: Path,
+    outcome: str,
+    *,
+    reason: str = "",
+) -> None:
+    key = (doc_type, slug)
+    audit = SOURCE_INTEGRITY_AUDITS.get(key)
+    if audit is None:
+        audit = start_source_integrity_audit(doc_type, slug, [source_path])
+    path = str(source_path)
+    audit.outcomes.setdefault(path, "pending")
+    audit.outcomes[path] = outcome
+    if reason:
+        audit.reasons[path] = reason
+
+
+def mark_pending_sources_as_limited(doc_type: str, slug: str) -> None:
+    audit = SOURCE_INTEGRITY_AUDITS.get((doc_type, slug))
+    if audit is None:
+        return
+    for path, outcome in list(audit.outcomes.items()):
+        if outcome == "pending":
+            audit.outcomes[path] = "limit"
+
+
+def source_integrity_failures(
+    doc_type: str | None = None, slug: str | None = None
+) -> list[dict[str, str]]:
+    failures: list[dict[str, str]] = []
+    for (audit_doc_type, audit_slug), audit in sorted(SOURCE_INTEGRITY_AUDITS.items()):
+        if doc_type is not None and audit_doc_type != doc_type:
+            continue
+        if slug is not None and audit_slug != slug:
+            continue
+        for path, outcome in sorted(audit.outcomes.items()):
+            if outcome == "yielded" or outcome in INTENTIONAL_SOURCE_OUTCOMES:
+                continue
+            failures.append(
+                {
+                    "doc_type": audit_doc_type,
+                    "slug": audit_slug,
+                    "path": path,
+                    "reason": audit.reasons.get(path) or outcome,
+                }
+            )
+    return failures
+
+
+def source_integrity_summary(doc_type: str, slug: str) -> dict[str, int]:
+    audit = SOURCE_INTEGRITY_AUDITS.get((doc_type, slug))
+    if audit is None:
+        return {
+            "raw_total": 0,
+            "yielded": 0,
+            "intentional_excluded": 0,
+            "expected_indexable": 0,
+            "unexplained_drop": 0,
+        }
+    counts = Counter(audit.outcomes.values())
+    intentional = sum(counts.get(kind, 0) for kind in INTENTIONAL_SOURCE_OUTCOMES)
+    yielded = counts.get("yielded", 0)
+    raw_total = len(audit.outcomes)
+    return {
+        "raw_total": raw_total,
+        "yielded": yielded,
+        "intentional_excluded": intentional,
+        # toc/aux/重複など説明できる除外だけを引く。残差は、読めていれば
+        # 索引対象だった可能性があるため、公開前に説明不能dropとして止める。
+        "expected_indexable": raw_total - intentional,
+        "unexplained_drop": len(source_integrity_failures(doc_type, slug)),
+    }
+
+
+def source_slug_can_be_published(
+    doc_type: str, slug: str, *, allow_partial_alias: bool = False
+) -> bool:
+    return allow_partial_alias or not source_integrity_failures(doc_type, slug)
 
 
 def utc_now_iso() -> str:
@@ -303,7 +427,16 @@ def preferred_reiki_sidecar(files: dict[str, Path], key: str) -> Path | None:
 DOCUMENT_KINDS_FILENAME = "document_kinds.json"
 
 
-def write_document_kind_counts(target: dict[str, Any], kinds: dict[str, int], counted_at: str) -> None:
+def write_document_kind_counts(
+    target: dict[str, Any],
+    kinds: dict[str, int],
+    counted_at: str,
+    *,
+    raw_total: int,
+    indexable_before_dedupe: int,
+    deduplicated: int,
+    yielded: int,
+) -> None:
     """取得したファイルの種別内訳を取得元ごとに残す。
 
     保存件数と検索できる件数の差が、目次しか公開されていないためなのか、
@@ -312,11 +445,35 @@ def write_document_kind_counts(target: dict[str, Any], kinds: dict[str, int], co
     work_dir = Path(str(target.get("work_dir") or ""))
     if not work_dir.is_dir():
         return
+    exclusive_total = sum(kinds.values())
+    duplicate_count = int(kinds.get("duplicate_body", 0))
+    if exclusive_total != raw_total:
+        raise RuntimeError(
+            f"document kind counts are not exhaustive: raw={raw_total} kinds={exclusive_total}"
+        )
+    if int(kinds.get("minutes", 0)) != yielded:
+        raise RuntimeError(
+            f"document kind yielded count mismatch: minutes={kinds.get('minutes', 0)} yielded={yielded}"
+        )
+    if indexable_before_dedupe != deduplicated + duplicate_count:
+        raise RuntimeError(
+            "document kind deduplication count mismatch: "
+            f"before={indexable_before_dedupe} after={deduplicated} duplicates={duplicate_count}"
+        )
+    if deduplicated != yielded:
+        raise RuntimeError(
+            f"document kind yield count mismatch: deduplicated={deduplicated} yielded={yielded}"
+        )
     payload = {
-        "version": 1,
+        "version": 2,
         "counted_at": counted_at,
-        "total": sum(kinds.values()),
-        "indexable": int(kinds.get("minutes", 0)),
+        "raw_total": raw_total,
+        "indexable_before_dedupe": indexable_before_dedupe,
+        "deduplicated": deduplicated,
+        "yielded": yielded,
+        # v1 の読み手にも正しい値を返す互換名。重複除去前の値へは戻さない。
+        "total": raw_total,
+        "indexable": yielded,
         "kinds": dict(sorted(kinds.items())),
     }
     path = work_dir / DOCUMENT_KINDS_FILENAME
@@ -353,7 +510,6 @@ def iter_minutes_documents(
         source_system = str(target.get("system_family") or target.get("system_type") or "").strip()
         try:
             source_files = choose_minutes_source_files(downloads_dir)
-            meta_map = parse_minutes_source_meta(Path(target["index_json_path"]))
         except Exception as exc:
             if strict:
                 raise RuntimeError(f"failed to enumerate minutes files dir={downloads_dir}: {exc}") from exc
@@ -362,10 +518,35 @@ def iter_minutes_documents(
             # その自治体は検索できなくなる。
             SKIPPED_SOURCES.append(f"会議録 {meta['slug']}: {exc}")
             continue
+        start_source_integrity_audit("minutes", target_slug, source_files)
+        try:
+            # 壊れた一覧JSONを空一覧と同一視すると、本文は載っても原典URLだけ
+            # 失われる。非strict rebuildでは例外をここで回収し、候補pathを全件
+            # 不完全として残してalias guardへ渡す。
+            meta_map = parse_minutes_source_meta(
+                Path(target["index_json_path"]), strict=True
+            )
+        except Exception as exc:
+            for file_path in source_files:
+                record_source_integrity_outcome(
+                    "minutes",
+                    target_slug,
+                    file_path,
+                    "metadata_error",
+                    reason=f"failed to load {target['index_json_path']}: {exc}",
+                )
+            if strict:
+                raise RuntimeError(f"failed to enumerate minutes files dir={downloads_dir}: {exc}") from exc
+            print(f"[WARN] failed to enumerate minutes files dir={downloads_dir}: {exc}", file=sys.stderr)
+            SKIPPED_SOURCES.append(f"会議録 {meta['slug']}: {exc}")
+            continue
 
         # 取得できたのが目次だけの取得元がある。件数だけでは「反映待ち」と
         # 区別できないので、種別ごとの内訳を残して収集状況ページで使う。
         kind_counts: dict[str, int] = {}
+        indexable_before_dedupe = 0
+        deduplicated_count = 0
+        yielded_count = 0
         truncated = False
         # 同じ本文を複数の会議種別に置く取得元がある。北海道議会の連合審査会は
         # 「総務」「産炭地域」「連合審査会」の 3 つに同じ本文が入っており、
@@ -376,22 +557,63 @@ def iter_minutes_documents(
                 record = build_minutes_record(file_path, downloads_dir, meta_map, indexed_at)
             except Exception as exc:
                 kind_counts["unreadable"] = kind_counts.get("unreadable", 0) + 1
+                record_source_integrity_outcome(
+                    "minutes", target_slug, file_path, "parse_error", reason=str(exc)
+                )
                 if strict:
                     raise RuntimeError(f"failed to parse minutes file={file_path}: {exc}") from exc
                 print(f"[WARN] failed to parse minutes file={file_path}: {exc}", file=sys.stderr)
                 continue
-            kind = "unreadable" if record is None else str(record.doc_type or "unknown")
-            kind_counts[kind] = kind_counts.get(kind, 0) + 1
-            if record is None or record.doc_type != "minutes":
-                if strict and record is None:
+            if record is None:
+                kind_counts["unreadable"] = kind_counts.get("unreadable", 0) + 1
+                record_source_integrity_outcome(
+                    "minutes",
+                    target_slug,
+                    file_path,
+                    "unreadable",
+                    reason="file did not produce an indexable record",
+                )
+                if strict:
                     raise RuntimeError(f"minutes file did not produce an indexable record: {file_path}")
+                print(
+                    f"[WARN] minutes file did not produce an indexable record: {file_path}",
+                    file=sys.stderr,
+                )
                 continue
 
+            kind = str(record.doc_type or "unknown")
+            if kind != "minutes":
+                kind_counts[kind] = kind_counts.get(kind, 0) + 1
+                if kind in {"toc", "aux"}:
+                    record_source_integrity_outcome("minutes", target_slug, file_path, kind)
+                else:
+                    record_source_integrity_outcome(
+                        "minutes",
+                        target_slug,
+                        file_path,
+                        "unexpected_doc_type",
+                        reason=f"unexpected document kind: {kind}",
+                    )
+                    if strict:
+                        raise RuntimeError(
+                            f"minutes file produced unexpected document kind={kind}: {file_path}"
+                        )
+                    print(
+                        f"[WARN] minutes file produced unexpected document kind={kind}: {file_path}",
+                        file=sys.stderr,
+                    )
+                continue
+
+            indexable_before_dedupe += 1
             body_key = hashlib.sha1(str(record.content or "").encode("utf-8")).hexdigest()
             if body_key in seen_bodies:
                 kind_counts["duplicate_body"] = kind_counts.get("duplicate_body", 0) + 1
+                record_source_integrity_outcome(
+                    "minutes", target_slug, file_path, "duplicate_body"
+                )
                 continue
             seen_bodies.add(body_key)
+            deduplicated_count += 1
             local_id = stable_local_id(meta["slug"], record.rel_path)
             title = clean_text(record.title)
             meeting_name = clean_text(record.meeting_name)
@@ -422,6 +644,13 @@ def iter_minutes_documents(
                 "speaker_role": "",
                 "local_id": local_id,
             }
+            # yield直前の本数を正とする。重複判定前に minutes を増やすと、
+            # 検索へ載らない重複まで「索引可能」と数えて反映待ちが永久に残る。
+            kind_counts["minutes"] = kind_counts.get("minutes", 0) + 1
+            yielded_count += 1
+            record_source_integrity_outcome(
+                "minutes", target_slug, file_path, "yielded"
+            )
             yield f"minutes:{meta['slug']}:{local_id}", compact_document(document)
             emitted += 1
             if limit > 0 and emitted >= limit:
@@ -430,8 +659,17 @@ def iter_minutes_documents(
 
         # 途中で打ち切ったときの内訳は取得元の実態を表さないので残さない。
         if not truncated:
-            write_document_kind_counts(target, kind_counts, indexed_at)
+            write_document_kind_counts(
+                target,
+                kind_counts,
+                indexed_at,
+                raw_total=len(source_files),
+                indexable_before_dedupe=indexable_before_dedupe,
+                deduplicated=deduplicated_count,
+                yielded=yielded_count,
+            )
         if truncated:
+            mark_pending_sources_as_limited("minutes", target_slug)
             return
 
 
@@ -462,15 +700,33 @@ def iter_reiki_documents(
         source_system = str(target.get("system_type") or "").strip()
         try:
             html_files = collect_reiki_preferred_files(html_root, {".html", ".htm"})
+        except Exception as exc:
+            if strict:
+                raise RuntimeError(f"failed to enumerate reiki files dir={html_root}: {exc}") from exc
+            print(f"[WARN] failed to enumerate reiki files dir={html_root}: {exc}", file=sys.stderr)
+            SKIPPED_SOURCES.append(f"例規 {meta['slug']}: {exc}")
+            continue
+        start_source_integrity_audit("reiki", target_slug, html_files.values())
+        try:
             markdown_files = build_alias_map(
                 collect_reiki_preferred_files(Path(target["markdown_dir"]), {".md"})
             )
             classification_files = build_alias_map(
                 collect_reiki_preferred_files(Path(target["classification_dir"]), {".json"})
             )
-            manifest_index = load_reiki_manifest_index(Path(target["work_root"]) / "source_manifest.json.gz")
+            manifest_index = load_reiki_manifest_index(
+                Path(target["work_root"]) / "source_manifest.json.gz", strict=True
+            )
             prefixes = reiki_sortable_prefixes(target)
         except Exception as exc:
+            for html_path in html_files.values():
+                record_source_integrity_outcome(
+                    "reiki",
+                    target_slug,
+                    html_path,
+                    "metadata_error",
+                    reason=str(exc),
+                )
             if strict:
                 raise RuntimeError(f"failed to enumerate reiki files dir={html_root}: {exc}") from exc
             print(f"[WARN] failed to enumerate reiki files dir={html_root}: {exc}", file=sys.stderr)
@@ -487,30 +743,48 @@ def iter_reiki_documents(
                     manifest_index.get(key) or manifest_index.get(Path(key).name),
                     prefixes,
                     target,
+                    strict=True,
                 )
             except Exception as exc:
+                record_source_integrity_outcome(
+                    "reiki", target_slug, html_path, "parse_error", reason=str(exc)
+                )
                 if strict:
                     raise RuntimeError(f"failed to parse reiki file={html_path}: {exc}") from exc
                 print(f"[WARN] failed to parse reiki file={html_path}: {exc}", file=sys.stderr)
                 continue
             if not isinstance(record, dict):
+                record_source_integrity_outcome(
+                    "reiki",
+                    target_slug,
+                    html_path,
+                    "unreadable",
+                    reason="file did not produce an indexable record",
+                )
                 if strict:
                     raise RuntimeError(f"reiki file did not produce an indexable record: {html_path}")
+                print(
+                    f"[WARN] reiki file did not produce an indexable record: {html_path}",
+                    file=sys.stderr,
+                )
                 continue
 
             filename = clean_text(record.get("filename")) or key
             local_id = stable_local_id(meta["slug"], filename)
             title = clean_text(record.get("title")) or Path(filename).name
-            body_parts = [
-                clean_text(record.get("document_type")),
-                clean_text(record.get("responsible_department")),
-                clean_text(record.get("combined_stance")),
-                clean_text(record.get("combined_reason")),
-                clean_text(record.get("reason")),
-                clean_text(record.get("taxonomy_path")),
-                str(record.get("content_text") or ""),
-            ]
-            body = "\n".join(part for part in body_parts if part)
+            # 本文は取得元の原文だけにする。AI 評価や所管課をここへ混ぜると、
+            # 検索結果の本文が評価文から始まり、自治体の見解や法文と読み違える。
+            body = str(record.get("content_text") or "")
+            # AI が付けた評価。本文とは別に持ち、混ざらないようにする。
+            evaluation_text = "\n".join(
+                part
+                for part in [
+                    clean_text(record.get("combined_stance")),
+                    clean_text(record.get("combined_reason")),
+                    clean_text(record.get("reason")),
+                ]
+                if part
+            )
             title_terms = " ".join(
                 part
                 for part in [
@@ -572,9 +846,13 @@ def iter_reiki_documents(
                 "amended_on": None,
                 "local_id": local_id,
             }
+            record_source_integrity_outcome(
+                "reiki", target_slug, html_path, "yielded"
+            )
             yield f"reiki:{meta['slug']}:{local_id}", compact_document(document)
             emitted += 1
             if limit > 0 and emitted >= limit:
+                mark_pending_sources_as_limited("reiki", target_slug)
                 return
 
 
@@ -1077,6 +1355,7 @@ def update_one(
     bulk_bytes: int,
     bulk_concurrency: int,
     switch_alias: bool,
+    allow_empty_slug_delete: bool = False,
 ) -> int:
     if not slugs:
         raise ValueError("Incremental update requires --slug.")
@@ -1084,17 +1363,43 @@ def update_one(
     # 先に cutoff を取れば「今回投入分 >= cutoff > 前回まで」の関係が保証される。
     update_cutoff = utc_now_iso()
     documents_list = list(documents)
-    if not documents_list:
-        # 目次しか公開していない取得元では本文が 0 件になる。ここで失敗させると
-        # 取得も index も毎回やり直しになるため、警告に留めて 0 件として扱う。
-        # 検索できる件数が 0 であることは収集状況ページ側に出る。
+    yielded_slugs = {
+        str(source.get("slug") or "").strip()
+        for _doc_id, source in documents_list
+        if str(source.get("slug") or "").strip()
+    }
+    unexpected_slugs = yielded_slugs - slugs
+    if unexpected_slugs:
+        raise RuntimeError(
+            f"Incremental update generated documents outside requested slugs: {sorted(unexpected_slugs)}"
+        )
+    empty_slugs = slugs - yielded_slugs
+    if empty_slugs:
+        # 0件は「原典から全廃」と「取得dir欠落・parser drop」を区別できない。
+        # 実際に生成できたslugだけを世代削除へ渡し、全廃は明示時だけ扱う。
+        if allow_empty_slug_delete:
+            message = "明示フラグにより旧文書も削除します。"
+        else:
+            message = (
+                "旧文書を保持します。削除を意図している場合だけ "
+                "--allow-empty-slug-delete を付けてください。"
+            )
         print(
-            f"[WARN] {doc_type} has no indexable documents: {','.join(sorted(slugs))}",
+            f"[WARN] {doc_type} generated no indexable documents for "
+            f"{','.join(sorted(empty_slugs))}; {message}",
             file=sys.stderr,
         )
+    delete_slugs = slugs if allow_empty_slug_delete else yielded_slugs
+    if not documents_list and not delete_slugs:
         return 0
 
     current_index = single_index_for_alias(client, alias)
+    if current_index is None and not documents_list:
+        print(
+            f"[WARN] alias={alias} has no index; no empty slug documents to delete.",
+            file=sys.stderr,
+        )
+        return 0
     if current_index is None:
         # まだどの index も指していない alias には、差分更新の delete+bulk ができない。
         # 初回だけ file lock の下で bootstrap し、同時実行された slug 更新同士が
@@ -1141,17 +1446,26 @@ def update_one(
     # document ID は slug+ファイルパス由来で安定しているため、まず bulk で上書き投入し、
     # そのあとで前回世代（indexed_at が cutoff より古い文書）だけを削除する。
     # 削除を先にすると、途中で落ちた場合にその自治体が次の成功まで検索から消えてしまう。
-    count = index_documents(
-        client, alias, documents_list, bulk_size=bulk_size, bulk_bytes=bulk_bytes, bulk_concurrency=bulk_concurrency
-    )
-    refresh_search_target(client, alias)
-    delete_documents_for_slugs(
-        client,
-        index_or_alias=alias,
-        doc_type=doc_type,
-        slugs=slugs,
-        indexed_before=update_cutoff,
-    )
+    count = 0
+    if documents_list:
+        count = index_documents(
+            client,
+            alias,
+            documents_list,
+            bulk_size=bulk_size,
+            bulk_bytes=bulk_bytes,
+            bulk_concurrency=bulk_concurrency,
+        )
+        refresh_search_target(client, alias)
+    if delete_slugs:
+        delete_documents_for_slugs(
+            client,
+            index_or_alias=alias,
+            doc_type=doc_type,
+            slugs=delete_slugs,
+            # 全件0の明示削除には今回世代が無いので、時刻条件を付けず全て消す。
+            indexed_before=update_cutoff if documents_list else None,
+        )
     refresh_search_target(client, alias)
     print(f"[DONE] alias={alias} doc_type={doc_type} count={count}", flush=True)
     return count
@@ -1159,6 +1473,7 @@ def update_one(
 
 def main() -> int:
     args = parse_args()
+    reset_source_integrity_tracking()
     build_id = args.build_id.strip() or default_build_id()
     slugs = parse_slug_filter(args.slug)
     mode = args.mode
@@ -1241,6 +1556,7 @@ def main() -> int:
                 bulk_bytes=bulk_bytes,
                 bulk_concurrency=bulk_concurrency,
                 switch_alias=not args.no_switch_alias,
+                allow_empty_slug_delete=bool(args.allow_empty_slug_delete),
             )
         if args.doc_type in {"all", "reiki"}:
             update_one(
@@ -1260,6 +1576,7 @@ def main() -> int:
                 bulk_bytes=bulk_bytes,
                 bulk_concurrency=bulk_concurrency,
                 switch_alias=not args.no_switch_alias,
+                allow_empty_slug_delete=bool(args.allow_empty_slug_delete),
             )
         return 0
 
@@ -1309,6 +1626,45 @@ def main() -> int:
         total_count=total_document_count,
     )
     processed_offset = 0
+
+    def publish_rebuild_slug(
+        doc_type: str, index_name: str, slug: str, source: dict[str, Any]
+    ) -> None:
+        failures = source_integrity_failures(doc_type, slug)
+        if not source_slug_can_be_published(
+            doc_type, slug, allow_partial_alias=bool(args.allow_partial_alias)
+        ):
+            # 最終guardまで待つと、このslugだけ先に新indexへ部分公開され、
+            # 破損ファイル分の旧文書が既に隠れる。失敗slugは旧alias側へ残す。
+            print(
+                f"[WARN] keep old alias documents doc_type={doc_type} slug={slug}; "
+                f"unexplained_drops={len(failures)} example={failures[0]['path']}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return
+        publish_completed_slug(
+            client,
+            doc_type=doc_type,
+            index_name=index_name,
+            minutes_index=built_minutes_index,
+            reiki_index=built_reiki_index,
+            slug=slug,
+            initial_minutes_indices=initial_minutes_indices,
+            initial_reiki_indices=initial_reiki_indices,
+            completed_minutes_slugs=completed_minutes_slugs,
+            completed_reiki_slugs=completed_reiki_slugs,
+            minutes_alias=args.minutes_alias,
+            reiki_alias=args.reiki_alias,
+            documents_alias=args.documents_alias,
+        )
+        search_rebuild_status_slug_published(
+            status_state,
+            source=source,
+            published_slug_count=len(completed_minutes_slugs) + len(completed_reiki_slugs),
+            published_municipality_count=len(completed_minutes_slugs | completed_reiki_slugs),
+        )
+
     try:
         if args.doc_type in {"all", "minutes"}:
             built_minutes_index = resume_index if mode == "resume" else f"miyabe-minutes-v{build_id}"
@@ -1334,28 +1690,8 @@ def main() -> int:
                 slug_complete_callback=(
                     None
                     if args.no_switch_alias
-                    else lambda slug, source, _total: (
-                        publish_completed_slug(
-                            client,
-                            doc_type="minutes",
-                            index_name=built_minutes_index or "",
-                            minutes_index=built_minutes_index,
-                            reiki_index=built_reiki_index,
-                            slug=slug,
-                            initial_minutes_indices=initial_minutes_indices,
-                            initial_reiki_indices=initial_reiki_indices,
-                            completed_minutes_slugs=completed_minutes_slugs,
-                            completed_reiki_slugs=completed_reiki_slugs,
-                            minutes_alias=args.minutes_alias,
-                            reiki_alias=args.reiki_alias,
-                            documents_alias=args.documents_alias,
-                        ),
-                        search_rebuild_status_slug_published(
-                            status_state,
-                            source=source,
-                            published_slug_count=len(completed_minutes_slugs) + len(completed_reiki_slugs),
-                            published_municipality_count=len(completed_minutes_slugs | completed_reiki_slugs),
-                        ),
+                    else lambda slug, source, _total: publish_rebuild_slug(
+                        "minutes", built_minutes_index or "", slug, source
                     )
                 ),
             )
@@ -1384,28 +1720,8 @@ def main() -> int:
                 slug_complete_callback=(
                     None
                     if args.no_switch_alias
-                    else lambda slug, source, _total: (
-                        publish_completed_slug(
-                            client,
-                            doc_type="reiki",
-                            index_name=built_reiki_index or "",
-                            minutes_index=built_minutes_index,
-                            reiki_index=built_reiki_index,
-                            slug=slug,
-                            initial_minutes_indices=initial_minutes_indices,
-                            initial_reiki_indices=initial_reiki_indices,
-                            completed_minutes_slugs=completed_minutes_slugs,
-                            completed_reiki_slugs=completed_reiki_slugs,
-                            minutes_alias=args.minutes_alias,
-                            reiki_alias=args.reiki_alias,
-                            documents_alias=args.documents_alias,
-                        ),
-                        search_rebuild_status_slug_published(
-                            status_state,
-                            source=source,
-                            published_slug_count=len(completed_minutes_slugs) + len(completed_reiki_slugs),
-                            published_municipality_count=len(completed_minutes_slugs | completed_reiki_slugs),
-                        ),
+                    else lambda slug, source, _total: publish_rebuild_slug(
+                        "reiki", built_reiki_index or "", slug, source
                     )
                 ),
             )
@@ -1421,6 +1737,33 @@ def main() -> int:
             )
             if index and count is not None and count <= 0
         ]
+        unexplained_drops = source_integrity_failures()
+        if unexplained_drops:
+            # 候補indexを調査用に残す場合も、どの取得済みpathが落ちたかは
+            # 省略しない。先頭数件だけでは後続の修復対象が失われるため全件出す。
+            for failure in unexplained_drops:
+                print(
+                    "[DROP] "
+                    f"doc_type={failure['doc_type']} slug={failure['slug']} "
+                    f"path={failure['path']} reason={failure['reason']}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+        if unexplained_drops and not args.no_switch_alias and not args.allow_partial_alias:
+            print(
+                f"[ERROR] {len(unexplained_drops)} 件の取得済みファイルを説明なく"
+                "索引へ載せられませんでした。公開 alias は切り替えません。"
+                "意図して公開する場合だけ --allow-partial-alias を付けてください。",
+                file=sys.stderr,
+                flush=True,
+            )
+            search_rebuild_status_finish(
+                status_state,
+                ok=False,
+                message=f"説明不能な取得ファイルdrop {len(unexplained_drops)}件",
+            )
+            return 2
+
         if SKIPPED_SOURCES and not args.no_switch_alias and not args.allow_partial_alias:
             print(
                 f"[ERROR] {len(SKIPPED_SOURCES)} 自治体を列挙できず索引から落としました。"

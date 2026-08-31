@@ -15,7 +15,7 @@ import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 from urllib.parse import parse_qs, unquote_to_bytes, urlsplit, urlunsplit
 
 try:
@@ -97,12 +97,14 @@ def read_text_auto(path: Path) -> str:
     return raw.decode("utf-8", errors="replace")
 
 
-def load_json(path: Path, default: Any) -> Any:
+def load_json(path: Path, default: Any, *, strict: bool = False) -> Any:
     if not path.exists():
         return default
     try:
         return json.loads(read_text_auto(path))
-    except Exception:
+    except Exception as exc:
+        if strict:
+            raise ValueError(f"failed to load JSON path={path}: {exc}") from exc
         return default
 
 
@@ -311,8 +313,19 @@ def extract_year_label(text: str, fallback: str | None = None) -> str | None:
     return label
 
 
+def canonical_year_label(value: str | None) -> str:
+    """照合用の年ラベル。空白と `_` を落として比べる。
+
+    保存先のディレクトリ名は、一覧行の年ラベルから作られるが、改行や空白が
+    `_` に置き換わる。`平成31年・令和元年` が `平成31年・_令和元年` になり、
+    そのままでは一覧行に当たらない。"""
+    return re.sub(r"[\s_]+", "", str(value or ""))
+
+
 def normalize_year_label_candidate(value: str) -> str | None:
     match = YEAR_LABEL_PATTERN.fullmatch(normalize_space(value))
+    if not match:
+        match = YEAR_LABEL_PATTERN.fullmatch(canonical_year_label(value))
     if not match:
         return None
     label = f"{match.group(1)}{to_ascii_digits(match.group(2))}年"
@@ -356,12 +369,40 @@ def accept_minutes_date(
     return value.isoformat(), year, month, day
 
 
+# 曜日と年ラベルで開催日を検算する。取得側と同じ判定を借りる。
+# PDF の OCR が「６／７」を「９」と読むと、年ラベルが令和6年なのに開催日が
+# 2027 年になる（田川市）。本文の曜日はその年と合わないので、そこで落とせる。
+def _plausible_held_on(
+    text: str,
+    title: str,
+    year_label: str,
+    source_year: int | None,
+    source_hint: str,
+) -> str | None:
+    try:
+        from tools.gijiroku import minutes_kind
+    except Exception:
+        return None
+    try:
+        return minutes_kind.extract_plausible_held_on(
+            text,
+            title=title,
+            year_label=year_label,
+            source_year=source_year,
+            filename=source_hint,
+        )
+    except Exception as exc:
+        print(f"[WARN] held-on sanity check failed source={source_hint}: {exc}", file=sys.stderr)
+        return None
+
+
 def extract_held_on(
     text: str,
     title: str,
     source_year: int | None,
     *,
     source_hint: str = "",
+    year_label: str = "",
 ) -> tuple[str | None, int | None, int | None, int | None]:
     source_label = source_hint or title
     explicit_match = re.search(r"(?im)^Held-On:\s*(\d{4})-(\d{2})-(\d{2})\s*$", text)
@@ -371,6 +412,19 @@ def extract_held_on(
             int(explicit_match.group(1)),
             int(explicit_match.group(2)),
             int(explicit_match.group(3)),
+            source_label,
+        )
+        if accepted is not None:
+            return accepted
+    # 明示の Held-On が無いときは、曜日と年ラベルで検算した候補を先に使う。
+    # 本文先頭の最初の和暦をそのまま採ると、OCR の誤読が未来日になる。
+    plausible = _plausible_held_on(text, title, year_label, source_year, source_label)
+    if plausible:
+        accepted = accept_minutes_date(
+            plausible,
+            int(plausible[0:4]),
+            int(plausible[5:7]),
+            int(plausible[8:10]),
             source_label,
         )
         if accepted is not None:
@@ -458,6 +512,22 @@ def minutes_source_numbers_from_url(source_url: str) -> tuple[int | None, int | 
 TOC_TEXT_MAX_LENGTH = 30_000
 
 
+# 会議録かどうかの判定は取得側と索引側で必ず同じものを使う。別々に持つと、
+# 片方だけ直したときに食い違う。取得側が正本なので、そこから借りる。
+def _non_minutes_reason(title: str, text: str) -> str | None:
+    try:
+        from tools.gijiroku import minutes_kind
+    except Exception:
+        # 取得側を読み込めない環境（索引だけを切り出して動かす場合）では、
+        # 判定を諦めて従来どおり会議録として扱う。黙って全部落とす方が危ない。
+        return None
+    try:
+        return minutes_kind.non_minutes_reason(title, text)
+    except Exception as exc:
+        print(f"[WARN] non-minutes check failed title={title!r}: {exc}", file=sys.stderr)
+        return None
+
+
 def classify_doc_type(title: str, text: str, *, ext: str = "") -> str:
     if normalize_space(title).endswith("目次"):
         return "toc"
@@ -465,13 +535,22 @@ def classify_doc_type(title: str, text: str, *, ext: str = "") -> str:
         return "toc"
     if ext.lower() in {".html", ".htm"} and looks_like_minutes_listing_page(text):
         return "aux"
+    # 議案・資料・広報・表紙を会議録として公開しない。スクレイパ側だけを直しても、
+    # 既にディスクにある PDF は次の索引更新でまた会議録として出る。同じ判定を
+    # ここでも通す（飯塚市の「案件1」、長与町の題名「61」など）。
+    if _non_minutes_reason(title, text):
+        return "aux"
     return "minutes"
 
 
-def parse_minutes_source_meta(index_json: Path) -> dict[tuple[str, str, str], MinutesSourceMeta]:
-    rows = load_json(index_json, [])
+def parse_minutes_source_meta(
+    index_json: Path, *, strict: bool = False
+) -> dict[tuple[str, str, str], MinutesSourceMeta]:
+    rows = load_json(index_json, [], strict=strict)
     metas: dict[tuple[str, str, str], MinutesSourceMeta] = {}
     if not isinstance(rows, list):
+        if strict:
+            raise ValueError(f"minutes source metadata must be a list: {index_json}")
         return metas
     for row in rows:
         if not isinstance(row, dict):
@@ -488,8 +567,10 @@ def parse_minutes_source_meta(index_json: Path) -> dict[tuple[str, str, str], Mi
         if meeting_name_hint is None:
             meeting_name_hint = extract_meta_meeting_name(source_url, title)
         meta = MinutesSourceMeta(title, year_label, meeting_name_hint, source_url, source_year, source_fino)
-        metas.setdefault((year_label, title, normalize_space(meeting_name_hint or "")), meta)
-        metas.setdefault((year_label, title, ""), meta)
+        meeting_key = normalize_space(meeting_name_hint or "")
+        for label_key in {year_label, canonical_year_label(year_label)}:
+            metas.setdefault((label_key, title, meeting_key), meta)
+            metas.setdefault((label_key, title, ""), meta)
     return metas
 
 
@@ -502,6 +583,41 @@ def fallback_year_label_from_path(file_path: Path, downloads_dir: Path) -> str |
             return label
     if file_path.parent != downloads_dir:
         return normalize_space(file_path.parent.name) or None
+    return None
+
+
+def year_label_variants(label: str | None) -> list[str]:
+    """`平成31年・令和元年` のような複合ラベルを、片方ずつでも照合できるようにする。"""
+    text = normalize_space(label or "")
+    if text == "":
+        return []
+    variants = [text]
+    for candidate in (canonical_year_label(text), *text.split("・")):
+        candidate = normalize_space(candidate)
+        if candidate and candidate not in variants:
+            variants.append(candidate)
+        canonical = canonical_year_label(candidate)
+        if canonical and canonical not in variants:
+            variants.append(canonical)
+    return variants
+
+
+def lookup_minutes_source_meta(
+    meta_map: dict[tuple[str, str, str], MinutesSourceMeta],
+    title: str,
+    meeting_name: str | None,
+    year_labels: Iterable[str | None],
+) -> MinutesSourceMeta | None:
+    meeting_key = normalize_space(meeting_name or "")
+    seen: set[str] = set()
+    for label in year_labels:
+        for candidate in year_label_variants(label):
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            meta = meta_map.get((candidate, title, meeting_key)) or meta_map.get((candidate, title, ""))
+            if meta is not None:
+                return meta
     return None
 
 
@@ -523,9 +639,16 @@ def build_minutes_record(
     fallback_year_label = fallback_year_label_from_path(file_path, downloads_dir)
     extracted_year_label = extract_year_label(content, fallback=fallback_year_label) or fallback_year_label or "不明"
     meeting_name = extract_meeting_name(content)
-    meta = meta_map.get((extracted_year_label, title, normalize_space(meeting_name or "")))
-    if meta is None:
-        meta = meta_map.get((extracted_year_label, title, ""))
+    # 本文冒頭の年は「会期名の年」であって開催年ではない。令和3年2月の会議が
+    # 「令和2年第2回定例会」と書かれていることがあり、そのまま照合すると
+    # 一覧行に当たらず原典 URL も開催日も落ちる。実データで 917 件がこの形だった。
+    # 保存先の年ラベルは計画時に一覧行から決めた値なので、そちらでも照合する。
+    meta = lookup_minutes_source_meta(
+        meta_map,
+        title,
+        meeting_name,
+        (extracted_year_label, fallback_year_label),
+    )
     source_url = clean_source_url(meta.source_url if meta else "") or extract_source_url_from_text(content)
     source_year = meta.source_year if meta else None
     source_fino = meta.source_fino if meta else None
@@ -538,6 +661,7 @@ def build_minutes_record(
         title,
         source_year,
         source_hint=file_path.relative_to(downloads_dir).as_posix(),
+        year_label=meta.year_label if meta else (fallback_year_label or ""),
     )
     return MinuteRecord(
         rel_path=file_path.relative_to(downloads_dir).as_posix(),
@@ -586,9 +710,13 @@ def collect_reiki_preferred_files(root: Path, suffixes: set[str]) -> dict[str, P
     return preferred
 
 
-def load_reiki_manifest_index(path: Path) -> dict[str, dict[str, Any]]:
-    rows = load_json(path, [])
+def load_reiki_manifest_index(
+    path: Path, *, strict: bool = False
+) -> dict[str, dict[str, Any]]:
+    rows = load_json(path, [], strict=strict)
     if not isinstance(rows, list):
+        if strict:
+            raise ValueError(f"reiki source manifest must be a list: {path}")
         return {}
     index: dict[str, dict[str, Any]] = {}
     for row in rows:
@@ -835,6 +963,8 @@ def build_reiki_record(
     manifest: dict[str, Any] | None,
     prefixes: list[str],
     target: dict[str, Any] | None = None,
+    *,
+    strict: bool = False,
 ) -> dict[str, Any] | None:
     html_content = read_text_auto(html_path)
     content_text = html_to_text(html_content)
@@ -842,8 +972,14 @@ def build_reiki_record(
         content_text = markdown_to_text(read_text_auto(markdown_path))
     if content_text == "":
         return None
-    classification = load_json(classification_path, {}) if classification_path is not None else {}
+    classification = (
+        load_json(classification_path, {}, strict=strict)
+        if classification_path is not None
+        else {}
+    )
     if not isinstance(classification, dict):
+        if strict:
+            raise ValueError(f"reiki classification must be an object: {classification_path}")
         classification = {}
     manifest = manifest if isinstance(manifest, dict) else {}
     fallback_title = normalize_space(str(manifest.get("title", "")).strip()) or Path(key).name
