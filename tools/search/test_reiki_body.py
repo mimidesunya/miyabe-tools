@@ -98,6 +98,19 @@ class ReikiBodyIsSourceOnlyTest(unittest.TestCase):
         for kept in (AI_STANCE, AI_COMBINED_REASON, AI_REASON):
             self.assertIn(kept, evaluation)
 
+    def test_identifiers_glued_to_japanese_are_dropped(self) -> None:
+        # 評価文は `necessityScoreを-1とし、Class Gに分類する` のように、
+        # 識別子と日本語が地続きで書かれる。空白で切ってトークンごとに見ると
+        # 日本語がくっついた分が残り、公開検索に 13 件戻っていた。
+        import build_opensearch_index as indexer
+
+        cleaned = indexer.drop_internal_identifiers(
+            "necessityScoreを-1とし、Class Gに分類する。小さな政府の観点から維持できる。"
+        )
+        self.assertNotIn("necessityScore", cleaned)
+        self.assertNotIn("Class G", cleaned)
+        self.assertIn("小さな政府", cleaned)
+
     def test_internal_identifiers_are_not_search_terms(self) -> None:
         # `necessityScore` は AI 評価の内部の項目名で、利用者が探す語ではない。
         # 検索語に残していたので、本文にその語が無い条例が 13 件ヒットしていた。

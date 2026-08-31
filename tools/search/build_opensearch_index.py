@@ -411,15 +411,19 @@ def stable_local_id(*parts: str) -> str:
 
 # 内部の識別子（`necessityScore`、`fiscalImpactScore`、`Class` など）は
 # 利用者が探す語ではない。検索語から外す。日本語は残す。
-_ASCII_IDENTIFIER_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+# 識別子は日本語と地続きで書かれる（`necessityScoreを-1とし、Class Gに分類する`）。
+# 空白で切ってトークンごとに見ると、日本語がくっついた分が残る。文字列として除く。
+_CAMEL_IDENTIFIER_RE = re.compile(r"[A-Za-z]+[A-Z][A-Za-z0-9_]*")
+_CLASS_LABEL_RE = re.compile(r"(?<![A-Za-z])Class[ 　]*[A-Z](?![A-Za-z])")
 
 
 def drop_internal_identifiers(terms: str) -> str:
-    return " ".join(
-        token
-        for token in str(terms or "").split()
-        if not _ASCII_IDENTIFIER_RE.match(token)
-    )
+    text = str(terms or "")
+    text = _CAMEL_IDENTIFIER_RE.sub(" ", text)
+    text = _CLASS_LABEL_RE.sub(" ", text)
+    # 単独で並ぶ英数字だけのトークンも識別子とみなす。
+    kept = [token for token in text.split() if not token.isascii() or not token.isalnum()]
+    return " ".join(kept)
 
 
 def clean_text(value: Any) -> str:
