@@ -111,32 +111,74 @@ def sample_slugs(doc_type: str, wanted: int, seed: int, only: list[str]) -> list
 
 
 def minutes_reader(module: Any, records: Any) -> Callable[[Path, Path], Any]:
+    """会議録 1 件から、公開に出る値をまとめて返す。
+
+    以前は開催日だけを比べていた。codex と grok の両方が
+    「文書の増減・題名・本文・原典 URL の回帰は止まらない」と指摘した。
+    公開されるフィールドは全部比べる。
+    """
+
     def read(file_path: Path, root: Path) -> Any:
         text = records.read_text_auto(file_path)
         url = records.extract_source_url_from_text(text)
         hint = " ".join(
             part for part in (file_path.relative_to(root).as_posix(), url) if part
         )
+        found: dict[str, Any] = {}
         try:
-            return module.extract_plausible_held_on(
-                text,
+            repaired = records.repair_saved_mojibake(text)
+        except Exception as exc:
+            return {"error": f"repair {type(exc).__name__}: {exc}"}
+        try:
+            found["held_on"] = module.extract_plausible_held_on(
+                repaired,
                 title=file_path.stem,
                 year_label=file_path.parent.name,
                 source_year=None,
                 filename=hint,
             )
-        except Exception as exc:  # 例外そのものが差分である
-            return f"ERROR {type(exc).__name__}"
+        except Exception as exc:
+            found["held_on"] = f"ERROR {type(exc).__name__}"
+        try:
+            found["title"] = module.minutes_display_title(file_path.stem, repaired)
+        except Exception as exc:
+            found["title"] = f"ERROR {type(exc).__name__}"
+        try:
+            # 会議録でないと判定されると索引から落ちる。落ちる・落ちないの
+            # 変化は件数の増減そのものなので、必ず比べる。
+            found["dropped"] = module.non_minutes_reason(file_path.stem, repaired) or ""
+        except Exception as exc:
+            found["dropped"] = f"ERROR {type(exc).__name__}"
+        found["source_url"] = url
+        found["body_length"] = len(repaired)
+        return found
 
     return read
 
 
 def reiki_reader(module: Any, _records: Any) -> Callable[[Path, Path], Any]:
+    """例規 1 件から、公開に出る値をまとめて返す。"""
+
     def read(file_path: Path, _root: Path) -> Any:
         try:
-            return module.extract_date_from_html(module.read_text_auto(file_path))
+            html = module.read_text_auto(file_path)
         except Exception as exc:
-            return f"ERROR {type(exc).__name__}"
+            return {"error": f"read {type(exc).__name__}: {exc}"}
+        found: dict[str, Any] = {}
+        for key, call in (
+            ("promulgated_on", lambda: module.extract_date_from_html(html)),
+            ("title", lambda: module.extract_title_from_html(html, "")),
+            ("number", lambda: module.extract_number_from_html(html)),
+        ):
+            try:
+                found[key] = call()
+            except AttributeError:
+                # 版によって関数が無いことがある。無いことも差分である。
+                found[key] = "(no such function)"
+            except Exception as exc:
+                found[key] = f"ERROR {type(exc).__name__}"
+        found["body_length"] = len(html)
+        return found
 
     return read
 
@@ -188,8 +230,11 @@ def main() -> int:
     slugs = sample_slugs(args.doc_type, args.municipalities, args.seed, only)
 
     same = gained = 0
-    lost: list[tuple[str, str, Any]] = []
-    changed: list[tuple[str, str, Any, Any]] = []
+    lost: list[tuple[str, str, Any, Any]] = []
+    changed: list[tuple[str, str, Any, Any, Any]] = []
+    # どのフィールドが何件変わったか。日付だけを見ていると、題名や原典 URL の
+    # 回帰が「changed」に紛れて見えない。
+    changed_fields: dict[str, int] = {}
     looked = 0
     for slug in slugs:
         try:
@@ -204,12 +249,29 @@ def main() -> int:
             after = read_new(file_path, root)
             if before == after:
                 same += 1
-            elif not before and after:
+                continue
+            # どのフィールドが変わったかまで残す。「変わった」だけでは、
+            # 日付が直ったのか題名が壊れたのかが分からない。
+            fields = sorted(
+                set(before or {}) | set(after or {})
+                if isinstance(before, dict) and isinstance(after, dict)
+                else {"value"}
+            )
+            differing = [
+                name
+                for name in fields
+                if (before or {}).get(name) != (after or {}).get(name)
+            ] if isinstance(before, dict) and isinstance(after, dict) else ["value"]
+            for name in differing:
+                changed_fields[name] = changed_fields.get(name, 0) + 1
+            was = (before or {}).get("held_on") or (before or {}).get("promulgated_on")                 if isinstance(before, dict) else before
+            now = (after or {}).get("held_on") or (after or {}).get("promulgated_on")                 if isinstance(after, dict) else after
+            if not was and now:
                 gained += 1
-            elif before and not after:
-                lost.append((slug, file_path.name, before))
+            elif was and not now:
+                lost.append((slug, file_path.name, was, differing))
             else:
-                changed.append((slug, file_path.name, before, after))
+                changed.append((slug, file_path.name, differing, was, now))
 
     summary = {
         "doc_type": args.doc_type,
@@ -218,6 +280,7 @@ def main() -> int:
         "gained": gained,
         "lost": len(lost),
         "changed": len(changed),
+        "changed_fields": dict(sorted(changed_fields.items(), key=lambda kv: -kv[1])),
         "lost_examples": lost[:20],
         "changed_examples": changed[:20],
     }
