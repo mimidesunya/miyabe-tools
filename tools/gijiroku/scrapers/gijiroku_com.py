@@ -432,6 +432,8 @@ def discover_legacy_voices_meeting_items(
     pending_pages: set[str] = {"1"}
     meetings: list[MeetingItem] = []
     declared_totals: list[int] = []
+    # 開けなかった一覧。その先の会議はまるごと見えなくなるので、数えて残す。
+    missed_pages: list[str] = []
 
     while pending_urls:
         page_url = pending_urls.pop(0)
@@ -443,8 +445,17 @@ def discover_legacy_voices_meeting_items(
         page_number = (parse_qs(urlsplit(page_url).query).get("PAGE") or ["1"])[0]
         pending_pages.discard(page_number)
 
-        raw_html, _ = fetch_response_text(request_context, page_url, timeout_ms)
+        try:
+            raw_html, _ = fetch_response_text(request_context, page_url, timeout_ms)
+        except Exception as exc:
+            # 年リンクを 1 本取れなかっただけで自治体をまるごと落とさない。
+            # 西宮市は 5,067 件のうち 9 件を取った時点でタイムアウトし、
+            # 例外が上まで抜けて全部が失われた。開けなかった枝は数えて続ける。
+            print(f"[WARN] 一覧を取得できません: {page_url} ({type(exc).__name__})", flush=True)
+            missed_pages.append(page_url)
+            continue
         if not raw_html:
+            missed_pages.append(page_url)
             continue
         declared = declared_total_from_html(raw_html)
         if declared > 0:
@@ -462,6 +473,10 @@ def discover_legacy_voices_meeting_items(
     uniq: dict[tuple[str, str], MeetingItem] = {}
     for item in meetings:
         uniq[(item.title, item.url)] = item
+    if coverage is not None and missed_pages:
+        coverage["missed_pages"] = len(missed_pages)
+        coverage["missed_examples"] = missed_pages[:10]
+        print(f"[WARN] 一覧 {len(missed_pages)} 件を開けませんでした。", flush=True)
     if coverage is not None and declared_totals:
         # 旧経路でも取得元の申告母数を残す。富士市はここで 14 件しか拾えず、
         # 一覧は 1,761 件と申告していた。比べる相手を捨てていた。
@@ -515,7 +530,9 @@ def discover_meeting_items(
     for year_label, year_url in year_pages:
         try:
             page.goto(year_url, wait_until="domcontentloaded", timeout=timeout_ms)
-        except Exception:
+        except Exception as exc:
+            # 1 年分を開けないだけで自治体を落とさない。数えて続ける。
+            print(f"[WARN] 年度ページを開けません: {year_label} ({type(exc).__name__})", flush=True)
             skipped_years += 1
             continue
         try:
