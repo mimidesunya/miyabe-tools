@@ -250,3 +250,28 @@ class UnregisteredTest(unittest.TestCase):
         )
         self.assertEqual(section["missing"], 1)
         self.assertEqual(section["reasons"], {"no_saved_files": 1})
+
+
+class DateMismatchTest(unittest.TestCase):
+    """題名の月日と開催日が食い違う自治体を挙げる。
+
+    件数だけを見ていると、空欄ではなく「もっともらしく誤る」形が見えない。
+    若桜町は題名 `6月17日` に対し開催日が 6月16日（招集日）だった。公開
+    件数は正しく、日付だけが 1 日ずれていた。
+    """
+
+    def test_finds_a_town_with_many_mismatches(self):
+        found = ledger.date_mismatch_rows({"31325-wakasa-cho": (100, 40), "ok": (100, 2)})
+        self.assertEqual([row["slug"] for row in found], ["31325-wakasa-cho"])
+        self.assertEqual(found[0]["mismatched"], 40)
+
+    def test_a_small_sample_is_not_judged(self):
+        self.assertEqual(ledger.date_mismatch_rows({"a": (5, 5)}), [])
+
+    def test_a_few_mismatches_are_tolerated(self):
+        """会期をまたぐ会議など、正しくずれる文書もある。"""
+        self.assertEqual(ledger.date_mismatch_rows({"a": (100, 5)}), [])
+
+    def test_the_worst_ratio_comes_first(self):
+        found = ledger.date_mismatch_rows({"a": (100, 20), "b": (100, 90)})
+        self.assertEqual([row["slug"] for row in found], ["b", "a"])

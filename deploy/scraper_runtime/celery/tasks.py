@@ -870,6 +870,54 @@ def sweep_never_indexed(limit: int = 0) -> dict[str, object]:
     return {"ok": True, "task": "sweep_never_indexed", "requeued": requeued}
 
 
+# 題名の月日と、索引の日付が食い違う件数を自治体ごとに数える。
+#
+# 無作為に取った標本で見る。全件を歩くと重いし、傾向を見るには標本で足りる。
+def _date_mismatch_samples(client, alias: str, doc_type: str) -> dict[str, tuple[int, int]]:
+    import re as _re
+
+    date_field = "held_on" if doc_type == "minutes" else "promulgated_on"
+    month_day = _re.compile(r"(?<![0-9])([0-9]{1,2})\s*月\s*([0-9]{1,2})\s*日")
+    body = {
+        "size": 4000,
+        "query": {
+            "function_score": {
+                "query": {"bool": {"filter": [
+                    {"exists": {"field": date_field}},
+                    {"exists": {"field": "title"}},
+                ]}},
+                "random_score": {"seed": 41, "field": "_seq_no"},
+            }
+        },
+        "_source": ["slug", "title", date_field],
+    }
+    try:
+        response = client.request("POST", f"/{alias}/_search", body=body)
+    except Exception as exc:
+        print(f"[CELERY] {alias} 日付の食い違いを見られませんでした: {exc}", flush=True)
+        return {}
+    found: dict[str, list[int]] = {}
+    for hit in response.get("hits", {}).get("hits", []):
+        source = hit.get("_source") or {}
+        matched = month_day.search(str(source.get("title") or ""))
+        value = str(source.get(date_field) or "")[:10]
+        if not matched or len(value) != 10:
+            continue
+        slug = str(source.get("slug") or "")
+        counts = found.setdefault(slug, [0, 0])
+        counts[0] += 1
+        try:
+            same = (int(value[5:7]), int(value[8:10])) == (
+                int(matched.group(1)),
+                int(matched.group(2)),
+            )
+        except ValueError:
+            continue
+        if not same:
+            counts[1] += 1
+    return {slug: (counts[0], counts[1]) for slug, counts in found.items()}
+
+
 # 自治体マスタの全コード。台帳の分母はここから作る。取得先レジストリを
 # 分母にすると、取得元を登録できていない自治体が数え上げから消える。
 def _master_codes() -> set[str]:
@@ -1011,6 +1059,11 @@ def write_coverage_ledger() -> dict[str, object]:
             )
             section["shortfall"] = len(section["shortfall_rows"])
             section["declared_known"] = len(declared_by_slug)
+            # 題名の月日と日付が食い違う自治体。件数だけを見ていると、
+            # 空欄ではなく「もっともらしく誤る」形が見えない。
+            samples = _date_mismatch_samples(client, alias, doc_type)
+            section["date_mismatch_rows"] = coverage_ledger.date_mismatch_rows(samples)
+            section["date_mismatch"] = len(section["date_mismatch_rows"])
         except Exception as exc:
             print(f"[CELERY] {kind} 件数の偏りを見られませんでした: {exc}", flush=True)
             # 見られなかったことを「偏り 0 件」と書かない。
@@ -1018,6 +1071,8 @@ def write_coverage_ledger() -> dict[str, object]:
             section["thin"] = None
             section["shortfall_rows"] = []
             section["shortfall"] = None
+            section["date_mismatch_rows"] = []
+            section["date_mismatch"] = None
             section["errors"] = [f"件数の偏りを見られなかった: {exc}"]
         sections.append(section)
         print(
@@ -1026,7 +1081,8 @@ def write_coverage_ledger() -> dict[str, object]:
             f"公開 {section['published']} 件、未公開 {section['missing']} 件 "
             f"{section['reasons']}、申告母数に届かない {section.get('shortfall', 0)} 件"
             f"（母数が読めた {section.get('declared_known', 0)} 件）"
-            f"、仲間より極端に少ない {section.get('thin', 0)} 件",
+            f"、仲間より極端に少ない {section.get('thin', 0)} 件"
+            f"、題名と日付が食い違う {section.get('date_mismatch', 0)} 件",
             flush=True,
         )
     if sections:
@@ -1050,6 +1106,7 @@ def write_coverage_ledger() -> dict[str, object]:
                 "thin": s.get("thin", 0),
                 "shortfall": s.get("shortfall", 0),
                 "declared_known": s.get("declared_known", 0),
+                "date_mismatch": s.get("date_mismatch", 0),
             }
             for s in sections
         ],

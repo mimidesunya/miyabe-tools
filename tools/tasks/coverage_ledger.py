@@ -124,6 +124,45 @@ def declared_shortfall(
     return found
 
 
+# 題名の月日と開催日が食い違う割合が、これを超えたら疑う。
+# 同じ自治体でまとまって出るなら、解釈が古いか誤っている。
+DATE_MISMATCH_RATIO = 0.1
+# 題名に月日を持つ文書がこれより少ないと、割合が当てにならない。
+DATE_MISMATCH_MIN_SAMPLES = 20
+
+
+def date_mismatch_rows(
+    samples_by_slug: dict[str, tuple[int, int]],
+    *,
+    ratio: float = DATE_MISMATCH_RATIO,
+    min_samples: int = DATE_MISMATCH_MIN_SAMPLES,
+) -> list[dict[str, Any]]:
+    """題名の月日と開催日が食い違う自治体を返す。
+
+    件数だけを見ていると、**空欄ではなく「もっともらしく誤る」**形が
+    見えない。若桜町は題名 `6月17日` に対し開催日が 6月16日（招集日）で、
+    公開件数は正しく、日付だけが 1 日ずれていた。
+
+    `samples_by_slug` は `slug -> (題名に月日がある件数, 食い違う件数)`。
+    """
+    found: list[dict[str, Any]] = []
+    for slug, (checked, mismatched) in samples_by_slug.items():
+        if int(checked) < int(min_samples):
+            continue
+        if int(mismatched) < int(checked) * float(ratio):
+            continue
+        found.append(
+            {
+                "slug": slug,
+                "checked": int(checked),
+                "mismatched": int(mismatched),
+                "ratio": round(mismatched / checked, 3) if checked else 0.0,
+            }
+        )
+    found.sort(key=lambda row: -row["ratio"])
+    return found
+
+
 def classify(slug: str, *, published: bool, saved_files: int, excluded: bool) -> str:
     """その自治体が公開に出ていない理由を返す。出ているなら空。"""
     if published:
