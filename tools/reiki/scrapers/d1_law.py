@@ -38,7 +38,9 @@ DELAY = 0.5
 # 空のまま保存されていた。本番で 4 自治体・約 4,900 件（石狩市 1,246 /
 # 京都市 1,156 / 江別市 1,019 / 留寿都村 655）。題名と日付は読めていたので
 # 件数では出てこない。原典は変わっていないので、この値を上げないと直らない。
-PARSER_VERSION = 2
+# 3: 新しい Reiki-Base の本文（`div#primary.joubun`）を取り出す。牛久市
+#    1,001 件・福岡市 1,136 件が、題名と日付は読めるのに本文が空だった。
+PARSER_VERSION = 3
 UNPARSED_VERSION = 0
 OPENSEARCH_TOP_LEVEL_RE = re.compile(r"mkjG\('([0-9]{3}:[0-9]{2}:[0-9]{2})'\)")
 OPENSEARCH_RESULT_RE = re.compile(

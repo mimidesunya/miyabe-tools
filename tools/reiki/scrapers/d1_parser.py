@@ -61,6 +61,16 @@ def wareki_to_seireki(wareki_str):
 # そのまま並んでいるので、条文はあるのに `law-content` が空になる。
 # 本番で 4 自治体・約 4,900 件がこの形だった（石狩市 1,246 / 京都市 1,156 /
 # 江別市 1,019 / 留寿都村 655）。題名と日付は読めていたので件数では出てこない。
+# 新しい Reiki-Base は本文を `div#primary.joubun` に置く。段落の class も
+# `danraku-normal` ではなく `clause` などに変わっている。牛久市 1,001 件・
+# 福岡市 1,136 件は、題名と日付は読めるのに本文が空だった。件数では出ない。
+def reiki_base_content_container(soup):
+    container = soup.find("div", id="primary")
+    if container is None:
+        return None
+    return container if container.get_text(strip=True) else None
+
+
 def fallback_content_container(soup):
     paragraphs = soup.find_all("div", class_="danraku-normal")
     if not paragraphs:
@@ -248,7 +258,11 @@ def parse_html(file_path, *, base_url, images_dir, image_public_url, stats=None)
         raw_date_text = date_div.get_text().strip()
         date_str = wareki_to_seireki(raw_date_text)
 
-    content_div = soup.find("div", class_="USER-SET-STYLE") or fallback_content_container(soup)
+    content_div = (
+        soup.find("div", class_="USER-SET-STYLE")
+        or fallback_content_container(soup)
+        or reiki_base_content_container(soup)
+    )
     markdown_content = []
     if content_div:
         for element in content_div.find_all(["div", "table"]):
