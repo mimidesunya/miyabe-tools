@@ -177,3 +177,36 @@ class MeasurementStatusTest(unittest.TestCase):
                 batch_status.status_root = original
         self.assertEqual(loaded["measurement_status"], ledger.MEASUREMENT_PARTIAL)
         self.assertEqual(loaded["measured_doc_types"], ["reiki"])
+
+
+class DeclaredShortfallTest(unittest.TestCase):
+    """取得元の申告母数と比べる。**これが本来の指標。**
+
+    富士市は一覧が 1,761 件と申告しているのに 14 件しか公開していなかった。
+    仲間の中央値ではなく、取得元が出している数と比べれば一発で分かる。
+    codex と grok が揃って指摘した。
+    """
+
+    def test_finds_a_town_far_below_its_own_source(self):
+        found = ledger.declared_shortfall({"22210-fuji-shi": 1761}, {"22210-fuji-shi": 14})
+        self.assertEqual(found[0]["slug"], "22210-fuji-shi")
+        self.assertEqual(found[0]["declared"], 1761)
+        self.assertEqual(found[0]["published"], 14)
+
+    def test_a_town_within_range_is_not_flagged(self):
+        """索引は会議録でないものを落とすので、申告どおりにはならない。"""
+        self.assertEqual(ledger.declared_shortfall({"a": 1000}, {"a": 800}), [])
+
+    def test_no_declared_total_is_not_judged(self):
+        """母数を出さない取得元は、ここでは判定しない。"""
+        self.assertEqual(ledger.declared_shortfall({"a": 0}, {"a": 5}), [])
+
+    def test_the_worst_ratio_comes_first(self):
+        found = ledger.declared_shortfall(
+            {"a": 1000, "b": 1000}, {"a": 400, "b": 10}
+        )
+        self.assertEqual([row["slug"] for row in found], ["b", "a"])
+
+    def test_a_town_with_nothing_published_is_included(self):
+        found = ledger.declared_shortfall({"a": 500}, {})
+        self.assertEqual(found[0]["published"], 0)

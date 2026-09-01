@@ -334,6 +334,29 @@ def read_offered_meeting_types(request_context, base_url: str, timeout_ms: int) 
     return labels
 
 
+# 一覧が自分で申告している件数。「1,607件の日程がヒットしました」。
+# **取得元が持っている母数**であり、こちらが何件取れたかを比べる相手である。
+# codex と grok が揃って「測るべきは公開件数同士の比ではなく、取得元の申告
+# 母数との比」と指摘した。富士市は 14/1,761、各務原市は 23/1,607 だった。
+DECLARED_TOTAL_RE = re.compile(r"([0-9,]+)\s*件の日程がヒット")
+
+
+def declared_total_from_html(html: str) -> int:
+    """一覧が申告する総件数。読めなければ 0。
+
+    件数は `<b>1,607</b>件の日程がヒット` のようにタグで囲まれることがある。
+    タグを外してから数える。
+    """
+    plain = re.sub(r"<[^>]+>", "", str(html or ""))
+    match = DECLARED_TOTAL_RE.search(plain)
+    if not match:
+        return 0
+    try:
+        return int(match.group(1).replace(",", ""))
+    except ValueError:
+        return 0
+
+
 def parse_legacy_voices_list_page(raw_html: str, page_url: str) -> tuple[list[MeetingItem], list[str]]:
     soup = BeautifulSoup(raw_html, "html.parser")
     meetings: list[MeetingItem] = []
@@ -397,6 +420,7 @@ def discover_legacy_voices_meeting_items(
     timeout_ms: int,
     max_meetings: int,
     delay_seconds: float,
+    coverage: dict | None = None,
 ) -> list[MeetingItem]:
     # KGTP は会議種別の指定。取得元によって割り当てが違い、大田区では
     # 1=本会議 / 2=その他 / 3=委員会 だった。1,2 だけを指定していたため
@@ -407,6 +431,7 @@ def discover_legacy_voices_meeting_items(
     visited_pages: set[str] = set()
     pending_pages: set[str] = {"1"}
     meetings: list[MeetingItem] = []
+    declared_totals: list[int] = []
 
     while pending_urls:
         page_url = pending_urls.pop(0)
@@ -421,6 +446,9 @@ def discover_legacy_voices_meeting_items(
         raw_html, _ = fetch_response_text(request_context, page_url, timeout_ms)
         if not raw_html:
             continue
+        declared = declared_total_from_html(raw_html)
+        if declared > 0:
+            declared_totals.append(declared)
         page_meetings, page_urls = parse_legacy_voices_list_page(raw_html, page_url)
         meetings.extend(page_meetings)
         if max_meetings > 0 and len(meetings) >= max_meetings:
@@ -434,6 +462,10 @@ def discover_legacy_voices_meeting_items(
     uniq: dict[tuple[str, str], MeetingItem] = {}
     for item in meetings:
         uniq[(item.title, item.url)] = item
+    if coverage is not None and declared_totals:
+        # 旧経路でも取得元の申告母数を残す。富士市はここで 14 件しか拾えず、
+        # 一覧は 1,761 件と申告していた。比べる相手を捨てていた。
+        coverage["declared_total"] = max(declared_totals)
     return list(uniq.values())
 
 
@@ -447,6 +479,8 @@ def discover_meeting_items(
 ) -> list[MeetingItem]:
     meetings: list[MeetingItem] = []
     year_pages: list[tuple[str, str]] = []
+    # 一覧が「N件の日程がヒットしました」と申告した数。年度ごとに出る。
+    declared_totals: list[int] = []
     # 開けなかった年度ページを数える。黙って continue すると、
     # 一年分まるごと落としたことが記録に残らない。
     walked_years = 0
@@ -509,6 +543,12 @@ def discover_meeting_items(
             continue
         walked_years += 1
 
+        # 一覧が申告する母数を控える。取れた件数と比べる相手はこれである。
+        try:
+            declared_totals.append(declared_total_from_html(frame.content()))
+        except Exception:
+            pass
+
         anchors = frame.locator("a")
         count = anchors.count()
         pending_url = ""
@@ -555,6 +595,9 @@ def discover_meeting_items(
                 "declared_years": len(year_pages),
                 "walked_years": walked_years,
                 "skipped_years": skipped_years,
+                # 取得元の申告母数。年度で絞らない一覧が出す全体の件数と
+                # 同じ値が各年度ページにも出るので、最大値を取る。
+                "declared_total": max(declared_totals) if declared_totals else 0,
             }
         )
     uniq: dict[tuple[str, str], MeetingItem] = {}
@@ -574,6 +617,7 @@ def discover_meeting_items(
         timeout_ms,
         max_meetings,
         delay_seconds,
+        coverage=coverage,
     )
 
 

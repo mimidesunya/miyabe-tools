@@ -84,6 +84,46 @@ def thin_slugs(
     return found
 
 
+# 取得元の申告母数に対して、これを下回るなら取り切れていない。
+# 索引は会議録でないものを落とすので、申告どおりの数にはならない。
+DECLARED_RATIO = 0.5
+
+
+def declared_shortfall(
+    declared_by_slug: dict[str, int],
+    counts_by_slug: dict[str, int],
+    *,
+    ratio: float = DECLARED_RATIO,
+) -> list[dict[str, Any]]:
+    """取得元が申告した母数に対して、公開が明らかに足りない自治体を返す。
+
+    **これが本来の指標である。**仲間の中央値と比べるのは、母数が読めない
+    取得元のための最後の網でしかない。codex と grok が揃って指摘した。
+
+    富士市は一覧が 1,761 件と申告しているのに 14 件しか公開していなかった。
+    各務原市は 1,607 件に対して 23 件。どちらも取得元が数を出しているのに、
+    こちらが比べていなかった。
+    """
+    found: list[dict[str, Any]] = []
+    for slug, declared in declared_by_slug.items():
+        declared = int(declared or 0)
+        if declared <= 0:
+            continue
+        published = int(counts_by_slug.get(slug, 0))
+        if published >= declared * float(ratio):
+            continue
+        found.append(
+            {
+                "slug": slug,
+                "declared": declared,
+                "published": published,
+                "ratio": round(published / declared, 3) if declared else 0.0,
+            }
+        )
+    found.sort(key=lambda row: (row["ratio"], -row["declared"]))
+    return found
+
+
 def classify(slug: str, *, published: bool, saved_files: int, excluded: bool) -> str:
     """その自治体が公開に出ていない理由を返す。出ているなら空。"""
     if published:

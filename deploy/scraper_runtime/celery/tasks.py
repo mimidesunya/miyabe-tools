@@ -870,6 +870,36 @@ def sweep_never_indexed(limit: int = 0) -> dict[str, object]:
     return {"ok": True, "task": "sweep_never_indexed", "requeued": requeued}
 
 
+# 取得元が「N 件ある」と申告した数を、保存済みの走査記録から拾う。
+#
+# 取得元は自分が持っている数を出している（gijiroku.com の「1,607件の日程が
+# ヒットしました」、legal-square の件数表示、d1-law OpenSearch の総数）。
+# 公開件数同士を比べるより、この数と比べるほうが正しい。
+def _declared_totals(kind: str, targets: list[dict[str, object]]) -> dict[str, int]:
+    import json as _json
+    from pathlib import Path as _Path
+
+    found: dict[str, int] = {}
+    for target in targets:
+        slug = str(target.get("slug") or "").strip()
+        if not slug:
+            continue
+        try:
+            if kind == "gijiroku":
+                state_path = _Path(str(target["downloads_dir"])).parent / "scrape_state.json"
+                payload = _json.loads(state_path.read_text(encoding="utf-8"))
+                coverage = payload.get("source_coverage") or {}
+            else:
+                coverage_path = _Path(str(target["source_dir"])).parent / "source_coverage.json"
+                coverage = _json.loads(coverage_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        declared = int(coverage.get("declared_total") or 0)
+        if declared > 0:
+            found[slug] = declared
+    return found
+
+
 # 取りこぼしの台帳を書き出す。**直す仕組みではなく、見える仕組み。**
 #
 # 工程ごとの成功は既に記録している。足りないのは端から端までの答えで、
@@ -951,17 +981,29 @@ def write_coverage_ledger() -> dict[str, object]:
             }
             section["thin_rows"] = coverage_ledger.thin_slugs(counts_by_slug, system_by_slug)
             section["thin"] = len(section["thin_rows"])
+            # 取得元が申告した母数と比べる。**これが本来の指標。**仲間の
+            # 中央値は、母数が読めない取得元のための最後の網でしかない。
+            declared_by_slug = _declared_totals(kind, targets)
+            section["shortfall_rows"] = coverage_ledger.declared_shortfall(
+                declared_by_slug, counts_by_slug
+            )
+            section["shortfall"] = len(section["shortfall_rows"])
+            section["declared_known"] = len(declared_by_slug)
         except Exception as exc:
             print(f"[CELERY] {kind} 件数の偏りを見られませんでした: {exc}", flush=True)
             # 見られなかったことを「偏り 0 件」と書かない。
             section["thin_rows"] = []
             section["thin"] = None
+            section["shortfall_rows"] = []
+            section["shortfall"] = None
             section["errors"] = [f"件数の偏りを見られなかった: {exc}"]
         sections.append(section)
         print(
             f"[CELERY] {kind}: 対象 {section['targets']} 件のうち "
             f"公開 {section['published']} 件、未公開 {section['missing']} 件 "
-            f"{section['reasons']}、仲間より極端に少ない {section.get('thin', 0)} 件",
+            f"{section['reasons']}、申告母数に届かない {section.get('shortfall', 0)} 件"
+            f"（母数が読めた {section.get('declared_known', 0)} 件）"
+            f"、仲間より極端に少ない {section.get('thin', 0)} 件",
             flush=True,
         )
     if sections:
@@ -983,6 +1025,8 @@ def write_coverage_ledger() -> dict[str, object]:
                 "missing": s["missing"],
                 "reasons": s["reasons"],
                 "thin": s.get("thin", 0),
+                "shortfall": s.get("shortfall", 0),
+                "declared_known": s.get("declared_known", 0),
             }
             for s in sections
         ],
