@@ -581,6 +581,15 @@ def iter_minutes_documents(
         if target_slug in skip_slugs:
             continue
         downloads_dir = Path(target["downloads_dir"])
+        # 保存ディレクトリが見えないのは「文書が無い」ではない。取得側の
+        # データを共有していないワーカーで走らせると、全自治体が 0 件に
+        # なり、しかも成功として終わる。例規ワーカーで会議録を索引したときに
+        # 実際に起きた。**見えないことを 0 件にしない。**
+        if not downloads_dir.exists() and slugs and target_slug in slugs:
+            raise RuntimeError(
+                f"保存ディレクトリが見当たりません: {downloads_dir}。"
+                "この worker から取得データが見えていない可能性があります。"
+            )
         if not downloads_dir.is_dir():
             continue
         meta = target_metadata(target)
@@ -777,6 +786,19 @@ def iter_reiki_documents(
             continue
         clean_html_dir = Path(target["html_dir"])
         source_html_dir = Path(target["source_dir"])
+        # 会議録側と同じ理由。保存ディレクトリが見えないのは「文書が無い」では
+        # ない。取得データを共有していない worker で走らせると全自治体が 0 件に
+        # なり、しかも成功で終わる。**見えないことを 0 件にしない。**
+        if (
+            slugs
+            and target_slug in slugs
+            and not clean_html_dir.exists()
+            and not source_html_dir.exists()
+        ):
+            raise RuntimeError(
+                f"保存ディレクトリが見当たりません: {clean_html_dir}。"
+                "この worker から取得データが見えていない可能性があります。"
+            )
         html_root = clean_html_dir if clean_html_dir.is_dir() else source_html_dir
         has_local_detail = clean_html_dir.is_dir()
         if not html_root.is_dir():
