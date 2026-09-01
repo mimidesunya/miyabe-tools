@@ -894,6 +894,8 @@ def write_coverage_ledger() -> dict[str, object]:
         insecure_dev=celery_runtime.env_text("OPENSEARCH_INSECURE_DEV", "").lower() in ("1", "true", "yes", "on"),
     )
     sections: list[dict[str, object]] = []
+    # 数えられなかった区分。空のまま書くと「異常 0 件」に見える。
+    failures: list[str] = []
     for kind, doc_type, alias_env, alias_default, iter_targets, counter in (
         (
             "gijiroku",
@@ -916,7 +918,10 @@ def write_coverage_ledger() -> dict[str, object]:
         try:
             published = stale_generation.slugs_with_documents(client, alias, doc_type)
         except Exception as exc:
+            # 数えられなかった区分を黙って飛ばすと、その区分は「異常 0 件」に
+            # 見える。飛ばした事実を残し、最後に台帳の状態へ反映する。
             print(f"[CELERY] {kind} 索引の自治体一覧を読めませんでした: {exc}", flush=True)
+            failures.append(f"{doc_type}: 索引の自治体一覧を読めなかった: {exc}")
             continue
         targets = list(iter_targets())
         try:
@@ -928,6 +933,7 @@ def write_coverage_ledger() -> dict[str, object]:
             )
         except Exception as exc:
             print(f"[CELERY] {kind} 台帳を組み立てられませんでした: {exc}", flush=True)
+            failures.append(f"{doc_type}: 台帳を組み立てられなかった: {exc}")
             continue
         # 0 件でなくても取りこぼしは起きる。同じ系統の仲間と比べて極端に
         # 少ない自治体を挙げる。富士市は 1,666 件あるところを 14 件しか
@@ -947,8 +953,10 @@ def write_coverage_ledger() -> dict[str, object]:
             section["thin"] = len(section["thin_rows"])
         except Exception as exc:
             print(f"[CELERY] {kind} 件数の偏りを見られませんでした: {exc}", flush=True)
+            # 見られなかったことを「偏り 0 件」と書かない。
             section["thin_rows"] = []
-            section["thin"] = 0
+            section["thin"] = None
+            section["errors"] = [f"件数の偏りを見られなかった: {exc}"]
         sections.append(section)
         print(
             f"[CELERY] {kind}: 対象 {section['targets']} 件のうち "
@@ -958,9 +966,17 @@ def write_coverage_ledger() -> dict[str, object]:
         )
     if sections:
         coverage_ledger.write_ledger(sections)
+    status = coverage_ledger.measurement_status(sections)
+    if status != coverage_ledger.MEASUREMENT_COMPLETE:
+        # 台帳を数え切れなかった実行は失敗として扱う。成功として返すと、
+        # 「異常が無い」と「数えられなかった」が同じ見え方になる。
+        raise RuntimeError(
+            f"取りこぼし台帳を数え切れませんでした（{status}）: {failures or '区分が欠けています'}"
+        )
     return {
         "ok": True,
         "task": "write_coverage_ledger",
+        "measurement_status": status,
         "sections": [
             {
                 "doc_type": s["doc_type"],

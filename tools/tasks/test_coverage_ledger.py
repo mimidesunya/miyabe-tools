@@ -137,3 +137,43 @@ class ThinSlugsTest(unittest.TestCase):
         counts["zero"] = 0
         systems = {slug: "taikei" for slug in counts}
         self.assertEqual(ledger.thin_slugs(counts, systems), [])
+
+
+class MeasurementStatusTest(unittest.TestCase):
+    """数え切れなかったことを、異常 0 件と読ませない。
+
+    台帳は照会に失敗した区分を黙って飛ばし、それでも `ok: True` を返して
+    いた。**今日直した不具合と同じ形が、監視の側へ移っていた。**
+    codex と grok の両方が最優先の指摘として挙げた。
+    """
+
+    def test_both_sections_measured(self):
+        sections = [{"doc_type": "minutes"}, {"doc_type": "reiki"}]
+        self.assertEqual(ledger.measurement_status(sections), ledger.MEASUREMENT_COMPLETE)
+
+    def test_one_section_missing_is_partial(self):
+        self.assertEqual(
+            ledger.measurement_status([{"doc_type": "reiki"}]), ledger.MEASUREMENT_PARTIAL
+        )
+
+    def test_nothing_measured_is_failed(self):
+        self.assertEqual(ledger.measurement_status([]), ledger.MEASUREMENT_FAILED)
+
+    def test_an_error_inside_a_section_is_partial(self):
+        sections = [
+            {"doc_type": "minutes", "errors": ["件数の偏りを見られませんでした"]},
+            {"doc_type": "reiki"},
+        ]
+        self.assertEqual(ledger.measurement_status(sections), ledger.MEASUREMENT_PARTIAL)
+
+    def test_the_status_is_written(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            original = batch_status.status_root
+            batch_status.status_root = lambda: Path(tmp)
+            try:
+                ledger.write_ledger([{"doc_type": "reiki"}])
+                loaded = ledger.read_ledger()
+            finally:
+                batch_status.status_root = original
+        self.assertEqual(loaded["measurement_status"], ledger.MEASUREMENT_PARTIAL)
+        self.assertEqual(loaded["measured_doc_types"], ["reiki"])

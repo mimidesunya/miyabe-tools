@@ -758,6 +758,7 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                 segments = [{"id": "", "text": "全件", "children": []}]
             else:
                 print(f"[INFO] 種別 {len(segments)} 件で分割します", flush=True)
+            before_segments = emit_total
             for seg_index, segment in enumerate(segments, 1):
                 if stopped:
                     break
@@ -766,6 +767,16 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                     f"[INFO] {seg_index}/{len(segments)} {segment['text']} 完了（累計 {emit_total}件）",
                     flush=True,
                 )
+            # 種別で絞ると 1 件も返らない取得元がある。浦安市はどの種別を
+            # 選んでも「0件」で、上限 100 件のまま終わっていた。種別の分割が
+            # 何も足さなかったのなら、種別を使わず日付だけで割り直す。
+            if emit_total == before_segments and segments and segments[0]["id"]:
+                print(
+                    "[INFO] 種別で絞ると 0 件になる取得元です。制定年月日だけで分割し直します。",
+                    flush=True,
+                )
+                collect({"id": "", "text": "全件", "children": []}, None, 0)
+                print(f"[INFO] 制定年月日での分割 完了（累計 {emit_total}件）", flush=True)
 
         browser.close()
 

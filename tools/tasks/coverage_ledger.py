@@ -155,12 +155,42 @@ def build_section(
     }
 
 
+# 台帳そのものの状態。**「異常 0 件」と「異常を数えられなかった」を
+# 同じ値にしない。**これは今日直した不具合と同じ形が、監視の側へ移ったもので、
+# codex と grok の両方が最優先の指摘として挙げた。
+MEASUREMENT_COMPLETE = "complete"
+MEASUREMENT_PARTIAL = "partial"
+MEASUREMENT_FAILED = "failed"
+
+# 台帳に必ず入るべき区分。欠けたまま書けば、欠けた区分は「異常 0」に見える。
+REQUIRED_DOC_TYPES = ("minutes", "reiki")
+
+
+def measurement_status(sections: list[dict[str, Any]]) -> str:
+    """台帳をどこまで数えられたかを返す。"""
+    present = {str(section.get("doc_type") or "") for section in sections}
+    missing = [name for name in REQUIRED_DOC_TYPES if name not in present]
+    if len(missing) == len(REQUIRED_DOC_TYPES):
+        return MEASUREMENT_FAILED
+    if missing:
+        return MEASUREMENT_PARTIAL
+    if any(section.get("errors") for section in sections):
+        return MEASUREMENT_PARTIAL
+    return MEASUREMENT_COMPLETE
+
+
 def write_ledger(sections: list[dict[str, Any]]) -> Path:
     path = ledger_path()
     path.parent.mkdir(parents=True, exist_ok=True)
+    status = measurement_status(sections)
     payload = {
         "version": LEDGER_VERSION,
         "updated_at": batch_status.now_text(),
+        # 数え切れなかったことを、異常 0 件と読ませない。
+        "measurement_status": status,
+        "required_doc_types": list(REQUIRED_DOC_TYPES),
+        "measured_doc_types": [str(s.get("doc_type") or "") for s in sections],
+        "errors": [error for section in sections for error in (section.get("errors") or [])],
         "sections": sections,
     }
     # 書いている途中で落ちても、読む側が壊れた JSON を読まないようにする。
