@@ -163,6 +163,47 @@ def date_mismatch_rows(
     return found
 
 
+# 本文がこの長さ未満なら、中身がほぼ無い。
+EMPTY_BODY_LENGTH = 60
+# その自治体の文書のうち、これを超える割合が空同然なら疑う。
+EMPTY_BODY_RATIO = 0.5
+# 少数の自治体で偶然そうなることはあるので、下限を置く。
+EMPTY_BODY_MIN_DOCS = 30
+
+
+def empty_body_rows(
+    counts_by_slug: dict[str, int],
+    empty_by_slug: dict[str, int],
+    *,
+    ratio: float = EMPTY_BODY_RATIO,
+    min_docs: int = EMPTY_BODY_MIN_DOCS,
+) -> list[dict[str, Any]]:
+    """本文がほとんど空の自治体を返す。
+
+    **件数では出てこない不具合である。**公開はされていて、中身だけが無い。
+    牛久市 1,001 件・福岡市 1,136 件は、題名と日付は読めるのに条文が
+    1 件も入っていなかった。新しい Reiki-Base の本文構造を読めていなかった。
+    """
+    found: list[dict[str, Any]] = []
+    for slug, total in counts_by_slug.items():
+        total = int(total or 0)
+        if total < int(min_docs):
+            continue
+        empty = int(empty_by_slug.get(slug, 0))
+        if empty < total * float(ratio):
+            continue
+        found.append(
+            {
+                "slug": slug,
+                "documents": total,
+                "empty_body": empty,
+                "ratio": round(empty / total, 3) if total else 0.0,
+            }
+        )
+    found.sort(key=lambda row: (-row["ratio"], -row["documents"]))
+    return found
+
+
 def classify(slug: str, *, published: bool, saved_files: int, excluded: bool) -> str:
     """その自治体が公開に出ていない理由を返す。出ているなら空。"""
     if published:

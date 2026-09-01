@@ -1064,6 +1064,25 @@ def write_coverage_ledger() -> dict[str, object]:
             samples = _date_mismatch_samples(client, alias, doc_type)
             section["date_mismatch_rows"] = coverage_ledger.date_mismatch_rows(samples)
             section["date_mismatch"] = len(section["date_mismatch_rows"])
+            # 本文がほとんど空の自治体。件数では出てこない。公開はされていて、
+            # 中身だけが無い。
+            empty_response = client.request(
+                "POST",
+                f"/{alias}/_search",
+                body={
+                    "size": 0,
+                    "query": {"range": {"body_length": {"lt": coverage_ledger.EMPTY_BODY_LENGTH}}},
+                    "aggs": {"slugs": {"terms": {"field": "slug", "size": 5000}}},
+                },
+            )
+            empty_buckets = (
+                (empty_response.get("aggregations") or {}).get("slugs", {}).get("buckets") or []
+            )
+            empty_by_slug = {str(b["key"]): int(b["doc_count"]) for b in empty_buckets}
+            section["empty_body_rows"] = coverage_ledger.empty_body_rows(
+                counts_by_slug, empty_by_slug
+            )
+            section["empty_body"] = len(section["empty_body_rows"])
         except Exception as exc:
             print(f"[CELERY] {kind} 件数の偏りを見られませんでした: {exc}", flush=True)
             # 見られなかったことを「偏り 0 件」と書かない。
@@ -1073,6 +1092,8 @@ def write_coverage_ledger() -> dict[str, object]:
             section["shortfall"] = None
             section["date_mismatch_rows"] = []
             section["date_mismatch"] = None
+            section["empty_body_rows"] = []
+            section["empty_body"] = None
             section["errors"] = [f"件数の偏りを見られなかった: {exc}"]
         sections.append(section)
         print(
@@ -1082,7 +1103,8 @@ def write_coverage_ledger() -> dict[str, object]:
             f"{section['reasons']}、申告母数に届かない {section.get('shortfall', 0)} 件"
             f"（母数が読めた {section.get('declared_known', 0)} 件）"
             f"、仲間より極端に少ない {section.get('thin', 0)} 件"
-            f"、題名と日付が食い違う {section.get('date_mismatch', 0)} 件",
+            f"、題名と日付が食い違う {section.get('date_mismatch', 0)} 件"
+            f"、本文がほぼ空 {section.get('empty_body', 0)} 件",
             flush=True,
         )
     if sections:
@@ -1107,6 +1129,7 @@ def write_coverage_ledger() -> dict[str, object]:
                 "shortfall": s.get("shortfall", 0),
                 "declared_known": s.get("declared_known", 0),
                 "date_mismatch": s.get("date_mismatch", 0),
+                "empty_body": s.get("empty_body", 0),
             }
             for s in sections
         ],

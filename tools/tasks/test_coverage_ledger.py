@@ -275,3 +275,28 @@ class DateMismatchTest(unittest.TestCase):
     def test_the_worst_ratio_comes_first(self):
         found = ledger.date_mismatch_rows({"a": (100, 20), "b": (100, 90)})
         self.assertEqual([row["slug"] for row in found], ["b", "a"])
+
+
+class EmptyBodyTest(unittest.TestCase):
+    """本文がほとんど空の自治体を挙げる。
+
+    **件数では出てこない不具合。**公開はされていて、中身だけが無い。
+    牛久市 1,001 件・福岡市 1,136 件は、題名と日付は読めるのに条文が 1 件も
+    入っていなかった。
+    """
+
+    def test_finds_a_town_with_empty_bodies(self):
+        found = ledger.empty_body_rows({"08219-ushiku-shi": 1001}, {"08219-ushiku-shi": 1001})
+        self.assertEqual(found[0]["slug"], "08219-ushiku-shi")
+        self.assertEqual(found[0]["ratio"], 1.0)
+
+    def test_a_healthy_town_is_not_flagged(self):
+        self.assertEqual(ledger.empty_body_rows({"a": 1000}, {"a": 80}), [])
+
+    def test_a_tiny_town_is_not_judged(self):
+        """短い例規しか無い村で誤検知しない。"""
+        self.assertEqual(ledger.empty_body_rows({"a": 10}, {"a": 10}), [])
+
+    def test_the_worst_ratio_comes_first(self):
+        found = ledger.empty_body_rows({"a": 100, "b": 100}, {"a": 60, "b": 100})
+        self.assertEqual([row["slug"] for row in found], ["b", "a"])
