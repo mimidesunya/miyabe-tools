@@ -213,6 +213,19 @@ def fetch_response_text(request_context, url: str, timeout_ms: int) -> tuple[str
 
 
 def resolve_act203_url(request_context, act100_url: str, timeout_ms: int) -> str:
+    # 一覧の会議リンクは `ACT=100`（枝）と `ACT=200`（本文の容れ物）に分かれる。
+    # `ACT=200` はフレームの外枠でしかなく、本文は `ACT=203` にある。
+    # 高崎市 1,970 件・狭山市 1,168 件は、題名 1 行だけの HTML が保存されて
+    # いた。件数も日付も題名も正しく、**本文だけが無い。**
+    if "ACT=200" in act100_url:
+        act200_html, _ = fetch_response_text(request_context, act100_url, timeout_ms)
+        if not act200_html:
+            return ""
+        for src in re.findall(r"<FRAME[^>]+SRC=\"([^\"]+)\"", act200_html, flags=re.I):
+            if "ACT=203" in src:
+                return urljoin(act100_url, src)
+        return ""
+
     act100_html, _ = fetch_response_text(request_context, act100_url, timeout_ms)
     if not act100_html:
         return ""
