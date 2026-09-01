@@ -87,3 +87,42 @@ class SameSiteHtmlPageTest(unittest.TestCase):
         self.assertFalse(
             self.follows(self.start, "https://www.town.ichinomiya.chiba.jp/info/gikai/2/x.pdf")
         )
+
+
+class PageBaseUrlTest(unittest.TestCase):
+    """`<base href>` を見ないと、ページの階層を前置して 404 になる。
+
+    御宿町・南種子町・一宮町は 3 件とも `<base href="https://…/">` を持つ。
+    候補は見つかるのにダウンロードが全部 404 で、**保存 0 件のまま
+    「完了」していた**（候補 21 件に対して保存 0 件）。
+    """
+
+    def setUp(self):
+        from bs4 import BeautifulSoup
+
+        from kami_city_pdf import page_base_url
+
+        self.soup = BeautifulSoup
+        self.base = page_base_url
+
+    def test_uses_the_base_tag(self):
+        soup = self.soup('<base href="https://example.jp/">', "html.parser")
+        self.assertEqual(
+            self.base(soup, "https://example.jp/sub5/4/gikai/13.html"), "https://example.jp/"
+        )
+
+    def test_without_a_base_tag_the_page_url_is_used(self):
+        soup = self.soup("<html><body></body></html>", "html.parser")
+        page = "https://example.jp/sub5/4/gikai/13.html"
+        self.assertEqual(self.base(soup, page), page)
+
+    def test_a_relative_base_is_resolved(self):
+        soup = self.soup('<base href="../">', "html.parser")
+        self.assertEqual(
+            self.base(soup, "https://example.jp/a/b/c.html"), "https://example.jp/a/"
+        )
+
+    def test_an_empty_base_is_ignored(self):
+        soup = self.soup('<base href="">', "html.parser")
+        page = "https://example.jp/a/b.html"
+        self.assertEqual(self.base(soup, page), page)

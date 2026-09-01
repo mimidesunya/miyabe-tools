@@ -344,6 +344,18 @@ def load_supported_target(slug: str) -> dict:
     raise ValueError(f"Municipality slug not found: {slug}")
 
 
+# HTML の `<base href>`。相対 URL はこれを基準に解決する。見落とすと、
+# ページの階層をそのまま前置してしまい 404 になる。御宿町・南種子町・一宮町は
+# 3 件とも `<base href="https://…/">` を持っていて、候補は見つかるのに
+# ダウンロードが全部 404 だった（候補 21 件に対して保存 0 件）。
+def page_base_url(soup, page_url: str) -> str:
+    base = soup.find("base", href=True)
+    if base is None:
+        return page_url
+    href = str(base.get("href") or "").strip()
+    return urljoin(page_url, href) if href else page_url
+
+
 def discover_minutes_pages(
     session: requests.Session,
     start_url: str,
@@ -366,12 +378,14 @@ def discover_minutes_pages(
     while frontier:
         current_url, current_html, depth = frontier.pop(0)
         soup = BeautifulSoup(current_html, "html.parser")
+        # `<base href>` を見ないと、ページの階層を前置して 404 になる。
+        current_base = page_base_url(soup, current_url)
         for anchor in soup.select(selectors):
             href = str(anchor.get("href", "")).strip()
             if not href:
                 continue
             page_url = should_follow_minutes_page(
-                start_url, urljoin(current_url, href), anchor.get_text(" ", strip=True), strict_kami
+                start_url, urljoin(current_base, href), anchor.get_text(" ", strip=True), strict_kami
             )
             if not page_url or page_url in pages:
                 continue
@@ -417,6 +431,7 @@ def discover_pdf_items(
             missed.append(page_url)
             continue
         title = page_title(soup)
+        base_url = page_base_url(soup, page_url)
         page_year_label, page_source_year = extract_year_info(title)
         if pages_dir is not None:
             filename = sanitize_filename(Path(urlsplit(page_url).path).stem, "page") + ".html"
@@ -446,7 +461,7 @@ def discover_pdf_items(
 
             if node_name != "a" or not node.has_attr("href"):
                 continue
-            pdf_url = urljoin(page_url, str(node.get("href", "")).strip())
+            pdf_url = urljoin(base_url, str(node.get("href", "")).strip())
             if not urlsplit(pdf_url).path.lower().endswith(".pdf"):
                 continue
             if require_site_attachment and not is_site_attachment_pdf(pdf_url):
