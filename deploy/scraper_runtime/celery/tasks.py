@@ -870,6 +870,25 @@ def sweep_never_indexed(limit: int = 0) -> dict[str, object]:
     return {"ok": True, "task": "sweep_never_indexed", "requeued": requeued}
 
 
+# 自治体マスタの全コード。台帳の分母はここから作る。取得先レジストリを
+# 分母にすると、取得元を登録できていない自治体が数え上げから消える。
+def _master_codes() -> set[str]:
+    import csv as _csv
+
+    path = ROOT / "data" / "municipalities" / "municipality_master.tsv"
+    found: set[str] = set()
+    try:
+        with open(path, encoding="utf-8-sig", newline="") as handle:
+            for row in _csv.DictReader(handle, delimiter="	"):
+                code = str(row.get("jis_code", "")).strip()
+                if code:
+                    found.add(code)
+    except Exception as exc:
+        print(f"[CELERY] 自治体マスタを読めませんでした: {exc}", flush=True)
+        return set()
+    return found
+
+
 # 取得元が「N 件ある」と申告した数を、保存済みの走査記録から拾う。
 #
 # 取得元は自分が持っている数を出している（gijiroku.com の「1,607件の日程が
@@ -960,6 +979,9 @@ def write_coverage_ledger() -> dict[str, object]:
                 targets,
                 published,
                 lambda slugs, _counter=counter: _counter(slugs=slugs),
+                # 取得元を登録できていない自治体も分母に入れる。数えなければ
+                # 「問題が無い」ではなく「見ていない」である。
+                master_codes=_master_codes(),
             )
         except Exception as exc:
             print(f"[CELERY] {kind} 台帳を組み立てられませんでした: {exc}", flush=True)
@@ -999,7 +1021,8 @@ def write_coverage_ledger() -> dict[str, object]:
             section["errors"] = [f"件数の偏りを見られなかった: {exc}"]
         sections.append(section)
         print(
-            f"[CELERY] {kind}: 対象 {section['targets']} 件のうち "
+            f"[CELERY] {kind}: マスタ {section['targets']} 件"
+            f"（取得元を登録済み {section.get('configured', 0)} 件）のうち "
             f"公開 {section['published']} 件、未公開 {section['missing']} 件 "
             f"{section['reasons']}、申告母数に届かない {section.get('shortfall', 0)} 件"
             f"（母数が読めた {section.get('declared_known', 0)} 件）"

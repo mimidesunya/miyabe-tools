@@ -210,3 +210,43 @@ class DeclaredShortfallTest(unittest.TestCase):
     def test_a_town_with_nothing_published_is_included(self):
         found = ledger.declared_shortfall({"a": 500}, {})
         self.assertEqual(found[0]["published"], 0)
+
+
+class UnregisteredTest(unittest.TestCase):
+    """取得元を登録できていない自治体を、分母から落とさない。
+
+    台帳の対象は自治体マスタではなく取得先レジストリだった。URL が空の行は
+    落ちるので、実測でマスタ 1,794 件に対し会議録は 282 件・例規は 47 件が
+    分母の外にあった。**全国の 16% が「数えていないので健全」に見えていた。**
+    codex の指摘。
+    """
+
+    def setUp(self):
+        self.targets = [
+            {"slug": "01100-sapporo-shi", "name": "札幌市", "system_type": "x", "crawl_status": "enabled"},
+        ]
+
+    def test_master_only_codes_become_missing(self):
+        section = ledger.build_section(
+            "minutes", self.targets, {"01100-sapporo-shi"}, lambda slugs: {},
+            master_codes={"01100", "01101", "01102"},
+        )
+        self.assertEqual(section["targets"], 3)
+        self.assertEqual(section["configured"], 1)
+        self.assertEqual(section["missing"], 2)
+        self.assertEqual(section["reasons"], {ledger.UNREGISTERED: 2})
+
+    def test_without_master_codes_nothing_changes(self):
+        section = ledger.build_section(
+            "minutes", self.targets, {"01100-sapporo-shi"}, lambda slugs: {}
+        )
+        self.assertEqual(section["targets"], 1)
+        self.assertEqual(section["missing"], 0)
+
+    def test_a_configured_town_is_not_counted_twice(self):
+        section = ledger.build_section(
+            "minutes", self.targets, set(), lambda slugs: {"01100-sapporo-shi": 0},
+            master_codes={"01100"},
+        )
+        self.assertEqual(section["missing"], 1)
+        self.assertEqual(section["reasons"], {"no_saved_files": 1})

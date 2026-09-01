@@ -135,11 +135,25 @@ def classify(slug: str, *, published: bool, saved_files: int, excluded: bool) ->
     return "no_saved_files"
 
 
+# 取得元をまだ登録できていない自治体。台帳の分母から外すと、端から端までの
+# 数え上げから消える。codex の指摘。
+#
+# > 台帳の対象は自治体マスタではなく `iter_*_targets()` である。URL が空の
+# > 行は落ちるので、「取得元をまだ登録できていない自治体」は端から端までの
+# > 台帳に入らない。
+#
+# 実測でマスタ 1,794 件に対し、会議録は 282 件・例規は 47 件が分母の外に
+# あった。全国の 16% が「数えていないので健全」に見えていた。
+UNREGISTERED = "source_unknown"
+
+
 def build_section(
     doc_type: str,
     targets: Iterable[dict[str, Any]],
     published_slugs: set[str],
     count_saved: Callable[[set[str]], dict[str, int]],
+    *,
+    master_codes: set[str] | None = None,
 ) -> dict[str, Any]:
     """1 系統ぶんの台帳を組み立てる。
 
@@ -184,11 +198,30 @@ def build_section(
                 "saved_files": saved,
             }
         )
+    # 取得元を登録できていない自治体。台帳の分母に入れる。数えなければ
+    # 「問題が無い」ではなく「見ていない」である。
+    unregistered: list[str] = []
+    if master_codes:
+        known = {slug.split("-", 1)[0] for slug in slugs}
+        unregistered = sorted(master_codes - known)
+        for code in unregistered:
+            reasons[UNREGISTERED] = reasons.get(UNREGISTERED, 0) + 1
+            missing.append(
+                {
+                    "slug": code,
+                    "name": code,
+                    "system_type": "",
+                    "reason": UNREGISTERED,
+                    "saved_files": 0,
+                }
+            )
     missing.sort(key=lambda row: (row["reason"], -int(row["saved_files"]), row["slug"]))
+    total = len(slugs) + len(unregistered)
     return {
         "doc_type": doc_type,
-        "targets": len(slugs),
-        "published": len(slugs) - len(missing),
+        "targets": total,
+        "configured": len(slugs),
+        "published": total - len(missing),
         "missing": len(missing),
         "reasons": reasons,
         "missing_rows": missing,
