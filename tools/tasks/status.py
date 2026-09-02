@@ -7,6 +7,7 @@ Web UI の間の運用上の契約になる。このモジュールが JSON の�
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import sys
@@ -81,6 +82,37 @@ def rel_path(path: Path) -> str:
         return path.resolve().relative_to(project_root()).as_posix()
     except Exception:
         return str(path)
+
+
+# 同じ state を複数プロセスが読み書きするときの排他。
+#
+# 索引 worker を複数にすると、`*_reflect` の state を 2 つの実行が同時に
+# 「読んで・書き換えて・書く」ことになり、後から書いた方が先の結果を消す。
+# 表示だけの state だが、消えた「失敗」は誰にも見えなくなる。
+# ロックは JSON と同じディレクトリのファイルで取る。Windows では flock が
+# 無いので何もしない（本番は Linux）。
+@contextlib.contextmanager
+def state_lock(task_name: str):
+    root = status_root()
+    root.mkdir(parents=True, exist_ok=True)
+    lock_path = root / f"{task_name}.lock"
+    handle = open(lock_path, "a+", encoding="utf-8")
+    try:
+        try:
+            import fcntl  # type: ignore
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        except ImportError:
+            pass
+        yield
+    finally:
+        try:
+            import fcntl  # type: ignore
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        except ImportError:
+            pass
+        handle.close()
 
 
 # 既存の background_tasks JSON を読み込む。壊れていれば空 state として扱う。

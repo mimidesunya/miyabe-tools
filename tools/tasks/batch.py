@@ -356,14 +356,18 @@ def build_index_command(spec: BatchSpec, args: argparse.Namespace, target: dict)
 # Celery の index キューへ自治体別更新タスクを投入する。
 def enqueue_index_update_task(spec: BatchSpec, target: dict) -> str:
     from deploy.scraper_runtime.celery import app as celery_app
+    from deploy.scraper_runtime.celery import index_enqueue
 
     queue = getattr(celery_app, f"{spec.task_name.upper()}_INDEX_QUEUE")
-    result = celery_app.app.send_task(
+    # 同じ自治体が既に索引キューで待っているなら積まない。印は実行が
+    # 終わると消えるので、その実行は今回の取得分も読む（保存済みファイルから
+    # 作るので、積んだ時点ではなく走った時点の中身が載る）。
+    return index_enqueue.send_index_update(
+        celery_app.app,
         f"deploy.scraper_runtime.celery.tasks.run_{spec.task_name}_index_update",
-        kwargs={"slug": str(target["slug"])},
-        queue=queue,
+        queue,
+        str(target["slug"]),
     )
-    return str(result.id)
 
 
 # inline index 更新待ちにするため、完了済み scrape worker を index キュー項目へ包む。
@@ -844,6 +848,10 @@ SUMMARY_FIELDNAMES = [
     "index_stdout_log",
     "index_stderr_log",
 ]
+
+
+# 「全部失敗した」を系統的な故障と読むのに要る最小の対象数。
+ALL_FAILED_MIN_TARGETS = 5
 
 
 # 一括スクレイピング全体の制御ループ。優先度選定〜結果記録までを共通で行う。
@@ -1390,7 +1398,13 @@ def run_batch(spec: BatchSpec, args: argparse.Namespace, targets: list[dict]) ->
             flush=True,
         )
         return 1
-    if TARGET_OUTCOMES["failed"] > 0 and TARGET_OUTCOMES["succeeded"] == 0:
+    # 2〜3 件しか対象が無い実行で全部失敗しても、取得元がまとめて落ちた
+    # 証拠にはならない。取り切れない区間を抱えた自治体だけが並ぶ日がある。
+    # そこで 1 を返すと 15 分後に同じ実行が繰り返され、同じ取得元を叩き続ける。
+    if (
+        TARGET_OUTCOMES["failed"] >= ALL_FAILED_MIN_TARGETS
+        and TARGET_OUTCOMES["succeeded"] == 0
+    ):
         print(
             f"[ERROR] {TARGET_OUTCOMES['failed']}件すべてが失敗しました。"
             "取得元がまとめて落ちているか、設定が壊れている可能性があります。",

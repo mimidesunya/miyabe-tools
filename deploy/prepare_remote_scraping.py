@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from scraping_stack import (
+    DEFAULT_GIJIROKU_INDEX_REPLICAS,
     SCRAPING_COMPOSE_PROJECT,
     build_scraping_compose,
     scraper_image_source_hash,
@@ -94,6 +95,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=86400,
         help="例規スクレイパの実行サイクル間隔（秒）",
+    )
+    parser.add_argument(
+        "--gijiroku-index-replicas",
+        type=int,
+        default=DEFAULT_GIJIROKU_INDEX_REPLICAS,
+        help="会議録の索引 worker の数",
     )
     parser.add_argument(
         "--fail-sleep-seconds",
@@ -192,6 +199,7 @@ def main() -> int:
             gijiroku_loop_seconds=args.gijiroku_loop_seconds,
             reiki_loop_seconds=args.reiki_loop_seconds,
             fail_sleep_seconds=args.fail_sleep_seconds,
+            gijiroku_index_replicas=args.gijiroku_index_replicas,
         )
         ssh_copy_content(config, compose_text + "\n", f"{dest_dir}/docker-compose.scraping.yml")
 

@@ -25,8 +25,13 @@ from typing import Any
 from . import status as batch_status
 
 
-# 何度も失敗し続けるものを無限に投げ直さない。人が見るべき状態として残す。
+# 何度も失敗し続けるものを短い間隔で投げ直さない。人が見るべき状態として残す。
 DEFAULT_MAX_ATTEMPTS = 8
+# 失敗の上限に達したあとも、完全には止めない。索引側の修正が配られたとき、
+# 人が投げ直さなくても拾えるように、長い間隔で試し続ける。
+DEFAULT_STUCK_RETRY_SECONDS = 3 * 24 * 60 * 60
+# 待ち行列のファイル版。1 は「積んだ回数」を「失敗した回数」として数えていた。
+OUTBOX_VERSION = 2
 # 直前の試行からこれだけ経っていなければ掃き取りの対象にしない（1回目の待ち時間）。
 DEFAULT_MIN_RETRY_SECONDS = 10 * 60
 # 待ち時間は試行ごとに倍にするが、上限を設けて再開が遅くなりすぎないようにする。
@@ -48,14 +53,38 @@ def _read(kind: str) -> dict[str, dict[str, Any]]:
     entries = loaded.get("entries")
     if not isinstance(entries, dict):
         return {}
-    return {str(slug): dict(entry) for slug, entry in entries.items() if isinstance(entry, dict)}
+    found = {str(slug): dict(entry) for slug, entry in entries.items() if isinstance(entry, dict)}
+    try:
+        version = int(loaded.get("version") or 1)
+    except (TypeError, ValueError):
+        version = 1
+    if version < OUTBOX_VERSION:
+        for entry in found.values():
+            _migrate_v1_entry(entry)
+    return found
+
+
+def _migrate_v1_entry(entry: dict[str, Any]) -> None:
+    """版 1 の「積んだ回数」を「失敗した回数」から切り離す。
+
+    版 1 は掃き取りが投げ直すたびに `attempts` を進めていた。索引キューが
+    数日分あると、**一度も実行されないまま** 8 回積まれて上限に達し、永久に
+    止まった。本番で 61 自治体がそうなっていて、どれにも失敗の記録が無かった。
+    失敗の記録が無い `attempts` は積んだ回数だったので、そちらへ移す。
+    """
+    attempts = int(entry.get("attempts") or 0)
+    if attempts > 0 and not entry.get("last_error"):
+        entry["enqueues"] = max(int(entry.get("enqueues") or 0), attempts)
+        entry["last_enqueued_at"] = entry.get("last_enqueued_at") or entry.get("last_attempt_at")
+        entry["attempts"] = 0
+        entry.pop("last_attempt_at", None)
 
 
 def _write(kind: str, entries: dict[str, dict[str, Any]]) -> None:
     path = outbox_path(kind)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "version": 1,
+        "version": OUTBOX_VERSION,
         "kind": kind,
         "updated_at": batch_status.now_text(),
         "entries": entries,
@@ -95,6 +124,10 @@ def record_pending(kind: str, slug: str, *, task_id: str = "", error: str = "") 
         entry["attempts"] = int(entry.get("attempts") or 0) + 1
         entry["last_attempt_at"] = now
         entry["last_error"] = str(error)
+    else:
+        # 積めた。実行が始まるまでは、ここから数えた待ち時間で見る。
+        entry["enqueues"] = int(entry.get("enqueues") or 0) + 1
+        entry["last_enqueued_at"] = now
     entries[slug] = entry
     _write(kind, entries)
 
@@ -124,11 +157,13 @@ def mark_failed(kind: str, slug: str, error: str) -> None:
     _write(kind, entries)
 
 
-def mark_attempted(kind: str, slug: str) -> None:
+def mark_enqueued(kind: str, slug: str) -> None:
     """投げ直したことだけを控える。成否はタスク側が確定させる。
 
-    ここで試行回数を進めておかないと、掃き取りが回るたびに同じ自治体へ
-    何度も投げてしまう。"""
+    ここで時刻を進めておかないと、掃き取りが回るたびに同じ自治体へ
+    何度も投げてしまう。**積んだ回数は失敗の回数ではない。**索引キューが
+    数日分あると、実行される前に何度も掃き取りの番が来る。それを失敗と
+    数えると、一度も走らないまま上限に達して永久に止まる。"""
     slug = str(slug).strip()
     if slug == "":
         return
@@ -136,10 +171,14 @@ def mark_attempted(kind: str, slug: str) -> None:
     entry = entries.get(slug)
     if entry is None:
         return
-    entry["attempts"] = int(entry.get("attempts") or 0) + 1
-    entry["last_attempt_at"] = time.time()
+    entry["enqueues"] = int(entry.get("enqueues") or 0) + 1
+    entry["last_enqueued_at"] = time.time()
     entries[slug] = entry
     _write(kind, entries)
+
+
+# 旧名。呼び出し側が残っていても壊れないようにする。
+mark_attempted = mark_enqueued
 
 
 def retry_delay_seconds(
@@ -154,6 +193,17 @@ def retry_delay_seconds(
     return min(maximum, minimum * (2 ** min(attempts, 10)))
 
 
+def _reference_time(entry: dict[str, Any]) -> float:
+    """待ち時間の起点。最後に積んだ・失敗した・要求した時刻のうち最新。"""
+    latest = 0.0
+    for key in ("last_enqueued_at", "last_attempt_at", "requested_at", "first_requested_at"):
+        try:
+            latest = max(latest, float(entry.get(key) or 0))
+        except (TypeError, ValueError):
+            continue
+    return latest
+
+
 def due_slugs(
     kind: str,
     *,
@@ -161,26 +211,36 @@ def due_slugs(
     max_attempts: int = DEFAULT_MAX_ATTEMPTS,
     minimum_seconds: int = DEFAULT_MIN_RETRY_SECONDS,
     maximum_seconds: int = DEFAULT_MAX_RETRY_SECONDS,
+    stuck_seconds: int = DEFAULT_STUCK_RETRY_SECONDS,
     limit: int = 0,
 ) -> list[str]:
     """投げ直す番が来た自治体を、古い順に返す。
 
     投げたきり返事が無いもの（worker の強制終了やメッセージの消失）も、
-    最初の要求から待ち時間を過ぎれば対象になる。失敗の記録が残らない
+    最後に積んでから待ち時間を過ぎれば対象になる。失敗の記録が残らない
     経路があるので、「失敗した」ではなく「成功が確認できていない」で拾う。
+
+    まだキューで待っているだけの自治体をここで除くことはできない。
+    それは積む側（`index_enqueue` の印）が断る。ここは候補を出すだけ。
+
+    失敗の上限に達したものは止めない。間隔を 3 日に広げて試し続ける。
+    索引側の修正が配られたとき、人が投げ直さなくても拾えるようにする。
     """
     current = time.time() if now is None else float(now)
     due: list[tuple[float, str]] = []
     for slug, entry in _read(kind).items():
         attempts = int(entry.get("attempts") or 0)
+        enqueues = int(entry.get("enqueues") or 0)
+        last_at = _reference_time(entry)
         if attempts >= max_attempts:
-            continue
-        last = entry.get("last_attempt_at") or entry.get("requested_at") or entry.get("first_requested_at") or 0
-        try:
-            last_at = float(last)
-        except (TypeError, ValueError):
-            last_at = 0.0
-        wait = retry_delay_seconds(attempts, minimum=minimum_seconds, maximum=maximum_seconds)
+            wait = int(stuck_seconds)
+        else:
+            # 積み直しの間隔も広げる。印が効かない（Redis が読めない）ときに
+            # 10 分おきに同じ自治体を積まないため。印が効いていれば、積む側が
+            # 断るのでこの間隔は効かない。
+            wait = retry_delay_seconds(
+                max(attempts, enqueues - 1), minimum=minimum_seconds, maximum=maximum_seconds
+            )
         if current - last_at < wait:
             continue
         due.append((last_at, slug))
@@ -190,7 +250,7 @@ def due_slugs(
 
 
 def stuck_entries(kind: str, *, max_attempts: int = DEFAULT_MAX_ATTEMPTS) -> dict[str, dict[str, Any]]:
-    """試行の上限に達して、人が見るまで動かないもの。収集状況へ出すために使う。"""
+    """失敗の上限に達したもの。3 日おきにしか試さないので、人が見るべき状態。"""
     return {
         slug: entry
         for slug, entry in _read(kind).items()

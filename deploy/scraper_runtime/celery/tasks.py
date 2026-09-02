@@ -270,46 +270,86 @@ def _index_document_total(kind: str, slug: str) -> int:
         return 0
 
 
-# *_reflect タスクの実行中 state を作り、現在処理中の自治体を 1 件だけ表示する。
-def _reflect_state(task_name: str, target: dict[str, object], *, progress_total: int = 0) -> dict[str, object]:
-    # インデックス更新はスクレイピングとは別タスクとして表示する。
-    # ここで *_reflect の state を作り、処理中自治体と document 件数を見えるようにする。
-    state = batch_status.read_state(task_name)
-    now = batch_status.now_text()
-    if not state or not isinstance(state.get("items"), dict):
-        state = batch_status.build_state(
-            task_name,
-            now.replace("-", "").replace(":", "").replace(" ", "_"),
-            0,
-            ROOT / "data" / "background_tasks" / f"{task_name}.csv",
-            ROOT / "data" / "background_tasks",
-        )
-    state["task"] = task_name
-    state["running"] = True
-    state["running_label"] = "インデックス更新中"
-    state["started_at"] = str(state.get("started_at") or now)
-    state["last_started_at"] = now
-    state["finished_at"] = ""
-    state["worker_capacity"] = 1
-    state["worker_active_count"] = 1
-    state["worker_idle_count"] = 0
-    state["index_capacity"] = 1
-    state["index_active_count"] = 1
-    state["index_idle_count"] = 0
-    state["index_queue_count"] = 0
-    items = state.setdefault("items", {})
-    slug = str(target.get("slug") or "").strip()
-    for existing_slug, item in list(items.items()):
-        if existing_slug == slug or not isinstance(item, dict):
+# 索引 worker は複数ある。別の worker が始めた実行を「新しい実行が始まった
+# から終了扱い」にしてはいけない。これより古い running だけを死んだと見なす。
+REFLECT_STALE_RUNNING_SECONDS = 12 * 60 * 60
+
+
+# *_reflect の state を、ロックの下で読み直して書き換える。
+#
+# 索引 worker が複数になると、同じ state を 2 つの実行が同時に読んで・
+# 書き換えて・書く。手元の写しを丸ごと書くと、後から書いた方が先の結果を
+# 消す。写しを持たず、書くたびに読み直して自分の分だけ書き換える。
+def _reflect_apply(task_name: str, mutate) -> dict[str, object]:
+    with batch_status.state_lock(task_name):
+        state = batch_status.read_state(task_name)
+        now = batch_status.now_text()
+        if not state or not isinstance(state.get("items"), dict):
+            state = batch_status.build_state(
+                task_name,
+                now.replace("-", "").replace(":", "").replace(" ", "_"),
+                0,
+                ROOT / "data" / "background_tasks" / f"{task_name}.csv",
+                ROOT / "data" / "background_tasks",
+            )
+        state["task"] = task_name
+        mutate(state, now)
+        _reflect_refresh_running(state, now)
+        batch_status.refresh_counts(state)
+        batch_status.write_state(task_name, state)
+        return state
+
+
+# 実行中の件数を items から数え直す。worker が複数でも、誰かが走っていれば
+# running のまま。誰も走っていなければ finished にする。
+def _reflect_refresh_running(state: dict[str, object], now: str) -> None:
+    items = state.get("items") if isinstance(state.get("items"), dict) else {}
+    running = 0
+    for item in items.values():
+        if not isinstance(item, dict) or str(item.get("status") or "").strip() != "running":
             continue
-        if str(item.get("status") or "").strip() == "running":
+        started = celery_runtime.parse_status_timestamp(item.get("started_at") or item.get("updated_at"))
+        if started is not None and time.time() - started > REFLECT_STALE_RUNNING_SECONDS:
+            # worker ごと落ちた実行。誰も終わりを書けないので、ここで畳む。
             item["status"] = "failed"
-            item["message"] = "新しいインデックス更新開始により終了扱い"
+            item["message"] = "実行の記録が途絶えたため終了扱い"
             item["finished_at"] = now
             item["updated_at"] = now
             item["returncode"] = -signal.SIGTERM
             item["pid"] = None
-    items[slug] = {
+            continue
+        running += 1
+    state["running"] = running > 0
+    state["running_label"] = "インデックス更新中"
+    state["worker_capacity"] = max(1, running)
+    state["worker_active_count"] = running
+    state["worker_idle_count"] = 0 if running else 1
+    state["index_capacity"] = max(1, running)
+    state["index_active_count"] = running
+    state["index_idle_count"] = 0 if running else 1
+    state["index_queue_count"] = 0
+    if running:
+        state["started_at"] = str(state.get("started_at") or now)
+        state["finished_at"] = ""
+    else:
+        state["finished_at"] = now
+        state["last_finished_at"] = now
+
+
+# *_reflect タスクの state に、これから処理する自治体を running として載せる。
+def _reflect_start(task_name: str, target: dict[str, object], *, progress_total: int = 0) -> None:
+    slug = str(target.get("slug") or "").strip()
+
+    def mutate(state: dict[str, object], now: str) -> None:
+        state["last_started_at"] = now
+        state.setdefault("items", {})[slug] = _reflect_item(target, now, progress_total)
+
+    _reflect_apply(task_name, mutate)
+
+
+def _reflect_item(target: dict[str, object], now: str, progress_total: int) -> dict[str, object]:
+    slug = str(target.get("slug") or "").strip()
+    return {
         "slug": slug,
         "code": str(target.get("code") or "").strip(),
         "name": str(target.get("name") or "").strip(),
@@ -329,12 +369,18 @@ def _reflect_state(task_name: str, target: dict[str, object], *, progress_total:
         "progress_total": progress_total if progress_total > 0 else None,
         "progress_unit": "document" if progress_total > 0 else "",
     }
-    batch_status.refresh_counts(state)
-    return state
+
+
+# *_reflect の自治体 1 件だけを、ロックの下で書き換える。
+def _reflect_update_item(task_name: str, slug: str, **fields) -> None:
+    def mutate(state: dict[str, object], now: str) -> None:
+        batch_status.update_item(state, slug, **fields)
+
+    _reflect_apply(task_name, mutate)
 
 
 # index 更新コマンドを実行し、ログから進捗を読み取って *_reflect state を更新する。
-def _run_index_update_command_with_status(kind: str, slug: str, state: dict[str, object], progress_total: int) -> int:
+def _run_index_update_command_with_status(kind: str, slug: str, progress_total: int) -> int:
     # build_opensearch_index.py の [BULK]/[DONE] ログから投入済み件数を拾い、
     # 画面の「追加済 n/m 件」に反映する。
     command = _index_update_command("minutes" if kind == "gijiroku" else "reiki", slug)
@@ -348,10 +394,10 @@ def _run_index_update_command_with_status(kind: str, slug: str, state: dict[str,
         bufsize=1,
         **process_group_popen_kwargs(),
     )
-    batch_status.update_item(state, slug, pid=int(process.pid))
-    batch_status.write_state(f"{kind}_reflect", state)
+    _reflect_update_item(f"{kind}_reflect", slug, pid=int(process.pid))
     assert process.stdout is not None
     last_count = 0
+    last_written_at = 0.0
     for raw_line in process.stdout:
         line = raw_line.rstrip("\n")
         print(line, flush=True)
@@ -361,15 +407,17 @@ def _run_index_update_command_with_status(kind: str, slug: str, state: dict[str,
             current = max(0, int(match.group("total") if "total" in match.groupdict() else match.group("count")))
         if current is not None:
             last_count = current
-            batch_status.update_item(
-                state,
-                slug,
-                message="インデックス更新中",
-                progress_current=min(current, progress_total) if progress_total > 0 else current,
-                progress_total=progress_total if progress_total > 0 else current,
-                progress_unit="document",
-            )
-            batch_status.write_state(f"{kind}_reflect", state)
+            # 進捗はロックを取って書くので、行ごとには書かない。
+            if time.time() - last_written_at >= 5.0:
+                last_written_at = time.time()
+                _reflect_update_item(
+                    f"{kind}_reflect",
+                    slug,
+                    message="インデックス更新中",
+                    progress_current=min(current, progress_total) if progress_total > 0 else current,
+                    progress_total=progress_total if progress_total > 0 else current,
+                    progress_unit="document",
+                )
     returncode = process.wait()
     if returncode != 0:
         raise RuntimeError(f"{kind} index update {slug} failed with exit code {returncode}")
@@ -384,13 +432,12 @@ def _run_index_update_impl(kind: str, slug: str) -> None:
     task_name = f"{kind}_reflect"
     target = _target_by_slug(kind, slug)
     progress_total = _index_document_total(kind, slug)
-    state = _reflect_state(task_name, target, progress_total=progress_total)
-    batch_status.write_state(task_name, state)
+    _reflect_start(task_name, target, progress_total=progress_total)
     ok = False
     message = ""
     indexed_count = 0
     try:
-        indexed_count = _run_index_update_command_with_status(kind, slug, state, progress_total)
+        indexed_count = _run_index_update_command_with_status(kind, slug, progress_total)
         # 検索に載る本文が 0 件でも失敗にしない。目次しか公開していない
         # 取得元では起こりうるし、失敗にすると毎回やり直しの対象になる。
         # 検索できる件数が 0 であることは収集状況ページ側に出る。
@@ -410,27 +457,17 @@ def _run_index_update_impl(kind: str, slug: str) -> None:
         # 成功したときだけ待ち行列から消す。投げた時点では消さない。
         index_outbox.mark_done(_index_doc_type(kind), slug)
     finally:
-        finished_at = batch_status.now_text()
-        batch_status.update_item(
-            state,
+        _reflect_update_item(
+            task_name,
             slug,
             status="ok" if ok else "failed",
             message=message,
-            finished_at=finished_at,
+            finished_at=batch_status.now_text(),
             returncode=0 if ok else -1,
             progress_current=indexed_count if ok else None,
             progress_total=indexed_count if ok else None,
             progress_unit="document" if ok else "",
         )
-        state["running"] = False
-        state["finished_at"] = finished_at
-        state["last_finished_at"] = finished_at
-        state["worker_active_count"] = 0
-        state["worker_idle_count"] = 1
-        state["index_active_count"] = 0
-        state["index_idle_count"] = 1
-        batch_status.refresh_counts(state)
-        batch_status.write_state(task_name, state)
         batch_status.invalidate_runtime_caches(include_homepage_payload=True)
 
 
@@ -573,12 +610,7 @@ def run_gijiroku_rebuild(name_filter: str = "") -> dict[str, object]:
 # 一時的な失敗はここで少しだけ待って投げ直す。決定的な失敗は待ち行列に残り、
 # `sweep_index_outbox` が間隔を空けて拾い直す。
 def run_gijiroku_index_update(self, slug: str) -> dict[str, object]:
-    # 実行が始まったので、積み重ね防止の印を外す。次の変更を積めるようにする。
-    index_enqueue.release(app, "deploy.scraper_runtime.celery.tasks.run_gijiroku_index_update", slug)
-    try:
-        _run_index_update_impl("gijiroku", slug)
-    except Exception as exc:
-        raise self.retry(exc=exc, countdown=_index_retry_countdown(self.request.retries))
+    _run_index_update_task(self, "gijiroku", slug)
     return {"ok": True, "task": "gijiroku_index_update", "slug": slug}
 
 
@@ -621,13 +653,28 @@ def run_reiki_rebuild(name_filter: str = "") -> dict[str, object]:
 )
 # 例規集の自治体別 OpenSearch 増分更新タスク。
 def run_reiki_index_update(self, slug: str) -> dict[str, object]:
-    # 実行が始まったので、積み重ね防止の印を外す。次の変更を積めるようにする。
-    index_enqueue.release(app, "deploy.scraper_runtime.celery.tasks.run_reiki_index_update", slug)
-    try:
-        _run_index_update_impl("reiki", slug)
-    except Exception as exc:
-        raise self.retry(exc=exc, countdown=_index_retry_countdown(self.request.retries))
+    _run_index_update_task(self, "reiki", slug)
     return {"ok": True, "task": "reiki_index_update", "slug": slug}
+
+
+# 自治体別の索引更新を、積み重ね防止の印の寿命と一緒に回す。
+#
+# 印は「積んだか実行中」を意味する。始まったら寿命を実行中の長さに縮め、
+# その場の投げ直しを待つ間は保ち、終わったら（成功でも失敗でも）消す。
+# 始まった時点で消すと、13〜28 分の実行中に掃き取りが同じ自治体を積む。
+def _run_index_update_task(task, kind: str, slug: str) -> None:
+    task_name = f"deploy.scraper_runtime.celery.tasks.run_{kind}_index_update"
+    index_enqueue.started(app, task_name, slug)
+    try:
+        _run_index_update_impl(kind, slug)
+    except Exception as exc:
+        countdown = _index_retry_countdown(task.request.retries)
+        if task.request.retries < int(task.max_retries or 0):
+            index_enqueue.hold(app, task_name, slug, countdown)
+        else:
+            index_enqueue.release(app, task_name, slug)
+        raise task.retry(exc=exc, countdown=countdown)
+    index_enqueue.release(app, task_name, slug)
 
 
 # 待ち行列に残っている自治体を投げ直す。**取得のやり直しを待たない。**
@@ -657,13 +704,14 @@ def sweep_index_outbox(limit: int = 0) -> dict[str, object]:
                 index_outbox.mark_failed(doc_type, slug, f"再投入に失敗: {exc}")
                 continue
             # 投げ直したことを記録して、次の掃き取りまで間を空ける。
-            index_outbox.mark_attempted(doc_type, slug)
+            # 積んだ回数であって失敗の回数ではない。
+            index_outbox.mark_enqueued(doc_type, slug)
             requeued.setdefault(kind, []).append(slug)
         stuck = index_outbox.stuck_entries(doc_type)
         if stuck:
             print(
-                f"[CELERY] {kind} index outbox: 試行上限に達した自治体 {len(stuck)} 件 "
-                f"({', '.join(sorted(stuck)[:10])})",
+                f"[CELERY] {kind} index outbox: 失敗の上限に達した自治体 {len(stuck)} 件"
+                f"（3 日おきに試す）({', '.join(sorted(stuck)[:10])})",
                 flush=True,
             )
     total = sum(len(items) for items in requeued.values())

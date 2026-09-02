@@ -5,6 +5,11 @@ from pathlib import Path
 
 
 SCRAPING_COMPOSE_PROJECT = "miyabe-tools-scraping"
+# 会議録の索引 worker の数。1 自治体の再索引に 13〜28 分かかり、世代の
+# 追いつきや取り直しで 1,000 自治体単位の待ち行列ができる。1 つでは
+# 2〜3 週間かかる。ホストは 16 コアで空きがあるので 3 つ並べる。
+# 同じ自治体を同時に索引しないのは `index_enqueue` の印が保証する。
+DEFAULT_GIJIROKU_INDEX_REPLICAS = 3
 SCRAPER_IMAGE_INPUTS = (
     "docker/scraper/Dockerfile",
     "docker/scraper/requirements.txt",
@@ -58,6 +63,7 @@ def build_scraping_compose(
     gid: str,
     gijiroku_loop_seconds: int,
     reiki_loop_seconds: int,
+    gijiroku_index_replicas: int = DEFAULT_GIJIROKU_INDEX_REPLICAS,
     fail_sleep_seconds: int,
 ) -> str:
     common_environment = {
@@ -186,7 +192,10 @@ def build_scraping_compose(
             "scraper-gijiroku-index": {
                 "image": image_name,
                 "restart": "no",
-                "cpus": "0.5",
+                # 文書生成は CPU で決まる（昭島市 1 億字で 768 秒）。0.5 では
+                # 半分の速さでしか回らない。
+                "cpus": "1.0",
+                "deploy": {"replicas": max(1, int(gijiroku_index_replicas))},
                 "init": True,
                 "stop_grace_period": "2m",
                 "user": f"{uid}:{gid}",
@@ -219,7 +228,7 @@ def build_scraping_compose(
             "scraper-reiki-index": {
                 "image": image_name,
                 "restart": "no",
-                "cpus": "0.5",
+                "cpus": "1.0",
                 "init": True,
                 "stop_grace_period": "2m",
                 "user": f"{uid}:{gid}",
