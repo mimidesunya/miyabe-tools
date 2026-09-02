@@ -163,15 +163,22 @@ def write_bytes(path: Path, data: bytes, *, compress: bool = False) -> Path:
             archive_existing_file(existing, reason="overwrite")
             archived_existing = existing.resolve()
     if compress:
-        with gzip.open(final_path, "wb", compresslevel=6) as handle:
+        # 同じディレクトリに書いてから差し替える。途中で死ぬと 0 バイトの
+        # gzip が正本に残り、索引がその自治体を永久に読めなくなる
+        # （浦添市の source_manifest.json.gz が 0 バイトのまま 3 か月あった）。
+        temporary = final_path.with_name(final_path.name + ".tmp")
+        with gzip.open(temporary, "wb", compresslevel=6) as handle:
             handle.write(data)
+        os.replace(temporary, final_path)
         plain_path = logical_path(final_path)
         if plain_path != final_path and plain_path.exists():
             if archived_existing != plain_path.resolve():
                 archive_existing_file(plain_path, reason="delete")
             plain_path.unlink()
     else:
-        final_path.write_bytes(data)
+        temporary = final_path.with_name(final_path.name + ".tmp")
+        temporary.write_bytes(data)
+        os.replace(temporary, final_path)
         gz_path = gzip_path(final_path)
         if gz_path != final_path and gz_path.exists():
             if archived_existing != gz_path.resolve():

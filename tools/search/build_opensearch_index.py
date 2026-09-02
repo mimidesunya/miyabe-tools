@@ -767,6 +767,34 @@ def iter_minutes_documents(
             return
 
 
+# 壊れたマニフェストは脇へどけて、本文ファイルから索引を作る。
+#
+# 浦添市の source_manifest.json.gz は 0 バイトのまま 3 か月あり、その間
+# 索引は 17 回失敗して 1 件も更新されなかった。マニフェストは補助の
+# メタデータで、本文は html にある。読めないなら無いものとして進み、
+# 次の取得が書き直せるように名前を変えて残す。
+def load_reiki_manifest_index_or_quarantine(path: Path) -> dict[str, dict[str, Any]]:
+    try:
+        return load_reiki_manifest_index(path, strict=True)
+    except Exception as exc:
+        if not path.exists():
+            return {}
+        quarantined = path.with_name(
+            f"{path.name}.corrupt-{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
+        try:
+            path.rename(quarantined)
+        except Exception as rename_exc:
+            raise RuntimeError(
+                f"broken reiki manifest {path} could not be set aside: {rename_exc}"
+            ) from exc
+        print(
+            f"[WARN] broken reiki manifest set aside: {path} -> {quarantined.name} ({exc})",
+            file=sys.stderr,
+        )
+        return {}
+
+
 def iter_reiki_documents(
     limit: int = 0,
     slugs: set[str] | None = None,
@@ -821,8 +849,8 @@ def iter_reiki_documents(
             classification_files = build_alias_map(
                 collect_reiki_preferred_files(Path(target["classification_dir"]), {".json"})
             )
-            manifest_index = load_reiki_manifest_index(
-                Path(target["work_root"]) / "source_manifest.json.gz", strict=True
+            manifest_index = load_reiki_manifest_index_or_quarantine(
+                Path(target["work_root"]) / "source_manifest.json.gz"
             )
             prefixes = reiki_sortable_prefixes(target)
         except Exception as exc:
@@ -868,8 +896,10 @@ def iter_reiki_documents(
                     "unreadable",
                     reason="file did not produce an indexable record",
                 )
-                if strict:
-                    raise RuntimeError(f"reiki file did not produce an indexable record: {html_path}")
+                # 1 ファイル読めないだけで自治体全体を止めない。厚岸町は
+                # 1,700 件のうち 1 件で止まり、何度積み直しても 1 件も
+                # 載らなかった。読めない分は監査に残し、残りは載せる。
+                # 全部が読めなければ「0 件成功の禁止」が止める。
                 print(
                     f"[WARN] reiki file did not produce an indexable record: {html_path}",
                     file=sys.stderr,

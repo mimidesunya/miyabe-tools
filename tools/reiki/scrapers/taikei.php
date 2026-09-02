@@ -1854,7 +1854,7 @@ function write_text_file(string $path, string $content, bool $compress = false):
         if (!is_string($encoded)) {
             throw new RuntimeException("Failed to gzip content for {$finalPath}");
         }
-        file_put_contents($finalPath, $encoded);
+        write_file_atomically($finalPath, $encoded);
 
         $plainPath = logical_path($finalPath);
         if ($plainPath !== $finalPath && is_file($plainPath)) {
@@ -1865,7 +1865,7 @@ function write_text_file(string $path, string $content, bool $compress = false):
             unlink($plainPath);
         }
     } else {
-        file_put_contents($finalPath, $content);
+        write_file_atomically($finalPath, $content);
 
         $gzPath = gzip_path($finalPath);
         if ($gzPath !== $finalPath && is_file($gzPath)) {
@@ -2270,6 +2270,21 @@ function merge_manifest_record(array $manifestRecord, array $crawlRecord, string
     $merged['source_file'] = $sourceFile;
 
     return $merged;
+}
+
+// 同じディレクトリに書いてから rename で差し替える。途中で死ぬと 0 バイトの
+// 正本が残り、索引がその自治体を永久に読めなくなる（浦添市の
+// source_manifest.json.gz が 0 バイトのまま 3 か月あった）。
+function write_file_atomically(string $finalPath, string $bytes): void
+{
+    $temporary = $finalPath . '.tmp';
+    if (file_put_contents($temporary, $bytes) === false) {
+        throw new RuntimeException("Failed to write {$temporary}");
+    }
+    if (!rename($temporary, $finalPath)) {
+        @unlink($temporary);
+        throw new RuntimeException("Failed to replace {$finalPath}");
+    }
 }
 
 function write_json_file(string $path, array $data, bool $compress = false): string
