@@ -51,6 +51,7 @@ SUPPORTED_SYSTEMS = {
     "chuo-kugikai": "scrapers/html_list_sites.py",
     "nakano-kugikai": "scrapers/html_list_sites.py",
     "echizen-search": "scrapers/html_list_sites.py",
+    "yoshinogawa-asp": "scrapers/html_list_sites.py",
 }
 SUPPORTED_INPUT_SYSTEMS = set(SUPPORTED_SYSTEMS.keys()) | {"voices", "db-search", "kaigiroku-indexphp"}
 SAVE_HTML_SYSTEMS = {

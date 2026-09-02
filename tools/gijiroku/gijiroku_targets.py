@@ -41,6 +41,7 @@ SYSTEM_FAMILY_ALIASES = {
     "chuo-kugikai": {"chuo-kugikai"},
     "nakano-kugikai": {"nakano-kugikai"},
     "echizen-search": {"echizen-search"},
+    "yoshinogawa-asp": {"yoshinogawa-asp"},
 }
 SYSTEM_FAMILY_BY_TYPE = {
     system_type: family

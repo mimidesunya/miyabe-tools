@@ -84,7 +84,7 @@
 01433	https://www.town.moseushi.hokkaido.jp/gikai/gijiroku/	static-kaigiroku-dir	enabled			2026-08-02	62c1957256c40544f30274dcf14d0524941627bc9a089a41b16415553b7ac2c5
 01434	https://www.town.chippubetsu.hokkaido.jp/category/detail.html?category=town&content=636	独自	enabled			2026-08-02	181de8e2faa4637de66ebf4eed47fe6a6bb6b22c8720876792a363d3e415a867
 01436	https://www.town.uryu.hokkaido.jp/docs/4719.html	独自	enabled			2026-08-02	25e8b0ab67ff3d9f15b0c56a76d28953f65d8ada22250dce3b5d18ef1c9e86cc
-01437	http://www.town.hokuryu.hokkaido.jp/gikaikaigiroku_r6/	独自	enabled			2026-08-02	01ddef5cbf236388d1a57d096d47fc5a8df16cc106608257a1cc45da617989b5
+01437	https://www.town.hokuryu.hokkaido.jp/chosei/6551/	独自	enabled			2026-08-02	01ddef5cbf236388d1a57d096d47fc5a8df16cc106608257a1cc45da617989b5
 01438	https://www.town.numata.hokkaido.jp/section/gikai/index.html#i21	独自	enabled			2026-08-02	1048552c2d76219646aedc5a631ee46d43e0af16a45ca309c14845d91061963e
 01452			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 01453			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
@@ -1417,7 +1417,7 @@
 36202	https://ssp.kaigiroku.net/tenant/naruto/MinuteSearch.html	kaigiroku.net	enabled				237530bfc7e6f04ad20e6a52ac3a4f6e95a1455fbf856ad90fb33794fe5f7ea7
 36203	https://www.city.komatsushima.tokushima.dbsr.jp/index.php/	dbsr	enabled				05291a34f25bad5e0da0544e9c79e15a9baf545ff2b4fd2f33d084004aa47627
 36204	https://ssp.kaigiroku.net/tenant/anan/MinuteSearch.html	kaigiroku.net	enabled				ec3fec72043b8be601b6914262a920bd360a9e9754f018a86fff66fb02e33f89
-36205	http://www2.city.yoshinogawa.lg.jp/e_service/proceeding/index.asp	独自	excluded	unsupported_system	ASP 製の独自会議録検索（proceeding/index.asp）	2026-08-02	878cfc98d384b27707049b0061d36aed388a4444316fc132ca94415f1732a088
+36205	http://www2.city.yoshinogawa.lg.jp/e_service/proceeding/index.asp	yoshinogawa-asp	enabled			2026-08-02	878cfc98d384b27707049b0061d36aed388a4444316fc132ca94415f1732a088
 36206	https://www.city.awa.lg.jp/gikai/category/bunya/kaigiroku/	独自	enabled			2026-08-02	bd8dcf0945fc65e1261e6bf52c8affafe980070aeba3a564bcb335b677df722f
 36207	https://www.city.mima.lg.jp/gyosei/docs/2558118.html	独自	enabled			2026-08-02	74020376b33caf49378a8162912fa196c5fea17d4f59505fab91792ca9d1230c
 36208	https://ssp.kaigiroku.net/tenant/tmiyoshi/MinuteSearch.html	kaigiroku.net	enabled				01c20cd740b8787af8938e1a553b914def30af70f8db0a678e95baca49de1ba9

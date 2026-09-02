@@ -18,6 +18,7 @@
 | chuo-kugikai | 中央区議会 | `index.cgi` の年セレクト | `kaigiroku.cgi/rNN/*.html` |
 | nakano-kugikai | 中野区議会 | `search.html` の年チェック | `view.html?gijiroku_id=` |
 | echizen-search | 越前市議会（poseidon） | `Record/?treedepth=年` | `Document4/index.exe` |
+| yoshinogawa-asp | 吉野川市議会（ASP） | `index.asp` の年見出し | 日ごとの枠の発言ページを連結 |
 
 使い方:
     python3 tools/gijiroku/scrapers/html_list_sites.py --slug 13102-chuo-ku --ack-robots --max-meetings 3
@@ -333,8 +334,90 @@ class EchizenSearch(Adapter):
         return text
 
 
+class YoshinogawaAsp(Adapter):
+    """吉野川市議会（ASP）。定例会 → 日 → 発言ごとのページ。
+
+    `index.asp` に定例会（`proc_list.asp?cid=`）が並び、定例会ごとに日の文書
+    （`proc_disp2.asp?cid=&id=`）がある。本文は日の枠の中の一覧フレーム
+    （`proc_disp_list2.asp`）が指す発言ページ（`proc_disp_remark2.asp?id=`）に
+    1 発言ずつ分かれているので、全部読んで繋ぐ。セッション無しで文書を開くと
+    エラーページになるので、入口から順に開く。
+    """
+
+    system_type = "yoshinogawa-asp"
+
+    def __init__(self) -> None:
+        # 文書は定例会の一覧を踏んだセッションでしか開けない。どの一覧から来たかを控える。
+        self.list_url_by_doc: dict[str, str] = {}
+
+    def _base(self, source_url: str) -> str:
+        return source_url.rsplit("/", 1)[0] + "/"
+
+    def discover(self, session, source_url, timeout_ms, walk):
+        base = self._base(source_url)
+        index_html = fetch(session, base + "index.asp", timeout_ms=timeout_ms)
+        items: list[MeetingItem] = []
+        seen: set[str] = set()
+        missed: list[str] = []
+        # 年見出し（<strong>令和６年</strong>）の下に定例会が並ぶ。
+        year = ""
+        for chunk in re.split(r"(?=<strong>)", index_html):
+            heading = re.match(r"<strong>([^<]+)</strong>", chunk)
+            if heading:
+                year = year_label_from(heading.group(1)) or year
+            for url, text in anchors(chunk, base):
+                if "proc_list.asp?cid=" not in url or url in seen:
+                    continue
+                seen.add(url)
+                try:
+                    listing = fetch(session, url, timeout_ms=timeout_ms, referer=base + "index.asp")
+                except Exception as exc:
+                    missed.append(f"{text}: {exc}")
+                    continue
+                for doc_url, doc_text in anchors(listing, url):
+                    if "proc_disp2.asp?cid=" not in doc_url or doc_url in seen or not doc_text:
+                        continue
+                    seen.add(doc_url)
+                    self.list_url_by_doc[doc_url] = url
+                    items.append(MeetingItem(title=doc_text, url=doc_url, year_label=year_label_from(doc_text) or year or "不明", meeting_group=text or None))
+                time.sleep(0.5)
+        walk["missed_pages"] = len(missed)
+        walk["missed_examples"] = missed[:10]
+        return items
+
+    def fetch_text(self, session, item, timeout_ms):
+        base = self._base(item.url)
+        # 入口を踏んでからでないと文書がエラーページになる。
+        fetch(session, base + "index.asp", timeout_ms=timeout_ms)
+        list_url = self.list_url_by_doc.get(item.url) or f"{base}proc_list.asp?cid={parse_qs(urlsplit(item.url).query).get('cid', [''])[0]}"
+        fetch(session, list_url, timeout_ms=timeout_ms, referer=base + "index.asp")
+        frame_html = fetch(session, item.url, timeout_ms=timeout_ms, referer=list_url)
+        list_src = next((src for src in re.findall(r"<(?:frame|iframe)[^>]+src=[\"']([^\"']+)", frame_html, flags=re.I) if "proc_disp_list2" in src), "")
+        if not list_src:
+            raise RuntimeError(f"発言一覧のフレームが見つかりません: {item.url}")
+        list_html = fetch(session, urljoin(item.url, list_src), timeout_ms=timeout_ms, referer=item.url)
+        remark_ids: list[str] = []
+        for url, _text in anchors(list_html, item.url):
+            match = re.search(r"proc_disp_remark2\.asp\?id=(\d+)", url)
+            if match and match.group(1) not in remark_ids:
+                remark_ids.append(match.group(1))
+        if not remark_ids:
+            raise RuntimeError(f"発言が 1 件も見つかりません: {item.url}")
+        parts: list[str] = []
+        for index, remark_id in enumerate(remark_ids):
+            page_html = fetch(session, f"{base}proc_disp_remark2.asp?id={remark_id}", timeout_ms=timeout_ms, referer=item.url)
+            body = slice_between(page_html, ["<body"], ["</body>"])
+            text = html_to_text(body)
+            if index > 0:
+                # 各ページ先頭の「令和６年１２月定例会第４日目(2024.12.20)」の見出しは 1 回でよい。
+                text = re.sub(r"^[^\n]*\n", "", text, count=1)
+            parts.append(text)
+            time.sleep(0.3)
+        return "\n\n".join(parts)
+
+
 ADAPTERS: dict[str, Adapter] = {
-    adapter.system_type: adapter for adapter in (ShizuokaNotes(), ChuoKugikai(), NakanoKugikai(), EchizenSearch())
+    adapter.system_type: adapter for adapter in (ShizuokaNotes(), ChuoKugikai(), NakanoKugikai(), EchizenSearch(), YoshinogawaAsp())
 }
 
 

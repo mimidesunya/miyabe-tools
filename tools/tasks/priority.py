@@ -450,6 +450,7 @@ def scrape_state_progress(target: dict[str, Any]) -> tuple[int, int]:
         "chuo-kugikai",
         "nakano-kugikai",
         "echizen-search",
+        "yoshinogawa-asp",
     }
     if system_family in RECORDS_WALK and not has_explicit_coverage:
         # 走査の記録を書く系統なのに complete が無いなら、まだ歩き切れていない。

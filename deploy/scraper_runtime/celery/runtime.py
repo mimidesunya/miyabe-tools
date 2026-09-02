@@ -30,6 +30,7 @@ GIJIROKU_SUPPORTED_SYSTEMS = {
     "chuo-kugikai",
     "nakano-kugikai",
     "echizen-search",
+    "yoshinogawa-asp",
 }
 REIKI_SUPPORTED_SYSTEMS = {"d1-law", "taikei", "g-reiki"}
 
