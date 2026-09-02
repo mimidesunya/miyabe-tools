@@ -1208,7 +1208,7 @@
 28218	http://www.kensakusystem.jp/ono-c/index.html	kensakusystem	enabled			2026-08-02	31c4a6cc4b73a51c18b1a4ae499809fb0874906a42ec12f551427cd10bb16174
 28219	https://ssp.kaigiroku.net/tenant/sanda/MinuteSearch.html	kaigiroku.net	enabled				3d866eeaf65c60be8f8f11f94da827256d68e2ba7d0c6681b672b7cc16352c5c
 28220	https://ssp.kaigiroku.net/tenant/kasai/SpMinuteSearch.html	kaigiroku.net	enabled				3016a3472e348279bb6d9578e71080daa0d7237b07970d2c419a3da756c21156
-28221	https://kensaku.sasayama.jp/index.html	独自	excluded	unsupported_system	市独自の議事録検索（kensaku.sasayama.jp）	2026-08-02	0d8090d461fb3d07bf6f17d20e34e9df020f040be3c8cff58327484cda7a15d8
+28221	https://kensaku.sasayama.jp/index.html	kensakusystem	enabled			2026-08-02	0d8090d461fb3d07bf6f17d20e34e9df020f040be3c8cff58327484cda7a15d8
 28222	https://www.city.yabu.hyogo.dbsr.jp/index.php/	dbsr	enabled				d689b0307aefe1ca84d4bd503f21d1e5220ff0aebab59cf44d0b22cf692cec70
 28223	http://www.kensakusystem.jp/tamba/index.html	kensakusystem	enabled			2026-08-02	4e3402ae615c7e9830cfef7d97b4eb168f90260930dff574b6c9b096b96176b6
 28224	https://www.city.minamiawaji.hyogo.jp/site/gikai/kaigiroku.html	独自	enabled			2026-08-02	2832e8f8b900db2a19efa565ce7026f93e1f740df7616166453f0b54234046ad
