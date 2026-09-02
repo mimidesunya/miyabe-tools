@@ -188,7 +188,8 @@ class ShizuokaNotes(Adapter):
     def fetch_text(self, session, item, timeout_ms):
         page_html = fetch(session, item.url, timeout_ms=timeout_ms)
         body = slice_between(page_html, ['<main id="page"', "ここから本文です"], ['class="pagetop2"', '<div id="reference"', '<footer'])
-        body = re.sub(r'<div id="notes">[\s\S]*?</div>', "", body, flags=re.I)
+        # 本文は `<div id="notes">` の中にある。タブ画像の段落だけを落とす。
+        body = re.sub(r"<h2>議会補足文書</h2>\s*<p>[\s\S]*?</p>", "", body, flags=re.I)
         return html_to_text(body)
 
 
