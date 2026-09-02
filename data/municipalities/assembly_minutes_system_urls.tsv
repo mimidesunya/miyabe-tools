@@ -248,7 +248,7 @@
 03322	https://www.town.yahaba.iwate.jp/soshiki/gikai/yahabagikai/gijiroku/	static-kaigiroku-dir	enabled			2026-08-02	6f29a62ee732cc272be36c3be7509a6fc4239dccc7105edd4832056a0bcb38da
 03366			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 03381	https://ssp.kaigiroku.net/tenant/kanegasaki/SpMinuteSearch.html	kaigiroku.net	enabled				55f8618398f5ce8b7014adcf8032edbfae215a22b27e08ec5fbf2296cb2dc141
-03402			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
+03402	https://smart.discussvision.net/smart/tenant/hiraizumi/WebView/rd/council_1.html	discussvision	excluded	video_only	議会中継（discussvision）の録画映像のみで会議録本文なし	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 03441	https://www.town.sumita.iwate.jp/tag/%E4%BC%9A%E8%AD%B0%E9%8C%B2	独自	enabled			2026-08-02	67574fb1ad5d2809bde9b468a4726d346e67694eb4972db9e00ad2b17411d17d
 03461	https://www.town.otsuchi.iwate.jp/gyosei/gikai/kaigiroku/	static-kaigiroku-dir	enabled			2026-08-02	f53d66275b1a65c958d2541677d70665a472089ffc0d4cd7ca9d187c90e79bcd
 03482	https://www.town.yamada.iwate.jp/chousei/gikai/kaigiroku/	static-kaigiroku-dir	enabled			2026-08-02	23a2a3e383faf8dba81722b45be4755a1aa8aa70f27e90dbb25f6925452510dc
@@ -967,7 +967,7 @@
 21404			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 21421	https://www.town.kitagata.gifu.jp/gyoseijoho/gikai/2/3731.html	独自	enabled			2026-08-02	22a9fa21a768b37ee5e891735114e460deb7288d664d9f616d11e5d2299160cd
 21501	https://www.town.sakahogi.gifu.jp/gikai/	独自	enabled			2026-08-20	ee081adf6413c0453cf049d3b039f3b0a39bd89b6fcaac6c03ba975822f5955a
-21502			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
+21502	https://smart.discussvision.net/smart/tenant/tomika/WebView/rd/council.html	discussvision	excluded	video_only	議会映像配信（discussvision）のみで会議録本文なし	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 21503	https://www.kawabe-gifu.jp/?page_id=48191	独自	enabled			2026-08-02	eacca6485fee0b34fab870eb5662a44691d7ab24b9368988bc5bce615b34f8eb
 21504	https://www.hichiso.jp/top/gyosei/parlament/record/	独自	enabled			2026-08-02	da502830823ce5d65274544fffa63a1db954204a6ba6b7b46d9de989988b3694
 21505	https://www.town.yaotsu.lg.jp/7533.htm	独自	enabled			2026-08-02	bd9ee9703bc12ff4610d66519afbf3c4c0a45951f2b494b121feca5ffb805485
@@ -1281,10 +1281,10 @@
 30209	https://www.city.iwade.lg.jp/site/gikai/1112.html	独自	enabled				8b190f3b748cb4df5602f8a3a5d872801d0ae869fe602915c79854f3d88bef3e
 30304	http://www.kensakusystem.jp/kimino/index.html	kensakusystem	enabled			2026-08-02	8104d994dd8b46483223b0dae2f86de98f7685811dddef28178fcbbba23c00c2
 30341	https://www.kensakusystem.jp/katsuragi/index.html	kensakusystem	enabled			2026-08-02	6cec2fbbd92d79578974282c53b1efa715e57d0de1c79501851975fc2c875843
-30343			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
+30343	https://www.town.kudoyama.lg.jp/gikai/index.html	独自	excluded	not_published	議会ページにあるのは定例会の日程と一般質問要旨だけで会議録本文なし	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 30344	http://www.kensakusystem.jp/koya/index.html	kensakusystem	enabled			2026-08-02	e0cd49cfcca418019936efd883e1c33c324a4e42dedbfe236886fe641b376219
 30361			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
-30362			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
+30362	https://www.town.hirogawa.wakayama.jp/gikai/nittei.html	独自	excluded	not_published	議会日程ページの PDF は会期予定表と議事日程だけで会議録本文なし	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 30366			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 30381	http://www.town.mihama.wakayama.jp/bunya/gikai_kaigiroku/	独自	enabled			2026-08-02	25bae0e466f03c2e5ab26bf463bf9305989fc09e54835eb325e0ab6c8ae6e0f1
 30382	http://www.town.wakayama-hidaka.lg.jp/docs/2014090500379/	独自	enabled			2026-08-02	4992fd1d39b8e41db93c9be79e88ea4003ab5685d60e318006c308fb1ff6d3b0
