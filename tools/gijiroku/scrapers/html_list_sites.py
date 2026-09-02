@@ -381,6 +381,9 @@ class YoshinogawaAsp(Adapter):
                     self.list_url_by_doc[doc_url] = url
                     items.append(MeetingItem(title=doc_text, url=doc_url, year_label=year_label_from(doc_text) or year or "不明", meeting_group=text or None))
                 time.sleep(0.5)
+        # 入口に並ぶのは直近 3 年だけ。「期間でさがす」は 1 ページ目しか返さず
+        # （2010 年を丸ごと引いても最後の定例会 4 日分だけ）、月で切っても
+        # 日ごとに欠ける。2005 年からの過去分はここでは取れていない。
         walk["missed_pages"] = len(missed)
         walk["missed_examples"] = missed[:10]
         return items
