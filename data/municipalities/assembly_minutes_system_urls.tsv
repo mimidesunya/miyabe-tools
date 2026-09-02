@@ -767,7 +767,7 @@
 15361	https://www.town.tagami.niigata.jp/gikai/docs/8692.html	独自	enabled			2026-08-02	9efce0a7fb187bf651589902f7edfe8a8c8b84c09e992dd4313e24c20838c9ee
 15385	https://ssp.kaigiroku.net/tenant/aga/SpMinuteSearch.html	kaigiroku.net	enabled				9a29c04f1fbb260b7b67fc4dbc70d699223d759f587616c46f47c76e2fd6748a
 15405	https://www.town.izumozaki.niigata.jp/gikai/kaigiroku/	独自	enabled			2026-08-02	b84faa253016c9eeb72d4c8c5ef236439ca402a94bd06838dbb9a1f02f07f493
-15461	https://yuzawa-v.k-quick.net/html/giji/giji-000.html	独自	excluded	unsupported_system	k-quick.net 製の会議録閲覧システム	2026-08-02	5dcdb1f8c751efa0cb91b4c40998a33480158ec0e398647bb76352715120c890
+15461	https://yuzawa-v.k-quick.net/html/giji/giji-000.html	static-kaigiroku-dir	enabled			2026-08-02	5dcdb1f8c751efa0cb91b4c40998a33480158ec0e398647bb76352715120c890
 15482	https://www.town.tsunan.niigata.jp/site/gikai/list40-162.html	独自	enabled			2026-08-02	06ea3e82babf93c9d3dbbd6c99e00506c6cd63ba15f2a087f7895ebb9cb039b6
 15504			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 15581	http://www.vill.sekikawa.niigata.jp/709/251/index.html	独自	enabled			2026-08-02	3bc00f0651be2c2d705963f67e37ae4cc5b277415b63366820797b56664aadaf
