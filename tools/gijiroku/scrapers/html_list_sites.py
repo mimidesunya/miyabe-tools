@@ -300,7 +300,9 @@ class EchizenSearch(Adapter):
         missed: list[str] = []
         for year in years:
             try:
-                listing = fetch(session, f"{record_url}&treedepth={requests.utils.quote(year)}", timeout_ms=timeout_ms)
+                # 年は Shift_JIS で URL エンコードしないと通じない。UTF-8 で送ると
+                # 黙って既定の年（最新）に落ち、どの年を頼んでも同じ 11 件が返る。
+                listing = fetch(session, f"{record_url}&treedepth={requests.utils.quote(year, encoding='cp932')}", timeout_ms=timeout_ms)
             except Exception as exc:
                 missed.append(f"{year}: {exc}")
                 continue
