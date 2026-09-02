@@ -62,6 +62,8 @@ MINUTES_PAGE_KEYWORDS = (
     "臨時会",
 )
 GIKAI_PATH_KEYWORDS = ("gikai", "gicho", "gichou", "gityou")
+# 会議録そのものを指す URL の断片。議会の階層に置かれない自治体がある。
+MINUTES_PATH_KEYWORDS = ("kaigiroku", "gijiroku", "kaigi-roku", "minutes")
 # 拡張子を URL に出さずに PDF を返す配信エンドポイント。実体は
 # Content-Type: application/pdf なので、URL だけでは PDF と判別できない。
 ATTACHMENT_ENDPOINT_RE = re.compile(r"/UploadFileOutput\.ashx", re.I)
@@ -285,6 +287,11 @@ def is_same_site_html_page(start_url: str, url: str) -> bool:
     # 同じサイトの中で、入口と同じ議会の階層にいるページを辿る。
     if "/site/" in path:
         return True
+    # 議会・会議録だと分かる場所にあるページは、入口と階層が違っても辿る。
+    # 小野町は入口が `/life/4/19/99/` で年別一覧が `/soshiki/10/kaigiroku08.html`
+    # にあり、階層だけで見ると 1 ページも辿れなかった。
+    if any(keyword in path for keyword in GIKAI_PATH_KEYWORDS + MINUTES_PATH_KEYWORDS):
+        return True
     start_path = start.path.lower()
     # 入口のディレクトリを 1 つ上まで遡った範囲を「同じ階層」とみなす。
     # `/info/gikai/2/16.html` なら `/info/gikai/` の下。
@@ -292,25 +299,47 @@ def is_same_site_html_page(start_url: str, url: str) -> bool:
     return path.startswith(base)
 
 
-def looks_like_generic_minutes_page(anchor_text: str, url: str) -> bool:
+# 議会の階層にあっても会議録ではないページ。ここを辿ると議会だよりの PDF が
+# 会議録として混ざる（小野町は 186 号・187 号を拾っていた）。
+NOT_MINUTES_PAGE_RE = re.compile(
+    r"だより|広報|koho|kouhou|dayori|傍聴|請願|陳情|名簿|中継|録画|交際費|kousaihi|政務活動費|視察",
+    re.I,
+)
+# 「令和8年」だけのリンク。会議録の一覧から年別へ降りるときの形。
+YEAR_ONLY_ANCHOR_RE = re.compile(r"^\s*(?:令和|平成|昭和)\s*(?:\d{1,2}|元)\s*年(?:度)?(?:[（(][^）)]*[）)])?\s*$")
+
+
+def looks_like_generic_minutes_page(anchor_text: str, url: str, from_minutes_page: bool = False) -> bool:
     parts = urlsplit(url)
     path = parts.path.lower()
     haystack = normalize_space(f"{anchor_text} {parts.path}").lower()
+    if NOT_MINUTES_PAGE_RE.search(f"{anchor_text} {parts.path}"):
+        return False
     if any(keyword.lower() in haystack for keyword in MINUTES_PAGE_KEYWORDS):
         return True
     if any(keyword in path for keyword in GIKAI_PATH_KEYWORDS) and YEAR_OR_LIST_RE.search(haystack):
         return True
-    return False
+    # 会議録の一覧から降りる年別リンクは「令和8年」としか書かれていないことが
+    # ある（那珂川町）。会議録のページから辿るときだけ通す。
+    return from_minutes_page and bool(YEAR_ONLY_ANCHOR_RE.match(normalize_space(anchor_text)))
 
 
-def should_follow_minutes_page(start_url: str, href: str, anchor_text: str, strict_kami: bool) -> str | None:
+def should_follow_minutes_page(
+    start_url: str,
+    href: str,
+    anchor_text: str,
+    strict_kami: bool,
+    from_minutes_page: bool = False,
+) -> str | None:
     absolute = urljoin(start_url, href.strip())
     absolute = absolute.split("#", 1)[0]
     if strict_kami:
         return absolute if is_kami_minutes_page(absolute) else None
     if not is_same_site_html_page(start_url, absolute):
         return None
-    return absolute if looks_like_generic_minutes_page(anchor_text, absolute) else None
+    if looks_like_generic_minutes_page(anchor_text, absolute, from_minutes_page):
+        return absolute
+    return None
 
 
 # 自治体サイトが添付 PDF を置く場所。CMS ごとに違う。`/uploaded/attachment/`
@@ -391,12 +420,20 @@ def discover_minutes_pages(
         soup = BeautifulSoup(current_html, "html.parser")
         # `<base href>` を見ないと、ページの階層を前置して 404 になる。
         current_base = page_base_url(soup, current_url)
+        # いま見ているページ自体が会議録の一覧なら、年だけのリンクも辿ってよい。
+        current_is_minutes = current_url == start_url or looks_like_generic_minutes_page(
+            page_title(soup), current_url
+        )
         for anchor in soup.select(selectors):
             href = str(anchor.get("href", "")).strip()
             if not href:
                 continue
             page_url = should_follow_minutes_page(
-                start_url, urljoin(current_base, href), anchor.get_text(" ", strip=True), strict_kami
+                start_url,
+                urljoin(current_base, href),
+                anchor.get_text(" ", strip=True),
+                strict_kami,
+                current_is_minutes,
             )
             if not page_url or page_url in pages:
                 continue
@@ -404,7 +441,10 @@ def discover_minutes_pages(
             if max_pages > 0 and len(pages) >= max_pages:
                 LIST_PAGE_LIMIT_HIT.append(start_url)
                 return list(pages.keys())
-            if depth + 1 >= 2:
+            # 「議会 → 年 → 会議 → PDF」と 3 段置く取得元がある（那珂川町・小野町）。
+            # 2 段で止めると、その先の PDF が 1 件も見えない。ページ数は
+            # max_pages で頭打ちなので、深さを 1 つ増やしても際限なくは広がらない。
+            if depth + 1 >= 3:
                 continue
             try:
                 child_html = request_text(session, page_url, timeout_ms)

@@ -272,5 +272,21 @@ class HeldOnHeaderTest(unittest.TestCase):
         self.assertIn("Held-On: 2025-09-18", text)
 
 
+
+class CompanionDocumentLabelTest(unittest.TestCase):
+    """会議録と同じ一覧に並ぶ添え物は、本文として保存しない。"""
+
+    def test_bill_name_list_is_not_minutes(self):
+        self.assertEqual(minutes_kind.non_minutes_reason("議案件名", ""), "non_minutes_label")
+
+    def test_vote_result_is_not_minutes(self):
+        for label in ("審議結果", "議決結果", "採決結果", "３月定例会議決結果一覧"):
+            self.assertEqual(minutes_kind.non_minutes_reason(label, ""), "non_minutes_label", label)
+
+    def test_a_real_minutes_title_still_passes(self):
+        for label in ("令和8年第1回定例会会議録", "会議録【初日】", "第2回臨時会会議録"):
+            self.assertIsNone(minutes_kind.non_minutes_reason(label, ""), label)
+
+
 if __name__ == "__main__":
     unittest.main()
