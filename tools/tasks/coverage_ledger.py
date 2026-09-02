@@ -204,6 +204,232 @@ def empty_body_rows(
     return found
 
 
+# 本文の長さが同系統の中央値のこの割合を下回ったら疑う。
+SHORT_BODY_RATIO = 0.35
+# 標本が少ないと中央値が当てにならない。
+SHORT_BODY_MIN_DOCS = 30
+# 比べる相手の数。これを下回る系統は中央値を作らない。
+SHORT_BODY_MIN_PEERS = 3
+# 本文の中央値がこれを下回るものは、分割の細かさでは説明できない。
+# 会議録 1 件が 1,000 字を切ることは、枠だけ・見出しだけを掴んでいる
+# のでなければ起きない。
+#
+# 仲間比だけで見ると 145 自治体が挙がるが、その多くは `独自` の PDF
+# 収集で、議案ごと・日ごとに細かく分かれているだけだった（松田町
+# 「議案第58号」1,774 字の中身は議長の発言から始まる議事そのもの）。
+# **短いことと欠けていることは違う。**取り直しを指示する相手は、
+# この床を下回るものに限る。
+SHORT_BODY_SEVERE_MEDIAN = 1000
+
+
+def short_body_rows(
+    median_by_slug: dict[str, int],
+    system_by_slug: dict[str, str],
+    counts_by_slug: dict[str, int],
+    *,
+    ratio: float = SHORT_BODY_RATIO,
+    min_docs: int = SHORT_BODY_MIN_DOCS,
+    min_peers: int = SHORT_BODY_MIN_PEERS,
+) -> list[dict[str, Any]]:
+    """本文が同系統の仲間より極端に短い自治体を返す。
+
+    **空ではないので empty_body に出ず、件数は正しいので thin にも出ない。**
+    高崎市は本文の中央値が 2,855 字で、同じ gijiroku.com の仲間は
+    13,000〜35,000 字だった。取得していたのは開いている発言だけで、
+    全発言ではなかった。件数も題名も日付も正しかった。
+    """
+    from statistics import median
+
+    peers: dict[str, list[int]] = {}
+    for slug, value in median_by_slug.items():
+        if int(counts_by_slug.get(slug, 0)) < int(min_docs):
+            continue
+        system = str(system_by_slug.get(slug) or "").strip()
+        if not system:
+            continue
+        peers.setdefault(system, []).append(int(value))
+
+    found: list[dict[str, Any]] = []
+    for slug, value in median_by_slug.items():
+        total = int(counts_by_slug.get(slug, 0))
+        if total < int(min_docs):
+            continue
+        system = str(system_by_slug.get(slug) or "").strip()
+        values = peers.get(system) or []
+        if len(values) < int(min_peers):
+            continue
+        peer_median = median(values)
+        if peer_median <= 0:
+            continue
+        if int(value) >= peer_median * float(ratio):
+            continue
+        found.append(
+            {
+                "slug": slug,
+                "system_type": system,
+                "documents": total,
+                "median_body": int(value),
+                "peer_median": int(peer_median),
+                "ratio": round(int(value) / peer_median, 3),
+                # 分割の細かさでは説明できない短さかどうか。
+                "severe": int(value) < SHORT_BODY_SEVERE_MEDIAN,
+            }
+        )
+    found.sort(key=lambda row: (row["ratio"], -row["documents"]))
+    return found
+
+
+# 日付が読めない文書がこの割合を超えたら疑う。
+EMPTY_DATE_RATIO = 0.5
+# 少数の自治体で偶然そうなることはあるので、下限を置く。
+EMPTY_DATE_MIN_DOCS = 30
+
+
+def empty_date_rows(
+    counts_by_slug: dict[str, int],
+    dated_by_slug: dict[str, int],
+    *,
+    ratio: float = EMPTY_DATE_RATIO,
+    min_docs: int = EMPTY_DATE_MIN_DOCS,
+) -> list[dict[str, Any]]:
+    """日付がほとんど読めていない自治体を返す。
+
+    **件数でも本文でも出てこない。**板柳町は 503 件が公開され、本文も
+    入っていて、そのうち 502 件に公布日が無かった。日付で絞れないので、
+    利用者からは「無い」のと変わらない。
+    """
+    found: list[dict[str, Any]] = []
+    for slug, total in counts_by_slug.items():
+        total = int(total or 0)
+        if total < int(min_docs):
+            continue
+        missing = total - int(dated_by_slug.get(slug, 0))
+        if missing < total * float(ratio):
+            continue
+        found.append(
+            {
+                "slug": slug,
+                "documents": total,
+                "no_date": missing,
+                "ratio": round(missing / total, 3) if total else 0.0,
+            }
+        )
+    found.sort(key=lambda row: (-row["ratio"], -row["documents"]))
+    return found
+
+
+# 最新文書がこれより古い自治体は、取得が止まっている疑いがある。
+STALE_DAYS = 730
+# 議会が長期休止している小規模自治体もあるので、件数の下限は置かない。
+# 代わりに、経過日数そのものを添えて人が判断できるようにする。
+
+
+# 日付が読めている文書がこの割合を下回る自治体では、「最新の日付」は
+# 取得の古さではなく日付の欠落を映している。板柳町は 503 件のうち
+# 502 件に公布日が無く、残る 1 件の 1961 年が最新として出ていた。
+STALE_MIN_DATED_RATIO = 0.5
+
+
+def stale_rows(
+    newest_by_slug: dict[str, str],
+    *,
+    today: str,
+    days: int = STALE_DAYS,
+    dated_by_slug: dict[str, int] | None = None,
+    totals_by_slug: dict[str, int] | None = None,
+) -> list[dict[str, Any]]:
+    """最新文書が古いまま止まっている自治体を返す。
+
+    **件数でも空欄でも日付ずれでも出てこない形である。**仙台市は
+    88 件が正しく公開され、日付も本文も正しかった。ただし最新が
+    1991 年だった。取得元は 19,325 件を申告していて、ページ送りが
+    18 ページ目で静かに終わっていた。既存の 6 つの軸はどれも
+    これを指さなかった。
+
+    `newest_by_slug` は `slug -> 最新文書の日付 (YYYY-MM-DD)`。
+    """
+    from datetime import date
+
+    def parse(text: str):
+        try:
+            year, month, day = (int(part) for part in str(text)[:10].split("-"))
+            return date(year, month, day)
+        except (TypeError, ValueError):
+            return None
+
+    limit = parse(today)
+    if limit is None:
+        return []
+    found: list[dict[str, Any]] = []
+    for slug, newest in newest_by_slug.items():
+        seen = parse(newest)
+        if seen is None:
+            continue
+        if dated_by_slug is not None and totals_by_slug is not None:
+            total = int(totals_by_slug.get(slug, 0))
+            dated = int(dated_by_slug.get(slug, 0))
+            if total > 0 and dated < total * STALE_MIN_DATED_RATIO:
+                # 日付がほとんど読めていない。古さではなく日付の問題なので、
+                # empty_date の軸で挙げる。両方に出すと、どちらの数も濁る。
+                continue
+        age = (limit - seen).days
+        if age < int(days):
+            continue
+        found.append({"slug": slug, "newest": str(newest)[:10], "age_days": age})
+    found.sort(key=lambda row: -row["age_days"])
+    return found
+
+
+# 保存済みのうち、これを下回る割合しか公開されていなければ疑う。
+INDEX_GAP_RATIO = 0.5
+# 少数の自治体では、重複除去のずれだけでこの比になる。
+INDEX_GAP_MIN_SAVED = 30
+
+
+def index_gap_rows(
+    saved_by_slug: dict[str, int],
+    indexed_by_slug: dict[str, int],
+    *,
+    ratio: float = INDEX_GAP_RATIO,
+    min_saved: int = INDEX_GAP_MIN_SAVED,
+) -> list[dict[str, Any]]:
+    """取得済みなのに公開へ出ていない自治体を返す。
+
+    **仲間と比べるのではなく、自分の保存データと比べる。**これが一番強い
+    根拠である。仲間比（`thin`）は取得元の規模差で濁るが、こちらは
+    「こちらが持っているのに出していない」という事実そのものになる。
+
+    `sweep_never_indexed` は 1 件も無い自治体しか拾わない。各務原市は
+    3,220 件を保存して 5 件しか公開しておらず、0 件ではないのでどの
+    仕組みからも見えなかった。氷見市は 711 件保存して 4 件で、索引を
+    積み直しただけで 541 件になった。**取得の問題ではなく、公開の問題。**
+    """
+    found: list[dict[str, Any]] = []
+    for slug, saved in saved_by_slug.items():
+        saved = int(saved or 0)
+        if saved < int(min_saved):
+            continue
+        indexed = int(indexed_by_slug.get(slug, 0))
+        if indexed >= saved * float(ratio):
+            continue
+        found.append(
+            {
+                "slug": slug,
+                "saved": saved,
+                "indexed": indexed,
+                "gap": saved - indexed,
+                "ratio": round(indexed / saved, 3) if saved else 0.0,
+            }
+        )
+    found.sort(key=lambda row: -row["gap"])
+    return found
+
+
+def severe_short_body_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """短さが分割では説明できない自治体だけを返す。取り直しの対象。"""
+    return [row for row in rows if row.get("severe")]
+
+
 def classify(slug: str, *, published: bool, saved_files: int, excluded: bool) -> str:
     """その自治体が公開に出ていない理由を返す。出ているなら空。"""
     if published:

@@ -357,6 +357,9 @@ def scrape_state_progress(target: dict[str, Any]) -> tuple[int, int]:
             "partial_limit",
             "partial_error",
             "partial_recent_only",
+            # 一覧が長すぎて制限時間で降りた。続きから歩けるので、
+            # 30 日の間隔を待たずに次のサイクルへ戻す。
+            "partial_time",
             # 歩き直しの途中で死んだ、古い規則で書かれた、のどちらも
             # 取り切れた証拠にはならない。
             "rewalking",

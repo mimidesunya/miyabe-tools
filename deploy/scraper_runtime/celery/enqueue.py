@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[3]))
 
 from deploy.scraper_runtime.celery.app import app, GIJIROKU_INDEX_QUEUE, REIKI_INDEX_QUEUE
+from deploy.scraper_runtime.celery import index_enqueue
 
 
 TASK_CHOICES = {
@@ -71,6 +72,23 @@ def main() -> int:
             print("--slug is required for index tasks", file=sys.stderr)
             return 2
         kwargs["slug"] = slug
+        # 同じ自治体を二重に積まない。索引キューに 2,820 件溜まっていたとき、
+        # 中身は 450 自治体でしかなかった。
+        if not index_enqueue.claim(app, task_name, slug):
+            print(
+                json.dumps(
+                    {
+                        "task": args.task,
+                        "queue": queue_name,
+                        "task_name": task_name,
+                        "task_id": "",
+                        "slug": slug,
+                        "skipped": "already_queued",
+                    },
+                    ensure_ascii=False,
+                )
+            )
+            return 0
     result = app.send_task(task_name, kwargs=kwargs, queue=queue_name)
     print(
         json.dumps(

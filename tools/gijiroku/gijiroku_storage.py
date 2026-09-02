@@ -552,6 +552,47 @@ def save_offered_meeting_types(work_dir: Path, names: list[str]) -> None:
     )
 
 
+LIST_WALK_PROGRESS_FILE = "list_walk_progress.json"
+
+
+def list_walk_progress_path(work_dir: Path) -> Path:
+    return Path(work_dir) / LIST_WALK_PROGRESS_FILE
+
+
+def load_list_walk_progress(work_dir: Path) -> dict[str, int]:
+    """一覧のページ送りをどこまで歩けたかを読む。
+
+    仙台市の全期間一覧は 1,933 ページあり、1 ページ 4 秒台なので
+    1 回の実行では歩き切れない。歩いた分を残さないと、毎回先頭から
+    やり直して永久に後半へ届かない。
+    """
+    payload = load_json(list_walk_progress_path(work_dir), None)
+    pages = payload.get("pages") if isinstance(payload, dict) else None
+    if not isinstance(pages, dict):
+        return {}
+    result: dict[str, int] = {}
+    for key, value in pages.items():
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            continue
+        if number > 1:
+            result[str(key)] = number
+    return result
+
+
+def save_list_walk_progress(work_dir: Path, pages: dict[str, int]) -> None:
+    if not pages:
+        return
+    write_json(
+        list_walk_progress_path(work_dir),
+        {
+            "pages": {str(key): int(value) for key, value in pages.items()},
+            "observed_at": datetime.now().strftime("%Y%m%d_%H%M%S"),
+        },
+    )
+
+
 def save_state(path: Path, state: dict[str, Any]) -> None:
     # 走査の記録だけは実行をまたいで残す必要があるので、書くたびに写しておく。
     # 呼ぶ側に覚えさせると、必ずどこかで書き忘れる。

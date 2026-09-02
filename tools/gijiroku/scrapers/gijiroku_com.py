@@ -212,6 +212,20 @@ def fetch_response_text(request_context, url: str, timeout_ms: int) -> tuple[str
     return "", body
 
 
+def with_all_speeches(url: str) -> str:
+    """本文フレームの URL を、全発言を出す形に直す。
+
+    `ACT=203` の既定（`HATSUGENMODE=0`）は、開いている発言だけを返す。
+    高崎市の建設水道常任委員会では 2,192 字だったものが、
+    `HATSUGENMODE=1` では 8,060 字になった。**件数も題名も日付も正しく、
+    本文だけが 4 分の 1 だった。**同系統の健全な自治体は本文の中央値が
+    13,000〜35,000 字で、高崎市だけが 2,855 字だった。
+    """
+    if not url or "HATSUGENMODE=" not in url:
+        return url
+    return re.sub(r"HATSUGENMODE=\d+", "HATSUGENMODE=1", url)
+
+
 def resolve_act203_url(request_context, act100_url: str, timeout_ms: int) -> str:
     # 一覧の会議リンクは `ACT=100`（枝）と `ACT=200`（本文の容れ物）に分かれる。
     # `ACT=200` はフレームの外枠でしかなく、本文は `ACT=203` にある。
@@ -223,7 +237,7 @@ def resolve_act203_url(request_context, act100_url: str, timeout_ms: int) -> str
             return ""
         for src in re.findall(r"<FRAME[^>]+SRC=\"([^\"]+)\"", act200_html, flags=re.I):
             if "ACT=203" in src:
-                return urljoin(act100_url, src)
+                return with_all_speeches(urljoin(act100_url, src))
         return ""
 
     act100_html, _ = fetch_response_text(request_context, act100_url, timeout_ms)
@@ -260,7 +274,7 @@ def resolve_act203_url(request_context, act100_url: str, timeout_ms: int) -> str
     frame_srcs = re.findall(r"<FRAME[^>]+SRC=\"([^\"]+)\"", act200_html, flags=re.I)
     for src in frame_srcs:
         if "ACT=203" in src:
-            return urljoin(act200_url, src)
+            return with_all_speeches(urljoin(act200_url, src))
     return ""
 
 

@@ -300,3 +300,155 @@ class EmptyBodyTest(unittest.TestCase):
     def test_the_worst_ratio_comes_first(self):
         found = ledger.empty_body_rows({"a": 100, "b": 100}, {"a": 60, "b": 100})
         self.assertEqual([row["slug"] for row in found], ["b", "a"])
+
+
+class StaleRowsTest(unittest.TestCase):
+    """更新が止まっている自治体を、件数や本文とは別の軸で拾えること。"""
+
+    def test_old_newest_is_reported(self):
+        rows = ledger.stale_rows(
+            {"04100-sendai-shi": "1991-06-19", "13104-shinjuku-ku": "2026-08-01"},
+            today="2026-09-02",
+        )
+        self.assertEqual([row["slug"] for row in rows], ["04100-sendai-shi"])
+        self.assertGreater(rows[0]["age_days"], 12000)
+
+    def test_recent_is_not_reported(self):
+        rows = ledger.stale_rows({"a": "2026-08-31"}, today="2026-09-02")
+        self.assertEqual(rows, [])
+
+    def test_unreadable_date_is_skipped_not_counted_as_stale(self):
+        rows = ledger.stale_rows({"a": "", "b": "不明"}, today="2026-09-02")
+        self.assertEqual(rows, [])
+
+    def test_sorted_by_age(self):
+        rows = ledger.stale_rows(
+            {"a": "2000-01-01", "b": "1990-01-01"}, today="2026-09-02"
+        )
+        self.assertEqual([row["slug"] for row in rows], ["b", "a"])
+
+
+class EmptyDateRowsTest(unittest.TestCase):
+    """日付がほとんど読めていない自治体を、件数とは別の軸で拾えること。"""
+
+    def test_mostly_undated_is_reported(self):
+        rows = ledger.empty_date_rows({"a": 503}, {"a": 1})
+        self.assertEqual(rows[0]["slug"], "a")
+        self.assertEqual(rows[0]["no_date"], 502)
+
+    def test_dated_is_not_reported(self):
+        self.assertEqual(ledger.empty_date_rows({"a": 503}, {"a": 500}), [])
+
+    def test_small_municipality_is_skipped(self):
+        self.assertEqual(ledger.empty_date_rows({"a": 5}, {"a": 0}), [])
+
+
+class StaleIgnoresUndatedTest(unittest.TestCase):
+    """日付が読めていない自治体を、古さの軸に出さないこと。
+
+    板柳町は 503 件中 502 件に公布日が無く、残る 1 件の 1961 年が
+    最新として出ていた。取得が古いのではなく、日付が無いのである。
+    """
+
+    def test_undated_municipality_is_not_stale(self):
+        rows = ledger.stale_rows(
+            {"a": "1961-01-05"},
+            today="2026-09-02",
+            dated_by_slug={"a": 1},
+            totals_by_slug={"a": 503},
+        )
+        self.assertEqual(rows, [])
+
+    def test_dated_municipality_is_still_stale(self):
+        rows = ledger.stale_rows(
+            {"a": "1991-06-19"},
+            today="2026-09-02",
+            dated_by_slug={"a": 88},
+            totals_by_slug={"a": 88},
+        )
+        self.assertEqual([row["slug"] for row in rows], ["a"])
+
+
+class ShortBodyRowsTest(unittest.TestCase):
+    """本文が仲間より極端に短い自治体を、空でも件数でもない軸で拾えること。"""
+
+    def setUp(self):
+        self.systems = {s: "gijiroku.com" for s in ("a", "b", "c", "d")}
+        self.counts = {s: 1000 for s in ("a", "b", "c", "d")}
+
+    def test_short_median_is_reported(self):
+        rows = ledger.short_body_rows(
+            {"a": 2855, "b": 23325, "c": 25306, "d": 21306}, self.systems, self.counts
+        )
+        self.assertEqual([row["slug"] for row in rows], ["a"])
+        self.assertLess(rows[0]["ratio"], 0.2)
+
+    def test_normal_median_is_not_reported(self):
+        rows = ledger.short_body_rows(
+            {"a": 20000, "b": 23325, "c": 25306, "d": 21306}, self.systems, self.counts
+        )
+        self.assertEqual(rows, [])
+
+    def test_small_municipality_is_skipped(self):
+        counts = {**self.counts, "a": 5}
+        rows = ledger.short_body_rows(
+            {"a": 100, "b": 23325, "c": 25306, "d": 21306}, self.systems, counts
+        )
+        self.assertEqual(rows, [])
+
+    def test_system_with_too_few_peers_is_skipped(self):
+        rows = ledger.short_body_rows(
+            {"a": 100, "b": 23325}, {"a": "x", "b": "x"}, {"a": 1000, "b": 1000}
+        )
+        self.assertEqual(rows, [])
+
+
+class SevereShortBodyTest(unittest.TestCase):
+    """短さが分割で説明できるものと、できないものを分けること。
+
+    松田町の「議案第58号」1,774 字は、議長の発言から始まる議事そのもので
+    ある。議案ごとに分かれているだけで、欠けてはいない。宗像市の 443 字は
+    「フレーム表示ができるブラウザが必要です」だけだった。
+    """
+
+    def test_finely_split_source_is_not_severe(self):
+        rows = ledger.short_body_rows(
+            {"a": 1774, "b": 25838, "c": 30000, "d": 22000},
+            {s: "独自" for s in "abcd"},
+            {s: 1000 for s in "abcd"},
+        )
+        self.assertEqual([row["slug"] for row in rows], ["a"])
+        self.assertEqual(ledger.severe_short_body_rows(rows), [])
+
+    def test_frame_only_source_is_severe(self):
+        rows = ledger.short_body_rows(
+            {"a": 443, "b": 37977, "c": 30000, "d": 32000},
+            {s: "dbsr" for s in "abcd"},
+            {s: 1000 for s in "abcd"},
+        )
+        self.assertEqual([row["slug"] for row in ledger.severe_short_body_rows(rows)], ["a"])
+
+
+class IndexGapRowsTest(unittest.TestCase):
+    """取得済みなのに公開へ出ていない自治体を、自分の保存データと比べて拾えること。
+
+    各務原市は 3,220 件を保存して 5 件しか公開していなかった。0 件では
+    ないので `sweep_never_indexed` からは見えなかった。
+    """
+
+    def test_partially_indexed_is_reported(self):
+        rows = ledger.index_gap_rows({"a": 3220}, {"a": 5})
+        self.assertEqual(rows[0]["gap"], 3215)
+
+    def test_fully_indexed_is_not_reported(self):
+        self.assertEqual(ledger.index_gap_rows({"a": 3220}, {"a": 3220}), [])
+
+    def test_small_difference_is_not_reported(self):
+        self.assertEqual(ledger.index_gap_rows({"a": 100}, {"a": 90}), [])
+
+    def test_small_municipality_is_skipped(self):
+        self.assertEqual(ledger.index_gap_rows({"a": 10}, {"a": 0}), [])
+
+    def test_sorted_by_gap(self):
+        rows = ledger.index_gap_rows({"a": 100, "b": 3220}, {"a": 0, "b": 5})
+        self.assertEqual([row["slug"] for row in rows], ["b", "a"])

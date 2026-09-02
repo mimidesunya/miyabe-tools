@@ -1516,6 +1516,80 @@ ABANDONED_LIST_PAGES: list[str] = []
 # 同じページが返ってきて止まった箇所。最終ページでも「次へ」を残す取得元が
 # あるので、これが異常だという証拠はまだ無い。失敗には数えず、記録だけ残す。
 REPEATED_LIST_PAGES: list[str] = []
+# 取得元が申告した文書総数。「検索条件に 19,325 文書が該当しました」の数。
+# 歩いた件数がこれに届かないのに complete と記録しないための照合用。
+DECLARED_DOCUMENT_TOTALS: list[int] = []
+
+_DECLARED_TOTAL_RE = re.compile(r"検索条件に\s*([0-9,，]+)\s*文書")
+# ページ送りの「最後 >>」が指す Page 番号。何ページあるかを取得元自身に言わせる。
+_PAGE_PARAM_RE = re.compile(r"[?&]Page=([0-9]+)")
+
+
+def declared_total_from_page(page) -> int:
+    """一覧が申告する文書総数。読めなければ 0。"""
+    try:
+        text = page.inner_text("body", timeout=2_000)
+    except Exception:
+        return 0
+    matched = _DECLARED_TOTAL_RE.search(text or "")
+    if matched is None:
+        return 0
+    try:
+        return int(matched.group(1).replace(",", "").replace("，", ""))
+    except ValueError:
+        return 0
+
+
+# 一覧のページ送りをどこまで歩けたか。実行をまたいで引き継ぐ。
+# 仙台市の全期間一覧は 1,933 ページで、1 ページ 4 秒台。1 回の制限時間では
+# 歩き切れないので、毎回先頭からやり直すと永久に後半へ届かない。
+LIST_WALK_RESUME: dict[str, int] = {}
+LIST_WALK_REACHED: dict[str, int] = {}
+# 制限時間で一覧の途中で降りた箇所。集めた分は捨てないが、complete でもない。
+LIST_WALK_TIMED_OUT: list[str] = []
+# 途中のページから歩き始めた一覧。先頭を飛ばしているので、
+# 今回の結果だけで meetings_index を上書きすると一覧が縮む。
+LIST_WALK_RESUMED: list[str] = []
+
+
+def list_walk_key(url: str) -> str:
+    """ページ番号を除いた一覧の識別子。"""
+    parts = urlsplit(url)
+    pairs = [(key, value) for key, value in cleaned_query_pairs(url) if key != "Page"]
+    pairs.sort()
+    return urlunsplit((parts.scheme, "", parts.path.rsplit("/", 1)[0], urlencode(pairs), ""))
+
+
+def replace_page_number(url: str, number: int) -> str:
+    """一覧 URL の Page= を差し替える。無ければ足す。"""
+    parts = urlsplit(url)
+    pairs = [(key, value) for key, value in cleaned_query_pairs(url) if key != "Page"]
+    pairs.append(("Page", str(number)))
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(pairs), ""))
+
+
+def last_page_number(page) -> int:
+    """ページ送りが申告する最終ページ番号。読めなければ 0。
+
+    「次へ」を1つずつ辿ると、リンクを1回見失っただけで静かに終端になる。
+    最終ページ番号が分かれば、Page= を直に指定して歩き切れる。
+    """
+    largest = 0
+    try:
+        links = page.locator(".pagination a")
+        total = links.count()
+    except Exception:
+        return 0
+    for index in range(total):
+        href = safe_href(links.nth(index))
+        matched = _PAGE_PARAM_RE.search(href or "")
+        if matched is None:
+            continue
+        try:
+            largest = max(largest, int(matched.group(1)))
+        except ValueError:
+            continue
+    return largest
 
 
 def collect_document_rows_from_open_list(
@@ -1530,17 +1604,81 @@ def collect_document_rows_from_open_list(
     collected: list[DocumentRow] = []
     seen_urls: set[str] = set()
     seen_page_signatures: set[tuple[str, int]] = set()
+    declared_total = declared_total_from_page(page)
+    if declared_total:
+        DECLARED_DOCUMENT_TOTALS.append(declared_total)
+    # 「最後 >>」が何ページあるか言ってくれる取得元では、それを終端の根拠にする。
+    # 「次へ」を1つずつ辿る方式は、リンクを1回見失うだけで静かに終端になる。
+    final_page = last_page_number(page)
+    page_number = 1
+
+    # 前回どこまで歩けたかが残っていれば、その手前から続ける。
+    walk_key = list_walk_key(page.url)
+    first_page_url = page.url
+    resume_page = LIST_WALK_RESUME.get(walk_key, 0)
+    if final_page > 1 and resume_page > 1:
+        resume_page = min(resume_page, final_page)
+        try:
+            page.goto(
+                canonicalize_template_url(replace_page_number(page.url, resume_page)),
+                wait_until="domcontentloaded",
+                timeout=timeout_ms,
+            )
+            try:
+                page.wait_for_load_state("networkidle", timeout=3_000)
+            except Exception:
+                pass
+            if extract_document_rows_from_page(page):
+                page_number = resume_page
+                LIST_WALK_RESUMED.append(walk_key)
+                print(f"[INFO] 一覧の {resume_page}/{final_page} ページ目から続けます", flush=True)
+            else:
+                page.goto(first_page_url, wait_until="domcontentloaded", timeout=timeout_ms)
+        except Exception:
+            try:
+                page.goto(first_page_url, wait_until="domcontentloaded", timeout=timeout_ms)
+            except Exception:
+                pass
+            page_number = 1
 
     while True:
-        ensure_discovery_time(deadline, page.url)
+        LIST_WALK_REACHED[walk_key] = max(LIST_WALK_REACHED.get(walk_key, 0), page_number)
+        # 制限時間で降りるときも、ここまで集めた行は返す。全部捨てて例外を
+        # 投げると、1,933 ページある一覧はいつまでも 1 行も残らない。
+        # 途中で降りたことは LIST_WALK_TIMED_OUT に残すので complete にはならない。
+        if deadline is not None and time.monotonic() > deadline:
+            LIST_WALK_TIMED_OUT.append(f"{page_number}/{final_page}: {page.url}")
+            break
         page_rows = extract_document_rows_from_page(page)
+        if not page_rows and page_number > 1:
+            # 描画前に読んだだけかもしれない。0 件をそのまま終端にすると、
+            # 歩き残したまま complete になる。一度だけ開き直して確かめる。
+            retry_url = page.url
+            try:
+                page.goto(retry_url, wait_until="domcontentloaded", timeout=timeout_ms)
+                try:
+                    page.wait_for_load_state("networkidle", timeout=3_000)
+                except Exception:
+                    pass
+                page_rows = extract_document_rows_from_page(page)
+            except Exception:
+                page_rows = []
+            if not page_rows:
+                ABANDONED_LIST_PAGES.append(f"一覧が0件で返った: {retry_url}")
+                break
         signature = (page_rows[0].url if page_rows else page.url, len(page_rows))
         if signature in seen_page_signatures:
             REPEATED_LIST_PAGES.append(page.url)
             break
         seen_page_signatures.add(signature)
 
-        page_is_known = bool(page_rows) and bool(known_urls) and all(row.url in known_urls for row in page_rows)
+        # known_urls はセッション番号を落とした形で持っている。比べる側も
+        # 揃えないと、毎回すべてが「初見」になり quick update が働かない。
+        page_is_known = (
+            bool(page_rows)
+            and bool(known_urls)
+            and all(url_identity(row.url) in known_urls for row in page_rows)
+        )
 
         for row in page_rows:
             if row.url in seen_urls:
@@ -1562,10 +1700,13 @@ def collect_document_rows_from_open_list(
                     page.wait_for_load_state("networkidle", timeout=3_000)
                 except Exception:
                     pass
+                page_number += 1
                 continue
             except Exception:
                 ABANDONED_LIST_PAGES.append(f"「次へ」を押せなかった: {page.url}")
                 break
+
+        final_page = max(final_page, last_page_number(page))
 
         next_url = ""
         links = page.locator(".pagination a")
@@ -1576,8 +1717,19 @@ def collect_document_rows_from_open_list(
             if href and "次" in text:
                 next_url = canonicalize_template_url(urljoin(page.url, href))
                 break
+        if next_url == "" and page_number < final_page:
+            # 「次へ」を見失っても、最終ページ番号がまだ先なら歩き終えていない。
+            # Page= を直に組んで続ける。
+            next_url = canonicalize_template_url(
+                replace_page_number(page.url, page_number + 1)
+            )
         if next_url == "":
+            if page_number < final_page:
+                ABANDONED_LIST_PAGES.append(
+                    f"ページ送りを見失った({page_number}/{final_page}): {page.url}"
+                )
             break
+        page_number += 1
 
         try:
             page.goto(next_url, wait_until="domcontentloaded", timeout=timeout_ms)
@@ -1630,12 +1782,24 @@ def load_previous_meeting_items(index_json: Path) -> list[MeetingItem]:
     return items
 
 
+# `/index.php/9217913?…` の数字は、開くたびに変わる。取得には要るが、
+# 同一性の一部ではない。含めたまま比べると、同じ会議が実行のたびに
+# 別物として増える。香美町では同じ DocumentID の会議が 2 件ずつ入り、
+# 保存名も `…－本文-862eff4d` と `…－本文-bf400e30` に分かれていた。
+_SESSION_PATH_RE = re.compile(r"/index\.php/\d+")
+
+
+def url_identity(url: str) -> str:
+    """URL から、開くたびに変わる部分を落とした同一性を返す。"""
+    return _SESSION_PATH_RE.sub("/index.php", str(url or ""))
+
+
 def meeting_merge_key(item: MeetingItem) -> tuple[str, str, str, str, str, str]:
     return (
-        str(item.list_url or ""),
+        url_identity(item.list_url),
         str(item.held_on or ""),
         str(item.doc_kind or ""),
-        str(item.url or ""),
+        url_identity(item.url),
         str(item.year_label or ""),
         str(item.title or ""),
     )
@@ -1656,13 +1820,13 @@ def merge_meeting_items(new_items: list[MeetingItem], previous_items: list[Meeti
 def previous_doc_urls_by_list_url(previous_items: list[MeetingItem]) -> dict[str, set[str]]:
     urls_by_list_url: dict[str, set[str]] = {}
     for item in previous_items:
-        list_url = str(item.list_url or "").strip()
+        list_url = url_identity(item.list_url).strip()
         if not list_url:
             continue
         urls = urls_by_list_url.setdefault(list_url, set())
         for doc_url in item.doc_urls or []:
             if doc_url:
-                urls.add(str(doc_url))
+                urls.add(url_identity(doc_url))
     return urls_by_list_url
 
 
@@ -1851,7 +2015,12 @@ def discover_meeting_items(
                     coverage_report["limit_reached"] = True
                 return meetings
 
-    if quick_update and previous_items:
+    if previous_items and (
+        quick_update or LIST_WALK_RESUMED or LIST_WALK_TIMED_OUT or ABANDONED_LIST_PAGES
+    ):
+        # 一覧を歩き切れなかった回は、その一部しか見ていない。そのまま
+        # 上書きすると、前回まで見つけていた会議が消える。仙台市では
+        # 1,169 件の一覧が 117 件へ縮んだ。**歩き切った回だけが上書きしてよい。**
         return merge_meeting_items(meetings, previous_items)
     return meetings
 
@@ -1900,10 +2069,18 @@ def document_date_label(page_html: str, meeting_item: MeetingItem) -> str | None
     return None
 
 
-# 単文表示テンプレートは本文をフレーム内で 1 発言ずつ出すため、文書 URL を
-# 辿っても全文にならない。画面の「全文表示」と同じ download を使う。
+# 表示テンプレートは本文をフレーム内に出すため、文書 URL を辿っても
+# 本文にならない。辿ると「このページをご覧になるには、フレーム表示が
+# できるブラウザが必要です。」だけが返る。画面の「全文表示」と同じ
+# download を使う。
+#
+# `doc-one-frame`（単文表示）だけを対象にしていたので、`doc-all-frame`
+# （全文表示）の自治体は枠の文言を本文として保存していた。宗像市 589 件・
+# 香美町 3,234 件がその形で、**件数も題名も開催日も正しく、本文だけが
+# 「フレーム表示ができるブラウザが必要です」だった。**
 def full_text_download_url(url: str) -> str:
-    if "template=doc-one-frame" not in url.lower():
+    lowered = url.lower()
+    if "template=doc-" not in lowered or "-frame" not in lowered:
         return ""
     document_id = query_value(url, "DocumentID")
     if document_id == "":
@@ -1918,6 +2095,24 @@ def full_text_download_url(url: str) -> str:
         ]
     )
     return urlunsplit((parts.scheme, parts.netloc, parts.path, query, ""))
+
+
+# フレーム枠を辿ったときだけ出る文言。本文ではない。
+_NOFRAMES_MARKERS = (
+    "フレーム表示ができるブラウザが必要です",
+    "フレームに対応したブラウザ",
+    "frames を表示できる",
+)
+
+
+def is_frameset_placeholder(page_html: str) -> bool:
+    """フレームの外枠だけを掴んだかを返す。"""
+    if not page_html:
+        return False
+    lowered = page_html.lower()
+    if "<frameset" in lowered or "<noframes" in lowered:
+        return True
+    return any(marker in page_html for marker in _NOFRAMES_MARKERS)
 
 
 def fetch_meeting_text(request_context, item: MeetingItem, timeout_ms: int) -> tuple[int, str]:
@@ -1935,6 +2130,10 @@ def fetch_meeting_text(request_context, item: MeetingItem, timeout_ms: int) -> t
                 fragment_count += 1
             continue
         page_html = request_text(request_context, doc_url, timeout_ms, referer=item.list_url or item.url)
+        if is_frameset_placeholder(page_html):
+            # 枠だけを本文として保存しない。中身が無いのに「取得できた」に
+            # なると、件数も題名も日付も正しいまま本文だけが失われる。
+            continue
         body_text = extract_document_body(page_html)
         heading = extract_document_heading(page_html)
         section_lines: list[str] = []
@@ -2113,6 +2312,10 @@ def main() -> int:
                 flush=True,
             )
         coverage_report: dict[str, int | bool] = {}
+        # 前回どこまで一覧を歩けたかを引き継ぐ。state は実行のたびに消されるので
+        # 別ファイルに置いてある。
+        LIST_WALK_RESUME.clear()
+        LIST_WALK_RESUME.update(gijiroku_storage.load_list_walk_progress(state_path.parent))
         meeting_items = discover_meeting_items(
             page,
             target,
@@ -2123,6 +2326,12 @@ def main() -> int:
             discovery_timeout_seconds=args.discovery_timeout_seconds,
             coverage_report=coverage_report,
         )
+        # 今回は前回より手前までしか歩けなかった、ということが起きる。
+        # そのまま書くと進捗が後退して、次回はもっと手前から始まる。
+        progress = dict(LIST_WALK_RESUME)
+        for key, reached in LIST_WALK_REACHED.items():
+            progress[key] = max(progress.get(key, 0), reached)
+        gijiroku_storage.save_list_walk_progress(state_path.parent, progress)
         print(f"[INFO] 会議候補 {len(meeting_items)} 件")
         if not meeting_items:
             raise RuntimeError(
@@ -2140,6 +2349,9 @@ def main() -> int:
         discovery_source = str(coverage_report.get("discovery_source") or "")
         if limit_reached:
             source_coverage_state = "partial_limit"
+        elif LIST_WALK_TIMED_OUT:
+            # 一覧を歩き切る前に制限時間で降りた。次の実行が続きから歩く。
+            source_coverage_state = "partial_time"
         elif failed_list_page_count > 0:
             source_coverage_state = "partial_error"
         elif discovery_source == DISCOVERY_SOURCE_RECENT:
@@ -2156,6 +2368,11 @@ def main() -> int:
             "failed_list_page_count": failed_list_page_count,
             "abandoned_list_pages": abandoned[:20],
             "repeated_list_pages": len(REPEATED_LIST_PAGES),
+            # 取得元が申告した文書総数。歩いた件数と比べれば、
+            # ページ送りが途中で終わったことを台帳側で検出できる。
+            "declared_total": max(DECLARED_DOCUMENT_TOTALS) if DECLARED_DOCUMENT_TOTALS else 0,
+            "timed_out_list_pages": LIST_WALK_TIMED_OUT[:20],
+            "list_walk_pages": dict(sorted(LIST_WALK_REACHED.items())[:20]),
             "discovery_source": discovery_source,
             "limit": max(0, int(args.max_meetings)),
             "updated_at": now_ts(),

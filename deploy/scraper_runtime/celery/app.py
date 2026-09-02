@@ -43,6 +43,20 @@ NEVER_INDEXED_SWEEP_SECONDS = celery_runtime.env_int(
     minimum=600,
 )
 # 取りこぼし台帳を書き出す間隔。見るための仕組みなので、1 日 2 回で足りる。
+# 取得済みなのに公開へ出ていない自治体を積み直す間隔。保存件数を数えるのに
+# 全国のファイルを歩くので、1 日 1 回でよい。
+INDEX_GAP_SWEEP_SECONDS = celery_runtime.env_int(
+    "CELERY_INDEX_GAP_SWEEP_SECONDS",
+    24 * 60 * 60,
+    minimum=3600,
+)
+# 本文がほとんど空の自治体を取得からやり直す間隔。取り直しは重いので、
+# 間隔は長くてよい。1 回に 2 自治体まで、同じ自治体は 3 日空ける。
+EMPTY_BODY_SWEEP_SECONDS = celery_runtime.env_int(
+    "CELERY_EMPTY_BODY_SWEEP_SECONDS",
+    6 * 60 * 60,
+    minimum=600,
+)
 COVERAGE_LEDGER_SECONDS = celery_runtime.env_int(
     "CELERY_COVERAGE_LEDGER_SECONDS",
     12 * 60 * 60,
@@ -116,6 +130,29 @@ app.conf.update(
             "options": {
                 "queue": "maintenance",
                 "expires": max(5, NEVER_INDEXED_SWEEP_SECONDS - 5),
+            },
+        },
+        # 取得済みなのに公開へ出ていない自治体を積み直す。sweep-never-indexed
+        # は 1 件も無い自治体しか拾わない。各務原市は 3,220 件を保存して
+        # 5 件しか公開しておらず、0 件ではないので見えなかった。
+        "sweep-index-gap": {
+            "task": "deploy.scraper_runtime.celery.tasks.sweep_index_gap",
+            "schedule": float(INDEX_GAP_SWEEP_SECONDS),
+            "options": {
+                "queue": "maintenance",
+                "expires": max(5, INDEX_GAP_SWEEP_SECONDS - 5),
+            },
+        },
+        # 本文がほとんど空の自治体を、取得からやり直す。索引を積み直しても
+        # 直らない形がある。高崎市は保存されていたのが本文ではなく
+        # フレーム枠だった。取得側を直しても resume が読み飛ばすので、
+        # 取り直しを指示する経路が要る。
+        "sweep-empty-body": {
+            "task": "deploy.scraper_runtime.celery.tasks.sweep_empty_body",
+            "schedule": float(EMPTY_BODY_SWEEP_SECONDS),
+            "options": {
+                "queue": "maintenance",
+                "expires": max(5, EMPTY_BODY_SWEEP_SECONDS - 5),
             },
         },
         # 公開に 1 件も出ていない自治体を、原因まで分けて数えて書き出す。

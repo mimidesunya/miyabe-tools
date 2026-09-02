@@ -10,6 +10,7 @@ from pathlib import Path
 from deploy.scraper_runtime.celery import app as app_module
 from deploy.scraper_runtime.celery.app import app
 from deploy.scraper_runtime.celery import runtime as celery_runtime
+from deploy.scraper_runtime.celery import index_enqueue
 from tools.tasks.runner import process_group_popen_kwargs, terminate_process_group
 from tools.tasks import status as batch_status
 from tools.tasks import generation_sweep_state
@@ -103,8 +104,14 @@ def _gijiroku_backfill_command() -> list[str]:
 
 
 # 会議録一括スクレイパを remote 用オプション付きで起動するコマンドを作る。
-def _gijiroku_scrape_command(*, retry_failed: bool = False, name_filter: str = "") -> list[str]:
+def _gijiroku_scrape_command(
+    *, retry_failed: bool = False, name_filter: str = "", force: bool = False
+) -> list[str]:
     command = _python_command() + ["tools/gijiroku/scrape_all_minutes.py"]
+    if force:
+        # 保存済みファイルが壊れているときに使う。resume のままだと
+        # 「もう取ってある」で読み飛ばし、直した取得処理が走らない。
+        command.append("--no-resume")
     if celery_runtime.env_bool("SCRAPER_GIJIROKU_ACK_ROBOTS", True):
         command.append("--ack-robots")
     command.extend(
@@ -433,10 +440,14 @@ def _run_gijiroku_backfill_impl() -> None:
 
 
 # 会議録 scrape cycle の実処理を起動する。
-def _run_gijiroku_scrape_impl(*, retry_failed: bool = False, name_filter: str = "") -> None:
+def _run_gijiroku_scrape_impl(
+    *, retry_failed: bool = False, name_filter: str = "", force: bool = False
+) -> None:
     _run_command(
         "gijiroku scrape",
-        _gijiroku_scrape_command(retry_failed=retry_failed, name_filter=name_filter),
+        _gijiroku_scrape_command(
+            retry_failed=retry_failed, name_filter=name_filter, force=force
+        ),
     )
 
 
@@ -524,13 +535,19 @@ def run_gijiroku_backfill() -> dict[str, object]:
 
 @app.task(bind=True, name="deploy.scraper_runtime.celery.tasks.run_gijiroku_cycle", max_retries=None)
 # 会議録 scrape cycle を実行し、失敗時は Celery retry と retry marker を設定する。
-def run_gijiroku_cycle(self, retry_failed: bool = False, name_filter: str = "") -> dict[str, object]:
+def run_gijiroku_cycle(
+    self, retry_failed: bool = False, name_filter: str = "", force: bool = False
+) -> dict[str, object]:
     # 実際の会議録スクレイピングを起動する Celery タスク。
     # 失敗時は retry marker を置き、beat からの重複投入も同じ待ち時間だけ抑える。
     try:
         celery_runtime.clear_retry_marker("gijiroku")
         _recover_stale_metadata("gijiroku")
-        _run_gijiroku_scrape_impl(retry_failed=bool(retry_failed), name_filter=str(name_filter or ""))
+        _run_gijiroku_scrape_impl(
+            retry_failed=bool(retry_failed),
+            name_filter=str(name_filter or ""),
+            force=bool(force),
+        )
         celery_runtime.clear_retry_marker("gijiroku")
         return {"ok": True, "task": "gijiroku_cycle", "filter": str(name_filter or "")}
     except Exception as exc:
@@ -556,6 +573,8 @@ def run_gijiroku_rebuild(name_filter: str = "") -> dict[str, object]:
 # 一時的な失敗はここで少しだけ待って投げ直す。決定的な失敗は待ち行列に残り、
 # `sweep_index_outbox` が間隔を空けて拾い直す。
 def run_gijiroku_index_update(self, slug: str) -> dict[str, object]:
+    # 実行が始まったので、積み重ね防止の印を外す。次の変更を積めるようにする。
+    index_enqueue.release(app, "deploy.scraper_runtime.celery.tasks.run_gijiroku_index_update", slug)
     try:
         _run_index_update_impl("gijiroku", slug)
     except Exception as exc:
@@ -602,6 +621,8 @@ def run_reiki_rebuild(name_filter: str = "") -> dict[str, object]:
 )
 # 例規集の自治体別 OpenSearch 増分更新タスク。
 def run_reiki_index_update(self, slug: str) -> dict[str, object]:
+    # 実行が始まったので、積み重ね防止の印を外す。次の変更を積めるようにする。
+    index_enqueue.release(app, "deploy.scraper_runtime.celery.tasks.run_reiki_index_update", slug)
     try:
         _run_index_update_impl("reiki", slug)
     except Exception as exc:
@@ -624,11 +645,14 @@ def sweep_index_outbox(limit: int = 0) -> dict[str, object]:
         slugs = index_outbox.due_slugs(doc_type, limit=int(limit or 0))
         for slug in slugs:
             try:
-                app.send_task(
+                if not index_enqueue.send_index_update(
+                    app,
                     f"deploy.scraper_runtime.celery.tasks.{task_name}",
-                    kwargs={"slug": slug},
-                    queue=queue,
-                )
+                    queue,
+                    slug,
+                ):
+                    # 既に積まれている。二重に積むと待ち時間が伸びるだけ。
+                    continue
             except Exception as exc:
                 index_outbox.mark_failed(doc_type, slug, f"再投入に失敗: {exc}")
                 continue
@@ -655,7 +679,14 @@ def sweep_index_outbox(limit: int = 0) -> dict[str, object]:
 # なので、放っておくと最大 30 日ずれる。群馬県の空公布日 710 件がこの形だった。
 # ダウンロードはやり直さない。保存済みのファイルを読み直すだけである。
 # index キューにこれ以上待っているなら、世代の追いつきは積まない。
-STALE_SWEEP_QUEUE_LIMIT = celery_runtime.env_int("CELERY_STALE_SWEEP_QUEUE_LIMIT", 8, minimum=1)
+#
+# 8 にしていたのは、同じ自治体が何度も積まれて待ち行列が無限に伸びるのを
+# 防ぐためだった。実際には 2,820 件のうち中身は 450 自治体で、伸びていたのは
+# 重複である。`index_enqueue` で重複を積めなくしたので、待ち行列の長さは
+# 「まだ索引し直していない自治体の数」そのものになり、自治体数（約 1,500）を
+# 超えて伸びない。**それは積み過ぎではなく、やるべき仕事の量である。**
+# 門を 8 のままにすると、掃き取りが何日も開かず、取りこぼしの発見が止まる。
+STALE_SWEEP_QUEUE_LIMIT = celery_runtime.env_int("CELERY_STALE_SWEEP_QUEUE_LIMIT", 600, minimum=1)
 # 索引に 1 件も無い自治体は少ないので、1 回に積む数も小さくてよい。
 NEVER_INDEXED_SWEEP_LIMIT = celery_runtime.env_int("CELERY_NEVER_INDEXED_SWEEP_LIMIT", 5, minimum=1)
 
@@ -744,11 +775,14 @@ def sweep_stale_parser_generation(limit: int = 0) -> dict[str, object]:
         queued_now: list[str] = []
         for slug in pending:
             try:
-                app.send_task(
+                if not index_enqueue.send_index_update(
+                    app,
                     f"deploy.scraper_runtime.celery.tasks.{task_name}",
-                    kwargs={"slug": slug},
-                    queue=queue,
-                )
+                    queue,
+                    slug,
+                ):
+                    # 既に積まれている。二重に積むと待ち時間が伸びるだけ。
+                    continue
             except Exception as exc:
                 print(f"[CELERY] {kind} {slug} の再索引を積めませんでした: {exc}", flush=True)
                 continue
@@ -853,11 +887,14 @@ def sweep_never_indexed(limit: int = 0) -> dict[str, object]:
         queued_now: list[str] = []
         for slug in pending:
             try:
-                app.send_task(
+                if not index_enqueue.send_index_update(
+                    app,
                     f"deploy.scraper_runtime.celery.tasks.{task_name}",
-                    kwargs={"slug": slug},
-                    queue=queue,
-                )
+                    queue,
+                    slug,
+                ):
+                    # 既に積まれている。二重に積むと待ち時間が伸びるだけ。
+                    continue
             except Exception as exc:
                 print(f"[CELERY] {kind} {slug} の初回索引を積めませんでした: {exc}", flush=True)
                 continue
@@ -873,6 +910,12 @@ def sweep_never_indexed(limit: int = 0) -> dict[str, object]:
 # 題名の月日と、索引の日付が食い違う件数を自治体ごとに数える。
 #
 # 無作為に取った標本で見る。全件を歩くと重いし、傾向を見るには標本で足りる。
+def _today_text() -> str:
+    from datetime import datetime, timedelta, timezone
+
+    return datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d")
+
+
 def _date_mismatch_samples(client, alias: str, doc_type: str) -> dict[str, tuple[int, int]]:
     import re as _re
 
@@ -972,6 +1015,279 @@ def _declared_totals(kind: str, targets: list[dict[str, object]]) -> dict[str, i
 # 工程ごとの成功は既に記録している。足りないのは端から端までの答えで、
 # 「この自治体は公開検索に出ているか」を誰も見ていなかった。能代市は取得の
 # 失敗が記録され続けていたのに、何ヶ月も誰の目にも入らなかった。
+def _slug_medians(client, alias: str, field: str) -> dict[str, int]:
+    """自治体ごとの中央値を返す。"""
+    response = client.request(
+        "POST",
+        f"/{alias}/_search",
+        body={
+            "size": 0,
+            "aggs": {
+                "slugs": {
+                    "terms": {"field": "slug", "size": 5000},
+                    "aggs": {"median": {"percentiles": {"field": field, "percents": [50]}}},
+                }
+            },
+        },
+    )
+    buckets = (response.get("aggregations") or {}).get("slugs", {}).get("buckets") or []
+    result: dict[str, int] = {}
+    for bucket in buckets:
+        value = ((bucket.get("median") or {}).get("values") or {}).get("50.0")
+        if value is not None:
+            result[str(bucket["key"])] = int(value)
+    return result
+
+
+def _slug_counts(client, alias: str, query: dict) -> dict[str, int]:
+    """自治体ごとの件数を数える。query が空なら全件。"""
+    body: dict[str, object] = {
+        "size": 0,
+        "aggs": {"slugs": {"terms": {"field": "slug", "size": 5000}}},
+    }
+    if query:
+        body["query"] = query
+    response = client.request("POST", f"/{alias}/_search", body=body)
+    buckets = (response.get("aggregations") or {}).get("slugs", {}).get("buckets") or []
+    return {str(bucket["key"]): int(bucket["doc_count"]) for bucket in buckets}
+
+
+# 取得済みなのに公開へ出ていない自治体を、索引に積み直す。
+#
+# `sweep_never_indexed` は 1 件も無い自治体しか拾わない。各務原市は
+# 3,220 件を保存して 5 件しか公開しておらず、氷見市は 711 件で 4 件だった。
+# **0 件ではないので、どの仕組みからも見えなかった。**氷見市は積み直した
+# だけで 541 件になった。取得の問題ではなく、公開の問題である。
+#
+# 保存件数を数えるのに全国のファイルを歩くので、1 日 1 回でよい。
+INDEX_GAP_SWEEP_LIMIT = celery_runtime.env_int("CELERY_INDEX_GAP_SWEEP_LIMIT", 8, minimum=1)
+
+
+@app.task(name="deploy.scraper_runtime.celery.tasks.sweep_index_gap")
+def sweep_index_gap(limit: int = 0) -> dict[str, object]:
+    import sys as _sys
+
+    search_dir = str(ROOT / "tools" / "search")
+    if search_dir not in _sys.path:
+        _sys.path.insert(0, search_dir)
+    from opensearch_client import OpenSearchClient  # type: ignore
+    from tools.search import build_opensearch_index as search_index
+    from tools.tasks import coverage_ledger
+    from tools.tasks import generation_sweep_state
+
+    sweep_limit = int(limit or 0) or INDEX_GAP_SWEEP_LIMIT
+    client = OpenSearchClient(
+        celery_runtime.env_text("OPENSEARCH_URL", "http://localhost:9200"),
+        user=celery_runtime.env_text("OPENSEARCH_USER", ""),
+        password=celery_runtime.env_text("OPENSEARCH_PASSWORD", ""),
+        insecure_dev=celery_runtime.env_text("OPENSEARCH_INSECURE_DEV", "").lower()
+        in ("1", "true", "yes", "on"),
+    )
+    requeued: dict[str, list[str]] = {}
+    failures: list[str] = []
+    for kind, doc_type, alias_env, alias_default, queue, task_name in (
+        (
+            "gijiroku",
+            "minutes",
+            "MIYABE_MINUTES_ALIAS",
+            "miyabe-minutes-current",
+            app_module.GIJIROKU_INDEX_QUEUE,
+            "run_gijiroku_index_update",
+        ),
+        (
+            "reiki",
+            "reiki",
+            "MIYABE_REIKI_ALIAS",
+            "miyabe-reiki-current",
+            app_module.REIKI_INDEX_QUEUE,
+            "run_reiki_index_update",
+        ),
+    ):
+        waiting = _queue_length(queue)
+        if waiting is not None and waiting >= STALE_SWEEP_QUEUE_LIMIT:
+            continue
+        alias = celery_runtime.env_text(alias_env, alias_default)
+        try:
+            indexed = _slug_counts(client, alias, {})
+            targets = (
+                gijiroku_targets.iter_gijiroku_targets()
+                if kind == "gijiroku"
+                else reiki_targets.iter_reiki_targets()
+            )
+            slugs = {
+                str(target.get("slug") or "").strip()
+                for target in targets
+                if str(target.get("slug") or "").strip()
+            }
+            if kind == "gijiroku":
+                saved = search_index.count_minutes_documents_by_slug(slugs=slugs)
+            else:
+                saved = search_index.count_reiki_documents_by_slug(slugs=slugs)
+        except Exception as exc:
+            print(f"[CELERY] {kind} 保存と公開を比べられませんでした: {exc}", flush=True)
+            failures.append(f"{doc_type}: {exc}")
+            continue
+        rows = coverage_ledger.index_gap_rows(saved, indexed)
+        pending = generation_sweep_state.filter_recently_queued(
+            f"{doc_type}_index_gap", [row["slug"] for row in rows]
+        )[:sweep_limit]
+        queued_now: list[str] = []
+        for slug in pending:
+            try:
+                if not index_enqueue.send_index_update(
+                    app,
+                    f"deploy.scraper_runtime.celery.tasks.{task_name}",
+                    queue,
+                    slug,
+                ):
+                    # 既に積まれている。二重に積むと待ち時間が伸びるだけ。
+                    continue
+            except Exception as exc:
+                print(f"[CELERY] {kind} {slug} の積み直しに失敗: {exc}", flush=True)
+                failures.append(f"{slug}: {exc}")
+                continue
+            queued_now.append(slug)
+            requeued.setdefault(kind, []).append(slug)
+        generation_sweep_state.mark_queued(f"{doc_type}_index_gap", queued_now)
+    total = sum(len(items) for items in requeued.values())
+    if total > 0:
+        print(f"[CELERY] 取得済みだが未公開の {total} 自治体を積み直します: {requeued}", flush=True)
+    return {
+        "ok": not failures,
+        "task": "sweep_index_gap",
+        "requeued": requeued,
+        "failures": failures,
+    }
+
+
+# 本文がほとんど空の自治体を、取得からやり直す。
+#
+# **索引が壊れているのではなく、保存ファイルが壊れている形がある。**
+# 高崎市 1,970 件・狭山市 1,168 件・富士市 1,520 件・太田市 847 件は、
+# 保存されていたのが本文ではなく ACT=200 のフレーム枠だった。索引は
+# 題名しか取り出せず、しかし件数は正しく、日付も正しかった。
+#
+# 索引を積み直しても直らない。取得側を直しても、resume が「もう取ってある」
+# と読み飛ばすので直らない。**取得のやり直しを指示する経路が要る。**
+# 1 度に 2 自治体まで。全件取り直しは重い。
+EMPTY_BODY_SWEEP_LIMIT = 2
+# 取り直しは重いので、同じ自治体は 3 日空ける。
+EMPTY_BODY_SWEEP_COOLDOWN_SECONDS = 3 * 24 * 60 * 60
+
+
+@app.task(name="deploy.scraper_runtime.celery.tasks.sweep_empty_body")
+def sweep_empty_body(limit: int = 0) -> dict[str, object]:
+    import sys as _sys
+
+    search_dir = str(ROOT / "tools" / "search")
+    if search_dir not in _sys.path:
+        _sys.path.insert(0, search_dir)
+    from opensearch_client import OpenSearchClient  # type: ignore
+    from tools.tasks import coverage_ledger
+    from tools.tasks import generation_sweep_state
+
+    sweep_limit = int(limit or 0) or EMPTY_BODY_SWEEP_LIMIT
+    client = OpenSearchClient(
+        celery_runtime.env_text("OPENSEARCH_URL", "http://localhost:9200"),
+        user=celery_runtime.env_text("OPENSEARCH_USER", ""),
+        password=celery_runtime.env_text("OPENSEARCH_PASSWORD", ""),
+        insecure_dev=celery_runtime.env_text("OPENSEARCH_INSECURE_DEV", "").lower()
+        in ("1", "true", "yes", "on"),
+    )
+    requeued: dict[str, list[str]] = {}
+    failures: list[str] = []
+    for kind, doc_type, alias_env, alias_default, queue, task_name in (
+        (
+            "gijiroku",
+            "minutes",
+            "MIYABE_MINUTES_ALIAS",
+            "miyabe-minutes-current",
+            app_module.GIJIROKU_QUEUE,
+            "run_gijiroku_cycle",
+        ),
+        (
+            "reiki",
+            "reiki",
+            "MIYABE_REIKI_ALIAS",
+            "miyabe-reiki-current",
+            app_module.REIKI_QUEUE,
+            "run_reiki_cycle",
+        ),
+    ):
+        # 待ち行列の長さでは止めない。取り直しは 1 回 2 自治体、同じ自治体は
+        # 3 日空くので、量はクールダウンで抑えられている。取得キューは
+        # 平常時から千件単位で積まれているので、長さで止めると永久に走らない。
+        alias = celery_runtime.env_text(alias_env, alias_default)
+        try:
+            totals = _slug_counts(client, alias, {})
+            empty = _slug_counts(
+                client,
+                alias,
+                {"range": {"body_length": {"lt": coverage_ledger.EMPTY_BODY_LENGTH}}},
+            )
+        except Exception as exc:
+            print(f"[CELERY] {kind} 本文の空を数えられませんでした: {exc}", flush=True)
+            failures.append(f"{doc_type}: {exc}")
+            continue
+        rows = coverage_ledger.empty_body_rows(totals, empty)
+        broken = [row["slug"] for row in rows]
+        # 空だけでなく「仲間より極端に短い」も取り直しの対象にする。
+        # 高崎市はフレーム枠を直した後も本文が 4 分の 1 で、空ではないので
+        # empty_body には二度と出てこなかった。
+        try:
+            medians = _slug_medians(client, alias, "body_length")
+            systems = {
+                str(target.get("slug") or ""): str(target.get("system_type") or "")
+                for target in (
+                    gijiroku_targets.iter_gijiroku_targets()
+                    if kind == "gijiroku"
+                    else reiki_targets.iter_reiki_targets()
+                )
+            }
+            for row in coverage_ledger.severe_short_body_rows(
+                coverage_ledger.short_body_rows(medians, systems, totals)
+            ):
+                if row["slug"] not in broken:
+                    broken.append(row["slug"])
+        except Exception as exc:
+            print(f"[CELERY] {kind} 本文の短さを見られませんでした: {exc}", flush=True)
+            failures.append(f"{doc_type}: 本文の短さを見られなかった: {exc}")
+        pending = generation_sweep_state.filter_recently_queued(
+            f"{doc_type}_empty_body",
+            broken,
+            cooldown_seconds=EMPTY_BODY_SWEEP_COOLDOWN_SECONDS,
+        )[:sweep_limit]
+        queued_now: list[str] = []
+        for slug in pending:
+            kwargs: dict[str, object] = {"name_filter": slug}
+            if kind == "gijiroku":
+                # 例規側の一括スクレイパには取り直しの指示が無い。
+                # 通す口ができるまで、会議録だけ強制取得にする。
+                kwargs["force"] = True
+            try:
+                app.send_task(
+                    f"deploy.scraper_runtime.celery.tasks.{task_name}",
+                    kwargs=kwargs,
+                    queue=queue,
+                )
+            except Exception as exc:
+                print(f"[CELERY] {kind} {slug} の取り直しを積めませんでした: {exc}", flush=True)
+                failures.append(f"{slug}: {exc}")
+                continue
+            queued_now.append(slug)
+            requeued.setdefault(kind, []).append(slug)
+        generation_sweep_state.mark_queued(f"{doc_type}_empty_body", queued_now)
+    total = sum(len(items) for items in requeued.values())
+    if total > 0:
+        print(f"[CELERY] 本文が空の {total} 自治体を取り直します: {requeued}", flush=True)
+    return {
+        "ok": not failures,
+        "task": "sweep_empty_body",
+        "requeued": requeued,
+        "failures": failures,
+    }
+
+
 @app.task(name="deploy.scraper_runtime.celery.tasks.write_coverage_ledger")
 def write_coverage_ledger() -> dict[str, object]:
     import sys as _sys
@@ -1083,6 +1399,84 @@ def write_coverage_ledger() -> dict[str, object]:
                 counts_by_slug, empty_by_slug
             )
             section["empty_body"] = len(section["empty_body_rows"])
+            # 本文が仲間より極端に短い自治体。空ではないので empty_body に
+            # 出ず、件数は正しいので thin にも出ない。高崎市は本文の中央値が
+            # 2,855 字で、同じ系統の仲間は 13,000〜35,000 字だった。
+            median_response = client.request(
+                "POST",
+                f"/{alias}/_search",
+                body={
+                    "size": 0,
+                    "aggs": {
+                        "slugs": {
+                            "terms": {"field": "slug", "size": 5000},
+                            "aggs": {
+                                "median": {
+                                    "percentiles": {
+                                        "field": "body_length",
+                                        "percents": [50],
+                                    }
+                                }
+                            },
+                        }
+                    },
+                },
+            )
+            median_buckets = (
+                (median_response.get("aggregations") or {}).get("slugs", {}).get("buckets") or []
+            )
+            median_by_slug = {}
+            for bucket in median_buckets:
+                value = ((bucket.get("median") or {}).get("values") or {}).get("50.0")
+                if value is not None:
+                    median_by_slug[str(bucket["key"])] = int(value)
+            section["short_body_rows"] = coverage_ledger.short_body_rows(
+                median_by_slug, system_by_slug, counts_by_slug
+            )
+            section["short_body"] = len(section["short_body_rows"])
+            section["short_body_severe"] = len(
+                coverage_ledger.severe_short_body_rows(section["short_body_rows"])
+            )
+            # 最新文書が古いまま止まっている自治体。仙台市は 88 件が正しく
+            # 公開され、日付も本文も正しく、最新が 1991 年だった。
+            # 上の 5 つの軸はどれもこれを指さなかった。
+            date_field = "held_on" if doc_type == "minutes" else "promulgated_on"
+            # 日付が読めていない自治体。件数でも本文でも出てこない。
+            # 板柳町は 503 件が公開され、本文も入っていて、502 件に
+            # 公布日が無かった。日付で絞れないので利用者からは無いに等しい。
+            dated_by_slug = _slug_counts(client, alias, {"exists": {"field": date_field}})
+            section["empty_date_rows"] = coverage_ledger.empty_date_rows(
+                counts_by_slug, dated_by_slug
+            )
+            section["empty_date"] = len(section["empty_date_rows"])
+            newest_response = client.request(
+                "POST",
+                f"/{alias}/_search",
+                body={
+                    "size": 0,
+                    "aggs": {
+                        "slugs": {
+                            "terms": {"field": "slug", "size": 5000},
+                            "aggs": {"newest": {"max": {"field": date_field}}},
+                        }
+                    },
+                },
+            )
+            newest_buckets = (
+                (newest_response.get("aggregations") or {}).get("slugs", {}).get("buckets") or []
+            )
+            newest_by_slug = {}
+            for bucket in newest_buckets:
+                text = str((bucket.get("newest") or {}).get("value_as_string") or "")
+                if text:
+                    newest_by_slug[str(bucket["key"])] = text
+            section["stale_rows"] = coverage_ledger.stale_rows(
+                newest_by_slug,
+                today=_today_text(),
+                dated_by_slug=dated_by_slug,
+                totals_by_slug=counts_by_slug,
+            )
+            section["stale"] = len(section["stale_rows"])
         except Exception as exc:
             print(f"[CELERY] {kind} 件数の偏りを見られませんでした: {exc}", flush=True)
             # 見られなかったことを「偏り 0 件」と書かない。
@@ -1094,6 +1488,13 @@ def write_coverage_ledger() -> dict[str, object]:
             section["date_mismatch"] = None
             section["empty_body_rows"] = []
             section["empty_body"] = None
+            section["short_body_rows"] = []
+            section["short_body"] = None
+            section["short_body_severe"] = None
+            section["stale_rows"] = []
+            section["stale"] = None
+            section["empty_date_rows"] = []
+            section["empty_date"] = None
             section["errors"] = [f"件数の偏りを見られなかった: {exc}"]
         sections.append(section)
         print(
@@ -1104,7 +1505,11 @@ def write_coverage_ledger() -> dict[str, object]:
             f"（母数が読めた {section.get('declared_known', 0)} 件）"
             f"、仲間より極端に少ない {section.get('thin', 0)} 件"
             f"、題名と日付が食い違う {section.get('date_mismatch', 0)} 件"
-            f"、本文がほぼ空 {section.get('empty_body', 0)} 件",
+            f"、本文がほぼ空 {section.get('empty_body', 0)} 件"
+            f"、本文が仲間より極端に短い {section.get('short_body', 0)} 件"
+            f"（うち分割では説明できない {section.get('short_body_severe', 0)} 件）"
+            f"、日付がほぼ読めない {section.get('empty_date', 0)} 件"
+            f"、更新が{coverage_ledger.STALE_DAYS}日以上止まっている {section.get('stale', 0)} 件",
             flush=True,
         )
     if sections:
