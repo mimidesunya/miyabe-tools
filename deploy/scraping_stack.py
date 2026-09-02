@@ -9,7 +9,9 @@ SCRAPING_COMPOSE_PROJECT = "miyabe-tools-scraping"
 # 追いつきや取り直しで 1,000 自治体単位の待ち行列ができる。1 つでは
 # 2〜3 週間かかる。ホストは 16 コアで空きがあるので 3 つ並べる。
 # 同じ自治体を同時に索引しないのは `index_enqueue` の印が保証する。
-DEFAULT_GIJIROKU_INDEX_REPLICAS = 3
+# 3 で 35 自治体/時（負荷 5〜8 / 16 コア、OpenSearch の CPU は 1 割未満）。
+# 世代の追いつき 74 万文書を 1 日で終えるために 5 にした。
+DEFAULT_GIJIROKU_INDEX_REPLICAS = 5
 SCRAPER_IMAGE_INPUTS = (
     "docker/scraper/Dockerfile",
     "docker/scraper/requirements.txt",
