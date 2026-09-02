@@ -163,6 +163,12 @@ def resolve_d1_law_base_url(source_url: str, session: requests.Session | None = 
 DOWNLOAD_FAILURES: list[str] = []
 
 
+def _forget_download_failure(url: str) -> None:
+    """無くてもよいページの取得失敗を、個票の失敗から外す。"""
+    while url in DOWNLOAD_FAILURES:
+        DOWNLOAD_FAILURES.remove(url)
+
+
 def download_file(
     url,
     dest_path,
@@ -344,13 +350,19 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None
     # 入口ページが目次を指しているなら、それを使う。指していなければ決め打ち。
     declared_menus = menu_pages_from_entry(entry_html)
     to_scan = list(declared_menus)
-    for name in FALLBACK_MENU_PAGES:
-        if name not in to_scan:
-            to_scan.append(name)
+    # 決め打ちの名前は、入口が目次を指していないときだけ使う。指しているのに
+    # 決め打ちも開くと、無い方の 404 が「開けなかった目録」「取れなかった例規」
+    # として数えられ、石狩・江別・京都は 1267/1267 取れているのに毎周回
+    # 失敗になっていた。
+    optional_menus: set[str] = set()
     # 推測に頼ったかどうかを残す。取得元が名前を変えたとき、次に壊れるのは
     # 推測で拾えている自治体である。事前に一覧で見えるようにしておく。
     if not declared_menus:
         print("[WARN] 入口ページに目次リンクがありません。決め打ちの名前で辿ります。")
+        to_scan.extend(FALLBACK_MENU_PAGES)
+        # 2 つの決め打ちは版によってどちらか一方しか無い。無かった方は失敗に数えない。
+        optional_menus = set(FALLBACK_MENU_PAGES)
+    optional_missing: set[str] = set()
     for name in list(to_scan):
         download_file(base_url + name, data_dir / name, force=force, check_updates=check_updates)
 
@@ -367,6 +379,11 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None
         if stored_path is None:
             _, stored_path, _, _ = download_file(base_url + current, file_path, check_updates=check_updates)
         if stored_path is None or not stored_path.exists():
+            if current in optional_menus:
+                # 決め打ちの名前が無かっただけ。個票の失敗にも数えない。
+                _forget_download_failure(base_url + current)
+                optional_missing.add(current)
+                continue
             # 目録の枝が開けない。その先の例規はまるごと見えなくなる。
             missed_pages.append(current)
             continue
@@ -409,8 +426,8 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None
         walk.update(
             {
                 "scanned_pages": len(scanned),
-                "missed_pages": len(missed_pages),
-                "missed_examples": missed_pages[:10],
+                "missed_pages": len(missed_pages) + (len(optional_missing) if optional_missing and optional_missing == optional_menus else 0),
+                "missed_examples": (missed_pages + (sorted(optional_missing) if optional_missing and optional_missing == optional_menus else []))[:10],
                 # 目次を入口ページから読めたか。読めていないなら、決め打ちの
                 # 名前に頼っている。取得元が名前を変えれば次に壊れる。
                 "menus_declared": len(declared_menus),
