@@ -325,11 +325,22 @@ SITE_ATTACHMENT_DIRS = (
 )
 
 
-def is_site_attachment_pdf(url: str) -> bool:
-    path = urlsplit(url).path.lower()
-    if not path.endswith(".pdf"):
+def is_site_attachment_pdf(url: str, page_url: str = "") -> bool:
+    """この PDF を、その一覧ページが載せている会議録として扱ってよいか。
+
+    置き場所の名前を数え上げても追いつかない（訓子府町 `/fs/`、大宜味村
+    `/wp-content/uploads/`、美郷町 `/files/original/`）。同じホストに置かれた
+    PDF なら、その一覧ページの持ち物として扱う。会議録でない PDF は
+    このあとの `non_minutes_reason` が落とす。外部サイトの PDF だけを弾く。
+    """
+    parts = urlsplit(url)
+    if not parts.path.lower().endswith(".pdf"):
         return False
-    return any(directory in path for directory in SITE_ATTACHMENT_DIRS)
+    if page_url:
+        page_host = urlsplit(page_url).netloc.lower()
+        if page_host and parts.netloc.lower() == page_host:
+            return True
+    return any(directory in parts.path.lower() for directory in SITE_ATTACHMENT_DIRS)
 
 
 def load_supported_target(slug: str) -> dict:
@@ -464,7 +475,7 @@ def discover_pdf_items(
             pdf_url = urljoin(base_url, str(node.get("href", "")).strip())
             if not urlsplit(pdf_url).path.lower().endswith(".pdf"):
                 continue
-            if require_site_attachment and not is_site_attachment_pdf(pdf_url):
+            if require_site_attachment and not is_site_attachment_pdf(pdf_url, page_url):
                 continue
             label = clean_pdf_label(node.get_text(" ", strip=True))
             if label == "会議録" and current_group:

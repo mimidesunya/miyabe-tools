@@ -40,8 +40,25 @@ class SiteAttachmentTest(unittest.TestCase):
         self.assertFalse(is_site_attachment_pdf("https://example.jp/assets/files/x.html"))
 
     def test_a_pdf_outside_the_known_places_is_rejected(self):
-        """どこに置かれた PDF でも通すわけではない。"""
+        """一覧ページを渡さないなら、置き場所の名前でしか通さない。"""
         self.assertFalse(is_site_attachment_pdf("https://example.jp/kouhou/2026-03.pdf"))
+
+    def test_same_host_pdf_passes_with_the_listing_page(self):
+        """置き場所の名前は取得元ごとに違う（訓子府町 `/fs/`）。同じホストなら通す。"""
+        self.assertTrue(
+            is_site_attachment_pdf(
+                "https://www.town.kunneppu.hokkaido.jp/fs/1/8/0/0/5/3/_/R7_1T_1_3.6.pdf",
+                "https://www.town.kunneppu.hokkaido.jp/gikai/kaigiroku/10989.html",
+            )
+        )
+
+    def test_other_host_pdf_is_still_rejected(self):
+        self.assertFalse(
+            is_site_attachment_pdf(
+                "https://cdn.example.com/kouhou/2026-03.pdf",
+                "https://www.town.kunneppu.hokkaido.jp/gikai/kaigiroku/10989.html",
+            )
+        )
 
     def test_every_known_place_is_a_directory(self):
         for directory in SITE_ATTACHMENT_DIRS:

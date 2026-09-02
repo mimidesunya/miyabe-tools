@@ -480,7 +480,13 @@ class IzumiCake(Adapter):
         blocks = re.findall(r'<p id="text_\d+">(.*?)</p>', page_html, flags=re.S)
         if blocks:
             return "\n".join(html_to_text(block) for block in blocks)
-        body = slice_between(page_html, ['<div class="minutes-area">'], ['<div id="footer', '<footer'])
+        # 本文の後ろには発言者ジャンプ一覧とサイト共通部分が続く。`link-btn`
+        # から先は本文ではない（古い版は段落を閉じないので `</p>` では切れない）。
+        body = slice_between(
+            page_html,
+            ['<div class="minutes-area">'],
+            ['<div class="link-btn"', '<div id="side"', '<div id="footer'],
+        )
         return html_to_text(body)
 
 
