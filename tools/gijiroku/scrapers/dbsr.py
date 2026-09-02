@@ -1671,6 +1671,10 @@ def collect_document_rows_from_open_list(
             REPEATED_LIST_PAGES.append(page.url)
             break
         seen_page_signatures.add(signature)
+        if page_number == 1 or page_number % 5 == 0:
+            # 見張りは無出力が続くと故障とみなして打ち切る。福岡県の 1,933 ページの
+            # 一覧は黙って歩いている間に 60 分で殺され、12 時間分が無駄になっていた。
+            print(f"[INFO] 一覧 {page_number}/{final_page} ページ目（{len(collected)} 行）", flush=True)
 
         # known_urls はセッション番号を落とした形で持っている。比べる側も
         # 揃えないと、毎回すべてが「初見」になり quick update が働かない。

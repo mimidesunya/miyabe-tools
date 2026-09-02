@@ -309,8 +309,9 @@ def parser_version_for_manifest(
 # 新しい Reiki-Base は `reiki_kana/kana_default.html` のような下位ディレクトリに
 # 目次を置く。古い版の `mokuji_index_index.html` を決め打ちしていたので、
 # 牛久市・福岡市のように入口は 200 でも目録が 1 件も開けない自治体があった。
+# 古い静的版は `href=mokuji_bunya.html` と引用符なしで書く（猿払村）。
 MENU_LINK_RE = re.compile(
-    r'href="((?:reiki_[a-z]+/)?[a-z_]*(?:default|index|bunya|kana|taikei|miseko)[a-z_]*\.html)"',
+    r'href=["\']?((?:reiki_[a-z]+/)?[a-z_]*(?:default|index|bunya|kana|taikei|miseko)[a-z_]*\.html)["\'\s>]',
     re.IGNORECASE,
 )
 # 決め打ちの目次。入口ページからリンクが読めないときの控え。

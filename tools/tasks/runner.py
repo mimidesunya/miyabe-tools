@@ -32,10 +32,19 @@ def target_matches(target: dict, keyword: str, *, extra_fields: tuple[str, ...] 
     return any(keyword in value for value in haystacks)
 
 
+# tenant ごとにホスト名が違っても裏側が 1 つの会社の取得元。同時接続数は
+# まとめて数える。legal-square は Chromium を 3 つ同時に開くと 30 秒の待ちで
+# 足りなくなり、同じ分に始まった 4 自治体が全部落ちていた。
+SHARED_BACKEND_SUFFIXES = (".legal-square.com",)
+
+
 # 自治体の source_url からホスト名を取り出し、同一ホスト制御のキーにする。
 def target_host(target: dict) -> str:
     source_url = str(target.get("source_url", "")).strip()
     host = (urlsplit(source_url).hostname or "").strip().lower()
+    for suffix in SHARED_BACKEND_SUFFIXES:
+        if host.endswith(suffix):
+            return suffix.lstrip(".")
     return host or "unknown-host"
 
 

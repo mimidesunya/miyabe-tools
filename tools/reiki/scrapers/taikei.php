@@ -81,7 +81,16 @@ function main(array $argv): void
     $partialManifestPath = $workRoot . DIRECTORY_SEPARATOR . 'source_manifest.partial.json.gz';
     $coveragePath = $workRoot . DIRECTORY_SEPARATOR . 'source_coverage.json';
     $taxonomyPath = $workRoot . DIRECTORY_SEPARATOR . 'taxonomy_pages.json.gz';
-    $previousManifestRecords = load_json_file($manifestPath, []);
+    try {
+        $previousManifestRecords = load_json_file($manifestPath, []);
+    } catch (RuntimeException $e) {
+        // 壊れた gzip を読めずに毎回落ちると、その自治体は永久に取れない（浦添市）。
+        // 退避して、今回は前回の一覧なしで取り直す。
+        $corruptPath = $manifestPath . '.corrupt-' . date('Ymd_His');
+        @rename($manifestPath, $corruptPath);
+        fwrite(STDERR, "[WARN] previous manifest unreadable; moved to {$corruptPath}: {$e->getMessage()}\n");
+        $previousManifestRecords = [];
+    }
     $previousManifestBySource = index_manifest_by_source($previousManifestRecords);
     $catalogVersion = catalog_version_from_pages($crawl['pages']);
     $previousCatalogVersion = first_manifest_catalog_version($previousManifestRecords);

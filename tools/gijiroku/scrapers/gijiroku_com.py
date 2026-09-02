@@ -554,7 +554,13 @@ def discover_meeting_items(
                 continue
             year_pages.append((text, urljoin(page.url, href)))
 
-    for year_label, year_url in year_pages:
+    for year_index, (year_label, year_url) in enumerate(year_pages, start=1):
+        # 見張りは無出力が続くと故障とみなして打ち切る。伊東・調布・大和・諏訪・
+        # 掛川は年度を黙って歩いている間に 60 分で殺されていた。
+        print(
+            f"[INFO] 年度ページ {year_index}/{len(year_pages)} {year_label}（会議 {len(meetings)} 件）",
+            flush=True,
+        )
         try:
             page.goto(year_url, wait_until="domcontentloaded", timeout=timeout_ms)
         except Exception as exc:
