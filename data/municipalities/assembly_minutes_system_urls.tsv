@@ -671,7 +671,7 @@
 13201	https://www.city.hachioji.tokyo.dbsr.jp/index.php/	dbsr	enabled				ee377cfe3709c373dcd686cd031f87616b3a769037736befca2089116bf6b043
 13202	https://ssp.kaigiroku.net/tenant/tachikawa/SpMinuteSearch.html	kaigiroku.net	enabled				45ab0bc89ff8071b0b233f06a873f3a3ec3d1696d8b904b7b067abfebd5c68a1
 13203	https://www.city.musashino.tokyo.dbsr.jp/index.php/	dbsr	enabled				801d2b92e06f5f032f0ade5de7085a09c78f14dff9a248378fe1f4109cf96dbc
-13204	http://www.city.mitaka.tokyo.dbsr.jp/index.php/?Template=search-simple	dbsr	enabled				2c906ddf7a346307d327414c0b20fd200607bb13ce9dae311bd95a2e3ff634a7
+13204	https://www.city.mitaka.tokyo.dbsr.jp/index.php/1879788?Template=search-library	dbsr	enabled				2c906ddf7a346307d327414c0b20fd200607bb13ce9dae311bd95a2e3ff634a7
 13205	https://ssp.kaigiroku.net/tenant/ome/MinuteSearch.html	kaigiroku.net	enabled				fc7ade26d6d80732e2cdc5d5b89a41117c2917c3548462a029f6fc221cae46d3
 13206	https://www.city.fuchu.tokyo.dbsr.jp/index.php/	dbsr	enabled				8936039e3b6bd8cb13331246b0942a1de356dd3d0016fb7f31c3849d51b19157
 13207	https://ssp.kaigiroku.net/tenant/akishima/MinuteSearch.html	kaigiroku.net	enabled				1b91fd346564d78880a088033d5c2cd4c1733cea24ee43c4dc4556008ea1e383
@@ -1112,7 +1112,7 @@
 25214	http://www.kensakusystem.jp/maibara/index.html	kensakusystem	enabled			2026-08-02	79d3095110496376948a1ba70cf35aee295cdf1852f93c4f87649db8e5af9bc2
 25383	https://www.town.shiga-hino.lg.jp/category/32-3-6-15-0-0-0-0-0-0.html	独自	enabled			2026-08-02	01844f13e978be336f44ecc4589d5385666a464b86dfa07eb0a23ee265178a88
 25384	https://www.town.ryuoh.shiga.jp/parliament/gijiroku/gijiroku_kako.html	独自	enabled			2026-08-02	ee5a18ec1cb956d39eb47bf3b894ec25a3b55d896e8f82054c64526aafb1c489
-25425	https://www.town.aisho.shiga.jp/gikai/kaigiroku/index.html	独自	excluded	unsupported_system	町独自の会議録検索システム	2026-08-02	b1433f6f59aacdd56f0c05f9aabadd72358dbe169a820dfdb883f5f9a0c7f6fd
+25425	https://www.town.aisho.shiga.dbsr.jp/index.php/	dbsr	enabled			2026-08-02	b1433f6f59aacdd56f0c05f9aabadd72358dbe169a820dfdb883f5f9a0c7f6fd
 25441	https://www.town.toyosato.shiga.jp/category/32-5-0-0-0-0-0-0-0-0.html	独自	enabled			2026-08-02	ed2f32d9df2ff54f8b4be007dab1ac2b7da9db079cea607c3b2d5fa049f91eb7
 25442	https://www.kouratown.jp/cyonososhiki/gikaijimukyoku/gijikakari/chogikai/kaigiroku/kaigiroku_02.html	独自	enabled			2026-08-02	d699cacca854a5e5aa4f627724526eefed2884b3a269cc8d74083ce27f8be508
 25443	https://www.town.taga.lg.jp/choseijoho/tagachogikai/1/index.html	独自	enabled				532a97ebc4a0d6695e4e2ce0a40dfae28d8f5f922554cbfa1bec352eed4442fa

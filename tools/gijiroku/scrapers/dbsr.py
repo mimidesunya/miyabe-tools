@@ -232,6 +232,10 @@ def dbsr_index_root(source_url: str) -> str:
 
 
 def find_search_library_url(page, source_url: str) -> str:
+    # 入口が城下町のように別サイトへ飛ぶ取得元（三鷹市）は、一覧ページを
+    # そのまま登録する。登録したページが一覧なら、それを使う。
+    if "template=search-library" in source_url.lower():
+        return source_url
     candidates: list[str] = []
     # 入口ページが読み終える前に別ページへ移る取得元がある（鳥取県）。
     # リンクを読めなくても下の推測 URL で先へ進めるので、ここで止めない。
@@ -509,9 +513,17 @@ def collect_template_list_links(
             continue
         text = safe_inner_text(link)
         meeting_group = detect_meeting_group(text, page_title)
+        year_label = normalize_space(text) or "不明"
+        if not YEAR_LABEL_RE.search(year_label):
+            # 年の見出しを持たず会期名だけを並べる search-library がある
+            # （小金井市・三鷹市）。期間の年を年ラベルに入れないと、
+            # キーワード一覧と区別できずに一覧ごと捨てられる。
+            term_year = re.search(r"TermStart=(\d{4})", list_url)
+            if term_year:
+                year_label = f"{term_year.group(1)}年 {year_label}"
         items[list_url] = ListPage(
             title=meeting_group or text,
-            year_label=normalize_space(text) or "不明",
+            year_label=year_label,
             url=list_url,
             meeting_group=meeting_group,
             auxiliary_docs=[],
