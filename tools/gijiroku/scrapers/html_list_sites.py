@@ -29,12 +29,13 @@ from __future__ import annotations
 import argparse
 import csv
 import html
+import os
 import re
 import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from urllib.parse import parse_qs, urljoin, urlsplit
+from urllib.parse import parse_qs, quote, urljoin, urlsplit
 
 import requests
 
@@ -419,8 +420,414 @@ class YoshinogawaAsp(Adapter):
         return "\n\n".join(parts)
 
 
+class IzumiCake(Adapter):
+    """出水市。CakePHP の検索フォームは Security トークンで requests を弾くが、
+    1 日分の会議録は `detail_select/{id}` の GET で開ける（id は 1 から連番）。
+    検索を使わず id を順に開き、404 が続いたところで終わる。開いたページは
+    本文取得で使い回す。"""
+
+    system_type = "izumi-cake"
+    # 連番の切れ目。欠番は数件しか無いので、これだけ続けば終端とみなす。
+    STOP_AFTER_MISSES = 25
+    MAX_ID = 20000
+
+    def __init__(self) -> None:
+        self._pages: dict[str, str] = {}
+
+    def discover(self, session, source_url, timeout_ms, walk):
+        base = source_url if source_url.endswith("/") else source_url + "/"
+        items: list[MeetingItem] = []
+        missed: list[str] = []
+        misses = 0
+        doc_id = 0
+        while doc_id < self.MAX_ID:
+            doc_id += 1
+            url = urljoin(base, f"detail_select/{doc_id}")
+            try:
+                page_html = fetch(session, url, timeout_ms=timeout_ms)
+            except requests.HTTPError as exc:
+                status = exc.response.status_code if exc.response is not None else 0
+                if status == 404:
+                    misses += 1
+                    if misses >= self.STOP_AFTER_MISSES:
+                        break
+                    continue
+                missed.append(f"{url}: {exc}")
+                continue
+            except Exception as exc:
+                missed.append(f"{url}: {exc}")
+                continue
+            misses = 0
+            title_match = re.search(r'<h3 class="detail-subttl">(.*?)</h3>', page_html, flags=re.S)
+            title = normalize_space(html_to_text(title_match.group(1))) if title_match else ""
+            if not title:
+                continue
+            self._pages[url] = page_html
+            items.append(MeetingItem(title=title, url=url, year_label=year_label_from(title) or "不明"))
+            if doc_id % 50 == 0:
+                print(f"[INFO] 連番 {doc_id} まで確認（会議 {len(items)} 件）", flush=True)
+            time.sleep(0.3)
+        walk["missed_pages"] = len(missed)
+        walk["missed_examples"] = missed[:10]
+        return items
+
+    def fetch_text(self, session, item, timeout_ms):
+        page_html = self._pages.pop(item.url, None)
+        if page_html is None:
+            page_html = fetch(session, item.url, timeout_ms=timeout_ms)
+        # 本文は `<p id="text_N">` の連なり。区切りの印が無いので範囲で切ると、
+        # 後ろに付く発言者ジャンプ一覧とサイト共通部分まで拾ってしまう。
+        blocks = re.findall(r'<p id="text_\d+">(.*?)</p>', page_html, flags=re.S)
+        if blocks:
+            return "\n".join(html_to_text(block) for block in blocks)
+        body = slice_between(page_html, ['<div class="minutes-area">'], ['<div id="footer', '<footer'])
+        return html_to_text(body)
+
+
+class OumuDbpocket(Adapter):
+    """雄武町。db-POCKET（HokkaidoRicoh）のフォルダ画面は JS で開閉するだけで、
+    1 件の記録は `phpdb.php?table=minutes&skin=details&sid=N` の GET で読める。
+    フォルダ画面に見える最大の sid まで連番で開く（欠番は空ページが返る）。"""
+
+    system_type = "oumu-dbpocket"
+    ID_MARGIN = 200
+
+    def __init__(self) -> None:
+        self._pages: dict[str, str] = {}
+
+    @staticmethod
+    def _field(page_html: str, label: str) -> str:
+        match = re.search(
+            r">\s*" + re.escape(label) + r"\s*<.*?<td[^>]*>(.*?)</td>", page_html, flags=re.S
+        )
+        return normalize_space(html_to_text(match.group(1))) if match else ""
+
+    def discover(self, session, source_url, timeout_ms, walk):
+        folder_html = fetch(session, source_url, timeout_ms=timeout_ms)
+        sids = [int(v) for v in re.findall(r"skin=details&sid=(\d+)", folder_html)]
+        if not sids:
+            raise RuntimeError("フォルダ画面に記録へのリンクがありません")
+        detail_base = re.sub(r"skin=folder", "skin=details", source_url)
+        items: list[MeetingItem] = []
+        missed: list[str] = []
+        upper = max(sids) + self.ID_MARGIN
+        for sid in range(1, upper + 1):
+            url = f"{detail_base}&sid={sid}"
+            try:
+                page_html = fetch(session, url, timeout_ms=timeout_ms)
+            except Exception as exc:
+                missed.append(f"{url}: {exc}")
+                continue
+            council = self._field(page_html, "議会名")
+            title = self._field(page_html, "タイトル")
+            if not council:
+                continue
+            self._pages[url] = page_html
+            items.append(
+                MeetingItem(
+                    title=f"{council} {title}".strip(),
+                    url=url,
+                    year_label=year_label_from(council) or "不明",
+                )
+            )
+            if sid % 50 == 0:
+                print(f"[INFO] 連番 {sid}/{upper} まで確認（記録 {len(items)} 件）", flush=True)
+            time.sleep(0.2)
+        walk["missed_pages"] = len(missed)
+        walk["missed_examples"] = missed[:10]
+        return items
+
+    def fetch_text(self, session, item, timeout_ms):
+        page_html = self._pages.pop(item.url, None)
+        if page_html is None:
+            page_html = fetch(session, item.url, timeout_ms=timeout_ms)
+        body = slice_between(page_html, ["<body"], ["Copyright"])
+        return html_to_text(body)
+
+
+class KinJsp(Adapter):
+    """金武町。検索は JSP のセッションに条件を置く形で、`pageControl.jsp` に
+    EUC-JP のフォームを POST してから `search.jsp` を開くと会議一覧が並ぶ。
+    1 会議は発言ごとの記録（record_listid）に分かれ、10 件ずつの一覧から
+    1 件ずつ開くしかない。"""
+
+    system_type = "kin-jsp"
+    PAGE_SIZE = 10
+
+    def _post_search(self, session, base: str, timeout_ms: int) -> None:
+        fetch(session, base, timeout_ms=timeout_ms)
+        fields = [
+            ("year1", "1921"), ("month1", "01"), ("day1", "01"),
+            ("year2", "2099"), ("month2", "12"), ("day2", "31"),
+            ("property1", ""), ("property2", "選択して下さい"),
+            ("division", "両方"), ("category", "全会議"),
+            ("keyword", ""), ("action", "changeSelect"), ("button", "検 索"),
+        ]
+        payload = "&".join(f"{k}={quote(v.encode('euc-jp'))}" for k, v in fields)
+        headers = {
+            "User-Agent": USER_AGENT,
+            "Referer": base,
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+        response = session.post(
+            urljoin(base, "system/pageControl.jsp"), data=payload.encode("ascii"),
+            headers=headers, timeout=max(timeout_ms / 1000.0, 5.0), allow_redirects=True,
+        )
+        response.raise_for_status()
+
+    def discover(self, session, source_url, timeout_ms, walk):
+        base = source_url if source_url.endswith("/") else source_url + "/"
+        self._post_search(session, base, timeout_ms)
+        items: list[MeetingItem] = []
+        seen: set[str] = set()
+        missed: list[str] = []
+        start = 0
+        while True:
+            url = urljoin(base, f"search.jsp?sort=&order=asc&pageStart={start}")
+            try:
+                listing = fetch(session, url, timeout_ms=timeout_ms)
+            except Exception as exc:
+                missed.append(f"{url}: {exc}")
+                break
+            found = 0
+            for href, body in re.findall(
+                r'href="(search_detail\.jsp\?mode=detail&(?:amp;)?conferenceid=(?:\d+))"[^>]*>(.*?)</a>', listing, flags=re.S
+            ):
+                cid = re.search(r"conferenceid=(\d+)", href).group(1)
+                if cid in seen:
+                    continue
+                seen.add(cid)
+                found += 1
+                title = normalize_space(html_to_text(body))
+                items.append(
+                    MeetingItem(
+                        title=title,
+                        url=urljoin(base, f"search_detail.jsp?mode=detail&conferenceid={cid}"),
+                        year_label=year_label_from(title) or "不明",
+                    )
+                )
+            if found == 0:
+                break
+            start += self.PAGE_SIZE
+            if start % 100 == 0:
+                print(f"[INFO] 一覧 {start} 件目まで確認（会議 {len(items)} 件）", flush=True)
+            time.sleep(0.3)
+        if not items:
+            raise RuntimeError("検索結果に会議が 1 件もありません（検索条件の送信に失敗した可能性）")
+        walk["missed_pages"] = len(missed)
+        walk["missed_examples"] = missed[:10]
+        return items
+
+    def _download(self, session, base: str, rid: str, timeout_ms: int) -> str:
+        """記録 1 件を `FileDownload.jsp` の EUC-JP テキストで受け取る。
+        画面より軽く、サイト共通部分も付かない。"""
+        url = urljoin(base, f"system/FileDownload.jsp?record_listid={rid}&sort_no=0")
+        response = session.get(
+            url, headers={"User-Agent": USER_AGENT}, timeout=max(timeout_ms / 1000.0, 5.0)
+        )
+        response.raise_for_status()
+        # ヘッダは EUC-JP と言うが、中身は Shift_JIS で返る。宣言を信じると
+        # 保存した本文が全部化ける。
+        for encoding in ("cp932", "euc-jp"):
+            try:
+                return response.content.decode(encoding)
+            except UnicodeDecodeError:
+                continue
+        return response.content.decode("cp932", errors="replace")
+
+    def fetch_text(self, session, item, timeout_ms):
+        base = item.url.split("search_detail.jsp")[0]
+        first = fetch(session, item.url, timeout_ms=timeout_ms)
+        match = re.search(r"ページ\s*1/(\d+)", html_to_text(first))
+        pages = int(match.group(1)) if match else 1
+        record_ids: list[str] = []
+        listing = first
+        for page_no in range(pages):
+            if page_no > 0:
+                listing = fetch(
+                    session,
+                    f"{item.url}&record_listid={record_ids[0]}&sort_no=0&pageStart={page_no * self.PAGE_SIZE}",
+                    timeout_ms=timeout_ms,
+                )
+                time.sleep(0.3)
+            block = slice_between(listing, ["<!-- NameList"], ["<!-- /NameList", '<div id="alpha"'])
+            for rid in re.findall(r"record_listid=(\d+)", block):
+                if rid not in record_ids:
+                    record_ids.append(rid)
+        parts: list[str] = []
+        for index, rid in enumerate(record_ids):
+            text = self._download(session, base, rid, timeout_ms)
+            if index > 0:
+                # 各記録の先頭に付く会議名と日付の行は 1 度だけでよい。
+                text = re.sub(r"^[^\n]*\[\d{4}\.\d{2}\.\d{2}\]\s*\n?", "", text, count=1)
+            parts.append(text.strip())
+            if (index + 1) % 50 == 0:
+                print(f"[INFO] {item.title[:20]}: 発言 {index + 1}/{len(record_ids)}", flush=True)
+            time.sleep(0.3)
+        return "\n\n".join(p for p in parts if p)
+
+
+class Voicetechno(Adapter):
+    """voicetechno の会議録検索（朝来市・嘉麻市）。ASP.NET + DevExpress で、
+    年 → 種別 → 開催回数 → 会議名 のコンボを順に選ぶと `UpdatePanel1` に
+    本文が描かれる。コンボは JavaScript の callback で次を埋めるので、
+    ブラウザで実際にクリックする。会議の識別は各コンボの並び位置で持つ
+    （同じ実行の中でしか意味を持たないが、一覧と本文取得は同じ実行）。"""
+
+    system_type = "voicetechno"
+    IDS = {
+        "year": "ASPxPageControl_ASPxComboBYearL",
+        "kind": "ASPxPageControl_ASPxComboBKind",
+        "kaisu": "ASPxPageControl_ASPxComboBKaisuL",
+        "name": "ASPxPageControl_ASPxComboBNameL",
+    }
+    PANEL = "#UpdatePanel1"
+    TRAILER = "閲覧内容を保存する"
+
+    def __init__(self) -> None:
+        self._pw = None
+        self._browser = None
+        self._page = None
+        self._source_url = ""
+        self._state: dict[str, int] = {}
+
+    # ---- browser -------------------------------------------------------
+    def _open(self, source_url: str, timeout_ms: int):
+        if self._page is not None:
+            return self._page
+        from playwright.sync_api import sync_playwright  # noqa: WPS433
+
+        self._pw = sync_playwright().start()
+        self._browser = self._pw.chromium.launch(headless=True)
+        context = self._browser.new_context(locale="ja-JP", user_agent=USER_AGENT)
+        page = context.new_page()
+        page.set_default_timeout(timeout_ms)
+        page.goto(source_url, wait_until="domcontentloaded", timeout=timeout_ms)
+        try:
+            page.wait_for_load_state("networkidle", timeout=10_000)
+        except Exception:
+            pass
+        self._page = page
+        self._source_url = source_url
+        self._state = {}
+        return page
+
+    def _items(self, key: str) -> list[str]:
+        script = (
+            "(n) => { const c = window[n]; if (!c) return []; const out = [];"
+            " for (let i = 0; i < c.GetItemCount(); i++) out.push(c.GetItem(i).text); return out; }"
+        )
+        return self._page.evaluate(script, self.IDS[key]) or []
+
+    def _settle(self) -> None:
+        try:
+            self._page.wait_for_load_state("networkidle", timeout=15_000)
+        except Exception:
+            pass
+        self._page.wait_for_timeout(500)
+
+    def _pick(self, key: str, index: int) -> None:
+        """コンボを開いて index 番目を押す。押した先の callback が終わるまで待つ。"""
+        cid = self.IDS[key]
+        page = self._page
+        page.click(f"#{cid}_B-1")
+        page.wait_for_timeout(400)
+        selector = f"#{cid}_DDD_L_LBI{index}T0"
+        if page.query_selector(selector) is None:
+            selector = f"#{cid}_DDD_L_LBT tr:nth-child({index + 1}) td"
+        page.click(selector)
+        self._settle()
+        # 下位のコンボは選び直しになる。
+        order = ["year", "kind", "kaisu", "name"]
+        for lower in order[order.index(key) + 1 :]:
+            self._state.pop(lower, None)
+        self._state[key] = index
+
+    def _ensure(self, key: str, index: int) -> None:
+        if self._state.get(key) != index:
+            self._pick(key, index)
+
+    # ---- adapter -------------------------------------------------------
+    def discover(self, session, source_url, timeout_ms, walk):
+        self._open(source_url, timeout_ms)
+        years = self._items("year")
+        if not years:
+            raise RuntimeError("年のコンボが空です。画面の形が変わった可能性があります。")
+        limit_years = int(os.environ.get("MIYABE_VOICETECHNO_YEARS") or 0)
+        year_indexes = list(range(len(years)))
+        if limit_years > 0:
+            year_indexes = year_indexes[-limit_years:]
+        items: list[MeetingItem] = []
+        missed: list[str] = []
+        for yi in year_indexes:
+            try:
+                self._ensure("year", yi)
+                kinds = self._items("kind")
+                for ki in range(len(kinds)):
+                    self._ensure("kind", ki)
+                    sessions = self._items("kaisu")
+                    for si in range(len(sessions)):
+                        self._ensure("kaisu", si)
+                        names = self._items("name")
+                        for ni, name in enumerate(names):
+                            title = normalize_space(name)
+                            if not title:
+                                continue
+                            url = f"{source_url}#y={yi}&k={ki}&s={si}&n={ni}"
+                            items.append(
+                                MeetingItem(
+                                    title=title,
+                                    url=url,
+                                    year_label=year_label_from(title) or year_label_from(years[yi]) or "不明",
+                                    meeting_group=kinds[ki],
+                                )
+                            )
+                    print(
+                        f"[INFO] {years[yi]} {kinds[ki]}: 開催 {len(sessions)} 回（会議 {len(items)} 件）",
+                        flush=True,
+                    )
+            except Exception as exc:
+                missed.append(f"{years[yi]}: {exc}")
+                print(f"[WARN] {years[yi]} を読めませんでした: {exc}", flush=True)
+                # 画面を開き直して次の年へ。
+                self._page.reload(wait_until="domcontentloaded")
+                self._settle()
+                self._state = {}
+        walk["missed_pages"] = len(missed)
+        walk["missed_examples"] = missed[:10]
+        return items
+
+    def fetch_text(self, session, item, timeout_ms):
+        self._open(self._source_url or item.url.split("#")[0], timeout_ms)
+        params = parse_qs(item.url.split("#", 1)[1]) if "#" in item.url else {}
+        yi, ki, si, ni = (int(params.get(k, ["0"])[0]) for k in ("y", "k", "s", "n"))
+        self._ensure("year", yi)
+        self._ensure("kind", ki)
+        self._ensure("kaisu", si)
+        self._pick("name", ni)
+        page = self._page
+        deadline = time.monotonic() + max(timeout_ms / 1000.0, 10.0)
+        text = ""
+        while time.monotonic() < deadline:
+            text = page.inner_text(self.PANEL)
+            if item.title[:20] in normalize_space(text) and len(text) > len(item.title) + 200:
+                break
+            page.wait_for_timeout(700)
+        head = text.find(item.title[:20])
+        if head > 0:
+            text = text[head:]
+        tail = text.rfind(self.TRAILER)
+        if tail > 0:
+            text = text[:tail]
+        return text.strip()
+
+
 ADAPTERS: dict[str, Adapter] = {
-    adapter.system_type: adapter for adapter in (ShizuokaNotes(), ChuoKugikai(), NakanoKugikai(), EchizenSearch(), YoshinogawaAsp())
+    adapter.system_type: adapter
+    for adapter in (
+        ShizuokaNotes(), ChuoKugikai(), NakanoKugikai(), EchizenSearch(), YoshinogawaAsp(),
+        IzumiCake(), OumuDbpocket(), KinJsp(), Voicetechno(),
+    )
 }
 
 

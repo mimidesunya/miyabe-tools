@@ -31,6 +31,10 @@ GIJIROKU_SUPPORTED_SYSTEMS = {
     "nakano-kugikai",
     "echizen-search",
     "yoshinogawa-asp",
+    "izumi-cake",
+    "oumu-dbpocket",
+    "kin-jsp",
+    "voicetechno",
 }
 REIKI_SUPPORTED_SYSTEMS = {"d1-law", "taikei", "g-reiki"}
 

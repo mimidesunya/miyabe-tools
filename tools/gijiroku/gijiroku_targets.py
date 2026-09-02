@@ -42,6 +42,9 @@ SYSTEM_FAMILY_ALIASES = {
     "nakano-kugikai": {"nakano-kugikai"},
     "echizen-search": {"echizen-search"},
     "yoshinogawa-asp": {"yoshinogawa-asp"},
+    "izumi-cake": {"izumi-cake"},
+    "oumu-dbpocket": {"oumu-dbpocket"},
+    "kin-jsp": {"kin-jsp"},
 }
 SYSTEM_FAMILY_BY_TYPE = {
     system_type: family
