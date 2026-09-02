@@ -4077,3 +4077,14 @@ voicetechno の 2 市。
   台帳の「薄い」は 8 月の古い実行の残りで、周回が届けば直る。
 - 雄武町（phpdb）は Incapsula 配下で、一覧は 100 件ずつのフォーム送信。
   金武町は 503。voicetechno は DevExpress の ViewState。この 3 系統は残す。
+
+### 追記: 丹波篠山市も kensakusystem だった
+
+`kensaku.sasayama.jp` は独自ドメインだが、入口が `cgi-bin3/See.exe?Code=` を
+指している。兵庫県と同じ製品を自前のドメインで出しているだけで、
+「namazu の独自検索」という登録は入口の飾り（namazu のフォーム）を見た誤読だった。
+系統名を `kensakusystem` にしただけで 3 件取れた。
+
+**製品は入口の見た目ではなく、リンク先の実行ファイル名で見分ける。**
+越前市（`Search/?Code=`・`Document0/`）も同じ会社の別世代で、
+兵庫県（`js-tree-submit`）も同じ製品の別の描き方だった。
