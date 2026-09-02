@@ -46,6 +46,11 @@ SUPPORTED_SYSTEMS = {
     "site-gikai-pdf": "scrapers/site_gikai_pdf.py",
     "static-kaigiroku-dir": "scrapers/static_kaigiroku_dir.py",
     "独自": "scrapers/gikai_pdf.py",
+    # 年別一覧 → 文書ページだけの独自サイト。アダプタは html_list_sites.py に並ぶ。
+    "shizuoka-notes": "scrapers/html_list_sites.py",
+    "chuo-kugikai": "scrapers/html_list_sites.py",
+    "nakano-kugikai": "scrapers/html_list_sites.py",
+    "echizen-search": "scrapers/html_list_sites.py",
 }
 SUPPORTED_INPUT_SYSTEMS = set(SUPPORTED_SYSTEMS.keys()) | {"voices", "db-search", "kaigiroku-indexphp"}
 SAVE_HTML_SYSTEMS = {

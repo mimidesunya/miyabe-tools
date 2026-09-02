@@ -4030,3 +4030,20 @@ tenant が消えて接続を切られ、いずれも g-reiki へ移っていた�
 `data-depth` も拾い、`GetHTML.exe` にも落ちるようにして、手元で 90 件
 （本会議 14・委員会 18・討論 58）が全件 `saved_text` になった。
 系統名を `kensakusystem` に戻し、`//hyogopref` の二重スラッシュも直した。
+
+### 「対応していない」16 件のうち 4 件は、年別一覧と文書ページしか無かった
+
+除外した独自検索を開いて回ったら、静岡県議会（Lotus Notes）・中央区議会・
+中野区議会・越前市議会（poseidon）は**年を選ぶ → 文書の一覧 → 文書ページ**の
+三段だけで、検索フォームは飾りだった。取得元ごとに違うのは「年の列挙」
+「一覧のどのリンクが文書か」「本文の切り出し」の三つなので、それを
+アダプタにした `scrapers/html_list_sites.py` を書いた。計画・保存・再開は
+他と同じ共通層。系統名は `shizuoka-notes` `chuo-kugikai` `nakano-kugikai`
+`echizen-search`。手元で各 3 件を取り、本文と開催日が入ることを確認した
+（中野区は 1 日分 38,000 字、越前市は 10,000 字）。
+
+湯沢町（k-quick）は `static-kaigiroku-dir` で 5 年分 40 件が取れた。
+
+残る未対応は、Incapsula で守られ JS で描く出水市、JSP の金武町、IE 時代の
+`document.all` で木を描く雄武町、namazu の丹波篠山市、ASP の吉野川市、
+voicetechno の 2 市。

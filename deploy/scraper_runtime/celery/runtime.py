@@ -26,6 +26,10 @@ GIJIROKU_SUPPORTED_SYSTEMS = {
     "kami-city-pdf",
     "site-gikai-pdf",
     "static-kaigiroku-dir",
+    "shizuoka-notes",
+    "chuo-kugikai",
+    "nakano-kugikai",
+    "echizen-search",
 }
 REIKI_SUPPORTED_SYSTEMS = {"d1-law", "taikei", "g-reiki"}
 

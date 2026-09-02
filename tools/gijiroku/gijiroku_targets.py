@@ -37,6 +37,10 @@ SYSTEM_FAMILY_ALIASES = {
     "site-gikai-pdf": {"site-gikai-pdf"},
     "static-kaigiroku-dir": {"static-kaigiroku-dir"},
     "独自": {"独自"},
+    "shizuoka-notes": {"shizuoka-notes"},
+    "chuo-kugikai": {"chuo-kugikai"},
+    "nakano-kugikai": {"nakano-kugikai"},
+    "echizen-search": {"echizen-search"},
 }
 SYSTEM_FAMILY_BY_TYPE = {
     system_type: family
