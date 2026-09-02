@@ -217,16 +217,26 @@ def incomplete_wait_reason(task_name: str, slug: str, current_count: int) -> str
 # 一度の失敗で永久に再取得されなくなる（実際に会議録 45・例規 6 自治体が
 # 3 か月以上、巡回対象から外れたままだった）。
 FAILED_RETRY_DAYS = 7
+# 起動直後に落ちた失敗は、取得元を叩いていない（DNS・入口ページ・一時的な
+# 応答なし）ことが多い。7 日待つと、能代市のように 2 秒で落ちた自治体が
+# 一週間まるごと止まる。短い失敗は 1 日で試し直す。壊れた取得元でも
+# 1 日 1 回の入口確認に留まる。
+FAILED_QUICK_RETRY_DAYS = 1
+FAILED_QUICK_RUN_SECONDS = 120
 
 
-def failure_is_retryable(finished_at: str) -> bool:
+def failure_is_retryable(finished_at: str, started_at: str = "") -> bool:
     """失敗から十分に時間が経っていれば、自動で 1 度やり直してよい。"""
     finished = freshness_metadata.parse_datetime_text(finished_at)
     if finished is None:
         # 呼び出し側が durable な観測時刻すら確定できなかった場合に、永久な
         # score=0 へ戻す方が危険なので fail-open にする。
         return True
-    return (freshness_metadata.now_tokyo() - finished) >= timedelta(days=FAILED_RETRY_DAYS)
+    wait_days = FAILED_RETRY_DAYS
+    started = freshness_metadata.parse_datetime_text(started_at)
+    if started is not None and 0 <= (finished - started).total_seconds() <= FAILED_QUICK_RUN_SECONDS:
+        wait_days = FAILED_QUICK_RETRY_DAYS
+    return (freshness_metadata.now_tokyo() - finished) >= timedelta(days=wait_days)
 
 
 def _valid_failure_time(value: object) -> str:
@@ -571,7 +581,7 @@ class PriorityCalculator:
         if failed_task_name:
             failed_item = task_item(failed_task_name, slug)
             failed_at = failure_reference_time(failed_task_name, slug, failed_item)
-            if not failure_is_retryable(failed_at):
+            if not failure_is_retryable(failed_at, str(failed_item.get("started_at") or "")):
                 return {
                     "priority_group": 5,
                     "priority_score": 0,

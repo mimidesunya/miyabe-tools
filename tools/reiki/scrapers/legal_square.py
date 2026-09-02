@@ -335,6 +335,14 @@ SEARCH_STALE = "stale"
 # 取得元が遅くなっただけなら数回で戻る。戻らないなら期間を二分し続けても
 # 数十時間かかるだけなので、そこで諦めて失敗として終わらせる。
 MAX_STALE_SEARCHES = 20
+# 件数表示が本当に「0件」かを見分ける。「100件」の末尾に釣られないよう桁の続きを除く。
+ZERO_COUNT_RE = re.compile(r"(?<![0-9,])0\s*件")
+# 画面操作がタイムアウトしたとき、検索画面を開き直してやり直す回数。
+SEARCH_RECOVERY_ATTEMPTS = 2
+# 本文ビューアが空で返ったときに、開き直す回数（初回を含む）。
+BODY_FETCH_ATTEMPTS = 2
+# 本文が空だった記録は最初の数件だけ詳しく出す。熊本市は 571 件が黙って落ちていた。
+EMPTY_BODY_REPORT_LIMIT = 10
 
 
 def run_search(page, timeout_ms: int) -> str:
@@ -370,7 +378,16 @@ def run_search(page, timeout_ms: int) -> str:
         pass
     if stale:
         return SEARCH_STALE
-    return SEARCH_OK if read_result_total(page) > 0 else SEARCH_EMPTY
+    total = read_result_total(page)
+    if total <= 0:
+        # 差し替え直後は途中経過の表示を読むことがある。「0件」を信じて
+        # 種別ごと落とすと、その種別の例規が全部消える（新宿区の規則 281 件）。
+        page.wait_for_timeout(1500)
+        total = read_result_total(page)
+        if total <= 0 and not ZERO_COUNT_RE.search(read_pager_text(page)):
+            print("[WARN] 件数表示を読めませんでした", flush=True)
+            return SEARCH_STALE
+    return SEARCH_OK if total > 0 else SEARCH_EMPTY
 
 
 def reopen_detail(page, timeout_ms: int) -> None:
@@ -385,7 +402,20 @@ def extract_body_html(popup) -> str:
         popup.wait_for_load_state("networkidle", timeout=15_000)
     except PlaywrightTimeoutError:
         pass
+    # 本文は networkidle の後に描かれることがある。要素が現れるまで待つ。
+    try:
+        popup.wait_for_selector(".viewer-jobun", timeout=10_000)
+    except PlaywrightTimeoutError:
+        pass
     popup.wait_for_timeout(400)
+    body = _read_viewer_body(popup)
+    if not body.strip():
+        popup.wait_for_timeout(2000)
+        body = _read_viewer_body(popup)
+    return body
+
+
+def _read_viewer_body(popup) -> str:
     parts = popup.eval_on_selector_all(
         ".viewer-jobun", "els => els.map(e => e.innerHTML)"
     )
@@ -467,6 +497,78 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                 {"kind": kind["text"], "span": span_label(span, days), "reason": reason}
             )
 
+        empty_body_reports = 0
+
+        def fetch_body(anchor, title: str) -> str:
+            """本文ビューアを開いて本文を返す。空なら開き直して 1 度だけやり直す。
+
+            空のまま黙って失敗にすると、何が起きたか後から分からない。
+            熊本市は 1,366 件のうち 571 件が記録なしで落ちていた。
+            """
+            nonlocal empty_body_reports
+            for attempt in range(BODY_FETCH_ATTEMPTS):
+                body_html = ""
+                popup_url = ""
+                snippet = ""
+                try:
+                    with page.expect_popup(timeout=timeout_ms) as pi:
+                        anchor.click()
+                    popup = pi.value
+                    try:
+                        popup_url = popup.url
+                        body_html = extract_body_html(popup)
+                        if not body_html.strip():
+                            try:
+                                snippet = re.sub(r"\s+", " ", popup.inner_text("body"))[:120]
+                            except Exception:
+                                snippet = ""
+                    finally:
+                        popup.close()
+                except PlaywrightTimeoutError:
+                    print(f"[WARN] popup timeout: {title[:30]}", flush=True)
+                except Exception as exc:
+                    print(f"[WARN] body fetch failed {title[:30]}: {exc}", flush=True)
+                    return ""
+                if body_html.strip():
+                    return body_html
+                if empty_body_reports < EMPTY_BODY_REPORT_LIMIT:
+                    empty_body_reports += 1
+                    print(
+                        f"[WARN] 本文が空でした {title[:30]}: {popup_url[:80]} {snippet}",
+                        flush=True,
+                    )
+                if attempt + 1 < BODY_FETCH_ATTEMPTS:
+                    page.wait_for_timeout(1500)
+            return ""
+
+        def search_with_recovery(
+            kind: dict,
+            span: tuple[int, int] | None,
+            days: tuple[int, int] | None,
+        ) -> str | None:
+            """条件を設定して検索を 1 回実行する。
+
+            画面操作がタイムアウトしたら検索画面を開き直してやり直す。日立市は
+            30 秒待っても検索ボタンが押せず、1 度の例外で走査全体が落ちていた。
+            諦めたときは None を返す。
+            """
+            for attempt in range(SEARCH_RECOVERY_ATTEMPTS + 1):
+                try:
+                    reopen_detail(page, timeout_ms)
+                    apply_filters(page, kind["id"], span, days)
+                    return run_search(page, timeout_ms)
+                except PlaywrightTimeoutError:
+                    label = f"{kind['text']} {span_label(span, days)}"
+                    if attempt >= SEARCH_RECOVERY_ATTEMPTS:
+                        print(f"[WARN] {label}: 画面操作がタイムアウトしたので諦めます", flush=True)
+                        return None
+                    print(f"[WARN] {label}: 画面操作がタイムアウトしたので検索画面を開き直します", flush=True)
+                    try:
+                        open_search(page, source_url, timeout_ms)
+                    except PlaywrightTimeoutError:
+                        continue
+            return None
+
         def harvest_pages(label: str) -> tuple[int, int]:
             """いま表示中の検索結果をページ送りしながら取り込む。
 
@@ -507,17 +609,7 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                         emit_total += 1
                         continue
 
-                    body_html = ""
-                    try:
-                        with page.expect_popup(timeout=timeout_ms) as pi:
-                            anchors[i].click()
-                        popup = pi.value
-                        body_html = extract_body_html(popup)
-                        popup.close()
-                    except PlaywrightTimeoutError:
-                        print(f"[WARN] popup timeout: {title[:30]}", flush=True)
-                    except Exception as exc:
-                        print(f"[WARN] body fetch failed {title[:30]}: {exc}", flush=True)
+                    body_html = fetch_body(anchors[i], title)
 
                     if not body_html.strip():
                         failed += 1
@@ -608,16 +700,21 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             """
             if stopped:
                 return
-            reopen_detail(page, timeout_ms)
-            apply_filters(page, kind["id"], span, days)
-            outcome = run_search(page, timeout_ms)
+            outcome = search_with_recovery(kind, span, days)
             if outcome == SEARCH_STALE:
                 # 一時的な遅れのことが多いので、まず同じ条件で 1 度だけやり直す。
                 # 期間指定なしの検索は、制定年月日を持たない例規を拾う保険なので、
                 # ここで諦めると分割してもその分を取り戻せない。
-                reopen_detail(page, timeout_ms)
-                apply_filters(page, kind["id"], span, days)
-                outcome = run_search(page, timeout_ms)
+                outcome = search_with_recovery(kind, span, days)
+            if outcome == SEARCH_EMPTY and span is None and kind["id"]:
+                # 種別を選んだだけで 0 件は珍しい。読み違いなら 1 度のやり直しで戻る。
+                # 黙って通すと、その種別の例規が一覧から丸ごと消える。
+                outcome = search_with_recovery(kind, span, days)
+                if outcome == SEARCH_EMPTY:
+                    print(f"[INFO] {kind['text']} 全期間: 0件", flush=True)
+            if outcome is None:
+                note_unresolved(kind, span, "画面操作がタイムアウトした", days=days)
+                return
             nonlocal stale_searches
             if outcome == SEARCH_STALE:
                 stale_searches += 1

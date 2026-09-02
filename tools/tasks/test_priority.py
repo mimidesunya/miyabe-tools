@@ -104,6 +104,19 @@ class FailureIsRetryableTest(unittest.TestCase):
     def test_unknown_failure_time_does_not_become_permanent_manual_work(self) -> None:
         self.assertTrue(priority.failure_is_retryable(""))
 
+    def test_quick_failure_is_retried_after_a_day(self) -> None:
+        # 2 秒で落ちた失敗（入口ページの一時的な応答なし等）は 7 日も待たない。
+        finished = priority.freshness_metadata.now_tokyo() - timedelta(days=2)
+        started = finished - timedelta(seconds=2)
+        fmt = "%Y-%m-%d %H:%M:%S"
+        self.assertTrue(priority.failure_is_retryable(finished.strftime(fmt), started.strftime(fmt)))
+
+    def test_long_failure_still_waits_a_week(self) -> None:
+        finished = priority.freshness_metadata.now_tokyo() - timedelta(days=2)
+        started = finished - timedelta(minutes=30)
+        fmt = "%Y-%m-%d %H:%M:%S"
+        self.assertFalse(priority.failure_is_retryable(finished.strftime(fmt), started.strftime(fmt)))
+
 
 class FailureReferenceTimeTest(unittest.TestCase):
     def setUp(self) -> None:
