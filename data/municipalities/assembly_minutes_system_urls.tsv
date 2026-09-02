@@ -134,10 +134,10 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 01560	https://www.town.takinoue.hokkaido.jp/chosei/sangyo/nougyo/nougyoiinkai/sokaigijiroku.html	独自	enabled			2026-08-02	1c9fa2337c3b33e9305fe098a4435ca8736339d3601602ee0f1aacdf9a7f44f3
 01561	https://www.town.okoppe.lg.jp/cms/section/gikai/nbm3tm0000000ndt.html	独自	enabled			2026-08-20	bcec6d7432d99988c76c4710e96ed6e954b5c085e736ee9cfedf780cad5fe6d5
 01562			unresolved	source_url_unresolved	登録URLは総合教育会議の会議録。議会会議録の公開先を未特定		f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
-01563	http://www1.town.oumu.hokkaido.jp/dbp/phpdb.php?table=minutes&skin=folder	独自	enabled			2026-08-02	76cdcac5c356115c59626ebb30335136c11e4a8f78a6de75c8997ea04fcc1a9c
+01563	http://www1.town.oumu.hokkaido.jp/dbp/phpdb.php?table=minutes&skin=folder	独自	excluded	unsupported_system	phpdb 製の独自データベース	2026-08-02	76cdcac5c356115c59626ebb30335136c11e4a8f78a6de75c8997ea04fcc1a9c
 01564	https://www.town.ozora.hokkaido.jp/machinoshirase/chogikai/6/3744.html	独自	enabled			2026-08-02	ae4b97b9c627d007c8683ed11820b9a8affcff7a752d8fc6098884e9e2d90188
 01571	https://www.town.toyoura.hokkaido.jp/hotnews/detail/00006367.html	独自	enabled			2026-08-02	589071680114c876ef85d03b876d571ec1b96b8e55802a80acddfd7db113bb97
-01575	https://www.town.sobetsu.lg.jp/shinchaku/2020/02/post-274.html	独自	enabled			2026-08-02	a397437ffd11c02a2005ebe1745525c976e9b1f806451dde5dbb7bdc0ae666c0
+01575	https://www.town.sobetsu.lg.jp/gikai.html	独自	enabled			2026-08-02	a397437ffd11c02a2005ebe1745525c976e9b1f806451dde5dbb7bdc0ae666c0
 01578	https://www.town.shiraoi.hokkaido.jp/docs/page2014063000011.html	独自	enabled				a09fc51720786e2852669a7b231f207fdd933d5b566b298022d831b63a8b282e
 01581	https://ssp.kaigiroku.net/tenant/atsuma/SpMinuteSearch.html	kaigiroku.net	enabled				5bb2ad2b473df5a3b1bc2d926e558b5d1ec12b10196fca34d3334640a48d099e
 01584	http://www.town.toyako.hokkaido.jp/town_administration/town_council/toc006/	独自	enabled			2026-08-02	bb5729f491c0edab755cab36d902025c312d93eefc4c8873bdb1d646a293a327
@@ -206,7 +206,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 02361			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 02362	http://www.town.owani.lg.jp/gyousei/gikai/teireikairinjikai/index.html	独自	enabled				9b869413bbb8590f0e0211053aaa294b22acbed4ce45ed8a1bd42356cf3d8649
 02367	http://www.vill.inakadate.lg.jp/docs/2025072300030/	独自	enabled			2026-08-02	6b7716c55859ef652a69179d98430928e0bf64ca4bd132a29ccab6d96993e9f5
-02381	https://www.town.itayanagi.aomori.jp/administration/salary/sougoukyouikukaigi_siryoutou.html	独自	enabled			2026-08-02	4feb589f01c503096b4de122dd611716db1d9cff95431d22ea9c44ddf8ff0cde
+02381	https://www.town.itayanagi.aomori.jp/gikai/index.html	独自	enabled			2026-08-02	4feb589f01c503096b4de122dd611716db1d9cff95431d22ea9c44ddf8ff0cde
 02384			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 02387			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 02401	https://www.town.noheji.aomori.jp/life/chosei/gikai/2787/3	独自	enabled			2026-08-02	58f2c3ca8d703f7f5a370db59d552d5ff912aa117cb68e65f357438207a3551b
@@ -221,12 +221,12 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 02425			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 02426			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 02441	https://www.town.sannohe.aomori.jp/choseijoho/gikai/gikaijouhou/3/3881.html	独自	enabled			2026-08-02	d80e4bc9dc7b7a474695a1d1eec01d13755b91ff43c8657c5996ee2799cc6dac
-02442	https://www.town.gonohe.aomori.jp/chosei/gikai/gikai_kaigiroku_H28.html	独自	enabled			2026-08-02	c6020c19200291345e7f0762904082e8ba04a6b819efd40c6abd0c4d69e225f7
+02442	https://www.town.gonohe.aomori.jp/chosei/gikai/gikai_kaigiroku.html	独自	enabled			2026-08-02	c6020c19200291345e7f0762904082e8ba04a6b819efd40c6abd0c4d69e225f7
 02443	https://www.town.takko.lg.jp/index.cfm/13,0,45,190,html	独自	enabled			2026-08-02	69c43c45652491ffb9c22e89fd8c6927716c2d26d0e00829f95d47bc7b49d46c
 02445			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 02446	https://www.town.hashikami.lg.jp/index.cfm/9,0,46,438,html	独自	enabled			2026-08-02	a0e22744a8463314302656623f9adc96aebe7995be509e4b7f65aac6c0c8c98c
 02450	https://www.vill.shingo.aomori.jp/page-30802/	独自	enabled			2026-08-02	d6c9d945239ed8202386a50bc38b42312f1a353e28d064793aebb792139ed46f
-03000	https://www3.pref.iwate.jp/gikai/user/www/Kensaku/	独自	enabled			2026-08-02	4ec4468a9846900a47ca007402969f9b0274947493ea909745c53d8064026095
+03000	https://iwatekengikai.gijiroku.com/voices/	gijiroku.com	enabled			2026-08-02	4ec4468a9846900a47ca007402969f9b0274947493ea909745c53d8064026095
 03201	https://ssp.kaigiroku.net/tenant/morioka/MinuteSearch.html	kaigiroku.net	enabled				851cc92c430f7682e7dc850c61adfdd58eb356970a5379c101c77b0a634a4831
 03202	https://ssp.kaigiroku.net/tenant/miyako/SpMinuteSearch.html	kaigiroku.net	enabled				4ce8bd90e45b9584b6f4a8d4bd185b20ac07d8e771b76ca05339236d31df7bfd
 03203	https://ssp.kaigiroku.net/tenant/ofunato/SpMinuteSearch.html	kaigiroku.net	enabled				da8a4769dcfbca93972f4f17e15d6d39353a6a5085f1a6594433ddb369033429
@@ -334,7 +334,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 06209	https://www.city.nagai.yamagata.jp/shigikai/kaigiroku/index.html	独自	enabled			2026-08-02	d9778d5b95b73696309c9eec9a96d8943b8c9a1fef3a53ee8a47bdf5cb657af0
 06210	https://ssp.kaigiroku.net/tenant/tendo/SpMinuteSearch.html	kaigiroku.net	enabled				95d5ce78dc36c61a41b2f0ce208f5ca706d3087e5a84263fac1db807a700815b
 06211	https://city.higashine.netj.jp/kensaku/mokuji.html	msearch	enabled			2026-08-02	0f0987420b469340a28e4df761218132d7bae7dc3e747a6c93ef1354d45c41bd
-06212	http://www.kensakusystem.jp/obanazawa-vod/index.html	kensakusystem	enabled			2026-08-20	94313df3a8e4c38aaa5e14e2f637c04d2b7b6b6eafb3d879338c09b3520d2588
+06212	http://www.kensakusystem.jp/obanazawa-vod/index.html	kensakusystem	excluded	video_only	録画映像のみ公開で会議録本文なし（kensakusystem の -vod 版）	2026-08-20	94313df3a8e4c38aaa5e14e2f637c04d2b7b6b6eafb3d879338c09b3520d2588
 06213	http://www.city.nanyo.yamagata.jp/gikaikaigiroku/	独自	enabled			2026-08-02	e9298494d056097391c9cc55ce07f622cffe53220491cde16f676caf31a7475c
 06301			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 06302	https://www.town.nakayama.yamagata.jp/gikai/bocho/2299.html	独自	enabled			2026-08-02	1f99f1ed751feca72644baa22aa18554c1fe07b9d3d5cf2077745990471768db
@@ -408,7 +408,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 07505	https://ssp.kaigiroku.net/tenant/furudono/MinuteSearch.html	kaigiroku.net	enabled				c2ddf7995caed472a6c682e704aec693517c4ad4305eda81c1c0e9d6ab3abd2a
 07521			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 07522			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
-07541	https://www.town.hirono.fukushima.jp/faq/gikai/1001696/1002743.html	独自	enabled			2026-08-02	07f3747aeaf2bd808132119b6a46f5f405cb298e7afa85264e189af13f831ede
+07541	https://www.town.hirono.fukushima.jp/chousei/gikai/1002978/index.html	static-kaigiroku-dir	enabled			2026-08-02	07f3747aeaf2bd808132119b6a46f5f405cb298e7afa85264e189af13f831ede
 07542			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 07543	https://www.tomioka-town.jp/soshiki/gikai/1029.html	独自	enabled			2026-08-02	3e0b5d99593726b219ed5c0b6b5a9d784602f1e092dafc9568c6d3478386b15b
 07544	https://ssp.kaigiroku.net/tenant/kawauchi/SpMinuteSearch.html	kaigiroku.net	enabled				ce7a620c158048a587fedf235589d2dee54fcd2aec2af0f59ca42af60b44335e
@@ -571,7 +571,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 11326	https://ssp.kaigiroku.net/tenant/moroyama/MinuteSearch.html	kaigiroku.net	enabled				e1e9162e825242cd34bfea89c5566dc8e7350182aa60f46e9467ef7b808bbde4
 11327	https://ssp.kaigiroku.net/tenant/ogose/MinuteSearch.html	kaigiroku.net	enabled				7b44e2a36a02eafbe9f163b4e9235d9e5e66ecc862de9279cc45d99f67e8b81a
 11341	https://www.town.namegawa.saitama.jp/section/kaigiroku/R02/R0209K/index.html	独自	enabled			2026-08-02	bdb5f0e543cd3bb7b7e01aa061f59b97278d45bbabf25815169f803331c525f6
-11342	https://www.town.ranzan.saitama.jp/0000007893.html	独自	enabled			2026-08-02	eded12fc4c3848c9b8760ab1674783d714fda25fff91074a2ee4f9c4de4476c3
+11342	https://www.town.ranzan.saitama.jp/category/2-19-9-0-0-0-0-0-0-0.html	独自	enabled			2026-08-02	eded12fc4c3848c9b8760ab1674783d714fda25fff91074a2ee4f9c4de4476c3
 11343	https://ssp.kaigiroku.net/tenant/ogawa/MinuteSearch.html	kaigiroku.net	enabled				652b71c212b9f546c19ec23c8af98064d17fa38c650b3c2eaae4abf1c375a167
 11346	https://ssp.kaigiroku.net/tenant/kawajima/SpMinuteSearch.html	kaigiroku.net	enabled				50e921fd638f598a85a696add4cd7858ed6eced6a90bf085c1a2f18198dbc0bd
 11347	https://ssp.kaigiroku.net/tenant/yoshimi/MinuteSearch.html	kaigiroku.net	enabled				f717c7d8e42efbf30fcb7e42e6497f15b00b0874c073ce827cb0bf3aeabf197c
@@ -621,7 +621,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 12231	https://ssp.kaigiroku.net/tenant/inzai/MinuteSearch.html	kaigiroku.net	enabled				f037b1f179638cdd800713dccb8ae0d6bddadcbe98963125c2441053d69b217e
 12232	http://www.city.shiroi.chiba.dbsr.jp/index.php/	dbsr	enabled				270aa280f3a81e2d04882d598eb5c81ff1be0060f4b9076a954e815680559b94
 12233	https://ssp.kaigiroku.net/tenant/tomisato/SpMinuteSearch.html	kaigiroku.net	enabled				66253a554807064080884b08bc5550ec1694640173104b48dfffc1e0913c4033
-12234	http://www.city.minamiboso.chiba.dbsr.jp/index.php/	dbsr	enabled				94882ed592f43cab87c9fa6b86272d2e2a6b5b5ad0afae7bbbde5aa6f477e7ea
+12234	https://www.city.minamiboso.chiba.dbsr.jp/index.php/	dbsr	enabled				94882ed592f43cab87c9fa6b86272d2e2a6b5b5ad0afae7bbbde5aa6f477e7ea
 12235	https://ssp.kaigiroku.net/tenant/sosa/SpMinuteSearch.html	kaigiroku.net	enabled				ee5e3ca0ce010ce69e1004672ea49db6235079aafbd8c21224c6f39ee84cb264
 12236	https://ssp.kaigiroku.net/tenant/katori/SpMinuteSearch.html	kaigiroku.net	enabled				875b971e4e79ae045e0931d30b7982fc9e9ddebb08cfa7e71896455381dfda23
 12237	https://www.city.sammu.chiba.dbsr.jp/index.php/	dbsr	enabled				e557a4a7d37fa4ddf269ef855f4ab03c0f48e35f8638713956584b09d60b6bdc
@@ -642,11 +642,11 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 12426	https://www.town.nagara.chiba.jp/site/gikai/9653.html	site-gikai-pdf	enabled			2026-08-02	65af7a172a694dc3fc5f459d9755538eee2d4f6e1bc62631e5e3677f26825ef9
 12427	https://www.town.chonan.chiba.jp/chousei/gikai/%E4%BC%9A%E8%AD%B0%E9%8C%B2/	独自	enabled			2026-08-02	64d0d24feeabf8f91d31c9ddfb39ed3ad3c0e78c99f164790bf5e7230ab5905d
 12441	https://www.town.otaki.chiba.jp/gyousei/gikai/1423.html	独自	enabled			2026-08-02	c8505c20252bff0208f77097f5792958f732ae49d62f7b83b45c48898f8cabf8
-12443	https://www.town.onjuku.chiba.jp/sub5/4/gikai_jouhou/13.html	site-gikai-pdf	enabled			2026-08-20	bb04cb87728b6a5b3a52952673b592bcfb00943621bfbb79805284d5e1d88098
+12443	https://www.town.onjuku.chiba.jp/sub5/4/gikai_jouhou/13.html	site-gikai-pdf	excluded	not_published	議決結果しか公開していない（第57ラウンドで 21 件すべて skipped_not_minutes）	2026-08-20	bb04cb87728b6a5b3a52952673b592bcfb00943621bfbb79805284d5e1d88098
 12463	https://www.town.kyonan.chiba.jp/site/machigikai/list23.html	独自	enabled			2026-08-02	7522ec250860f686dfc59d750346f56f24906cbc3fd9aee7428c1e6f19c02935
 13000	https://www.record.gikai.metro.tokyo.lg.jp/	dbsr	enabled				ac08249d473f8bad20420ded6ddf8ecfd7a2726623c28e43a67bcb681a9c8b4c
 13101	http://www.city.chiyoda.tokyo.dbsr.jp/index.php/	dbsr	enabled				3b2ac5291c2c98f39260f745e2f83b60e273f0269ae801bd48f308e1e5bba97e
-13102	https://www.kugikai.city.chuo.lg.jp/kaigiroku/index.html	独自	enabled			2026-08-02	8206253c2f55f57b2163ae68ff430026726aff3d716ef76e41c816198f0a7dc6
+13102	https://www.kugikai.city.chuo.lg.jp/kaigiroku/index.html	独自	excluded	unsupported_system	区議会独自の会議録検索システム（kugikai.city.chuo.lg.jp）	2026-08-02	8206253c2f55f57b2163ae68ff430026726aff3d716ef76e41c816198f0a7dc6
 13103	https://gikai2.city.minato.tokyo.jp/voices/g07v_search.asp	voices	enabled			2026-08-02	e65e4964cda1bcc98ad16ec16ddea4125fc6f578217fd530252835c4ae4a7138
 13104	https://ssp.kaigiroku.net/tenant/shinjuku/SpMinuteSearch.html	kaigiroku.net	enabled				1a02fd5ed09113ceba88662a6ea42a61a69eafe9a24ab08bc6d928672027a3a8
 13105	https://www.city.bunkyo.tokyo.dbsr.jp/index.php/	dbsr	enabled				8f8dbf3ab913ed47accb28d6a8dd68196ec075a48280f980b6205f20e657ff19
@@ -658,7 +658,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 13111	https://www.gikai-ota-tokyo.jp/ota/g08v_search.asp	voices	enabled			2026-08-02	a295385f34636d67a494fade8fd30b20c42d0a18df1e8360f512ee31b7aa33bb
 13112	http://kugi.city.setagaya.tokyo.jp/voices/index.html	voices	enabled			2026-08-02	88f2ac80e1e7b294c82518813e090300f62246f7de96f19674dabbbf972893b3
 13113	https://ssp.kaigiroku.net/tenant/shibuya/SpMinuteSearch.html	kaigiroku.net	enabled				ad202655bdffaa5018419d40456df569ec9fe6840d77087cdd17967a8eb1f5fb
-13114	https://kugikai-nakano.jp/search.html	独自	enabled				438644ec6d7dc8d5a99aa978a6a394c799659291a7302f3bcfb638259d020422
+13114	https://kugikai-nakano.jp/search.html	独自	excluded	unsupported_system	区議会独自の会議録検索システム（kugikai-nakano.jp）		438644ec6d7dc8d5a99aa978a6a394c799659291a7302f3bcfb638259d020422
 13115	https://suginami.gijiroku.com/voices/voices/g08v_search.asp	gijiroku.com	enabled			2026-08-02	9a19f594919f9189714c29e65b818713a6c788529a5cd9f1bb5768606f69cd80
 13116	http://www.kensakusystem.jp/toshima/index.html	kensakusystem	enabled			2026-08-02	2d02f74af82af6ba0de32dcef16c6b35def145433fe16b7b7ee367c2b8b28f7f
 13117	https://ssp.kaigiroku.net/tenant/kita/SpMinuteSearch.html	kaigiroku.net	enabled				a186692633c188d369f255bd3da5dba7206d2683148a67d7c5df0d9f845567bb
@@ -727,7 +727,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 14216	http://www.kensakusystem.jp/zama/index.html	kensakusystem	enabled			2026-08-02	e1d60ac9950f622011a2898ac51b5c1d653ccc51abc655359a19c9e656f644f6
 14217	https://www.city.minamiashigara.kanagawa.dbsr.jp/	dbsr	enabled				5d493dc50c6bb1e3c365fc38286eef5a75e3b81cbbe84c17cbd079437c506a5d
 14218	https://ssp.kaigiroku.net/tenant/ayase/MinuteSearch.html	kaigiroku.net	enabled				b11f23b4965b06d34ce9fb6041b093c5a69b45062808db020f6b0545cbd036b0
-14301	http://www.kensakusystem.jp/hayama/index.html	kensakusystem	enabled			2026-08-02	205e4e517e016e97dd40d236d431d45bb286c891c52de20bdec5c0eb0753e9e7
+14301	https://hayama-gikai.gijiroku.com/voices/g07v_search.asp	gijiroku.com	enabled			2026-08-02	205e4e517e016e97dd40d236d431d45bb286c891c52de20bdec5c0eb0753e9e7
 14321	https://www.town.samukawa.kanagawa.dbsr.jp/index.php/	dbsr	enabled				680ba19da5a3c9f301999655d586f8c98f3b421fd8fa46e7ffe491200eb24e8a
 14341	http://www.kensakusystem.jp/oiso/index.html	kensakusystem	enabled			2026-08-02	de653d32ed533c24b671310d67045d8bf119ed76912c61cfa1356ed32d96cb78
 14342	http://www.town.ninomiya.kanagawa.dbsr.jp/index.php/	dbsr	enabled				0d1aaea9637b2b90735c2e024a313798ba3f95d78559378aec6296ace78079e9
@@ -767,7 +767,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 15361	https://www.town.tagami.niigata.jp/gikai/docs/8692.html	独自	enabled			2026-08-02	9efce0a7fb187bf651589902f7edfe8a8c8b84c09e992dd4313e24c20838c9ee
 15385	https://ssp.kaigiroku.net/tenant/aga/SpMinuteSearch.html	kaigiroku.net	enabled				9a29c04f1fbb260b7b67fc4dbc70d699223d759f587616c46f47c76e2fd6748a
 15405	https://www.town.izumozaki.niigata.jp/gikai/kaigiroku/	独自	enabled			2026-08-02	b84faa253016c9eeb72d4c8c5ef236439ca402a94bd06838dbb9a1f02f07f493
-15461	https://yuzawa-v.k-quick.net/html/giji/giji-000.html	独自	enabled			2026-08-02	5dcdb1f8c751efa0cb91b4c40998a33480158ec0e398647bb76352715120c890
+15461	https://yuzawa-v.k-quick.net/html/giji/giji-000.html	独自	excluded	unsupported_system	k-quick.net 製の会議録閲覧システム	2026-08-02	5dcdb1f8c751efa0cb91b4c40998a33480158ec0e398647bb76352715120c890
 15482	https://www.town.tsunan.niigata.jp/site/gikai/list40-162.html	独自	enabled			2026-08-02	06ea3e82babf93c9d3dbbd6c99e00506c6cd63ba15f2a087f7895ebb9cb039b6
 15504			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 15581	http://www.vill.sekikawa.niigata.jp/709/251/index.html	独自	enabled			2026-08-02	3bc00f0651be2c2d705963f67e37ae4cc5b277415b63366820797b56664aadaf
@@ -816,7 +816,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 18206	http://www.kensakusystem.jp/katsuyama-gikai/index.html	kensakusystem	enabled			2026-08-02	289bf830adb449423f233b0841e8e0c0a99401618d52956b96881dfdb717f13b
 18207	https://www.city.sabae.fukui.dbsr.jp/	dbsr	enabled				4f33b8802c56deaded125dc652bf872b4446e71b62198ffa8334b2c440b6a80d
 18208	https://www.city.awara.lg.jp/gikai/kaigiroku/p014799.html	独自	enabled			2026-08-02	becf54ef7faa318a6a260e4d5a78eac3741287baa86610d4c0335e52a0d827be
-18209	https://www.city.echizen.lg.jp/other/shigikai/kaigiroku/index.html	独自	enabled			2026-08-02	1573a13a8313fd968d4dee9e5604007b0b73de2fdb43823acd86092c74b6f1ea
+18209	https://www.city.echizen.lg.jp/other/shigikai/kaigiroku/index.html	独自	excluded	unsupported_system	市独自の会議録検索システム	2026-08-02	1573a13a8313fd968d4dee9e5604007b0b73de2fdb43823acd86092c74b6f1ea
 18210	http://www.city.sakai.fukui.dbsr.jp/index.php/	dbsr	enabled				f3be94b087669bdf513c456b9df7c3d59fbeae794818f445bf2e1ec26b0986cc
 18322			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 18382			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
@@ -894,7 +894,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 20385	https://www.kensakusystem.jp/minamiminowa/index.html	kensakusystem	enabled			2026-08-02	84ddf67e45fd3ffce2eb42967ab706954474eb750382034cf6f2e1e9bf01a583
 20386	https://www.vill.nakagawa.nagano.jp/site/rinia/2558.html	独自	enabled			2026-08-02	3ffcf14131c40fc71d618a4ec2e153bc3a4e85e06279e069786d43ba7ae396d7
 20388			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
-20402	https://www.town.matsukawa.lg.jp/choseijoho/matsukawamachigikai/gikainokatsudo/2561.html	独自	enabled			2026-08-02	87a866187d623803603143fede9e3bab9d2a723f968124f2607a411f8d2bed14
+20402	https://www.town.matsukawa.lg.jp/choseijoho/matsukawamachigikai/teireikai_rinjikai/index.html	独自	enabled			2026-08-02	87a866187d623803603143fede9e3bab9d2a723f968124f2607a411f8d2bed14
 20403	https://www.town.nagano-takamori.lg.jp/docs/13408.html	独自	enabled			2026-08-02	5d9d838fb0dd7f8b17b42a9b6ed8a1e24e049258cef688de48097f2c6acdbf61
 20404			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 20407			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
@@ -975,7 +975,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 21507	https://www.vill.higashishirakawa.gifu.jp/sonsei/gikai/kaigiroku/	独自	enabled			2026-08-02	2f45e340722806d0d00e341139835b308658bac3ae28a72495050a20f4969442
 21521	https://www.town.mitake.lg.jp/portal/town/parliament/post0003625/	独自	enabled			2026-08-02	5f542e2661436a966f4157d8464c8da4aae28d0dcb3628b2d65c7369a6dde75d
 21604			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
-22000	http://www2.pref.shizuoka.jp/all/ggiji.nsf	独自	enabled			2026-08-02	9d888e25990bfbbd3330cf1183c3b645a01e318de853c5ea80a21cf41689c8f7
+22000	http://www2.pref.shizuoka.jp/all/ggiji.nsf	独自	excluded	unsupported_system	Lotus Notes 製の独自検索（ggiji.nsf）。PDF も静的一覧も無い	2026-08-02	9d888e25990bfbbd3330cf1183c3b645a01e318de853c5ea80a21cf41689c8f7
 22100	https://www.city.shizuoka.shizuoka.dbsr.jp/index.php/	dbsr	enabled				dd039f56fd86eb4334b8e368922d22c08ea045ecd8f12a37cb6b156584e1f634
 22130	https://ssp.kaigiroku.net/tenant/hamamatsu/SpMinuteSearch.html	kaigiroku.net	enabled				af616ca5aae2303cfd42b5fdf1e8e4ac6fde48e1f39ce351f3ff1fa4898093ef
 22203	https://ami-search.amivoice.com/numazu/usr/	amivoice	enabled			2026-08-02	26af7428656983ef1ebf7bea4d611cba2adf22fa63ec418d673b4d5c5741c389
@@ -1063,7 +1063,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 23446	https://www.town.aichi-mihama.lg.jp/gyoseijoho/shingikai-iinkai/2190.html	独自	enabled			2026-08-02	418b9dde303c5601b0db5553a26509d546fabd7c544aea0327007278b1c3c79e
 23447	https://ssp.kaigiroku.net/tenant/taketoyo/SpMinuteSearch.html	kaigiroku.net	enabled				204cceeb91897858ccc2258a4aae64a31225e4d5140da9adf9e73cda39fec76a
 23501	https://www.town.kota.lg.jp/site/gikai/list11-78.html	独自	enabled			2026-08-02	23486f6b984991bb8d180914dc141cf0bc6f12d603294c0db75e5318d3587f0b
-23561	https://www.town.shitara.lg.jp/soshiki/9/4312.html#a	独自	enabled			2026-08-02	4a403b316a73b7256cb40930ba32ca48010604f4814b086f481d07a2252cce4b
+23561	https://www.town.shitara.lg.jp/soshiki/9/1226.html	独自	enabled			2026-08-02	4a403b316a73b7256cb40930ba32ca48010604f4814b086f481d07a2252cce4b
 23562	https://www.town.toei.aichi.jp/1396.htm	独自	enabled			2026-08-02	3e71c79f5f7d224d6f617a9e923722338853c5eea986ea9b00c36f7003a83a58
 23563			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 24000	https://www.kensakusystem.jp/mie/index.html	kensakusystem	enabled			2026-08-02	6c844a7baeee9d3fd7b5919de65269630a00db210fd29c6b24652a3a8f564c77
@@ -1112,7 +1112,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 25214	http://www.kensakusystem.jp/maibara/index.html	kensakusystem	enabled			2026-08-02	79d3095110496376948a1ba70cf35aee295cdf1852f93c4f87649db8e5af9bc2
 25383	https://www.town.shiga-hino.lg.jp/category/32-3-6-15-0-0-0-0-0-0.html	独自	enabled			2026-08-02	01844f13e978be336f44ecc4589d5385666a464b86dfa07eb0a23ee265178a88
 25384	https://www.town.ryuoh.shiga.jp/parliament/gijiroku/gijiroku_kako.html	独自	enabled			2026-08-02	ee5a18ec1cb956d39eb47bf3b894ec25a3b55d896e8f82054c64526aafb1c489
-25425	https://www.town.aisho.shiga.jp/gikai/kaigiroku/index.html	独自	enabled			2026-08-02	b1433f6f59aacdd56f0c05f9aabadd72358dbe169a820dfdb883f5f9a0c7f6fd
+25425	https://www.town.aisho.shiga.jp/gikai/kaigiroku/index.html	独自	excluded	unsupported_system	町独自の会議録検索システム	2026-08-02	b1433f6f59aacdd56f0c05f9aabadd72358dbe169a820dfdb883f5f9a0c7f6fd
 25441	https://www.town.toyosato.shiga.jp/category/32-5-0-0-0-0-0-0-0-0.html	独自	enabled			2026-08-02	ed2f32d9df2ff54f8b4be007dab1ac2b7da9db079cea607c3b2d5fa049f91eb7
 25442	https://www.kouratown.jp/cyonososhiki/gikaijimukyoku/gijikakari/chogikai/kaigiroku/kaigiroku_02.html	独自	enabled			2026-08-02	d699cacca854a5e5aa4f627724526eefed2884b3a269cc8d74083ce27f8be508
 25443	https://www.town.taga.lg.jp/choseijoho/tagachogikai/1/index.html	独自	enabled				532a97ebc4a0d6695e4e2ce0a40dfae28d8f5f922554cbfa1bec352eed4442fa
@@ -1180,14 +1180,14 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 27301	https://www.town.shimamoto.lg.jp/site/shimamotochogikai/list101.html	独自	enabled			2026-08-02	f715077ef326178f078c11178baae5e738c3dd7eb5174f8286d6cdab7dc0ed2b
 27321	https://www.town.toyono.osaka.jp/gyousei/gikai/kaigi-jouhou-kekka/kaigiroku-honkaigi/page005249.html	独自	enabled			2026-08-02	f66895795267b6fabe8a4e22550fc6d55263a96fcc3f7a759a3072aa00de8bd0
 27322	http://www.kensakusystem.jp/nose/index.html	kensakusystem	enabled			2026-08-02	9b01b325118f5615922101838c5db9954d64f409bb03de80a0026876ac272faa
-27341	https://www.town.tadaoka.osaka.jp/gyousei/gikai/2110.html	独自	enabled				1981e7971f058e38a2795cd0087d898a21d346f190b5d69b73c41d2d668432dc
+27341	https://www.town.tadaoka.osaka.jp/gyousei/gikai/teireikai/index.html	独自	enabled				1981e7971f058e38a2795cd0087d898a21d346f190b5d69b73c41d2d668432dc
 27361	https://www.town.kumatori.lg.jp/soshiki/gikai_somu/gyomu/kumatori_gikai/etsuran/14305.html	独自	enabled			2026-08-02	c2f6964a2cd42398baee60532454375f51e08dabf982c93c6cda25496f044cad
 27362			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 27366	https://www.town.misaki.osaka.jp/soshiki/gikai/chogikai/gijiroku/438.html	独自	enabled			2026-08-02	d05726ec828cd7817c3a2915c1465c82447bbd0828c11d672ca0c53f4960f200
 27381	https://www.town.taishi.osaka.jp/busyo/gikai_jimu/taishichougikai/kaigirokunoetsuran/index.html	独自	enabled			2026-08-02	221d99b631d0a13973b510dbbf75e990e1aad47b671a5b8b37389675c83f0ec7
 27382	https://www.town.kanan.osaka.jp/gyoseijoho/gikai/1/7996.html	独自	enabled			2026-08-02	fbf626560141603b9ec3915b6b7b1fcc369e7c84320e863966e6783724e9aac5
 27383	https://www.vill.chihayaakasaka.osaka.jp/kakuka/gikai/2_1/kaigiroku/11364.html	独自	enabled			2026-08-02	e77160cc2f7dc76749684b8da3193b1243c0c3252dc6c7f4bb996d30507e46c4
-28000	https://www.kensakusystem.jp//hyogopref/index.html	kensakusystem-cgi	enabled		旧型 CGI（See.exe / Search2.exe）で他の kensakusystem と構造が異なる		1d76de0a2f23084838408b7ea904fc9a1a679bc466d33db1133572ff30e79b60
+28000	https://www.kensakusystem.jp//hyogopref/index.html	kensakusystem-cgi	excluded	unsupported_system	旧型 CGI（See.exe / Search2.exe）で kensakusystem スクレイパが扱えない		1d76de0a2f23084838408b7ea904fc9a1a679bc466d33db1133572ff30e79b60
 28100	http://www.city.kobe.hyogo.dbsr.jp/index.php/	dbsr	enabled				0f405384a64478c9595eb72b57b94b332193b8c71745e6a615b55b239fbddb49
 28201	http://himeji.gijiroku.com/voices/g08v_search.asp	gijiroku.com	enabled			2026-08-02	61d7f4f1010fa4182e83232c0754bed53572262b2caa6163b92f47841eafc3fb
 28202	https://ssp.kaigiroku.net/tenant/amagasaki/SpMinuteSearch.html	kaigiroku.net	enabled				39c04c4db6dac5b728672e181c4c901381c1b129c5ed8ae8446e589bbbe23928
@@ -1208,11 +1208,11 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 28218	http://www.kensakusystem.jp/ono-c/index.html	kensakusystem	enabled			2026-08-02	31c4a6cc4b73a51c18b1a4ae499809fb0874906a42ec12f551427cd10bb16174
 28219	https://ssp.kaigiroku.net/tenant/sanda/MinuteSearch.html	kaigiroku.net	enabled				3d866eeaf65c60be8f8f11f94da827256d68e2ba7d0c6681b672b7cc16352c5c
 28220	https://ssp.kaigiroku.net/tenant/kasai/SpMinuteSearch.html	kaigiroku.net	enabled				3016a3472e348279bb6d9578e71080daa0d7237b07970d2c419a3da756c21156
-28221	https://kensaku.sasayama.jp/index.html	独自	enabled			2026-08-02	0d8090d461fb3d07bf6f17d20e34e9df020f040be3c8cff58327484cda7a15d8
+28221	https://kensaku.sasayama.jp/index.html	独自	excluded	unsupported_system	市独自の議事録検索（kensaku.sasayama.jp）	2026-08-02	0d8090d461fb3d07bf6f17d20e34e9df020f040be3c8cff58327484cda7a15d8
 28222	https://www.city.yabu.hyogo.dbsr.jp/index.php/	dbsr	enabled				d689b0307aefe1ca84d4bd503f21d1e5220ff0aebab59cf44d0b22cf692cec70
 28223	http://www.kensakusystem.jp/tamba/index.html	kensakusystem	enabled			2026-08-02	4e3402ae615c7e9830cfef7d97b4eb168f90260930dff574b6c9b096b96176b6
 28224	https://www.city.minamiawaji.hyogo.jp/site/gikai/kaigiroku.html	独自	enabled			2026-08-02	2832e8f8b900db2a19efa565ce7026f93e1f740df7616166453f0b54234046ad
-28225	https://www.voicetechno.net/MinutesSystem/Asago/	voicetechno	enabled			2026-08-02	e17fb1d4dc26192c8671365a20487b319451a081ab941ff10ab68651c39831e6
+28225	https://www.voicetechno.net/MinutesSystem/Asago/	voicetechno	excluded	unsupported_system	voicetechno（ASP.NET/DevExpress）。スクレイパ未実装	2026-08-02	e17fb1d4dc26192c8671365a20487b319451a081ab941ff10ab68651c39831e6
 28226	http://www.kensakusystem.jp/awaji/index.html	kensakusystem	enabled			2026-08-02	d5c0b32b098560695c50ed463530945b4da7d5c25a62d9394d26b32df1fbff71
 28227	http://www.kensakusystem.jp/shiso/index.html	kensakusystem	enabled			2026-08-02	4547b8fb975e4ac70b7b0ed32c71528c8f24bd69a973a4d682667c4bd8b51983
 28228	https://ssp.kaigiroku.net/tenant/kato/MinuteSearch.html	kaigiroku.net	enabled				8edb8b85c1872f550e53d80f453008ab7c314083b3f04f84e73d7af6d2aa8592
@@ -1299,7 +1299,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 30422	https://www.town.taiji.wakayama.jp/gikai/kaigiroku.html	独自	enabled			2026-08-02	641311c664bdade23d22a5f434bdd9644a8af5abbe2d7ac5ec21aad346f002dd
 30424			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 30427	https://www.vill.kitayama.wakayama.jp/gikai/index.html	独自	enabled			2026-08-20	6e5428ae0a44ef068ffed8bcf4812c72e7ee1a74a77d24ec3674610045f24a33
-30428	https://www.town.kushimoto.wakayama.jp/gikai/kaigiroku_search.html	独自	enabled			2026-08-02	4c2dcb59b2460fc94c3961453fa44a6d47cb7465cb857c0bab4ae1d96f958999
+30428	https://www.kensakusystem.jp/kushimoto/index.html	kensakusystem	enabled			2026-08-02	4c2dcb59b2460fc94c3961453fa44a6d47cb7465cb857c0bab4ae1d96f958999
 31000	https://www.pref.tottori.dbsr.jp/	dbsr	enabled				94eb0d95d48e63d3087ae8b55ba1dd303db7dde2630e25bcf9649663cfbce83d
 31201	https://www.city.tottori.tottori.dbsr.jp/index.php/	dbsr	enabled				09205e54142e97232e822c41894c55122a6b6029acd297544efe6a190e352639
 31202	https://www.kensakusystem.jp/yonago-s/index.html	kensakusystem	enabled			2026-08-02	7b929749e600aeac15aaa2faa7f140dd949da491defdf454934be1626bdb87d0
@@ -1417,7 +1417,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 36202	https://ssp.kaigiroku.net/tenant/naruto/MinuteSearch.html	kaigiroku.net	enabled				237530bfc7e6f04ad20e6a52ac3a4f6e95a1455fbf856ad90fb33794fe5f7ea7
 36203	https://www.city.komatsushima.tokushima.dbsr.jp/index.php/	dbsr	enabled				05291a34f25bad5e0da0544e9c79e15a9baf545ff2b4fd2f33d084004aa47627
 36204	https://ssp.kaigiroku.net/tenant/anan/MinuteSearch.html	kaigiroku.net	enabled				ec3fec72043b8be601b6914262a920bd360a9e9754f018a86fff66fb02e33f89
-36205	http://www2.city.yoshinogawa.lg.jp/e_service/proceeding/index.asp	独自	enabled			2026-08-02	878cfc98d384b27707049b0061d36aed388a4444316fc132ca94415f1732a088
+36205	http://www2.city.yoshinogawa.lg.jp/e_service/proceeding/index.asp	独自	excluded	unsupported_system	ASP 製の独自会議録検索（proceeding/index.asp）	2026-08-02	878cfc98d384b27707049b0061d36aed388a4444316fc132ca94415f1732a088
 36206	https://www.city.awa.lg.jp/gikai/category/bunya/kaigiroku/	独自	enabled			2026-08-02	bd8dcf0945fc65e1261e6bf52c8affafe980070aeba3a564bcb335b677df722f
 36207	https://www.city.mima.lg.jp/gyosei/docs/2558118.html	独自	enabled			2026-08-02	74020376b33caf49378a8162912fa196c5fea17d4f59505fab91792ca9d1230c
 36208	https://ssp.kaigiroku.net/tenant/tmiyoshi/MinuteSearch.html	kaigiroku.net	enabled				01c20cd740b8787af8938e1a553b914def30af70f8db0a678e95baca49de1ba9
@@ -1462,7 +1462,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 38204	https://www.city.yawatahama.ehime.jp/gikai/2026032700013/	独自	enabled			2026-08-02	fd7ae24c393ef19a2fedb987becb023996f9ec91f497706908c9446f328623b8
 38205	https://www.city.niihama.lg.jp/site/gikai/gikai-kaigiroku.html	site-gikai-pdf	enabled			2026-08-02	ec1fad1dddaff5cb4ef2c440c3dd2d73b74abb6cb208222660a243d09518afda
 38206	https://ssp.kaigiroku.net/tenant/saijo/SpMinuteSearch.html	kaigiroku.net	enabled				98a6320bcd8fa0f34a2884ae226e64a114e442bac787267546466632ccf16781
-38207	https://www.city.ozu.ehime.jp/kaigiroku/index.html	独自	enabled			2026-08-02	6f5bdff47363138c04a16d73f7f0f7051ea2a37460f0b1b42f2dbceb5d7a9fd9
+38207	https://www.city.ozu.ehime.jp/kaigiroku/top.html	static-kaigiroku-dir	enabled			2026-08-02	6f5bdff47363138c04a16d73f7f0f7051ea2a37460f0b1b42f2dbceb5d7a9fd9
 38210	https://ssp.kaigiroku.net/tenant/iyo/MinuteSearch.html	kaigiroku.net	enabled				2318cd1f92fb3b38e05e61aa7e71d2bbb8612ab17d5a95000fb47a966067d9cd
 38213	https://ssp.kaigiroku.net/tenant/shikokuchuo/pg/index.html	kaigiroku.net	enabled				aaa1d1db23d3f7f2cf02026a192296e0efc6f8ec5c2ebd08abf57c47cedd3c0c
 38214	https://www.city.seiyo.ehime.jp/shisei/shigikai/kaigiroku/index.html	独自	enabled			2026-08-02	92f6ea0f6901f639774c0dc6b76a3f6d8de8a10409aa6402fe7baa4795ce93ab
@@ -1524,11 +1524,11 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 40211	https://ssp.kaigiroku.net/tenant/chikugo/MinuteSearch.html	kaigiroku.net	enabled				ba2d963678e69edc60dd567599692dcd323fabeac377c45ed14930b193427d2a
 40212	https://www.city.okawa.lg.jp/s078/010/080/20150902133811.html	独自	enabled			2026-08-02	3fe63a6fffc5bbc3b82908ae29717f1b5b50b78c0563c6b763a3e704edb9eb61
 40213	https://ssp.kaigiroku.net/tenant/yukuhashi/MinuteSearch.html	kaigiroku.net	enabled				0886b036f506667b7439d19f0be4cdaf74e6ea19ea473f771355dde4bb00ab05
-40214	https://www.city.buzen.lg.jp/senkyo-gikai/gikai/gijiroku_r3-3.html	独自	enabled			2026-08-02	52c3522230db89d444c78758872805cc1656e46a58092d59c7c8c6827dd6caa5
+40214	https://www.city.buzen.lg.jp/senkyo-gikai/gikai/gijiroku.html	独自	enabled			2026-08-02	52c3522230db89d444c78758872805cc1656e46a58092d59c7c8c6827dd6caa5
 40215	https://www.city.nakama.lg.jp/site/gikai/1122.html	独自	enabled			2026-08-02	e230d62d8251939f6d54b05b625ff7178f969bfe71d925eb1f6693fa36061db2
 40216	https://www.kensakusystem.jp/ogori/index.html	kensakusystem	enabled			2026-08-02	c32fb56c756d81652eb3bf787501e82051ed48e971b93c8f15eaaefc32e94796
 40217	https://www.city.chikushino.fukuoka.dbsr.jp/index.php/	dbsr	enabled				e780a5bed0c33d152cf7d0482323c681a6ef5886ed54a98b4f7a019e8330312d
-40218	http://www.city.kasuga.fukuoka.dbsr.jp/index.php/	dbsr	enabled				21fdedc022d3381f9d497ec23ce40ff7b31824dad3751d72b8ccd2df980a09db
+40218	https://www.city.kasuga.fukuoka.dbsr.jp/index.php/	dbsr	enabled				21fdedc022d3381f9d497ec23ce40ff7b31824dad3751d72b8ccd2df980a09db
 40219	http://www.city.onojo.fukuoka.dbsr.jp/index.php/	dbsr	enabled				bfcafc02ce16657e947f359ccc511cd9bfa97fb5895485d18a6028200e00334d
 40220	https://www.city.munakata.fukuoka.dbsr.jp/index.php/	dbsr	enabled				be24e2c4dc962f3ede5dcdf6751720ef64cb04d88b910db212d86eef2e633b11
 40221	https://www.kensakusystem.jp/dazaifu/index.html	kensakusystem	enabled			2026-08-02	d15d1c550a85987f9a7407be2d107c293405d7424665ef123aeffc73b26fc802
@@ -1536,7 +1536,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 40224	https://ssp.kaigiroku.net/tenant/fukutsu/MinuteSearch.html	kaigiroku.net	enabled				8775e12f6c7728125eafe395a6f08f1ee306af95bc4b2932b778c375a602fc3c
 40225	https://www.city.ukiha.fukuoka.jp/gikai/list00603.html	独自	enabled			2026-08-02	567ac7fd5645648df76963fc4b57219896adb4635003c59f74f0822b15ec1dfa
 40226	https://www.city.miyawaka.fukuoka.dbsr.jp/index.php/	dbsr	enabled				d281e2496c8221ef8338f11091193e9dd2809ab592592eaca33e936d2430cb04
-40227	https://www.voicetechno.net/MinutesSystem/Kama/	voicetechno	enabled			2026-08-02	acc4b87657459a67968c0198e614e763fc2d4631dcb93060b117ce07d4831f16
+40227	https://www.voicetechno.net/MinutesSystem/Kama/	voicetechno	excluded	unsupported_system	voicetechno（ASP.NET/DevExpress）。スクレイパ未実装	2026-08-02	acc4b87657459a67968c0198e614e763fc2d4631dcb93060b117ce07d4831f16
 40228	https://www.city.asakura.lg.jp/site/gikai/list51-96.html	独自	enabled				7f051d9384c03be19997012c4be00c764d3a2a64adfa04b4804802364c17a517
 40229	https://www.city.miyama.lg.jp/li/shisei/150/040/index.html	独自	enabled			2026-08-02	55040e3554e6a258987e05d7349127235b487d1509007a01d98fc42204dbd0db
 40230	https://www.city.itoshima.fukuoka.dbsr.jp/index.php/	dbsr	enabled				1659cfccfafed7ce36b7e3939656180eb0b181a4496f3c897aa27314eae5b5a3
@@ -1578,7 +1578,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 41203	https://ssp.kaigiroku.net/tenant/tosu/SpMinuteSearch.html	kaigiroku.net	enabled				30415b777f06e51a0988cb4258d5010bdaa13a63a8f519334c9767aff05b695b
 41204	https://ssp.kaigiroku.net/tenant/taku/SpMinuteSearch.html	kaigiroku.net	enabled				ea58fb3df876651fc9ec94a6a1325ee5fc76e19527e3fdf21061912d1560ac37
 41205	https://ssp.kaigiroku.net/tenant/imari/MinuteSearch.html	kaigiroku.net	enabled				2b5c47ecd5e8b8eec42b412864205249e03286064b5a37e4dff0f0be99818b73
-41206	https://www.city.takeo.lg.jp/shisei/shigikai/kensaku/	独自	enabled			2026-08-02	4812ef2a829a3bc250ae57976af3be26d654dd418bee49dc988fb3253a2d87e1
+41206	https://www.city.takeo.lg.jp/shisei/shigikai/	独自	enabled			2026-08-02	4812ef2a829a3bc250ae57976af3be26d654dd418bee49dc988fb3253a2d87e1
 41207	https://www.city.saga-kashima.lg.jp/main/107.html	static-kaigiroku-dir	enabled			2026-08-02	765765dd63188bf0ac55aceec2c2503cd7d6541313512c2da180f4704c8406dd
 41208	http://www.db-search.com/ogi-c/index.php/	db-search	enabled				7445986fb21c3c128643f2b857c1cf8001a44449fd46c3781904a3fd6c99775a
 41209	https://www.city.ureshino.lg.jp/gikai/hokoku/394.html	独自	enabled			2026-08-02	e51d5455738b05ccafb7855f5b710307c7c6745d1d337356015d0f4fa3e40cad
@@ -1636,7 +1636,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 43368	https://www.town.nagasu.kumamoto.dbsr.jp/index.php/	dbsr	enabled				a87ab1413eb24e9f25f4c49a498adbfbe80230b1e1922ca22edc57fbdbf4a74e
 43369	https://www.town.nagomi.lg.jp/chougikai/kaigiroku/	独自	enabled			2026-08-02	83d9bb5049bcff6f0418298fe7ec41ee615082b29da81bf8f79f9e0856d47ab6
 43403	https://www.town.ozu.kumamoto.jp/site/ozugikai/19659.html	site-gikai-pdf	enabled			2026-08-02	b037d3301c0865b46191f93c3ed21e5a65352e1c733b19ab6b82fa8f5f4eadd8
-43404	https://www.town.kikuyo.lg.jp/gikai/kiji0034279/index.html	独自	enabled			2026-08-02	a1a826f6e1a45f863d24890a9ac0ab6765be90ff7e5bd9704fe523039164790d
+43404	https://www.town.kikuyo.lg.jp/gikai/list00327.html	独自	enabled			2026-08-02	a1a826f6e1a45f863d24890a9ac0ab6765be90ff7e5bd9704fe523039164790d
 43423	https://www.town.minamioguni.lg.jp/gikai/post_1.html	独自	enabled			2026-08-02	9cf32ddd7d07f60210eebe4091cf346f365cceb00c3d8cea6b2b2db3d66f8677
 43424			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 43425			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
@@ -1659,7 +1659,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 43511			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 43512			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 43513			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
-43514	https://www.town.asagiri.lg.jp/kiji0032563/index.html	独自	enabled			2026-08-02	5adcfe87976d2b8bb1282dd8739765a97720b5ee3b581aef60fe66cc8dc6d2ce
+43514	https://www.town.asagiri.lg.jp/q/list/207.html	独自	enabled			2026-08-02	5adcfe87976d2b8bb1282dd8739765a97720b5ee3b581aef60fe66cc8dc6d2ce
 43531			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 44000	https://ssp.kaigiroku.net/tenant/prefoita/MinuteSearch.html	kaigiroku.net	enabled				27d694294a3e387a851dda9f4efe2b6e4f6541f7148425a8c80f7e0f1007112d
 44201	https://www.kensakusystem.jp/oita/index.html	kensakusystem	enabled			2026-08-02	7c7bb90645a4b5a59eb04eecc7554b0b27070b6c50f221270325da98af7a095b
@@ -1711,8 +1711,8 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 46201	https://ssp.kaigiroku.net/tenant/kagoshima/MinuteSearch.html	kaigiroku.net	enabled				38055e7a0e26e02b64c92a62800205cf5e99db25e632c8d5d063dd5970547e32
 46203	https://ssp.kaigiroku.net/tenant/kanoya/MinuteSearch.html	kaigiroku.net	enabled				fb4ea54b358711187ee86e099cdaad7173b3bc2e094863f1e7ada9542be3f9c1
 46204	https://www.city.makurazaki.lg.jp/site/gikai/5672.html	site-gikai-pdf	enabled			2026-08-02	d32b4a3007da5dc591d12f91c8ee8a8a353b868a393d85bfd0fd813a189ef82f
-46206	http://www.city.akune.kagoshima.dbsr.jp/index.php/	dbsr	enabled				eb20084de3484aad10b2992f9363250c590411842337d3f8214162b33e41d4f5
-46208	https://www.city.kagoshima-izumi.lg.jp/gikai/gijiroku/	独自	enabled			2026-08-02	1490a357f6c481f4d5dd8b44c11e3c58fa9f0a9f8206d90b9be754a596527748
+46206	https://www.city.akune.kagoshima.dbsr.jp/index.php/	dbsr	enabled				eb20084de3484aad10b2992f9363250c590411842337d3f8214162b33e41d4f5
+46208	https://www.city.kagoshima-izumi.lg.jp/gikai/gijiroku/	独自	excluded	unsupported_system	市独自の議事録検索システム	2026-08-02	1490a357f6c481f4d5dd8b44c11e3c58fa9f0a9f8206d90b9be754a596527748
 46210			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 46213			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 46214	https://www.city.tarumizu.lg.jp/gikaigiji/shise/shigi/kaigiroku/gijiroku.html	独自	enabled			2026-08-02	6e79c59f0d46859a30f7660ab950645be29c62062771e5810e7856320c7c11aa
@@ -1770,7 +1770,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 47308	https://www.town.motobu.okinawa.jp/doc/2023103100062/	独自	enabled			2026-08-02	e44b48e19087a60d47579d05bf54ed16cb491e7a276dec50124e873f7a57a92d
 47311	https://ssp.kaigiroku.net/tenant/onna/SpMinuteSearch.html	kaigiroku.net	enabled				603d3c6fe02100c719e770832484d464bd67da9232da7447cd123dd0ce868536
 47313	https://ssp.kaigiroku.net/tenant/ginoza/MinuteSearch.html	kaigiroku.net	enabled				030439365b9ef277d1a974501283deac4668e883bd49b175ad27594a8f9bc713
-47314	http://gikai.town.kin.okinawa.jp/kinchou/kensaku/	独自	enabled			2026-08-02	ac7772345d7cb5501fd139efa5926f387c5f300e331b5a5f8fd4c77633ce0963
+47314	http://gikai.town.kin.okinawa.jp/kinchou/kensaku/	独自	excluded	unsupported_system	町独自の会議録検索システム（gikai.town.kin.okinawa.jp）	2026-08-02	ac7772345d7cb5501fd139efa5926f387c5f300e331b5a5f8fd4c77633ce0963
 47315	https://iegikai.iejima.org/category/kaigiroku/	独自	enabled			2026-08-02	7b4a1edfcd55e41fcb7d08514e71e258e19e9f457715f60ca5b4ee5e019c9e54
 47324	https://ssp.kaigiroku.net/tenant/yomitan/SpMinuteSearch.html	kaigiroku.net	enabled				31c42bf277ede03e4044dbfd8b8ea77739813d8fcdd46caca0a56eeccfe2d36a
 47325	https://ssp.kaigiroku.net/tenant/kadena/SpMinuteSearch.html	kaigiroku.net	enabled				daf6eba9b8588674daa4dd365e9bdfacbf1ca239b0722e0f4d6593df7e9bdf3e
@@ -1780,7 +1780,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 47329	https://ssp.kaigiroku.net/tenant/nishihara/SpMinuteSearch.html	kaigiroku.net	enabled				064a897aaed69f554ad00af759bf39f66dc529528a50a4b21d987614fabc1fbf
 47348	https://ssp.kaigiroku.net/tenant/yonabaru/MinuteSearch.html	kaigiroku.net	enabled				6a0663d5578689c5d638b536e3331622a55e9ef222a951c697c20bc9a7a79f42
 47350	https://www.town.haebaru.lg.jp/site/gikai/15299.html	独自	enabled			2026-08-02	3a34b384bd9d4498385191281c6d4bbec410a0ea5908895e9598b0002cf1d8cf
-47353	https://www.vill.tokashiki.okinawa.jp/gyoseijoho/tokashikisongikai/2/2109.html	独自	enabled			2026-08-02	3e539986d5ce11fa67f938ba4cd76b98e989deb67b543ad0174145976e348f0a
+47353	https://www.vill.tokashiki.okinawa.jp/gyoseijoho/tokashikisongikai/1/index.html	独自	enabled			2026-08-02	3e539986d5ce11fa67f938ba4cd76b98e989deb67b543ad0174145976e348f0a
 47354	https://www.vill.zamami.okinawa.jp/sonsei/songikai/kaigiroku/h23/	独自	enabled			2026-08-02	055e7b15e6f78248771f2bbf2fa6d4f4e707ad786144dd594b8a863f3e4410b6
 47355			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 47356			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
