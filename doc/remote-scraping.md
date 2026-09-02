@@ -152,6 +152,17 @@ docker compose -f docker-compose.scraping.yml exec scraper-reiki \
 python3 tools/reiki/scrape_all_reiki.py --list-targets --max-targets 20
 ```
 
+## 索引 worker の数
+
+会議録の索引 worker（`scraper-gijiroku-index`）は既定で 3 replica 動きます（`deploy/scraping_stack.py` の `DEFAULT_GIJIROKU_INDEX_REPLICAS`、`prepare_remote_scraping.py --gijiroku-index-replicas N` で変更）。1 自治体の再索引に 13〜28 分かかり、世代の追いつきや取り直しで 1,000 自治体単位の待ち行列ができるためです。同じ自治体が同時に走らないことは、broker の Redis に置く印（`deploy/scraper_runtime/celery/index_enqueue.py`）が保証します。印は「積んだか実行中」を意味し、終わると消えます。
+
+索引 worker だけを入れ替えたい場合（取得中の worker を止めない）:
+
+```bash
+python deploy/prepare_remote_scraping.py deploy.json --no-restart-services
+python3 deploy/remote_exec.py deploy.json -- "cd ~/services/miyabe-tools && docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml up -d scraper-gijiroku-index scraper-reiki-index"
+```
+
 ## 補足
 
 - スクレイパ本体は `miyabe-tools-scraper` イメージ内で動かします。
