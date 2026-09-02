@@ -4019,3 +4019,14 @@ tenant が消えて接続を切られ、いずれも g-reiki へ移っていた�
 田子町は会議録をオンラインで公開していない（役場で閲覧、情報公開請求、
 議案審議結果のみ）ので `not_published`。小平町・岐南町・三郷町・ときがわ町は
 本文が JS で描かれ、HTTP では中身が見えない。周回の結果を待つ。
+
+### 兵庫県議会（kensakusystem-cgi → kensakusystem）
+
+「旧型 CGI で構造が違う」と第 c988215 で切り出されていたが、違いは 2 点だけだった。
+ツリーの枝が `onclick="treedepth.value='…'"` ではなく
+`<a class="js-tree-submit" data-depth="…">` で書かれている。討論・決議などの
+短い文書は本文フレームが `GetText3.exe` ではなく `GetHTML.exe` で返る
+（本会議の日ごとの会議録は他と同じ `GetText3.exe` + PRINT_ALL）。
+`data-depth` も拾い、`GetHTML.exe` にも落ちるようにして、手元で 90 件
+（本会議 14・委員会 18・討論 58）が全件 `saved_text` になった。
+系統名を `kensakusystem` に戻し、`//hyogopref` の二重スラッシュも直した。

@@ -55,6 +55,10 @@ SEE_HREF_RE = re.compile(
     flags=re.I,
 )
 TREE_DEPTH_RE = re.compile(r"treedepth\.value='([^']+)'")
+# 兵庫県は枝を `onclick="treedepth.value='…'"` ではなく
+# `<a class="js-tree-submit" data-depth="…">` で書く。同じ See.exe への POST で
+# 開けるのに、印が違うだけで 0 件になっていた。
+TREE_DEPTH_DATA_RE = re.compile(r'class="js-tree-submit"[^>]*data-depth="([^"]+)"|data-depth="([^"]+)"[^>]*class="js-tree-submit"')
 TITLE_RE = re.compile(r"<title>(.*?)</title>", flags=re.I | re.S)
 NON_DOCUMENT_FILE_RE = re.compile(
     r"(?:FUGI|FUTA|GIAN|GIIN|IINK|IKEN|KAIK|KETS|MEIB|MOKU|QUES|SAKU|SANP|SEIG|SING|TUKO)(?:\.html?)?$",
@@ -235,7 +239,10 @@ def unique_preserve_order(values: list[str]) -> list[str]:
 
 
 def parse_tree_depths(page_html: str) -> list[str]:
-    return unique_preserve_order([html.unescape(value) for value in TREE_DEPTH_RE.findall(page_html)])
+    values = [html.unescape(value) for value in TREE_DEPTH_RE.findall(page_html)]
+    for first, second in TREE_DEPTH_DATA_RE.findall(page_html):
+        values.append(html.unescape(first or second))
+    return unique_preserve_order(values)
 
 
 def compose_document_title(depth: str | None, anchor_body: str, href: str) -> str:
@@ -461,11 +468,16 @@ def fetch_meeting_text(opener, item: MeetingItem, timeout_ms: int) -> tuple[int,
     text_frame_url = urljoin(result_frame_url, text_frame_src)
     text_frame_html, resolved_text_frame_url = request_text(opener, text_frame_url, timeout_ms, referer=result_frame_url)
     get_text_src = first_frame_src(text_frame_html, "GetText3.exe")
-    if not get_text_src:
-        raise RuntimeError(f"r_TextFrame から GetText3 を取得できませんでした: {text_frame_url}")
-
-    get_text_url = urljoin(resolved_text_frame_url, get_text_src)
-    full_text_url = build_print_all_url(get_text_url)
+    if get_text_src:
+        get_text_url = urljoin(resolved_text_frame_url, get_text_src)
+        full_text_url = build_print_all_url(get_text_url)
+    else:
+        # 兵庫県は本文を GetText3 ではなく GetHTML.exe のフレームで返す。
+        # PRINT_ALL の切り替えは無く、1 枚で本文全体が返る。
+        get_html_src = first_frame_src(text_frame_html, "GetHTML.exe")
+        if not get_html_src:
+            raise RuntimeError(f"r_TextFrame から GetText3 / GetHTML を取得できませんでした: {text_frame_url}")
+        full_text_url = urljoin(resolved_text_frame_url, get_html_src.split("#", 1)[0])
     full_html, _ = request_text(opener, full_text_url, timeout_ms, referer=resolved_text_frame_url)
     body_text = extract_document_body(full_html)
     if not body_text:
