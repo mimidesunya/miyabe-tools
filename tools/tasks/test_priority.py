@@ -210,5 +210,69 @@ class InputFingerprintPriorityTest(unittest.TestCase):
         self.assertTrue(recent)
 
 
+class IncompleteWaitTest(unittest.TestCase):
+    """取り切れていない自治体を、進まないまま 10 分おきにやり直さない。
+
+    白浜町（legal-square）は上限に張り付いた葉が 2 つ残り、20 分かかる取得を
+    30 分おきに繰り返していた。上富田町は前回より減った一覧を毎回書けずに
+    同じだった。進んだなら続ける。進まなかったなら 1 日置く。
+    """
+
+    def _now_text(self, delta: timedelta) -> str:
+        return (priority.freshness_metadata.now_tokyo() + delta).strftime("%Y-%m-%d %H:%M:%S")
+
+    def test_same_count_shortly_after_waits(self) -> None:
+        item = {
+            "status": "failed",
+            "returncode": -1,
+            "message": "取り切れなかった区間が 2 件",
+            "finished_at": self._now_text(timedelta(minutes=-30)),
+            "progress_current": 499,
+            "progress_total": 500,
+        }
+        with mock.patch.object(priority, "task_item", return_value=item):
+            self.assertTrue(priority.incomplete_wait_reason("reiki", "30401-shirahama-cho", 499))
+
+    def test_progress_continues_immediately(self) -> None:
+        # 仙台市の 1,933 ページは 1 回では歩き切れない。前回より進んだなら続ける。
+        item = {
+            "status": "failed",
+            "returncode": -1,
+            "message": "partial_time",
+            "finished_at": self._now_text(timedelta(minutes=-30)),
+            "progress_current": 176,
+            "progress_total": 177,
+        }
+        with mock.patch.object(priority, "task_item", return_value=item):
+            self.assertEqual(priority.incomplete_wait_reason("gijiroku", "04100-sendai-shi", 1169), "")
+
+    def test_wait_ends_after_a_day(self) -> None:
+        item = {
+            "status": "failed",
+            "returncode": -1,
+            "finished_at": self._now_text(timedelta(hours=-25)),
+            "progress_current": 499,
+            "progress_total": 500,
+        }
+        with mock.patch.object(priority, "task_item", return_value=item):
+            self.assertEqual(priority.incomplete_wait_reason("reiki", "30401-shirahama-cho", 499), "")
+
+    def test_interrupted_run_is_not_an_attempt(self) -> None:
+        item = {
+            "status": "failed",
+            "returncode": -15,
+            "message": "停止要求により終了",
+            "finished_at": self._now_text(timedelta(minutes=-5)),
+            "progress_current": 499,
+            "progress_total": 500,
+        }
+        with mock.patch.object(priority, "task_item", return_value=item):
+            self.assertEqual(priority.incomplete_wait_reason("reiki", "30401-shirahama-cho", 499), "")
+
+    def test_no_previous_run_does_not_wait(self) -> None:
+        with mock.patch.object(priority, "task_item", return_value={}):
+            self.assertEqual(priority.incomplete_wait_reason("reiki", "new-town", 0), "")
+
+
 if __name__ == "__main__":
     unittest.main()

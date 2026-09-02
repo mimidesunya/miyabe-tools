@@ -160,6 +160,58 @@ def successful_item_finished_at(item: dict[str, Any]) -> str:
     return str(item.get("finished_at") or item.get("last_checked_at") or "").strip()
 
 
+# 取り切れていない自治体を、前回と同じところで止まったまま何度も
+# やり直さない。取り切れなかった区間（legal-square の上限に張り付いた葉、
+# 前回より減った一覧）は、10 分後にやり直しても同じ結果になる。白浜町は
+# 20 分かかる取得を 30 分おきに繰り返し、上富田町も同じだった。
+# 進んだ（取れた件数が増えた）ならすぐ続ける。進まなかったなら 1 日置く。
+INCOMPLETE_RETRY_SECONDS = 24 * 60 * 60
+
+
+def _latest_finished_item(task_name: str, slug: str) -> dict[str, Any]:
+    """前回の実行結果。実行中の state と成功 snapshot のうち新しい方。"""
+    best: dict[str, Any] = {}
+    best_at = ""
+    for name in (task_name, f"{task_name}_snapshot"):
+        item = task_item(name, slug)
+        if str(item.get("status") or "") not in {"failed", "ok", "done", "snapshot"}:
+            continue
+        at = str(item.get("finished_at") or item.get("last_checked_at") or item.get("updated_at") or "")
+        if at and at >= best_at:
+            best, best_at = item, at
+    return best
+
+
+def incomplete_wait_reason(task_name: str, slug: str, current_count: int) -> str:
+    """取り切れていないが、いまやり直しても進まないなら、その理由を返す。"""
+    item = _latest_finished_item(task_name, slug)
+    if not item:
+        return ""
+    if str(item.get("message") or "").strip().startswith("停止"):
+        return ""
+    try:
+        if int(item.get("returncode")) in STOP_RETURN_CODES:
+            # 止められた実行は試行ではない。すぐ続ける。
+            return ""
+    except (TypeError, ValueError):
+        pass
+    finished_at = str(item.get("finished_at") or item.get("last_checked_at") or "")
+    finished = freshness_metadata.parse_datetime_text(finished_at)
+    if finished is None:
+        return ""
+    age = freshness_metadata.now_tokyo() - finished
+    if age >= timedelta(seconds=INCOMPLETE_RETRY_SECONDS):
+        return ""
+    try:
+        previous = int(item.get("progress_current") or 0)
+    except (TypeError, ValueError):
+        previous = 0
+    if int(current_count) > previous:
+        # 前回より取れている。続きがあるのだから続ける。
+        return ""
+    return f"前回（{finished_at}）から進んでいないため待機"
+
+
 # 失敗した自治体を自動で再試行するまでの待ち時間。
 # すぐにやり直すと壊れた取得元を叩き続けるので間を置く。とはいえ間を置かないと
 # 一度の失敗で永久に再取得されなくなる（実際に会議録 45・例規 6 自治体が
@@ -550,6 +602,23 @@ class PriorityCalculator:
         if total_count > 0 and current_count < total_count:
             priority_group = 1
             priority_label = "incomplete"
+            wait_reason = "" if retry_after_failure else incomplete_wait_reason(
+                self.task_name, slug, current_count
+            )
+            if wait_reason:
+                return {
+                    "priority_group": 5,
+                    "priority_score": 0,
+                    "priority_label": "incomplete_wait",
+                    "progress_ratio": ratio,
+                    "current_count": current_count,
+                    "total_count": total_count,
+                    self.count_field: current_count,
+                    "finished_at": finished_at,
+                    "previously_failed": False,
+                    "wait_reason": wait_reason,
+                    **freshness,
+                }
         elif total_count <= 0:
             priority_group = 2
             priority_label = "unknown_total"
