@@ -522,11 +522,16 @@ function homepage_gijiroku_acquisition_status(
     // 「取得範囲未判定」と出し続けることになる。
     // tools/tasks/priority.py の RECORDS_WALK と揃える。片方だけ増えると、
     // 公開だけ未判定・キューだけ再投入、という食い違いが出る。
+    // tools/tasks/priority.py の RECORDS_WALK と同じ並びにする。
+    // test_source_coverage_rules.php が両者の食い違いを見張っている。
     $recordsWalk = [
         'dbsr', 'db-search', 'kaigiroku-indexphp',
         'kaigiroku.net', 'gijiroku.com', 'voices',
         'kensakusystem', '独自', 'static-kaigiroku-dir',
         'kami-city-pdf', 'site-gikai-pdf', 'amivoice', 'msearch',
+        'shizuoka-notes', 'chuo-kugikai', 'nakano-kugikai',
+        'echizen-search', 'yoshinogawa-asp',
+        'izumi-cake', 'oumu-dbpocket', 'kin-jsp', 'voicetechno',
     ];
     if (!in_array($systemType, $recordsWalk, true)) {
         // 系統名に日本語（独自）が混じるので、小文字化前の値でも見る。
@@ -2082,6 +2087,17 @@ function homepage_feature_supported_system_types(string $featureKey): array
             'site-gikai-pdf',
             'static-kaigiroku-dir',
             '独自',
+            // 取得元 1 つずつに書いたアダプタ（tools/gijiroku/scrapers/html_list_sites.py）。
+            // ここに足し忘れると、取れている自治体が公開画面で「形式に未対応」になる。
+            'shizuoka-notes',
+            'chuo-kugikai',
+            'nakano-kugikai',
+            'echizen-search',
+            'yoshinogawa-asp',
+            'izumi-cake',
+            'oumu-dbpocket',
+            'kin-jsp',
+            'voicetechno',
         ], true),
         // tools/reiki/scrape_all_reiki.py の SUPPORTED_SYSTEMS と同期する。
         'reiki' => array_fill_keys([

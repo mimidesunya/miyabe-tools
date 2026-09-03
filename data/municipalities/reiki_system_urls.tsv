@@ -1,4 +1,4 @@
-﻿jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
+jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 01000	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A79F3E9AA	d1-law	enabled		
 01100	https://www.city.sapporo.jp/ncms/reiki/d1w_reiki/reiki.html	d1-law	enabled		
 01202	https://krr376.legal-square.com/HAS-Shohin/page/SJSrbLogin.jsf	legal-square	enabled		

@@ -848,7 +848,11 @@ function load_delimited_rows(string $path, string $delimiter = "\t"): array
         return trim((string)$value);
     }, $header);
     if ($header !== []) {
-        $header[0] = preg_replace('/^\xEF\xBB\xBF/u', '', $header[0]) ?? $header[0];
+        // 単引用符の中の `\xEF` は PCRE のエスケープとして届く。`/u` を付けると
+        // U+00EF U+00BB U+00BF の 3 文字を探すことになり、BOM に一致しない。
+        // 台帳に BOM が 1 つ付いただけで jis_code が読めなくなり、トップページの
+        // 件数が全部 0 になった。BOM は 1 文字として書く。
+        $header[0] = preg_replace('/^\x{FEFF}/u', '', $header[0]) ?? $header[0];
     }
 
     $rows = [];
