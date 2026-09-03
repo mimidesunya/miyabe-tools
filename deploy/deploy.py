@@ -1127,6 +1127,7 @@ services:
     restart: unless-stopped
     environment:
       MIYABE_API_BASE_URL: ${{MIYABE_API_BASE_URL:-http://web}}
+      MIYABE_PUBLIC_BASE_URL: ${{MIYABE_PUBLIC_BASE_URL:-https://tools.miya.be}}
       MCP_API_TIMEOUT_MS: ${{MCP_API_TIMEOUT_MS:-20000}}
       MCP_ALLOWED_HOSTS: ${{MCP_ALLOWED_HOSTS:-}}
       MCP_ALLOWED_ORIGINS: ${{MCP_ALLOWED_ORIGINS:-}}

@@ -4,6 +4,10 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import * as z from "zod/v4";
 
 const apiBaseUrl = (process.env.MIYABE_API_BASE_URL || "http://web").replace(/\/+$/, "");
+// 公開APIは同じサイトの中から呼ばれる前提で "/reiki/?…" のような相対パスを返す。
+// MCP の相手はブラウザではなく、基準となるURLを持たない。そのまま渡すと、こちらが
+// 示した出典をクライアントが開けない。公開URLに直してから返す。
+const publicBaseUrl = (process.env.MIYABE_PUBLIC_BASE_URL || "https://tools.miya.be").replace(/\/+$/, "");
 const port = Number.parseInt(process.env.PORT || "3000", 10);
 const requestTimeoutMs = Number.parseInt(process.env.MCP_API_TIMEOUT_MS || "20000", 10);
 const allowedHosts = parseCsv(process.env.MCP_ALLOWED_HOSTS || "");
@@ -95,7 +99,7 @@ async function callPublicApi(path: string, params: URLSearchParams): Promise<any
   const response = await fetch(url, {
     headers: {
       Accept: "application/json",
-      "User-Agent": "miyabe-tools-mcp/0.1"
+      "User-Agent": "miyabe-tools-mcp/1.0"
     },
     signal: AbortSignal.timeout(requestTimeoutMs)
   });
@@ -116,6 +120,36 @@ async function callPublicApi(path: string, params: URLSearchParams): Promise<any
   }
 
   return payload;
+}
+
+// 相対パスだけを公開URLに直す。すでに絶対URL（自治体側の source_url）は触らない。
+function toPublicUrl(value: unknown): string {
+  const path = String(value ?? "").trim();
+  if (path === "" || /^https?:\/\//i.test(path)) {
+    return path;
+  }
+  return publicBaseUrl + (path.startsWith("/") ? path : "/" + path);
+}
+
+function withPublicUrls<T>(document: T): T {
+  if (document === null || typeof document !== "object") {
+    return document;
+  }
+  const source = document as Record<string, unknown>;
+  const fixed: Record<string, unknown> = { ...source };
+  for (const key of ["detail_url", "api_document_url"]) {
+    if (source[key] !== undefined) {
+      fixed[key] = toPublicUrl(source[key]);
+    }
+  }
+  return fixed as T;
+}
+
+function searchPayloadWithPublicUrls(payload: any): any {
+  if (!payload || !Array.isArray(payload.items)) {
+    return payload;
+  }
+  return { ...payload, items: payload.items.map(withPublicUrls) };
 }
 
 function buildSearchParams(docType: DocType, args: any): URLSearchParams {
@@ -278,8 +312,8 @@ const documentCommonShape = {
   score: z.number().optional().describe("検索スコア。関連度順のときの並び順に対応する。"),
   body_length: z.number().optional().describe("本文全体の文字数。"),
   source_url: z.string().optional().describe("取得元（自治体側）のURL。"),
-  detail_url: z.string().optional().describe("本サービスの詳細ページのパス。"),
-  api_document_url: z.string().optional().describe("本文取得APIのパス。"),
+  detail_url: z.string().optional().describe("本サービスの詳細ページのURL。"),
+  api_document_url: z.string().optional().describe("本文取得APIのURL。"),
   source_file: z.string().optional().describe("取得元のファイルパス。"),
   source_system: z.string().optional().describe("取得元システムの種別。例: dbsr、kaigiroku.net。"),
   updated_at: z.string().optional().describe("索引の更新日時。"),
@@ -348,7 +382,7 @@ const READ_ONLY_ANNOTATIONS = {
 function createServer(): McpServer {
   const server = new McpServer({
     name: "miyabe-tools-search",
-    version: "0.1.0"
+    version: "1.0.0"
   });
 
   server.registerTool(
@@ -362,7 +396,8 @@ function createServer(): McpServer {
     },
     async (args) => {
       try {
-        const payload = await callPublicApi("/api/search", buildSearchParams("minutes", args));
+        const payload = searchPayloadWithPublicUrls(
+          await callPublicApi("/api/search", buildSearchParams("minutes", args)));
         return {
           content: [{ type: "text" as const, text: formatSearchText(payload) }],
           structuredContent: payload
@@ -384,7 +419,8 @@ function createServer(): McpServer {
     },
     async (args) => {
       try {
-        const payload = await callPublicApi("/api/search", buildSearchParams("reiki", args));
+        const payload = searchPayloadWithPublicUrls(
+          await callPublicApi("/api/search", buildSearchParams("reiki", args)));
         return {
           content: [{ type: "text" as const, text: formatSearchText(payload) }],
           structuredContent: payload
@@ -414,7 +450,7 @@ function createServer(): McpServer {
         params.set("id", args.id);
         params.set("doc_type", args.doc_type || "minutes");
         const payload = await callPublicApi("/api/document", params);
-        const document = truncateBody(payload.document || {}, args.max_body_chars ?? 20000);
+        const document = withPublicUrls(truncateBody(payload.document || {}, args.max_body_chars ?? 20000));
         const result = { ...payload, document };
         return {
           content: [{ type: "text" as const, text: formatDocumentText(document) }],
