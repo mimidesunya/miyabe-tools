@@ -179,12 +179,12 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 01692	http://houmu.h-chosonkai.gr.jp/~reikidb/data/138/63/reiki.html	h-chosonkai	enabled		
 01693	https://houmu.h-chosonkai.gr.jp/~reikidb/data/88/52/reiki_menu.html	h-chosonkai	enabled		
 01694	https://www1.g-reiki.net/rausu-town/reiki_menu.html	g-reiki	enabled		
-01695			enabled		
+01695			excluded	not_published	北方領土で村役場の行政機能が無く、例規集の公開が無い
 01696		h-chosonkai	unresolved	duplicate_of_same_name	後志の泊村(01403)と同じURLが登録されていた。北海道に泊村は1つしかない
-01697			enabled		
-01698			enabled		
-01699			enabled		
-01700			enabled		
+01697			excluded	not_published	北方領土で村役場の行政機能が無く、例規集の公開が無い
+01698			excluded	not_published	北方領土で村役場の行政機能が無く、例規集の公開が無い
+01699			excluded	not_published	北方領土で村役場の行政機能が無く、例規集の公開が無い
+01700			excluded	not_published	北方領土で村役場の行政機能が無く、例規集の公開が無い
 02000	https://reiki.pref.aomori.lg.jp/reiki_taikei/taikei_default.html	taikei	enabled		
 02201	https://www.city.aomori.aomori.jp/area/reiki/reiki_menu.html	taikei	enabled		
 02202	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A7A02175C	d1-law	enabled		
@@ -218,14 +218,14 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 02412	https://krr235.legal-square.com/HAS-Shohin/page/SJSrbLogin.jsf	legal-square	enabled		
 02423	https://en3-jg.d1-law.com/ooma/d1w_reiki/reiki.html	d1-law	enabled		
 02424	http://www.vill.higashidoori.lg.jp/reiki_int/reiki_menu.html	taikei	enabled		
-02425			enabled		
+02425			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
 02426	https://www.vill.sai.lg.jp/reiki_int/	taikei	enabled		
 02441	https://www.town.sannohe.aomori.jp/section/reiki_int/reiki_menu.html	taikei	enabled		
 02442	https://en3-jg.d1-law.com/gonohe/d1w_reiki/reiki.html	d1-law	enabled		
 02443	https://www.town.takko.lg.jp/reiki/reiki_menu.html	taikei	enabled		
 02445	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A7A0267D1	d1-law	enabled		
 02446	https://www1.g-reiki.net/town.hashikami/reiki_menu.html	g-reiki	enabled		
-02450			enabled		
+02450			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
 03000	https://www1.g-reiki.net/pref.iwate/reiki_menu.html	g-reiki	enabled		
 03201	https://ops-jg.d1-law.com/opensearch/SrFeF01/init?jctcd=8A7A1180AB	d1-law	enabled		
 03202	https://krr186.legal-square.com/HAS-Shohin/page/SJSrbLogin.jsf	legal-square	enabled		
@@ -295,7 +295,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 04501	https://www.town.wakuya.miyagi.jp/reiki/reiki_menu.html	taikei	enabled		
 04505	https://www1.g-reiki.net/town.misato.miyagi/reiki_menu.html	g-reiki	enabled		
 04581	https://en3-jg.d1-law.com/onagawa/d1w_reiki/reiki.html	d1-law	enabled		
-04606			enabled		
+04606	https://www.town.minamisanriku.miyagi.jp/section/reiki_int/reiki_menu.html	taikei	enabled		
 05000	https://www1.g-reiki.net/pref_akita/reiki_menu.html	g-reiki	enabled		
 05201	https://www.city.akita.akita.jp/city/gn/dc/reiki/reiki_menu.html	taikei	enabled		
 05202	https://www.city.noshiro.lg.jp/reiki/reiki_menu.html	taikei	enabled		
@@ -379,7 +379,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 07342	https://en3-jg.d1-law.com/kagamiishi/d1w_reiki/reiki.html	d1-law	enabled		
 07344	https://en3-jg.d1-law.com/tenei-vill/d1w_reiki/reiki.html	d1-law	enabled		
 07362	https://www.town.shimogo.fukushima.jp/section/reiki/reiki.html	reiki.html	enabled		
-07364			enabled		
+07364			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
 07367	https://www1.g-reiki.net/town.tadami/reiki_menu.html	g-reiki	enabled		
 07368	https://www1.g-reiki.net/minamiaizu/reiki_menu.html	g-reiki	enabled		
 07402	https://en3-jg.d1-law.com/kitashiobara/d1w_reiki/reiki.html	d1-law	enabled		
@@ -965,7 +965,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 21401	https://www.town.ibigawa.lg.jp/html/reiki/reiki_menu.html	taikei	enabled		
 21403	https://www.town-ono.jp/reiki_int/reiki_menu.html	taikei	enabled		
 21404	http://www.town.ikeda.gifu.jp/reiki_int/reiki_menu.html	taikei	enabled		
-21421			enabled		
+21421			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
 21501	https://reiki.town.sakahogi.gifu.jp/reiki_menu.html	taikei	enabled		
 21502	https://www1.g-reiki.net/tomika/reiki_menu.html	g-reiki	enabled		
 21503	https://www1.g-reiki.net/kawabe/reiki_menu.html	g-reiki	enabled		
@@ -1014,7 +1014,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 23000	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A8582E5AA	d1-law	enabled		
 23100	https://kri502.legal-square.com/HAS-Shohin/page/SJSrbLogin.jsf	legal-square	enabled		
 23201	https://kri503.legal-square.com/HAS-Shohin/page/SJSrbLogin.jsf	legal-square	enabled		
-23202			enabled		
+23202	https://www1.g-reiki.net/okazaki/reiki_menu.html	taikei	enabled		
 23203	https://www2.city.ichinomiya.aichi.jp/reiki/reiki_menu.html	taikei	enabled		
 23204	https://www1.g-reiki.net/seto/reiki_menu.html	g-reiki	enabled		
 23205	https://www1.g-reiki.net/handa-fd/reiki_menu.html	g-reiki	enabled		
@@ -1258,17 +1258,17 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 29425	https://www.town.oji.nara.jp/reiki_int/reiki_menu.html	taikei	enabled		
 29426	https://www.town.koryo.nara.jp/html/reiki_int/reiki_menu.html	taikei	enabled		
 29427	https://www.town.kawai.nara.jp/section/reiki/reiki_menu.html	taikei	enabled		
-29441			enabled		
+29441			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
 29442	http://www.town.oyodo.lg.jp/reiki/reiki_menu.html	taikei	enabled		
 29443	https://www.town.shimoichi.lg.jp/kids/reiki/reiki_menu.html	taikei	enabled		
 29444	https://ops-jg.d1-law.com/opensearch/SrFeF01/init?jctcd=8A85DFF900	d1-law	enabled		
-29446			enabled		
-29447			enabled		
-29449			enabled		
-29450			enabled		
-29451			enabled		
+29446			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
+29447			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
+29449			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
+29450			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
+29451			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
 29452		d1-law	unresolved	wrong_municipality_url	長野県川上村(20304)の例規集URLが登録されていた。奈良県川上村の例規集は未特定
-29453			enabled		
+29453			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
 30000	https://www.pref.wakayama.lg.jp/prefg/010100/reiki/reiki_menu.html	taikei	enabled		
 30201	https://krt800.legal-square.com/HAS-Shohin/page/SJSrbLogin.jsf	legal-square	enabled		
 30202	https://www.city.kainan.lg.jp/section/reiki/reiki_menu.html	taikei	enabled		
@@ -1296,9 +1296,9 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 30404	http://www.town.kamitonda.lg.jp/section/reiki/reiki_menu.html	taikei	enabled		
 30406	https://www.town.susami.lg.jp/other-contents/reiki_int/reiki_menu.html	taikei	enabled		
 30421	http://www.town.nachikatsuura.wakayama.jp/div/somu/htm/reiki/reiki.html	reiki.html	enabled		
-30422			enabled		
-30424			enabled		
-30427			enabled		
+30422			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
+30424			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
+30427			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
 30428	https://www.town.kushimoto.wakayama.jp/reiki_int/reiki_menu.html	taikei	enabled		
 31000	https://www1.g-reiki.net/tottori/reiki_menu.html	g-reiki	enabled		
 31201	https://www.city.tottori.lg.jp/reiki/reiki_menu.html	taikei	enabled		
@@ -1339,7 +1339,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 32525	https://www.town.ama.shimane.jp/chousei/jourei	独自	excluded	pdf_only	例規集全体を 1 本の PDF で公開（海士町例規集R07年12月31日.pdf）
 32526	https://www1.g-reiki.net/nishinoshima.shimane/reiki_menu.html	g-reiki	enabled		
 32527	http://www.vill.chibu.lg.jp/gyosei/reiki/153	独自	excluded	pdf_only	例規集全体を 1 本の PDF（9.6MB）で公開
-32528			enabled		
+32528	https://www.town.okinoshima.shimane.jp/section/reiki_int/reiki_menu.html	taikei	enabled		
 33000	http://210.236.99.57/HAS-Shohin/page/SJSrbLogin.jsf	legal-square	enabled		
 33100	https://krq800.legal-square.com/HAS-Shohin/page/SJSrbLogin.jsf	legal-square	enabled		
 33202	https://krm203.legal-square.com/HAS-Shohin/page/SJSrbLogin.jsf	legal-square	enabled		
@@ -1408,7 +1408,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 35216	https://krr145.legal-square.com/HAS-Shohin/page/SJSrbLogin.jsf	legal-square	enabled		
 35305	https://www1.g-reiki.net/town.suo-oshima/reiki_menu.html	g-reiki	enabled		
 35321	https://www1.g-reiki.net/town.waki/reiki_menu.html	g-reiki	enabled		
-35341			enabled		
+35341			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
 35343	https://www1.g-reiki.net/tabuse/reiki_menu.html	g-reiki	enabled		
 35344	https://www.town.hirao.lg.jp/section/reiki/reiki_menu.html	taikei	enabled		
 35502	https://townabu2.sakura.ne.jp/wp/wp-content/themes/abucho_work/reiki_menu.html	taikei	enabled		
@@ -1498,7 +1498,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 39341	https://en3-jg.d1-law.com/motoyama/d1w_reiki/reiki.html	d1-law	enabled		
 39344	https://en3-jg.d1-law.com/otoyo/d1w_reiki/reiki.htm	d1-law	enabled		
 39363	https://www.town.tosa.kochi.jp/reiki/reiki.html	reiki.html	enabled		
-39364			enabled		
+39364			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
 39386	http://www2.town.ino.kochi.jp/reiki2/reiki_menu.html	taikei	enabled		
 39387	https://www.town.niyodogawa.lg.jp/reiki/reiki_menu.html	taikei	enabled		
 39401	https://www1.g-reiki.net/town.nakatosa/reiki_menu.html	g-reiki	enabled		
@@ -1564,7 +1564,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 40602	https://www.town.soeda.fukuoka.jp/reiki/reiki_menu.html	taikei	enabled		
 40604	https://en3-jg.d1-law.com/itoda/d1w_reiki/reiki.html	d1-law	enabled		
 40605	https://www.town-kawasaki.com/reiki_int/reiki_menu.html	taikei	enabled		
-40608			enabled		
+40608			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
 40609	https://www.akamura.net/reiki/reiki_menu.html	taikei	enabled		
 40610	https://www1.g-reiki.net/fukuchi/reiki_menu.html	g-reiki	enabled		
 40621	https://www1.g-reiki.net/town.kanda/reiki_menu.html	g-reiki	enabled		
@@ -1676,7 +1676,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 44212	https://www.bungo-ohno.jp/reiki/reiki_menu.html	taikei	enabled		
 44213	https://www1.g-reiki.net/yufu/reiki_menu.html	g-reiki	enabled		
 44214	https://www1.g-reiki.net/kunisaki/reiki_taikei/taikei_default.html	g-reiki	enabled		
-44322			enabled		
+44322			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
 44341	https://www.town.hiji.lg.jp/section/d1w_reiki/reiki.html	d1-law	enabled		
 44461	https://www1.g-reiki.net/kokonoe/reiki_menu.html	g-reiki	enabled		
 44462	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A919D31B8	d1-law	enabled		
@@ -1696,12 +1696,12 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 45383	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A91AC745F	d1-law	enabled		
 45401	https://www.town.takanabe.lg.jp/section/reiki_int/reiki_menu.html	taikei	enabled		
 45402	https://www1.g-reiki.net/shintomi/reiki_menu.html	g-reiki	enabled		
-45403			enabled		
+45403	https://www1.g-reiki.net/vill.nishimera/reiki_menu.html	taikei	enabled		
 45404	https://www.town.kijo.lg.jp/section/reiki_int/reiki_menu.html	taikei	enabled		
 45405	https://en3-jg.d1-law.com/kawaminami/d1w_reiki/reiki.html	d1-law	enabled		
 45406	https://www.town.tsuno.lg.jp/reiki/reiki_menu.html	taikei	enabled		
 45421	https://www.town.kadogawa.lg.jp/reiki_int/reiki_menu.html	taikei	enabled		
-45429			enabled		
+45429			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
 45430	https://public.joureikun.jp/shiiba_vill/reiki/	joureikun	enabled		
 45431	https://en3-jg.d1-law.com/misato-miyazaki/d1w_reiki/reiki.html	d1-law	enabled		
 45441	https://www.town-takachiho.jp/section/reiki_int/reiki_menu.html	taikei	enabled		
@@ -1783,11 +1783,11 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 47353	https://www1.g-reiki.net/tokashiki/reiki_menu.html	g-reiki	enabled		
 47354	https://www1.g-reiki.net/zamami/reiki_menu.html	g-reiki	enabled		
 47355	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A91CB45D2	d1-law	enabled		
-47356			enabled		
-47357			enabled		
-47358			enabled		
+47356			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
+47357	https://www1.g-reiki.net/minamidaito/reiki_menu.html	taikei	enabled		
+47358			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
 47359	https://www1.g-reiki.net/iheya/reiki_menu.html	g-reiki	enabled		
-47360			enabled		
+47360			unresolved	source_unresolved	公式サイトにも RILG の全国例規集リンク集にも掲載が無い
 47361	https://krq938.legal-square.com/HAS-Shohin/page/SJSrbLogin.jsf	legal-square	enabled		
 47362	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A91CB4634	d1-law	enabled		
 47375	https://www1.g-reiki.net/tarama/reiki_menu.html	g-reiki	enabled		
