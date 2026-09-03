@@ -26,11 +26,6 @@
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://tools.miya.be/tatsuhiko-map/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
     <loc>https://tools.miya.be/privacy/</loc>
     <changefreq>yearly</changefreq>
     <priority>0.2</priority>

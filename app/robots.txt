@@ -1,10 +1,12 @@
 User-agent: *
 Disallow: /api/
-Disallow: /gijiroku/
-Disallow: /reiki/
 Disallow: /boards/
 Disallow: /tools/
 Disallow: /tatsuhiko-map/admin.php
 Disallow: /tatsuhiko-map/api.php
+# 画面内の検索結果は語の組み合わせだけ URL が増える。中身は同じなので辿らせない。
+Disallow: /*?*q=
+Disallow: /*&q=
 
 Sitemap: https://tools.miya.be/sitemap.xml
+Sitemap: https://tools.miya.be/sitemap-municipalities.xml

@@ -11,6 +11,14 @@ require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPAR
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?php echo h($pageTitle); ?></title>
+    <?php
+    // 検索エンジンに載る画面なので、説明と canonical を出す。
+    $metaDescription = sprintf(
+        '%sの例規集（条例・規則）を全文検索できます。分野別の目次から条文をたどれます。',
+        (string)($municipality['name'] ?? '')
+    );
+    echo site_render_page_meta($pageTitle, $metaDescription, '/reiki/?slug=' . rawurlencode($requestSlug));
+    ?>
     <?php echo site_render_favicon_links(); ?>
     <?php $cssVer = @filemtime(__DIR__ . '/assets/css/reiki.css') ?: 1; ?>
     <?php $jsVer  = @filemtime(__DIR__ . '/assets/js/reiki.js')  ?: 1; ?>

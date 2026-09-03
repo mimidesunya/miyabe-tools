@@ -3918,6 +3918,97 @@ function homepage_sanitize_api_payload_displays(array $payload): array
     return $payload;
 }
 
+// トップページへ返す前に、画面が読まない項目を落とす。1,794 自治体分を
+// 毎回まるごと送っており、鍵の名前だけで数百 KB になっていた。
+// 落としてよいのは「画面が読まない」か「slug と feature_key から作れる」もの。
+const HOMEPAGE_CARD_FEATURE_DROP_KEYS = [
+    // 画面が読んでいない。
+    'acquisition_state',
+    'acquisition_label',
+    'source_coverage',
+    // slug と feature_key から作れる（/gijiroku/?slug=…）。
+    'url',
+    // 会議録・例規の呼び名と記号は画面が持っている。
+    'icon',
+    'label',
+];
+// 進み具合の表示に要るのはこれだけ。
+const HOMEPAGE_CARD_DISPLAY_KEEP_KEYS = [
+    'label',
+    'class',
+    'detail',
+    'count_current',
+    'count_total',
+    'progress_current',
+    'progress_total',
+];
+
+function homepage_compact_card_display(array $display): array
+{
+    $compact = [];
+    foreach (HOMEPAGE_CARD_DISPLAY_KEEP_KEYS as $key) {
+        $value = $display[$key] ?? null;
+        if ($value === null || $value === '' || $value === 0 || $value === false) {
+            continue;
+        }
+        $compact[$key] = $value;
+    }
+    // 同じ数を 4 つ送っていた。違うときだけ送る。
+    if (isset($compact['progress_current'], $compact['count_current'])
+        && $compact['progress_current'] === $compact['count_current']) {
+        unset($compact['progress_current']);
+    }
+    if (isset($compact['progress_total'], $compact['count_total'])
+        && $compact['progress_total'] === $compact['count_total']) {
+        unset($compact['progress_total']);
+    }
+    if (isset($compact['count_total'], $compact['count_current'])
+        && $compact['count_total'] === $compact['count_current']) {
+        unset($compact['count_total']);
+    }
+    return $compact;
+}
+
+function homepage_compact_home_api_payload(array $payload): array
+{
+    if (!is_array($payload['municipalities'] ?? null)) {
+        return $payload;
+    }
+    foreach ($payload['municipalities'] as $cardIndex => $card) {
+        if (!is_array($card)) {
+            continue;
+        }
+        unset($card['ready_visible_count'], $card['feature_count']);
+        if (is_array($card['features'] ?? null)) {
+            foreach ($card['features'] as $featureIndex => $feature) {
+                if (!is_array($feature)) {
+                    continue;
+                }
+                foreach (HOMEPAGE_CARD_FEATURE_DROP_KEYS as $key) {
+                    unset($feature[$key]);
+                }
+                foreach ($feature as $key => $value) {
+                    // 既定値は送らない。受け取る側は無い＝既定として読む。
+                    if ($value === '' || $value === false || $value === null || $value === []) {
+                        unset($feature[$key]);
+                    }
+                }
+                if (is_array($feature['display'] ?? null)) {
+                    $display = homepage_compact_card_display($feature['display']);
+                    if ($display === []) {
+                        unset($feature['display']);
+                    } else {
+                        $feature['display'] = $display;
+                    }
+                }
+                $card['features'][$featureIndex] = $feature;
+            }
+        }
+        $payload['municipalities'][$cardIndex] = $card;
+    }
+    return $payload;
+}
+
 function homepage_api_cache_path(): string
 {
     return data_path('background_tasks/home_api_payload.json');

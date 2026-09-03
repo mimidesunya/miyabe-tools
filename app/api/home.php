@@ -40,6 +40,8 @@ try {
         header('X-Homepage-Store: postgres');
     }
     $payload = homepage_sanitize_api_payload_displays($payload);
+    // 画面が読まない項目は送らない。詳細は homepage_compact_home_api_payload()。
+    $payload = homepage_compact_home_api_payload($payload);
     $bufferedOutput = (string)ob_get_clean();
     if (trim($bufferedOutput) !== '') {
         error_log('[home_api] discarded unexpected output while building payload');

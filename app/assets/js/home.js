@@ -727,7 +727,7 @@
                 </div>
             </div>
             <div class="detail-features">
-                ${features.map(renderFeatureDetail).join('')}
+                ${features.map((item) => renderFeatureDetail(item, card)).join('')}
             </div>
             <div class="detail-actions">
                 <a href="/search/?slug=${encodeURIComponent(card.slug || '')}">この自治体を検索</a>
@@ -735,7 +735,7 @@
         `.trim();
     }
 
-    function renderFeatureDetail(feature) {
+    function renderFeatureDetail(feature, card) {
         const key = String(feature?.feature_key || '');
         const meta = featureMeta[key] || { label: feature?.label || key, color: '#64748b' };
         const detail = String(feature?.display?.detail || '').trim();
@@ -746,8 +746,11 @@
             ? featureSearchCoverage({ features: [feature] }, key)
             : null;
         const hasSearchableMinutes = key === 'gijiroku' && String(feature?.mode || '') === 'link';
-        const action = String(feature?.mode || '') === 'link' && String(feature?.url || '') !== ''
-            ? `<a class="feature-open" href="${escapeHtml(feature.url)}">開く</a>`
+        // 開く先は slug と feature_key から決まるので、API は送ってこない。
+        const featureUrl = String(feature?.url || '')
+            || (card?.slug && key !== '' ? `/${key}/?slug=${encodeURIComponent(String(card.slug))}` : '');
+        const action = String(feature?.mode || '') === 'link' && featureUrl !== ''
+            ? `<a class="feature-open" href="${escapeHtml(featureUrl)}">開く</a>`
             : '<span class="feature-open feature-open-disabled">待機</span>';
         return `
             <div class="feature-detail feature-detail-${escapeHtml(key)}">
