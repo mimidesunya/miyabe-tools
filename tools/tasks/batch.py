@@ -79,6 +79,17 @@ class BatchSpec:
     index_enabled: Callable[[argparse.Namespace], bool] = field(
         default=lambda args: not args.no_build_index
     )
+    # 実行の直前に登録簿を引き直す。
+    #
+    # **対象一覧は実行の始めに一度だけ作る。** 全国一巡は数日かかるので、
+    # その間に登録簿(TSV)が変わる。取得をやめた自治体を数日後に起動して
+    # しまい、子スクレイパ側の方針判定で落ちて「取得失敗」に数えられていた
+    # (実測 2026-09-05: 除外済み4件・system_type が変わった3件)。
+    # 起動の直前にもう一度引き、いまの姿で走らせる。
+    #
+    # 戻り値は (対象, 見送りの理由)。対象が None なら今回は起動しない。
+    # 取得をやめた自治体を起動しないだけなので、失敗ではなく skipped にする。
+    refresh_target: Callable[[dict], tuple[dict | None, str]] | None = None
 
     @property
     def lock_owner(self) -> str:
@@ -482,12 +493,16 @@ def record_target_result(
     index_stderr_log: str,
     message: str,
     progress: dict[str, object] | None = None,
+    counted: bool = True,
 ) -> None:
     # 自治体ごとの成否をここで数える。枝ごとに数えると必ず漏れる。
-    if int(overall_returncode) == 0:
-        TARGET_OUTCOMES["succeeded"] += 1
-    else:
-        TARGET_OUTCOMES["failed"] += 1
+    # **見送り(skipped)は数えない。** 走らせていないものを成功に数えると、
+    # 「1件も成功しなかった」の見張りが効かなくなる。
+    if counted:
+        if int(overall_returncode) == 0:
+            TARGET_OUTCOMES["succeeded"] += 1
+        else:
+            TARGET_OUTCOMES["failed"] += 1
     # 1 自治体の終了結果を CSV と background_tasks JSON の両方へ反映する。
     # ここで警告・取得件数・鮮度メタデータをまとめ、画面表示の元データを確定する。
     writer.writerow(
@@ -1192,6 +1207,50 @@ def run_batch(spec: BatchSpec, args: argparse.Namespace, targets: list[dict]) ->
                 target = pending_targets.pop_runnable(can_launch_target)
                 if target is None:
                     break
+
+                # 数日走る一巡の途中で登録簿が変わる。起動の直前に引き直す。
+                if spec.refresh_target is not None:
+                    try:
+                        refreshed, skip_reason = spec.refresh_target(target)
+                    except Exception as exc:  # 引き直せないなら、そのまま走らせる
+                        refreshed, skip_reason = target, ""
+                        print(
+                            f"[WARN] {target['slug']} の登録簿を引き直せませんでした: {exc}",
+                            flush=True,
+                        )
+                    if refreshed is None:
+                        finished_at = batch_status.now_text()
+                        record_target_result(
+                            spec,
+                            writer,
+                            handle,
+                            status_state=status_state,
+                            target=target,
+                            host=target_host(target),
+                            overall_status="skipped",
+                            overall_returncode=0,
+                            scrape_returncode=0,
+                            index_status="skipped",
+                            index_returncode="",
+                            started_at="",
+                            finished_at=finished_at,
+                            stdout_log="",
+                            stderr_log="",
+                            index_stdout_log="",
+                            index_stderr_log="",
+                            message=skip_reason or "登録簿から外れました",
+                            counted=False,
+                        )
+                        completed_count += 1
+                        made_progress = True
+                        print(
+                            f"[INFO] {target['slug']} は今回の対象から外れました: "
+                            f"{skip_reason or '登録簿から外れました'}",
+                            flush=True,
+                        )
+                        now = time.time()
+                        continue
+                    target = refreshed
 
                 host = target_host(target)
                 launched_count += 1

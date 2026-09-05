@@ -213,6 +213,19 @@ def index_enabled(args: argparse.Namespace) -> bool:
     return not args.no_build_index and not args.crawl_only
 
 
+# 起動の直前に登録簿を引き直す。理由は会議録側と同じ(数日走る一巡の途中で
+# TSV が変わる)。例規集には取得ポリシーの列が無いので、消えた場合だけ外す。
+def refresh_reiki_target(target: dict) -> tuple[dict | None, str]:
+    slug = str(target.get("slug", "")).strip()
+    if slug == "":
+        return target, ""
+    try:
+        fresh = reiki_targets.load_reiki_target(slug)
+    except ValueError:
+        return None, "登録簿から外れました"
+    return freshness_metadata.attach_target_freshness("reiki", fresh), ""
+
+
 BATCH_SPEC = scraping_batch.BatchSpec(
     task_name="reiki",
     progress_unit="ordinance",
@@ -226,6 +239,7 @@ BATCH_SPEC = scraping_batch.BatchSpec(
     scrape_completion_error=scrape_completion_error,
     target_freshness=freshness_metadata.reiki_target_freshness,
     index_enabled=index_enabled,
+    refresh_target=refresh_reiki_target,
 )
 
 

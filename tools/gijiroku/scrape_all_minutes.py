@@ -321,6 +321,28 @@ def scrape_completion_error(target: dict, progress: dict | None) -> str:
     return ""
 
 
+# 起動の直前に登録簿を引き直す。
+#
+# 全国一巡は数日かかる。その間に TSV が変わり、取得をやめた自治体
+# (crawl_status != enabled) や system_type が変わった自治体が出る。古い一覧の
+# まま起動すると、子スクレイパが方針判定や system_type の不一致で落ちて
+# 「取得失敗」に数えられていた(実測 2026-09-05: 除外済み4件、system_type が
+# 変わって別のスクレイパへ回っていた3件)。放っておいても治るよう、
+# ここで今の姿にする。
+def refresh_gijiroku_target(target: dict) -> tuple[dict | None, str]:
+    slug = str(target.get("slug", "")).strip()
+    if slug == "":
+        return target, ""
+    try:
+        fresh = gijiroku_targets.load_gijiroku_target(slug)
+    except gijiroku_targets.CrawlPolicyBlockedError as exc:
+        reason = str(exc).split("/", 1)[-1].strip() or "取得ポリシーで対象外"
+        return None, f"取得ポリシーで対象外になりました ({reason})"
+    except ValueError:
+        return None, "登録簿から外れました"
+    return freshness_metadata.attach_target_freshness("gijiroku", fresh), ""
+
+
 BATCH_SPEC = scraping_batch.BatchSpec(
     task_name="gijiroku",
     progress_unit="meeting",
@@ -333,6 +355,7 @@ BATCH_SPEC = scraping_batch.BatchSpec(
     actual_scrape_progress=actual_scrape_progress,
     scrape_completion_error=scrape_completion_error,
     target_freshness=freshness_metadata.gijiroku_target_freshness,
+    refresh_target=refresh_gijiroku_target,
 )
 
 
