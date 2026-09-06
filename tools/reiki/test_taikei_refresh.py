@@ -57,10 +57,18 @@ class _ConditionalHandler(BaseHTTPRequestHandler):
 class TaikeiRefreshTest(unittest.TestCase):
     def run_php(self, body: str, payload: dict[str, object] | None = None) -> object:
         source = PHP_PATH.read_text(encoding="utf-8")
-        marker = "\nmain($argv);\n"
+        # 入口は「直接実行されたときだけ main を呼ぶ」形。ここは写しを
+        # 一時スクリプトとして走らせるので、その判定では止まらない。
+        # 入口ごと外してから、確かめたい関数だけを呼ぶ。
+        marker = (
+            "if (PHP_SAPI === 'cli' && isset($argv[0])"
+            " && realpath($argv[0]) === realpath(__FILE__)) {\n"
+            "    main($argv);\n"
+            "}\n"
+        )
         self.assertIn(marker, source)
         # 本番 main を起動せず、同じ関数本体を一時スクリプトから直接検証する。
-        source = source.replace(marker, "\n", 1)
+        source = source.replace(marker, "", 1)
         harness = f"""
 $input = json_decode(base64_decode($argv[1]), true, 512, JSON_THROW_ON_ERROR);
 $result = (static function (array $input): mixed {{

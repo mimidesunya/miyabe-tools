@@ -23,6 +23,7 @@ sys.path.append(str(Path(__file__).parent))
 import freshness_metadata
 import reiki_io
 import reiki_targets
+import source_url_recovery
 from tools.tasks import backfill as task_backfill
 from tools.tasks import batch as scraping_batch
 from tools.tasks import priority as scraping_priority
@@ -215,6 +216,9 @@ def index_enabled(args: argparse.Namespace) -> bool:
 
 # 起動の直前に登録簿を引き直す。理由は会議録側と同じ(数日走る一巡の途中で
 # TSV が変わる)。例規集には取得ポリシーの列が無いので、消えた場合だけ外す。
+# あわせて、版番号を URL に持つ取得元だけ生死を見て、失効していれば
+# 引き直す。旧版のディレクトリごと 404 になる取得元があり、そのままでは
+# 目録も本文も 1 件も取れないのに件数だけ前回のまま残る。
 def refresh_reiki_target(target: dict) -> tuple[dict | None, str]:
     slug = str(target.get("slug", "")).strip()
     if slug == "":
@@ -223,6 +227,7 @@ def refresh_reiki_target(target: dict) -> tuple[dict | None, str]:
         fresh = reiki_targets.load_reiki_target(slug)
     except ValueError:
         return None, "登録簿から外れました"
+    fresh = source_url_recovery.ensure_source_url(fresh)
     return freshness_metadata.attach_target_freshness("reiki", fresh), ""
 
 

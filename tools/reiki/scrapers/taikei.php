@@ -26,7 +26,10 @@ const TAIKEI_PARSER_VERSION = 2;
 // 一覧に現れない本文改正も拾うため、個票を最後に実照会した時刻で巡回する。
 const TAIKEI_VALIDATION_INTERVAL_SECONDS = 90 * 86400;
 
-main($argv);
+// 読み込んだだけで走り出さないようにする。テストから関数だけを使いたい。
+if (PHP_SAPI === 'cli' && isset($argv[0]) && realpath($argv[0]) === realpath(__FILE__)) {
+    main($argv);
+}
 
 function main(array $argv): void
 {
@@ -52,6 +55,9 @@ function main(array $argv): void
             'source_url' => cli_option_value($options, $argv, 'source-url'),
         ]
     );
+    // 取得の速度はホスト単位で覚える。531 自治体が 1 ホストを共有しており、
+    // 自治体ごとに覚え直すと毎回 429 に当ててから遅くすることになる。
+    current_source_host((string)$target['source_url']);
     $dataRoot = (string)$target['data_root'];
     $workRoot = (string)$target['work_root'];
     $sourceDir = (string)$target['source_dir'];
@@ -2325,13 +2331,102 @@ function throttled_sleep(): void
 
 
 // 429 を受けたかどうかを覚えておき、以後の間隔を決めるのに使う。
+//
+// 自治体 1 件ごとに別プロセスなので、プロセス内だけで覚えていると
+// 次の自治体がまた全速で始めて 429 を受け直す。取得元は 531 自治体で
+// 1 つのホストを共有しており（www1.g-reiki.net）、上限もホスト単位なので、
+// 覚える単位もホストにする。2026-09-06 の点検では 125 自治体に分かれて
+// 429 が 491 件出ていた。取り直しで拾えてはいたが、毎回上限に当てていた。
 function rate_limited_seen(bool $mark = false): bool
 {
-    static $seen = false;
-    if ($mark) {
+    static $seen = null;
+    if ($mark && $seen !== true) {
         $seen = true;
+        remember_host_rate_limit(current_source_host());
+        return true;
     }
-    return $seen;
+    if ($seen === null) {
+        $seen = host_rate_limited_recently(current_source_host());
+    }
+    return (bool)$seen;
+}
+
+
+// いま取りに行っている取得元のホスト。ホスト単位で速度を覚えるために使う。
+function current_source_host(string $sourceUrl = ''): string
+{
+    static $host = '';
+    if ($sourceUrl !== '') {
+        $parsed = parse_url($sourceUrl, PHP_URL_HOST);
+        $host = is_string($parsed) ? strtolower($parsed) : '';
+    }
+    return $host;
+}
+
+
+function host_rate_limit_path(): string
+{
+    return build_work_path('reiki') . DIRECTORY_SEPARATOR . 'host_rate_limits.json';
+}
+
+
+// 覚えておく期間。取得元が制限を緩めることもあるので、いつかは忘れる。
+const TAIKEI_RATE_LIMIT_MEMORY_SECONDS = 86400;
+
+
+function host_rate_limited_recently(string $host): bool
+{
+    if ($host === '') {
+        return false;
+    }
+    $raw = @file_get_contents(host_rate_limit_path());
+    if (!is_string($raw) || trim($raw) === '') {
+        return false;
+    }
+    $payload = json_decode($raw, true);
+    if (!is_array($payload)) {
+        return false;
+    }
+    $seenAt = (int)($payload[$host] ?? 0);
+    return $seenAt > 0 && (time() - $seenAt) < TAIKEI_RATE_LIMIT_MEMORY_SECONDS;
+}
+
+
+function remember_host_rate_limit(string $host): void
+{
+    if ($host === '') {
+        return;
+    }
+    $path = host_rate_limit_path();
+    ensure_dir(dirname($path));
+    $payload = [];
+    $raw = @file_get_contents($path);
+    if (is_string($raw) && trim($raw) !== '') {
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded)) {
+            $payload = $decoded;
+        }
+    }
+    $payload[$host] = time();
+    // 古い印は落とす。取得元が変わっても永久に遅いままにしない。
+    foreach ($payload as $key => $seenAt) {
+        if (!is_int($seenAt) || (time() - $seenAt) >= TAIKEI_RATE_LIMIT_MEMORY_SECONDS) {
+            unset($payload[$key]);
+        }
+    }
+    $encoded = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if (!is_string($encoded)) {
+        return;
+    }
+    // 3 並列で同時に書くので、一時ファイル経由で入れ替える。
+    $temporaryPath = $path . '.' . getmypid() . '.tmp';
+    if (@file_put_contents($temporaryPath, $encoded . "
+") === false) {
+        return;
+    }
+    if (!@rename($temporaryPath, $path)) {
+        @unlink($temporaryPath);
+    }
 }
 
 function emit_progress(int $current, int $total, string $statePath = ''): void

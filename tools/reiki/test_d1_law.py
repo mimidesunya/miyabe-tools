@@ -176,3 +176,61 @@ class D1LawParserGenerationTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class D1LawGoneAtSourceTest(unittest.TestCase):
+    """取得元が本文を出さなくなった分を、取り損ねと分けて数える。
+
+    一緒に数えると、何度巡回しても消えない失敗が残り続け、直せる失敗が
+    その中に埋もれる。d1-law では 80 自治体がこの形だった。
+    """
+
+    def setUp(self) -> None:
+        d1_law.DOWNLOAD_FAILURES.clear()
+        d1_law.DOWNLOAD_MISSING.clear()
+
+    tearDown = setUp
+
+    @staticmethod
+    def http_error(status_code: int) -> Exception:
+        import requests
+
+        response = requests.Response()
+        response.status_code = status_code
+        return requests.HTTPError(f"HTTP {status_code}", response=response)
+
+    def test_reads_status_code_from_error(self) -> None:
+        self.assertEqual(d1_law._gone_status_code(self.http_error(404)), 404)
+        self.assertEqual(d1_law._gone_status_code(self.http_error(410)), 410)
+        # 5xx と 403 は取り損ねなので、再試行の対象に残す。
+        self.assertEqual(d1_law._gone_status_code(self.http_error(503)), 0)
+        self.assertEqual(d1_law._gone_status_code(self.http_error(403)), 0)
+        self.assertEqual(d1_law._gone_status_code(RuntimeError("connection reset")), 0)
+
+    def download_with_error(self, error: Exception) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            session = mock.Mock()
+            session.get.side_effect = error
+            d1_law.download_file(
+                "https://example.test/a/a_j.html",
+                Path(directory) / "a_j.html",
+                session=session,
+            )
+
+    def test_missing_body_is_not_a_failure(self) -> None:
+        self.download_with_error(self.http_error(404))
+        self.assertEqual(d1_law.DOWNLOAD_FAILURES, [])
+        self.assertEqual(d1_law.DOWNLOAD_MISSING, ["https://example.test/a/a_j.html"])
+
+    def test_server_error_stays_a_failure(self) -> None:
+        self.download_with_error(self.http_error(503))
+        self.assertEqual(d1_law.DOWNLOAD_FAILURES, ["https://example.test/a/a_j.html"])
+        self.assertEqual(d1_law.DOWNLOAD_MISSING, [])
+
+    def test_forgetting_clears_both_lists(self) -> None:
+        url = "https://example.test/a/a_j.html"
+        d1_law.DOWNLOAD_FAILURES.append(url)
+        d1_law.DOWNLOAD_MISSING.append(url)
+        d1_law._forget_download_failure(url)
+        self.assertEqual(d1_law.DOWNLOAD_FAILURES, [])
+        self.assertEqual(d1_law.DOWNLOAD_MISSING, [])

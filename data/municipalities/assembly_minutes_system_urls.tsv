@@ -125,7 +125,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 01544	https://www.town.tsubetsu.hokkaido.jp/choseijoho/tsubetsugikai/2/index.html	独自	enabled			2026-08-02	06e9b5b7c201fe16b0586fd61c28d875293a072a482d1fe9dc999fc818944b53
 01545	http://gikai-sharitown.net/r8giji.html	site-gikai-pdf	enabled			2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 01546	https://www.town.kiyosato.hokkaido.jp/administration/?category=112	独自	enabled			2026-08-02	841025eac9a907f7d73664e7a6bdfaecfeb169c88cc1180c521adf7dad4f87fe
-01547	https://www.town.koshimizu.hokkaido.jp/gikai/category/182.html	独自	enabled			2026-08-02	5fdc91c948bc948bd04623c8eb42a528b3812766139942f775e15c7f5268cc8f
+01547	https://www.town.koshimizu.hokkaido.jp/gikai/detail/00009799.html	独自	enabled			2026-08-02	5fdc91c948bc948bd04623c8eb42a528b3812766139942f775e15c7f5268cc8f
 01549	https://www.town.kunneppu.hokkaido.jp/gikai/kaigiroku.html	site-gikai-pdf	enabled			2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 01550	https://www.town.oketo.hokkaido.jp/gikai/kaigiroku/	static-kaigiroku-dir	enabled			2026-08-02	3f0bbdebc818bce9eec90756c8627f090f34ad4ea64c8a7114da16a47c230bb8
 01552	https://www.town.saroma.hokkaido.jp/gikai/hongikai/kaigiroku.html	独自	enabled			2026-08-02	0ee84f8c07e2ddb27441f8a4b21e8ede7e6576ed8042e1790e892762956fd419
@@ -1244,7 +1244,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 29212	http://www.kensakusystem.jp/uda/index.html	kensakusystem	enabled			2026-08-02	204478b7cbaf6d69cc05c6cd08d4d16181e9fb298e1f41f61fe19e318d4fd0f9
 29322			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 29342	https://www.town.heguri.nara.jp/site/gikai/list47.html	独自	enabled			2026-08-02	204e985e8a75820624430fadd742ba67f189c1542cf0c637fc7b139960ccd3b5
-29343	https://www.town.sango.nara.jp/site/kaigi-gijiroku/	独自	enabled			2026-08-02	eb703e2a1710217b69a5be9a3ee8afc5b6a1b36a99077be1dccbf68f35bc66f2
+29343	https://www.town.sango.nara.jp/site/gikai/list7-28.html	独自	enabled			2026-08-02	eb703e2a1710217b69a5be9a3ee8afc5b6a1b36a99077be1dccbf68f35bc66f2
 29344	https://www.town.ikaruga.nara.jp/0000000402.html	独自	enabled			2026-08-02	960faca7acc2f0c119838bbc939a1e4b8de9d3751da95ab4f07f706ad17f3795
 29345	https://www.town.ando.nara.jp/category/10-6-3-0-0-0-0-0-0-0.html	独自	enabled			2026-08-02	9c711abd08a15b45839dfd9aef3b5bb44ed8d3249cce0669caa1a3f051f7e9ab
 29361	https://www.town.nara-kawanishi.lg.jp/0000008099.html	独自	enabled			2026-08-02	25a8471cf21ddc11525be966d1a72f4b9967f6e4e2a02ef505a58b5a471f7241

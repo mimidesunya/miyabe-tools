@@ -165,38 +165,56 @@ def existing_last_checked_at(task_name: str, slug: str) -> str:
     return ""
 
 
+def recorded_freshness_date(task_name: str, slug: str) -> str:
+    """前に記録した「持っている中でいちばん新しい文書の日付」。"""
+    if slug == "":
+        return ""
+    values = [
+        str(status_item(candidate_task, slug).get("freshness_date") or "").strip()
+        for candidate_task in (task_name, f"{task_name}_snapshot")
+    ]
+    return max_normalized_date([value for value in values if value])
+
+
 def gijiroku_target_freshness(target: dict[str, Any]) -> dict[str, str]:
     state_path = Path(str(target.get("work_dir") or "")) / "scrape_state.json"
     try:
         state = json.loads(state_path.read_text(encoding="utf-8"))
     except Exception:
         state = {}
+    # 前に記録した日付。これより古い日付は出さない。
+    # plan_summary は**その実行が計画した分**の最大日でしかない。途中で
+    # エラーになって古い年しか計画しなかった実行があると、持っている
+    # いちばん新しい文書より古い日付に置き換わる（仙台市が 2026-02-17 の
+    # 文書を検索できるのに 1991-01-14 と表示されていた）。
+    candidates: list[Any] = [recorded_freshness_date("gijiroku", str(target.get("slug") or "").strip())]
+
     summary = state.get("plan_summary") if isinstance(state, dict) else None
     if isinstance(summary, dict):
-        date_max = normalize_date_text(summary.get("date_max"))
-        if date_max:
-            return {"freshness_date": date_max, "freshness_basis": "latest_document"}
+        candidates.append(normalize_date_text(summary.get("date_max")))
 
-    rows = read_json_maybe_gzip(Path(str(target.get("index_json_path") or "")))
-    if isinstance(rows, list):
-        values: list[Any] = []
-        try:
-            import gijiroku_planning
-        except Exception:
-            gijiroku_planning = None
-        for row in rows:
-            if not isinstance(row, dict):
-                continue
-            values.append(row.get("held_on"))
-            values.append(row.get("sort_date"))
-            if gijiroku_planning is not None:
-                try:
-                    values.append(gijiroku_planning.infer_sort_date(row))
-                except Exception:
-                    pass
-        date_max = max_normalized_date(values)
-        if date_max:
-            return {"freshness_date": date_max, "freshness_basis": "latest_document"}
+    if not max_normalized_date(candidates):
+        # 計画にも記録にも無いときだけ、索引を読み直す（重い）。
+        rows = read_json_maybe_gzip(Path(str(target.get("index_json_path") or "")))
+        if isinstance(rows, list):
+            try:
+                import gijiroku_planning
+            except Exception:
+                gijiroku_planning = None
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                candidates.append(row.get("held_on"))
+                candidates.append(row.get("sort_date"))
+                if gijiroku_planning is not None:
+                    try:
+                        candidates.append(gijiroku_planning.infer_sort_date(row))
+                    except Exception:
+                        pass
+
+    date_max = max_normalized_date(candidates)
+    if date_max:
+        return {"freshness_date": date_max, "freshness_basis": "latest_document"}
 
     return {"freshness_date": "", "freshness_basis": ""}
 

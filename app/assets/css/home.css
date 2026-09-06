@@ -1517,6 +1517,23 @@ h1 em {
     padding: 0 32px;
 }
 
+.search-ribbon-hint {
+    margin: -4px 0 0;
+    font-size: 13px;
+    line-height: 1.7;
+    color: rgba(255, 253, 247, 0.8);
+}
+
+.search-ribbon-hint code {
+    padding: 1px 5px;
+    border: 1px solid rgba(255, 253, 247, 0.35);
+    border-radius: 4px;
+    font-family: var(--mono, ui-monospace, monospace);
+    font-size: 12px;
+    color: var(--panel);
+    white-space: nowrap;
+}
+
 .search-ribbon-scope {
     display: flex;
     flex-wrap: wrap;

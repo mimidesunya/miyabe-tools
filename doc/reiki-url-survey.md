@@ -47,6 +47,34 @@
 |---|---|---|---|
 | `01208` | 北見市 | `legalcrud` | `https://public2.legalcrud.com/kitami_city/reiki/` |
 
+## 版番号を URL に持つ取得元（北海道町村会）
+
+`houmu.h-chosonkai.gr.jp/~reikidb` は 130 余りの町村を 1 つの DB に同居させ、
+`/~reikidb/data/{choson_no}/{版}/reiki.html` のように**版番号を URL に持ちます**。
+自治体が新版を出すと版が繰り上がり、**旧ディレクトリごと 404 になります**。
+目録も本文も 1 件も取れなくなりますが、前回のマニフェストは残るので、
+件数だけはそろって見えます。2026-09-06 の点検では登録 105 行のうち 21 行
+（`h-chosonkai` 13 行、同じホストの `taikei` 8 行）が失効し、およそ 6,600 件が
+更新されないままでした。
+
+登録簿を引き直すには次を使います。`system_type` は変えません。
+
+```powershell
+python dev/municipalities/resolve_h_chosonkai_urls.py --dry-run --only-dead
+python dev/municipalities/resolve_h_chosonkai_urls.py --only-dead
+```
+
+引き直しは入口ページ（`?choson_no=N`）から現行の版を読みます。入口は
+セッションを持つので、`http` で当てると `https` へ転送される際にクエリが
+落ちます。必ず `https` で当ててください。
+
+巡回中は `tools/reiki/source_url_recovery.py` が同じ手順で自動復旧します。
+登録簿は git 管理なので実行中には書き換えず、引き直した URL を
+`work/reiki/source_url_overrides.json` へ積み、対象を読むときに差し替えます。
+上書きは「置き換える前の URL」を覚えているので、TSV を直せば自動で外れます。
+自動復旧が働いたときは `[WARN] ... 引き直しました` がログに出るので、
+**TSV も直してください**。上書きに頼り続けると、登録簿が実態から離れます。
+
 ## 再生成
 
 ```powershell

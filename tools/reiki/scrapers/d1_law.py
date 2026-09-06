@@ -162,11 +162,33 @@ def resolve_d1_law_base_url(source_url: str, session: requests.Session | None = 
 # 初回なら例規が欠け、更新なら古い本文を現行として固定する。
 DOWNLOAD_FAILURES: list[str] = []
 
+# 目録には載っているのに、取得元が本文を出さなくなった URL。
+# 取り損ねた（通信の失敗・5xx・タイムアウト）のとは意味が違う。
+# 一緒に数えると、こちらが何度巡回しても消えない失敗が残り続け、
+# 直せる失敗が埋もれる。d1-law では 80 自治体がこの形だった。
+DOWNLOAD_MISSING: list[str] = []
+
+# 取得元が「もう無い」と答えた応答。403 や 5xx は入れない。
+GONE_STATUS_CODES = frozenset({404, 410})
+
 
 def _forget_download_failure(url: str) -> None:
     """無くてもよいページの取得失敗を、個票の失敗から外す。"""
     while url in DOWNLOAD_FAILURES:
         DOWNLOAD_FAILURES.remove(url)
+    while url in DOWNLOAD_MISSING:
+        DOWNLOAD_MISSING.remove(url)
+
+
+def _gone_status_code(error: Exception) -> int:
+    """取得元が「もう無い」と答えたなら、その状態コードを返す。"""
+    response = getattr(error, "response", None)
+    status_code = getattr(response, "status_code", None)
+    try:
+        status_code = int(status_code)
+    except (TypeError, ValueError):
+        return 0
+    return status_code if status_code in GONE_STATUS_CODES else 0
 
 
 def download_file(
@@ -240,10 +262,17 @@ def download_file(
         time.sleep(DELAY)
         return True, written_path, source_hash, metadata
     except Exception as exc:
-        print(f"Failed to download {url}: {exc}")
-        # 失敗と「既存をそのまま使った」を同じ形で返していたので、
-        # 呼ぶ側が区別できず「確認済み」に数えていた。印を付ける。
-        DOWNLOAD_FAILURES.append(str(url))
+        gone_status = _gone_status_code(exc)
+        if gone_status:
+            # 取得元が本文を消した。こちらの取りこぼしではないので、
+            # 巡回のたびに再試行して失敗を積み上げる列には入れない。
+            print(f"Gone at source ({gone_status}): {url}")
+            DOWNLOAD_MISSING.append(str(url))
+        else:
+            print(f"Failed to download {url}: {exc}")
+            # 失敗と「既存をそのまま使った」を同じ形で返していたので、
+            # 呼ぶ側が区別できず「確認済み」に数えていた。印を付ける。
+            DOWNLOAD_FAILURES.append(str(url))
         return (
             False,
             existing_path or dest_path,
@@ -972,7 +1001,18 @@ def main():
     # d1-law に --limit は無いので、目録を開けたかと個票・変換の失敗で判断する。
     detail_failures = len(DOWNLOAD_FAILURES)
     total_failures = detail_failures + parse_failure_count
-    walk_complete = missed_pages == 0 and total_failures == 0
+    # 取得元が本文を出さなくなった分は、こちらの取りこぼしではない。
+    # 再試行しても永久に取れないので、完了を阻む失敗には数えない。
+    # ただし**まとめて消えたときは取得元の作り替え**なので、完了にしない。
+    # 掛川市のように取得元ごと入れ替わる例があり、静かに通すと
+    # 「全部取れた」と記録したまま中身が空になる。
+    missing_at_source = len(DOWNLOAD_MISSING)
+    missing_share_exceeded = (
+        total_regulations > 0 and missing_at_source * 5 >= total_regulations
+    )
+    walk_complete = (
+        missed_pages == 0 and total_failures == 0 and not missing_share_exceeded
+    )
     manifest_result = reiki_io.write_manifest_guarded(
         manifest_path,
         manifest_entries,
@@ -994,6 +1034,10 @@ def main():
             "missed_examples": catalog_walk.get("missed_examples") or [],
             "failed": total_failures,
             "failed_examples": (DOWNLOAD_FAILURES + parse_failure_urls)[:10],
+            # 取得元がもう出していない本文。失敗とは別に数える。
+            "missing_at_source": missing_at_source,
+            "missing_at_source_examples": DOWNLOAD_MISSING[:10],
+            "missing_share_exceeded": missing_share_exceeded,
             "collected": len(manifest_entries),
             "manifest_shrunk": not manifest_result["written"],
             "manifest_previous": manifest_result["previous"],
@@ -1011,6 +1055,20 @@ def main():
             f"[WARN] 例規本体を {detail_failures} 件取得できませんでした。",
             flush=True,
         )
+    if missing_at_source:
+        if missing_share_exceeded:
+            print(
+                f"[WARN] 目録に載っている本文のうち {missing_at_source} 件が"
+                f"取得元から消えています（目録 {total_regulations} 件）。"
+                "取得元が入れ替わった可能性があるので、完了にしていません。",
+                flush=True,
+            )
+        else:
+            print(
+                f"[INFO] 目録に載っている本文のうち {missing_at_source} 件が"
+                "取得元にありません。再試行しても取れないので失敗に数えません。",
+                flush=True,
+            )
     if parse_failure_count:
         print(
             f"[WARN] 保存 source から {parse_failure_count} 件を変換できませんでした。"

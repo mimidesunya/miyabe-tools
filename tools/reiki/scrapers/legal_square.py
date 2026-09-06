@@ -255,6 +255,27 @@ FILTER_EVAL = """
   setValue('ymdTo-Y', a.to ? String(a.to[1]) : '');
   setValue('ymdTo-M', a.to ? String(a.to[2]) : '');
   setValue('ymdTo-D', a.to ? String(a.to[3]) : '');
+  // 件名のキーワード。単日まで割っても上限に張り付く区間を、
+  // 「その語を含む」と「含まない」に分けて取り切るために使う。
+  // 語を入れないときは 5 欄すべてを空に戻す（前の条件が残ると取りこぼす）。
+  const words = a.words || [];
+  if (words.length) {
+    const titleOnly = document.getElementById('searchWordClass4DetailTerm:0');
+    if (titleOnly && !titleOnly.checked) {
+      titleOnly.checked = true;
+      titleOnly.dispatchEvent(new Event('click', {bubbles: true}));
+    }
+    const andMode = document.getElementById('logicalFormulaSearchClass4DetailTerm:0');
+    if (andMode && !andMode.checked) {
+      andMode.checked = true;
+      andMode.dispatchEvent(new Event('click', {bubbles: true}));
+    }
+  }
+  ['A', 'B', 'C', 'D', 'E'].forEach((slot, i) => {
+    const entry = words[i];
+    setValue('searchWord-' + slot, entry ? entry[0] : '');
+    setChecked('not_' + slot, Boolean(entry && entry[1]));
+  });
 }
 """
 
@@ -264,14 +285,24 @@ def apply_filters(
     kind_id: str,
     span: tuple[int, int] | None,
     days: tuple[int, int] | None = None,
+    words: tuple[tuple[str, bool], ...] = (),
 ) -> None:
-    """種別と制定年月日の範囲を設定する。
+    """種別・制定年月日の範囲・件名のキーワードを設定する。
 
     span は MONTH_SLOTS の添字 [lo, hi]。days を渡すと、単月の中を
     さらに日で絞る。合併の月に例規がまとめて制定されている自治体では、
     単月まで割っても上限に届かない（飛騨市の平成16年2月など）。
+
+    words は (語, 除外するか) の並び。単日かつ種別を細かくしても上限に
+    張り付く区間を、件名にその語を「含む」側と「含まない」側へ分ける。
+    2 つ合わせれば元の区間と過不足なく一致するので、取りこぼしが出ない。
     """
-    payload: dict = {"kindId": kind_id or None, "from": None, "to": None}
+    payload: dict = {
+        "kindId": kind_id or None,
+        "from": None,
+        "to": None,
+        "words": [[word, bool(negate)] for word, negate in words],
+    }
     if span is not None:
         head, tail = MONTH_SLOTS[span[0]], MONTH_SLOTS[span[1]]
         first_day, last_day = head.first_day, tail.last_day
@@ -293,6 +324,53 @@ def slot_day_count(span: tuple[int, int] | None) -> int:
         return 0
     first, last = slot_day_range(span)
     return max(0, last - first + 1)
+
+
+# 単日かつ種別を細かくしても上限に張り付く区間を割るための語。
+# 「含む」と「含まない」で元の区間を覆うので、どの語で割っても取りこぼしは
+# 増えない。効くかどうかだけの問題なので、件名によく出る語を並べておき、
+# 実際に二つに分かれた語を選ぶ（分かれない語で枠を使うと、5 枠を空振りで
+# 使い切ってしまう）。種別で既に絞っているので「条例」「規則」は入れない。
+TITLE_SPLIT_WORDS = (
+    "の",
+    "に関する",
+    "等",
+    "会",
+    "職員",
+    "管理",
+    "設置",
+    "基金",
+    "手数料",
+    "特別",
+)
+# 詳細検索のキーワード欄は searchWord-A〜E の 5 つ。AND でつなぐので、
+# 5 段まで割れる（1 区間あたり最大 32 分割）。
+MAX_TITLE_SPLIT_DEPTH = 5
+# 分割語を選ぶために試す回数。1 回ごとに検索が 1 度増えるので、
+# 上限に張り付いた区間だけで使う。
+MAX_TITLE_SPLIT_PROBES = 4
+
+
+def title_split_candidates(words: tuple[tuple[str, bool], ...]) -> list[str]:
+    """まだ使っていない分割語を、試す順に返す。使い切ったら空。"""
+    if len(words) >= MAX_TITLE_SPLIT_DEPTH:
+        return []
+    used = {word for word, _negate in words}
+    return [word for word in TITLE_SPLIT_WORDS if word not in used]
+
+
+def next_title_split_word(words: tuple[tuple[str, bool], ...]) -> str:
+    """まだ使っていない分割語を返す。使い切ったら空文字。"""
+    candidates = title_split_candidates(words)
+    return candidates[0] if candidates else ""
+
+
+def words_label(words: tuple[tuple[str, bool], ...]) -> str:
+    if not words:
+        return ""
+    return " 件名" + "".join(
+        f"[{'除く' if negate else ''}{word}]" for word, negate in words
+    )
 
 
 def span_label(span: tuple[int, int] | None, days: tuple[int, int] | None = None) -> str:
@@ -472,19 +550,24 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             total: int,
             walked: int,
             days: tuple[int, int] | None = None,
+            words: tuple[tuple[str, bool], ...] = (),
         ) -> None:
             # 取得元が言った件数と、実際に歩いた行数がずれていたら取り落としている。
             coverage_leaves.append(
                 {
                     "kind": kind["text"],
-                    "span": span_label(span, days),
+                    "span": span_label(span, days) + words_label(words),
                     "total": total,
                     "walked": walked,
                 }
             )
             if walked < total:
                 note_unresolved(
-                    kind, span, f"{total}件のうち{walked}件しか辿れなかった", days=days
+                    kind,
+                    span,
+                    f"{total}件のうち{walked}件しか辿れなかった",
+                    days=days,
+                    words=words,
                 )
 
         def note_unresolved(
@@ -492,9 +575,14 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             span: tuple[int, int] | None,
             reason: str,
             days: tuple[int, int] | None = None,
+            words: tuple[tuple[str, bool], ...] = (),
         ) -> None:
             coverage_unresolved.append(
-                {"kind": kind["text"], "span": span_label(span, days), "reason": reason}
+                {
+                    "kind": kind["text"],
+                    "span": span_label(span, days) + words_label(words),
+                    "reason": reason,
+                }
             )
 
         empty_body_reports = 0
@@ -545,6 +633,7 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             kind: dict,
             span: tuple[int, int] | None,
             days: tuple[int, int] | None,
+            words: tuple[tuple[str, bool], ...] = (),
         ) -> str | None:
             """条件を設定して検索を 1 回実行する。
 
@@ -555,10 +644,10 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             for attempt in range(SEARCH_RECOVERY_ATTEMPTS + 1):
                 try:
                     reopen_detail(page, timeout_ms)
-                    apply_filters(page, kind["id"], span, days)
+                    apply_filters(page, kind["id"], span, days, words)
                     return run_search(page, timeout_ms)
                 except PlaywrightTimeoutError:
-                    label = f"{kind['text']} {span_label(span, days)}"
+                    label = f"{kind['text']} {span_label(span, days)}{words_label(words)}"
                     if attempt >= SEARCH_RECOVERY_ATTEMPTS:
                         print(f"[WARN] {label}: 画面操作がタイムアウトしたので諦めます", flush=True)
                         return None
@@ -686,34 +775,67 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                 page.wait_for_timeout(400)
             return emit_total - start_total, walked
 
+        def choose_split_word(
+            kind: dict,
+            span: tuple[int, int] | None,
+            days: tuple[int, int] | None,
+            words: tuple[tuple[str, bool], ...],
+            total: int,
+        ) -> str:
+            """この区間を実際に二つに分ける語を選ぶ。
+
+            件名の欄は 5 つしかない。分かれない語で枠を使うと、空振りのまま
+            枠を使い切って結局取り切れない。先に「含む」側の件数を見て、
+            0 でも全部でもない語を採る。全部空振りなら先頭の語を返し、
+            次の段でさらに割らせる。
+            """
+            candidates = title_split_candidates(words)
+            for candidate in candidates[:MAX_TITLE_SPLIT_PROBES]:
+                if stopped:
+                    break
+                outcome = search_with_recovery(
+                    kind, span, days, words + ((candidate, False),)
+                )
+                if outcome != SEARCH_OK:
+                    continue
+                inside = read_result_total(page)
+                if 0 < inside < total:
+                    return candidate
+            return candidates[0] if candidates else ""
+
         def collect(
             kind: dict,
             span: tuple[int, int] | None,
             depth: int,
             days: tuple[int, int] | None = None,
+            words: tuple[tuple[str, bool], ...] = (),
         ) -> None:
-            """種別 × 制定年月日で検索し、上限に張り付くなら期間を二分してやり直す。
+            """種別 × 制定年月日 × 件名で検索し、上限に張り付くなら割ってやり直す。
 
+            割る順序は 期間 → 日 → 種別の第2階層 → 件名のキーワード。
             単月まで割ってもまだ上限なら、その月の中を日で割る。合併の月に
             例規がまとめて制定されている自治体（飛騨市の平成16年2月など）は、
-            月単位では割り切れない。
+            月単位では割り切れない。単日かつ種別も細かくできないときは、
+            件名にその語を「含む」側と「含まない」側へ分ける。2 つ合わせれば
+            元の区間と一致するので、取りこぼしを増やさずに上限を越えられる。
             """
             if stopped:
                 return
-            outcome = search_with_recovery(kind, span, days)
+            label = f"{kind['text']} {span_label(span, days)}{words_label(words)}"
+            outcome = search_with_recovery(kind, span, days, words)
             if outcome == SEARCH_STALE:
                 # 一時的な遅れのことが多いので、まず同じ条件で 1 度だけやり直す。
                 # 期間指定なしの検索は、制定年月日を持たない例規を拾う保険なので、
                 # ここで諦めると分割してもその分を取り戻せない。
-                outcome = search_with_recovery(kind, span, days)
-            if outcome == SEARCH_EMPTY and span is None and kind["id"]:
+                outcome = search_with_recovery(kind, span, days, words)
+            if outcome == SEARCH_EMPTY and span is None and kind["id"] and not words:
                 # 種別を選んだだけで 0 件は珍しい。読み違いなら 1 度のやり直しで戻る。
                 # 黙って通すと、その種別の例規が一覧から丸ごと消える。
-                outcome = search_with_recovery(kind, span, days)
+                outcome = search_with_recovery(kind, span, days, words)
                 if outcome == SEARCH_EMPTY:
                     print(f"[INFO] {kind['text']} 全期間: 0件", flush=True)
             if outcome is None:
-                note_unresolved(kind, span, "画面操作がタイムアウトした", days=days)
+                note_unresolved(kind, span, "画面操作がタイムアウトした", days=days, words=words)
                 return
             nonlocal stale_searches
             if outcome == SEARCH_STALE:
@@ -728,24 +850,22 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                 stale_searches = 0
             if outcome == SEARCH_REJECTED:
                 # 検索が実行されていないので、この区間は取り切れていない。
-                note_unresolved(kind, span, "検索条件を弾かれた")
+                note_unresolved(kind, span, "検索条件を弾かれた", days=days, words=words)
                 return
             if outcome == SEARCH_EMPTY:
                 return
             if outcome == SEARCH_STALE:
                 # 件数を信用できないので、取り込まずに期間を割って確かめ直す。
                 if span is not None and span[0] >= span[1]:
-                    print(
-                        f"[WARN] {kind['text']} {span_label(span)}: "
-                        "検索結果を確認できませんでした",
-                        flush=True,
+                    print(f"[WARN] {label}: 検索結果を確認できませんでした", flush=True)
+                    note_unresolved(
+                        kind, span, "検索結果を確認できなかった", days=days, words=words
                     )
-                    note_unresolved(kind, span, "検索結果を確認できなかった")
                     return
                 lo, hi = (0, len(MONTH_SLOTS) - 1) if span is None else span
                 mid = (lo + hi) // 2
-                collect(kind, (lo, mid), depth + 1)
-                collect(kind, (mid + 1, hi), depth + 1)
+                collect(kind, (lo, mid), depth + 1, words=words)
+                collect(kind, (mid + 1, hi), depth + 1, words=words)
                 return
             total = read_result_total(page)
             if total <= 0:
@@ -753,7 +873,7 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             capped = cap > 0 and total >= cap
             single_month = span is not None and span[0] >= span[1]
             single_day = days is not None and days[0] >= days[1]
-            # これ以上割れないのは、単月かつ単日まで来たとき。
+            # 期間ではこれ以上割れないのは、単月かつ単日まで来たとき。
             indivisible = single_month and (days is None or single_day) and (
                 days is not None or slot_day_count(span) <= 1
             )
@@ -762,8 +882,7 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                 # 日でも割り切れないが、種別をもう一段細かくできる。
                 # 合併の日にまとめて制定された例規はここで分かれる。
                 print(
-                    f"[INFO] {kind['text']} {span_label(span, days)}: "
-                    f"日で割り切れないので種別を{len(children)}件に分けます",
+                    f"[INFO] {label}: 日で割り切れないので種別を{len(children)}件に分けます",
                     flush=True,
                 )
                 for child in children:
@@ -775,37 +894,51 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                         span,
                         depth + 1,
                         days,
+                        words,
                     )
                 return
-            if capped and indivisible:
-                note_unresolved(
-                    kind, span, f"単日でも上限{cap}件", days=days
+            split_word = (
+                choose_split_word(kind, span, days, words, total)
+                if capped and indivisible
+                else ""
+            )
+            if split_word:
+                # 期間でも種別でも割れない。件名で「含む」「含まない」に分ける。
+                # 取り込みはそれぞれの側で行う。ここで取り込むと、割った先と
+                # 二重に歩くことになる（重複自体は stem で落ちるが時間を捨てる）。
+                print(
+                    f"[INFO] {label}: 日でも種別でも割り切れないので"
+                    f"件名『{split_word}』の有無で分けます",
+                    flush=True,
                 )
+                collect(kind, span, depth + 1, days, words + ((split_word, False),))
+                collect(kind, span, depth + 1, days, words + ((split_word, True),))
+                return
+            if capped and indivisible:
+                note_unresolved(kind, span, f"単日でも上限{cap}件", days=days, words=words)
             # 上限に張り付いた中間ノードは、どうせ二分するので本文取得は省く。
             # ただし期間指定なしの初回だけは、制定年月日が無い例規を拾う保険として取り込む。
             if not capped or indivisible:
-                got, walked = harvest_pages(f"{kind['text']} {span_label(span, days)}")
+                got, walked = harvest_pages(label)
                 if not capped:
                     # 上限に当たっていない区間だけが「取り切れた」と言える。
-                    note_leaf(kind, span, total, walked, days=days)
+                    note_leaf(kind, span, total, walked, days=days, words=words)
                 print(
-                    f"[INFO] {kind['text']} {span_label(span, days)}: 総数{total}件 → 新規{got}件"
+                    f"[INFO] {label}: 総数{total}件 → 新規{got}件"
                     f"（累計 {emit_total}件）",
                     flush=True,
                 )
             else:
                 # 見張りが無出力を故障とみなすので、分割の途中も必ず知らせる。
                 print(
-                    f"[INFO] {kind['text']} {span_label(span, days)}: "
-                    f"上限{cap}件に達したので期間を二分します",
+                    f"[INFO] {label}: 上限{cap}件に達したので期間を二分します",
                     flush=True,
                 )
             if not capped:
                 return
             if indivisible:
                 print(
-                    f"[WARN] {kind['text']} {span_label(span, days)}: "
-                    f"単日でも上限{cap}件に達しており取り切れません。",
+                    f"[WARN] {label}: 件名で割っても上限{cap}件に達しており取り切れません。",
                     flush=True,
                 )
                 return
@@ -813,13 +946,13 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                 # 月の中を日で割る。合併の月はここでしか割れない。
                 lo_day, hi_day = days if days is not None else slot_day_range(span)
                 mid_day = (lo_day + hi_day) // 2
-                collect(kind, span, depth + 1, (lo_day, mid_day))
-                collect(kind, span, depth + 1, (mid_day + 1, hi_day))
+                collect(kind, span, depth + 1, (lo_day, mid_day), words)
+                collect(kind, span, depth + 1, (mid_day + 1, hi_day), words)
                 return
             lo, hi = (0, len(MONTH_SLOTS) - 1) if span is None else span
             mid = (lo + hi) // 2
-            collect(kind, (lo, mid), depth + 1)
-            collect(kind, (mid + 1, hi), depth + 1)
+            collect(kind, (lo, mid), depth + 1, words=words)
+            collect(kind, (mid + 1, hi), depth + 1, words=words)
 
         total0 = read_result_total(page)
         cap = detect_cap(page, total0)

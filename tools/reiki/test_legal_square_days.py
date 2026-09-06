@@ -58,3 +58,31 @@ class DaySplitTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TitleSplitWordTest(unittest.TestCase):
+    """単日でも上限に張り付く区間を、件名の語で分けられるようにする。"""
+
+    def test_candidates_shrink_as_words_are_used(self) -> None:
+        first = legal_square.title_split_candidates(())
+        self.assertEqual(first[0], "の")
+        used = (("の", True),)
+        self.assertNotIn("の", legal_square.title_split_candidates(used))
+
+    def test_stops_at_the_number_of_keyword_fields(self) -> None:
+        # 詳細検索の件名欄は 5 つしかない。それ以上は AND でつなげない。
+        words = tuple((word, False) for word in legal_square.TITLE_SPLIT_WORDS[:5])
+        self.assertEqual(legal_square.title_split_candidates(words), [])
+        self.assertEqual(legal_square.next_title_split_word(words), "")
+
+    def test_kind_words_are_not_candidates(self) -> None:
+        # 種別で既に絞っているので、同じ語で割っても分かれない。
+        self.assertNotIn("条例", legal_square.TITLE_SPLIT_WORDS)
+        self.assertNotIn("規則", legal_square.TITLE_SPLIT_WORDS)
+
+    def test_label_shows_both_sides(self) -> None:
+        self.assertEqual(legal_square.words_label(()), "")
+        self.assertEqual(
+            legal_square.words_label((("の", False), ("市", True))),
+            " 件名[の][除く市]",
+        )

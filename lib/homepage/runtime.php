@@ -853,27 +853,47 @@ function homepage_reiki_acquisition_status(
             $unresolved = is_array($coverage['unresolved'] ?? null)
                 ? count($coverage['unresolved'])
                 : 0;
+            $missingAtSource = max(0, (int)($coverage['missing_at_source'] ?? 0));
+            $shareExceeded = !empty($coverage['missing_share_exceeded']);
+            if ($shareExceeded && $missingAtSource > 0) {
+                $detail = '目録に載っている本文のうち ' . $missingAtSource
+                    . ' 件が取得元から消えています。取得元が入れ替わった可能性があります。';
+            } elseif ($rewalking) {
+                $detail = '取得元を確認し直している途中です。';
+            } elseif ($unresolved > 0) {
+                $detail = '取得元の上限に阻まれて取り切れていない区間が ' . $unresolved . ' 件あります。';
+            } else {
+                $detail = '取得元の全件を取り切れた記録がありません。';
+            }
             return [
                 'state' => 'coverage_incomplete',
                 'label' => '検索可（一部未取得）',
-                'detail' => $rewalking
-                    ? '取得元を確認し直している途中です。'
-                    : ($unresolved > 0
-                        ? '取得元の上限に阻まれて取り切れていない区間が ' . $unresolved . ' 件あります。'
-                        : '取得元の全件を取り切れた記録がありません。'),
+                'detail' => $detail,
                 'source_coverage' => $coverage,
             ];
         }
     }
+    // 取り切れてはいるが、取得元が本文を出さなくなった例規がある。
+    // 失敗ではないので状態は下げないが、黙って消すと件数の差が説明できない。
+    $missingAtSource = is_array($coverage)
+        ? max(0, (int)($coverage['missing_at_source'] ?? 0))
+        : 0;
+    $availabilityNote = homepage_search_availability_note(
+        $storedCount,
+        $indexedCount,
+        HOMEPAGE_REIKI_INDEX_EXCLUSION_REASON
+    );
+    if ($missingAtSource > 0) {
+        $availabilityNote = trim(
+            $availabilityNote . ' 目録に載っている ' . $missingAtSource
+            . ' 件は取得元が本文を公開していません。'
+        );
+    }
     return [
         'state' => '',
         'label' => '',
-        'detail' => homepage_search_availability_note(
-            $storedCount,
-            $indexedCount,
-            HOMEPAGE_REIKI_INDEX_EXCLUSION_REASON
-        ),
-        'source_coverage' => null,
+        'detail' => $availabilityNote,
+        'source_coverage' => $missingAtSource > 0 ? $coverage : null,
     ];
 }
 
@@ -1814,6 +1834,27 @@ function homepage_feature_search_coverage(string $featureKey, string $slug): ?ar
         'to' => $to,
         'document_count' => max(0, (int)($coverage['document_count'] ?? 0)),
     ];
+}
+
+// 「最新日付」を、検索できる範囲の終わりより古く見せない。
+//
+// 鮮度は scrape_state.json の plan_summary から取る。あれは**その実行が
+// 計画した分**の最大日なので、途中でエラーになって古い年しか計画しな
+// かった実行があると、実際に持っている文書より古い日付が残る。
+// 仙台市は 2026-02-17 の会議録を検索できるのに 1991-01-14 と出ていた。
+function homepage_display_with_search_coverage(array $display, ?array $searchCoverage): array
+{
+    $to = is_array($searchCoverage) ? trim((string)($searchCoverage['to'] ?? '')) : '';
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) !== 1) {
+        return $display;
+    }
+    $current = trim((string)($display['freshness_date'] ?? ''));
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $current) === 1 && $current >= $to) {
+        return $display;
+    }
+    $display['freshness_date'] = $to;
+    $display['freshness_basis'] = 'latest_document';
+    return $display;
 }
 
 function homepage_feature_card_display(
@@ -3602,6 +3643,11 @@ function homepage_build_api_payload(bool $includeRegistryStates = false): array
             $featureHasWarning = (bool)($item['has_warning'] ?? false);
             $cardHasError = $cardHasError || $featureHasError;
             $cardHasWarning = $cardHasWarning || $featureHasWarning;
+            $searchCoverage = homepage_feature_search_coverage(
+                $featureKey,
+                (string)($card['slug'] ?? '')
+            );
+            $display = homepage_display_with_search_coverage($display, $searchCoverage);
             $features[] = [
                 'feature_key' => $featureKey,
                 'label' => (string)($item['label'] ?? ''),
@@ -3614,10 +3660,7 @@ function homepage_build_api_payload(bool $includeRegistryStates = false): array
                 'mode' => (string)($item['mode'] ?? 'disabled'),
                 'url' => (string)($feature['url'] ?? ''),
                 'display' => $display,
-                'search_coverage' => homepage_feature_search_coverage(
-                    $featureKey,
-                    (string)($card['slug'] ?? '')
-                ),
+                'search_coverage' => $searchCoverage,
                 'acquisition_state' => (string)($item['acquisition_state'] ?? ''),
                 'acquisition_label' => (string)($item['acquisition_label'] ?? ''),
                 'acquisition_detail' => (string)($item['acquisition_detail'] ?? ''),
@@ -4031,6 +4074,26 @@ function homepage_rebuild_status_api_payload_cache(): array
     return $payload;
 }
 
+// 実行状況の数字は task-status.php と同じ出どころにそろえる。
+//
+// 収集状況ページは、最初の描画に status-summary.php、60 秒ごとの更新に
+// task-status.php を使う。前者はカタログを組み立てたときの控えを返し、
+// 後者は実行時の状態から数え直すので、同じ時刻でも数字が違っていた
+// （会議録の取得完了が 1444 と 1308、索引の検索可が 1500/1501 と
+// 1307/1308）。更新のたびに数字が戻って見えるので、読み出しの側で
+// 実行時の状態に差し替える。
+function homepage_status_api_payload_with_live_tasks(array $payload): array
+{
+    $taskPayload = homepage_build_task_status_payload_cached();
+    if (is_array($taskPayload['task_state_summaries'] ?? null)) {
+        $payload['task_state_summaries'] = $taskPayload['task_state_summaries'];
+    }
+    if (is_array($taskPayload['running_tasks'] ?? null)) {
+        $payload['running_tasks'] = $taskPayload['running_tasks'];
+    }
+    return $payload;
+}
+
 function homepage_build_status_api_payload_cached(int $ttlSeconds = 60): array
 {
     $cached = read_json_cache_file(homepage_status_api_cache_path(), $ttlSeconds);
@@ -4038,7 +4101,7 @@ function homepage_build_status_api_payload_cached(int $ttlSeconds = 60): array
         if (!headers_sent()) {
             header('X-Status-Cache: hit');
         }
-        return $cached;
+        return homepage_status_api_payload_with_live_tasks($cached);
     }
 
     $staleCached = read_json_cache_file(homepage_status_api_cache_path(), 0);
@@ -4047,14 +4110,14 @@ function homepage_build_status_api_payload_cached(int $ttlSeconds = 60): array
         if (!headers_sent()) {
             header('X-Status-Cache: stale');
         }
-        return $staleCached;
+        return homepage_status_api_payload_with_live_tasks($staleCached);
     }
 
     $payload = homepage_rebuild_status_api_payload_cache();
     if (!headers_sent()) {
         header('X-Status-Cache: miss');
     }
-    return $payload;
+    return homepage_status_api_payload_with_live_tasks($payload);
 }
 
 function homepage_schedule_status_api_payload_cache_refresh(): void

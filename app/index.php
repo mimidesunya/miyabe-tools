@@ -68,9 +68,14 @@ function home_h(?string $value): string
                 <div class="search-ribbon-control">
                     <span aria-hidden="true">⌕</span>
                     <label class="visually-hidden" for="home-record-search">自治体名・資料の言葉から探す</label>
-                    <input id="home-record-search" name="q" type="search" enterkeyhint="search" autocomplete="off" placeholder="例：川崎市　盛土　メガソーラー">
+                    <input id="home-record-search" name="q" type="search" enterkeyhint="search" autocomplete="off" placeholder="例：熱海市　盛土　メガソーラー" aria-describedby="home-record-search-hint">
                     <button type="submit">検索</button>
                 </div>
+                <p id="home-record-search-hint" class="search-ribbon-hint">
+                    空白で区切った語をすべて含む資料を探します。自治体名も本文中の語として探します。
+                    <code>"引用符"</code>で語句の完全一致、<code>OR</code>・<code>NOT</code>・<code>( )</code>も使えます。
+                    都道府県・自治体・期間の絞り込みは結果ページで行えます。
+                </p>
                 <div class="search-ribbon-scope">
                     <span id="home-doc-type-label">探す資料</span>
                     <div class="search-scope-options" role="radiogroup" aria-labelledby="home-doc-type-label">

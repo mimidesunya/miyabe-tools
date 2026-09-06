@@ -76,8 +76,63 @@ def load_municipality_homepage_index() -> dict[str, str]:
     return index
 
 
+def source_url_overrides_path() -> Path:
+    """巡回中に引き直した取得元 URL の置き場所。
+
+    登録簿の TSV は git 管理なので実行時には書き換えない。書き換えを
+    ここへ逃がし、対象を読むときだけ差し替える。書くのは
+    tools/reiki/source_url_recovery.py。
+    """
+    return WORK_ROOT / "reiki" / "source_url_overrides.json"
+
+
+def load_source_url_overrides() -> dict[str, dict[str, str]]:
+    path = source_url_overrides_path()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except Exception:
+        # 壊れた上書きで巡回全体を止めない。TSV の値をそのまま使う。
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    overrides: dict[str, dict[str, str]] = {}
+    for code, entry in payload.items():
+        if not isinstance(entry, dict):
+            continue
+        url = str(entry.get("url", "")).strip()
+        if url == "":
+            continue
+        overrides[str(code).strip()] = {
+            "url": url,
+            "replaces": str(entry.get("replaces", "")).strip(),
+        }
+    return overrides
+
+
+def apply_source_url_override(
+    code: str,
+    url: str,
+    overrides: dict[str, dict[str, str]],
+) -> str:
+    """失効した URL を、引き直し済みの URL へ差し替える。
+
+    上書きは「置き換える前の URL」を覚えている。TSV が人手で直って値が
+    変わったら、その上書きはもう古いので使わない。
+    """
+    override = overrides.get(str(code).strip())
+    if not override:
+        return url
+    replaces = str(override.get("replaces", "")).strip()
+    if replaces != "" and replaces != url:
+        return url
+    return str(override.get("url", "")).strip() or url
+
+
 def load_local_reiki_url_index() -> dict[str, dict[str, str]]:
     index: dict[str, dict[str, str]] = {}
+    overrides = load_source_url_overrides()
     path = DATA_ROOT / "municipalities" / "reiki_system_urls.tsv"
     with open(path, "r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
@@ -88,7 +143,11 @@ def load_local_reiki_url_index() -> dict[str, dict[str, str]]:
             if code == "":
                 continue
             index[code] = {
-                "url": str(row.get("url", "")).strip(),
+                "url": apply_source_url_override(
+                    code,
+                    str(row.get("url", "")).strip(),
+                    overrides,
+                ),
                 "system_type": str(row.get("system_type", "")).strip(),
                 "crawl_status": str(row.get("crawl_status", "")).strip(),
                 "exclusion_reason": str(row.get("exclusion_reason", "")).strip(),
