@@ -79,6 +79,11 @@ def build_scraping_compose(
         "CELERY_REIKI_SCHEDULE_SECONDS": str(reiki_loop_seconds),
         "SCRAPER_INCOMPLETE_SCHEDULE_SECONDS": "600",
         "SCRAPER_FAIL_SLEEP_SECONDS": str(fail_sleep_seconds),
+        # OCR ツール（NDLOCR-Lite）の場所。`.` を /workspace へ mount して
+        # いるので、サーバーの vendor/ndlocr-lite がそのまま見える。
+        # 掃き取りは maintenance キュー（index worker）で動くので、
+        # 取得 worker だけでなく全部に渡す。
+        "MIYABE_NDLOCR_DIR": "/workspace/vendor/ndlocr-lite",
         "SCRAPER_PYTHON_COMMAND": "python3",
         "SCRAPER_PHP_COMMAND": "php",
         "OPENSEARCH_URL": "${OPENSEARCH_URL:-http://host.docker.internal:9200}",

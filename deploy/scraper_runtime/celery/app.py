@@ -62,6 +62,13 @@ COVERAGE_LEDGER_SECONDS = celery_runtime.env_int(
     12 * 60 * 60,
     minimum=600,
 )
+# 文字情報のない PDF の OCR。1 自治体に数十分かかることがあるので、
+# 間隔を空けて少数ずつ進める。放っておけば全件をひと回りする。
+PDF_OCR_SECONDS = celery_runtime.env_int(
+    "CELERY_PDF_OCR_SECONDS",
+    3 * 60 * 60,
+    minimum=600,
+)
 # 取得元の探索。1 自治体あたり十数ページ開くので、間隔を空けて少しずつ回す。
 SOURCE_DISCOVERY_SECONDS = celery_runtime.env_int(
     "CELERY_SOURCE_DISCOVERY_SECONDS",
@@ -159,6 +166,16 @@ app.conf.update(
             "options": {
                 "queue": "maintenance",
                 "expires": max(5, EMPTY_BODY_SWEEP_SECONDS - 5),
+            },
+        },
+        # 文字情報のない PDF を OCR で本文にする。OCR が無い間は、何周回しても
+        # 同じように除外され続ける。取得の周期には混ぜず、ここで少しずつ進める。
+        "sweep-pdf-ocr": {
+            "task": "deploy.scraper_runtime.celery.tasks.sweep_pdf_ocr",
+            "schedule": float(PDF_OCR_SECONDS),
+            "options": {
+                "queue": "maintenance",
+                "expires": max(5, PDF_OCR_SECONDS - 5),
             },
         },
         # 取得元 URL が空の自治体を探索して埋める。埋まらない限り巡回の

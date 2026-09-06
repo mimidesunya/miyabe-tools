@@ -29,6 +29,7 @@ MODULE_DIR = SCRAPER_DIR.parent
 sys.path.append(str(MODULE_DIR))
 sys.path.append(str(SCRAPER_DIR))
 import gijiroku_planning
+import pdf_ocr
 import gijiroku_storage
 import gijiroku_targets
 
@@ -620,6 +621,37 @@ def normalize_pdf_text(value: str) -> str:
     return text.strip()
 
 
+def ocr_pdf_when_enabled(pdf_path: Path) -> tuple[str, str]:
+    """文字情報の無い PDF を OCR する。無効なら何もしない。
+
+    返すのは (本文, 理由)。無効・未導入・失敗のときは本文が空になる。
+    同じ PDF を毎周回 OCR し直さないよう、試した回数を自治体ごとに残す。
+    """
+    if not pdf_ocr.is_enabled():
+        return "", ""
+    source = Path(pdf_path)
+    if not source.is_file():
+        return "", ""
+    # work/gijiroku/<slug>/pdfs/<年>/<ファイル>.pdf の <slug> ディレクトリ。
+    try:
+        work_dir = source.parents[2]
+    except IndexError:
+        return "", ""
+    key = source.name
+    digest = pdf_ocr.file_digest(source)
+    if not pdf_ocr.should_try(work_dir, key, digest):
+        return "", ""
+
+    body, reason = pdf_ocr.ocr_pdf_text(source)
+    if body:
+        pdf_ocr.record_attempt(work_dir, key, digest, status="ok")
+        print(f"[INFO] OCR で本文にしました（{len(body)}字）: {source.name}", flush=True)
+        return normalize_pdf_text(body), ""
+    pdf_ocr.record_attempt(work_dir, key, digest, status="failed", reason=reason)
+    print(f"[WARN] OCR でも本文になりませんでした（{reason}）: {source.name}", flush=True)
+    return "", reason
+
+
 def process_pdf_meeting_plan(
     session,
     plan: dict,
@@ -693,13 +725,19 @@ def process_pdf_meeting_plan(
             "error": str(exc),
         }
     if not extracted:
-        return {
-            "status": "empty_pdf_text",
-            "output_path": "",
-            "item": item,
-            "reason": None,
-            "downloaded": downloaded,
-        }
+        # 紙をスキャンしただけで文字情報を持たない PDF がある。OCR が無いと
+        # 何周回しても同じように除外される（2026-09-06 時点で 3,860 件）。
+        # 通常の巡回では動かさない。1 件に数十秒かかるので、混ぜると一巡が
+        # 数日延びる。専用の掃き取りが環境変数で有効にして呼ぶ。
+        extracted, ocr_reason = ocr_pdf_when_enabled(pdf_path)
+        if not extracted:
+            return {
+                "status": "empty_pdf_text",
+                "output_path": "",
+                "item": item,
+                "reason": ocr_reason or None,
+                "downloaded": downloaded,
+            }
     result = gijiroku_planning.persist_adopted_minutes(
         plan,
         extracted,

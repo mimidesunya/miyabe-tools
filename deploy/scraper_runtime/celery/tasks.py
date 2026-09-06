@@ -677,6 +677,22 @@ def _run_index_update_task(task, kind: str, slug: str) -> None:
     index_enqueue.release(app, task_name, slug)
 
 
+# 文字情報のない PDF を OCR で本文にする。
+#
+# 紙をスキャンしただけの PDF は本文を取り出せず、除外されたまま毎周回
+# 同じ結果になる（2026-09-06 時点で 144 自治体・3,860 件）。OCR は 1 件に
+# 数十秒かかるので取得の周期には混ぜず、ここから少しずつ進める。
+# OCR で本文になった会議は次から既存扱いになり、毎周回の再取得も止まる。
+@app.task(name="deploy.scraper_runtime.celery.tasks.sweep_pdf_ocr")
+def sweep_pdf_ocr(limit: int = 0) -> dict[str, object]:
+    from tools.tasks import ocr_backfill
+
+    try:
+        return ocr_backfill.run(limit=int(limit or 0) or ocr_backfill.DEFAULT_LIMIT)
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 # 取得元 URL が空の自治体を、少しずつ探索して埋める。
 #
 # 登録簿に URL が無い自治体は巡回のキューに載らない。載らないので、

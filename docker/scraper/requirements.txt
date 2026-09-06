@@ -8,3 +8,11 @@ sudachipy>=0.6
 sudachidict_core
 celery[redis]>=5.4,<6
 psycopg[binary]>=3.2,<4
+# 文字情報のない PDF を OCR する（NDLOCR-Lite）。GPU は要らない。
+# モデルは vendor/ndlocr-lite に同梱のものを使うので、実行時の取得は無い。
+onnxruntime>=1.20
+opencv-python-headless>=4.10
+pypdfium2>=4.30
+numpy>=2.0
+lxml>=5.0
+reportlab>=4.0

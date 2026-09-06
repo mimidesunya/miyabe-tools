@@ -9,6 +9,8 @@ RUN apt-get update \
         php-mbstring \
         php-xml \
         php-sqlite3 \
+        libgl1 \
+        libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY docker/scraper/requirements.txt /tmp/scraper-requirements.txt

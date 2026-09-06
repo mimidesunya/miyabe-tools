@@ -15,3 +15,4 @@ tmp_*
 node_modules
 docker/mcp/dist
 *.sqlite
+vendor

@@ -64,6 +64,34 @@ python tools/gijiroku/scrape_all_minutes.py --list-excluded
 ディレクトリから年を読む。ここを読まないと年が「不明」のままになり、
 並び順も鮮度も出せない。
 
+### 文字情報のない PDF（OCR）
+
+紙をスキャンしただけで文字情報を持たない PDF がある。`extract_pdf_text` は
+空文字を返し、その会議は `empty_pdf_text` として除外される。2026-09-06 時点で
+144 自治体・3,860 件。OCR が無い限り、何周回しても同じように除外される。
+
+使うのは国立国会図書館の **NDLOCR-Lite**（CC BY 4.0）。GPU を必要とせず、
+モデル（ONNX 4 本・149MB）を同梱しているので、実行時のダウンロードも
+API キーも要らない。実測 0.7 秒/ページ。
+
+- リポジトリには入れない。サーバーの `vendor/ndlocr-lite` へ直接置く
+  （`python deploy/sync_ocr_tool.py deploy.json`）。スクレイパは `.` を
+  `/workspace` へ mount しているので、そのまま見える
+- **通常の巡回では動かさない。** 1 件に数十秒かかるので、取得の周期に混ぜると
+  一巡が数日延びる。`MIYABE_MINUTES_OCR=1` のときだけ働く
+- 進めるのは掃き取り `tools/tasks/ocr_backfill.py`（beat の `sweep-pdf-ocr`、
+  既定 3 時間ごと）。対象の自治体を選び、OCR を有効にして既存のスクレイパを
+  もう一度走らせる。保存も題名の補正も会議録判定も、通常の経路がそのまま効く
+- 取れない PDF を毎周回やり直さないよう、試した回数と元 PDF の指紋を
+  `work/gijiroku/<slug>/ocr_attempts.json` に残す。2 回で打ち切り、
+  取得元が差し替えたら（指紋が変われば）また試す
+- OCR で本文になった会議は次から既存扱いになるので、**毎周回の再取得も止まる**
+
+```powershell
+python tools/tasks/ocr_backfill.py --list        # 待ち行列を見る
+python tools/tasks/ocr_backfill.py --limit 3     # 3 自治体だけ進める
+```
+
 ## OpenSearch 反映
 
 ```bash

@@ -28,3 +28,7 @@ tmp_*.html
 # AIエージェント用ローカルガイド（git管理外）
 AGENTS.md
 CLAUDE.md
+
+# OCR ツール（NDLOCR-Lite）。モデルを含めて 200MB あるので git には入れない。
+# サーバーへは deploy/sync_ocr_tool.py で直接同期する。
+/vendor/
