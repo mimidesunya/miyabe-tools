@@ -677,6 +677,27 @@ def _run_index_update_task(task, kind: str, slug: str) -> None:
     index_enqueue.release(app, task_name, slug)
 
 
+# 取得元 URL が空の自治体を、少しずつ探索して埋める。
+#
+# 登録簿に URL が無い自治体は巡回のキューに載らない。載らないので、
+# 放置しても状態は永久に変わらない。探索そのものは前からあったが、
+# 人が走らせて結果を見てから TSV へ書く前提だった。その人がいないと
+# 埋まらないので、ここから定期的に呼ぶ。確信度の高い結果だけを
+# 実行時の上書きとして記録し、登録簿は書き換えない。
+@app.task(name="deploy.scraper_runtime.celery.tasks.sweep_source_discovery")
+def sweep_source_discovery(limit: int = 0) -> dict[str, object]:
+    from tools.tasks import discover_sources
+
+    batch = int(limit or 0) or discover_sources.DEFAULT_LIMIT
+    results: dict[str, object] = {}
+    for task_name in ("gijiroku", "reiki"):
+        try:
+            results[task_name] = discover_sources.run(task_name, limit=batch)
+        except Exception as exc:
+            results[task_name] = {"error": str(exc)}
+    return results
+
+
 # 待ち行列に残っている自治体を投げ直す。**取得のやり直しを待たない。**
 #
 # celery の retry はメッセージが生きている間しか効かない。worker が強制終了

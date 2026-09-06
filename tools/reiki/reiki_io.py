@@ -12,9 +12,14 @@ import hashlib
 import json
 import os
 import shutil
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+# 縮みの確定規則は取得元の系統によらず同じにしたい。tools 直下に置いて共有する。
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+import shrink_confirmation  # noqa: E402
 
 
 TEXT_ENCODINGS = ("utf-8", "utf-8-sig", "cp932", "shift_jis", "euc_jp")
@@ -257,28 +262,49 @@ def write_manifest_guarded(
         previous_count = 0
 
     # 取り切れた走査でも、大きく減ったなら取得元の不調を疑う。例規の
-    # 2 割超が一度に廃止されることは、まず無い。判断を人に残す。
+    # 2 割超が一度に廃止されることは、まず無い。すぐには置き換えない。
     large_drop = previous_count > 0 and len(manifest) < previous_count * SHRINK_ALLOWANCE
     if previous_count > len(manifest) and (not walk_complete or large_drop):
-        # 候補として別名で残し、正本は動かさない。
-        candidate = logical_path(path).with_suffix(".shrunk.json")
-        try:
-            write_json(candidate, manifest, compress=True)
-        except Exception:
-            pass
-        reason = (
-            f"取り切れた走査だが {round((1 - SHRINK_ALLOWANCE) * 100)}% を超えて減っている"
-            if walk_complete
-            else "走査が取り切れていない"
-        )
+        confirmation: dict = {}
+        # 取り切れた走査で同じ縮み方が日をまたいで再現するなら、一時的な
+        # 不調ではない。待つ人がいないと永久に止まるので、繰り返しの観測を
+        # 人の確認の代わりにする。取り切れていない走査は何度繰り返しても
+        # 「取り切れていない」ことの証明にしかならないので、確定させない。
+        if walk_complete:
+            confirmation = shrink_confirmation.observe(
+                path, shrink_confirmation.manifest_signature(manifest)
+            )
+        if not confirmation.get("confirmed"):
+            # 候補として別名で残し、正本は動かさない。
+            candidate = logical_path(path).with_suffix(".shrunk.json")
+            try:
+                write_json(candidate, manifest, compress=True)
+            except Exception:
+                pass
+            reason = (
+                f"取り切れた走査だが {round((1 - SHRINK_ALLOWANCE) * 100)}% を超えて減っている"
+                if walk_complete
+                else "走査が取り切れていない"
+            )
+            waiting = ""
+            if walk_complete and confirmation:
+                waiting = (
+                    f" 同じ縮み方の観測 {confirmation.get('seen')}/{confirmation.get('required')} 回目。"
+                    "繰り返し再現すれば自動で置き換えます。"
+                )
+            print(
+                f"[WARN] {label or path.name}: 今回の走査は {len(manifest)}件で、"
+                f"前回の {previous_count}件より少ないため上書きしません（{reason}）。"
+                f"今回の分は {candidate.name} に残しました。{waiting}",
+                flush=True,
+            )
+            return {"written": False, "previous": previous_count, "current": len(manifest)}
         print(
-            f"[WARN] {label or path.name}: 今回の走査は {len(manifest)}件で、"
-            f"前回の {previous_count}件より少ないため上書きしません（{reason}）。"
-            f"今回の分は {candidate.name} に残しました。"
-            "正しければ、この候補を正本に置き換えてください。",
+            f"[INFO] {label or path.name}: 同じ縮み方を {confirmation.get('seen')} 回"
+            f"（{confirmation.get('first_seen')} 〜 {confirmation.get('last_seen')}）観測したので、"
+            f"{previous_count}件から {len(manifest)}件への減少を取得元の変更として受け入れます。",
             flush=True,
         )
-        return {"written": False, "previous": previous_count, "current": len(manifest)}
 
     if previous_count > len(manifest):
         print(
@@ -286,6 +312,9 @@ def write_manifest_guarded(
             f" {len(manifest)}件に減りました。取得元から削除されたものとして扱います。",
             flush=True,
         )
+    # 置き換えたら、縮みの観測は用済み。取得元が戻ったときに古い観測が
+    # 残っていると、次の縮みを 1 回目から数え直せない。
+    shrink_confirmation.clear_observation(shrink_confirmation.observation_path(path))
     write_json(path, manifest, compress=True)
     return {"written": True, "previous": previous_count, "current": len(manifest)}
 

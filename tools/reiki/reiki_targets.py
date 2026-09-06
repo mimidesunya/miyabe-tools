@@ -16,6 +16,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from municipality_slugs import code_name_slug, sanitize_slug_token
+import discovered_sources
 
 
 WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
@@ -133,6 +134,9 @@ def apply_source_url_override(
 def load_local_reiki_url_index() -> dict[str, dict[str, str]]:
     index: dict[str, dict[str, str]] = {}
     overrides = load_source_url_overrides()
+    # 登録簿に URL が無い自治体は巡回の対象にならない。探索が見つけた
+    # 取得元をここで重ねる。登録簿に URL があるときは触らない。
+    discovered = discovered_sources.load("reiki")
     path = DATA_ROOT / "municipalities" / "reiki_system_urls.tsv"
     with open(path, "r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
@@ -142,14 +146,22 @@ def load_local_reiki_url_index() -> dict[str, dict[str, str]]:
             code = str(row.get("jis_code", "")).strip()
             if code == "":
                 continue
+            source_url = apply_source_url_override(
+                code,
+                str(row.get("url", "")).strip(),
+                overrides,
+            )
+            system_type = str(row.get("system_type", "")).strip()
+            crawl_status = str(row.get("crawl_status", "")).strip()
+            source_url, system_type, replaced = discovered_sources.apply_to_row(
+                discovered.get(code), source_url, system_type
+            )
+            if replaced:
+                crawl_status = "enabled"
             index[code] = {
-                "url": apply_source_url_override(
-                    code,
-                    str(row.get("url", "")).strip(),
-                    overrides,
-                ),
-                "system_type": str(row.get("system_type", "")).strip(),
-                "crawl_status": str(row.get("crawl_status", "")).strip(),
+                "url": source_url,
+                "system_type": system_type,
+                "crawl_status": crawl_status,
                 "exclusion_reason": str(row.get("exclusion_reason", "")).strip(),
                 "exclusion_detail": str(row.get("exclusion_detail", "")).strip(),
             }

@@ -17,6 +17,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from municipality_slugs import code_name_slug, sanitize_slug_token
+import discovered_sources
 from gijiroku.crawl_policy import policy_fingerprint
 
 
@@ -174,6 +175,10 @@ def effective_crawl_policy(row: dict[str, str]) -> dict[str, str]:
 
 def load_local_minutes_url_index() -> dict[str, dict[str, str]]:
     index: dict[str, dict[str, str]] = {}
+    # 登録簿に URL が無い自治体は巡回のキューに載らない。載らない限り
+    # 状態は変わらないので、探索が見つけた取得元をここで重ねる。
+    # 登録簿に URL があるときは触らない（人が書いた値が優先）。
+    discovered = discovered_sources.load("gijiroku")
     path = DATA_ROOT / "municipalities" / "assembly_minutes_system_urls.tsv"
     with open(path, "r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
@@ -185,6 +190,14 @@ def load_local_minutes_url_index() -> dict[str, dict[str, str]]:
                 continue
             source_url = str(row.get("url", "")).strip()
             system_type = str(row.get("system_type", "")).strip()
+            source_url, system_type, replaced = discovered_sources.apply_to_row(
+                discovered.get(code), source_url, system_type
+            )
+            if replaced:
+                # 探索で埋めた行は取得の対象にする。取得可否を robots で
+                # 決めない方針なので、URL と系統が決まれば止める理由が無い。
+                row = {**row, "url": source_url, "system_type": system_type,
+                       "crawl_status": CRAWL_STATUS_ENABLED}
             policy = effective_crawl_policy(row)
             index[code] = {
                 "url": source_url,

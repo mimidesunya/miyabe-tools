@@ -62,6 +62,12 @@ COVERAGE_LEDGER_SECONDS = celery_runtime.env_int(
     12 * 60 * 60,
     minimum=600,
 )
+# 取得元の探索。1 自治体あたり十数ページ開くので、間隔を空けて少しずつ回す。
+SOURCE_DISCOVERY_SECONDS = celery_runtime.env_int(
+    "CELERY_SOURCE_DISCOVERY_SECONDS",
+    6 * 60 * 60,
+    minimum=600,
+)
 
 app = Celery(
     "miyabe_tools_scraping",
@@ -153,6 +159,17 @@ app.conf.update(
             "options": {
                 "queue": "maintenance",
                 "expires": max(5, EMPTY_BODY_SWEEP_SECONDS - 5),
+            },
+        },
+        # 取得元 URL が空の自治体を探索して埋める。埋まらない限り巡回の
+        # キューに載らないので、放置しても状態が変わらない自治体が残る。
+        # 2026-09-06 の点検では会議録 245・例規集 27 自治体がこの形だった。
+        "sweep-source-discovery": {
+            "task": "deploy.scraper_runtime.celery.tasks.sweep_source_discovery",
+            "schedule": float(SOURCE_DISCOVERY_SECONDS),
+            "options": {
+                "queue": "maintenance",
+                "expires": max(5, SOURCE_DISCOVERY_SECONDS - 5),
             },
         },
         # 公開に 1 件も出ていない自治体を、原因まで分けて数えて書き出す。
