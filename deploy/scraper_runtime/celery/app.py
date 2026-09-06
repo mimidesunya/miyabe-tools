@@ -174,18 +174,29 @@ app.conf.update(
             "task": "deploy.scraper_runtime.celery.tasks.sweep_pdf_ocr",
             "schedule": float(PDF_OCR_SECONDS),
             "options": {
-                "queue": "maintenance",
+                # 会議録の作業領域を mount している worker で動かす。
+                # maintenance は例規側の worker も受けるので、そちらへ
+                # 回ると work/gijiroku が見えず「対象なし」で終わる。
+                "queue": GIJIROKU_INDEX_QUEUE,
                 "expires": max(5, PDF_OCR_SECONDS - 5),
             },
         },
         # 取得元 URL が空の自治体を探索して埋める。埋まらない限り巡回の
         # キューに載らないので、放置しても状態が変わらない自治体が残る。
         # 2026-09-06 の点検では会議録 245・例規集 27 自治体がこの形だった。
-        "sweep-source-discovery": {
-            "task": "deploy.scraper_runtime.celery.tasks.sweep_source_discovery",
+        "sweep-gijiroku-source-discovery": {
+            "task": "deploy.scraper_runtime.celery.tasks.sweep_gijiroku_source_discovery",
             "schedule": float(SOURCE_DISCOVERY_SECONDS),
             "options": {
-                "queue": "maintenance",
+                "queue": GIJIROKU_INDEX_QUEUE,
+                "expires": max(5, SOURCE_DISCOVERY_SECONDS - 5),
+            },
+        },
+        "sweep-reiki-source-discovery": {
+            "task": "deploy.scraper_runtime.celery.tasks.sweep_reiki_source_discovery",
+            "schedule": float(SOURCE_DISCOVERY_SECONDS),
+            "options": {
+                "queue": REIKI_INDEX_QUEUE,
                 "expires": max(5, SOURCE_DISCOVERY_SECONDS - 5),
             },
         },
@@ -212,5 +223,9 @@ app.conf.update(
         "deploy.scraper_runtime.celery.tasks.run_reiki_cycle": {"queue": REIKI_QUEUE},
         "deploy.scraper_runtime.celery.tasks.run_reiki_rebuild": {"queue": REIKI_QUEUE},
         "deploy.scraper_runtime.celery.tasks.run_reiki_index_update": {"queue": REIKI_INDEX_QUEUE},
+        # 掃き取りは作業領域を mount している worker で動かす。
+        "deploy.scraper_runtime.celery.tasks.sweep_pdf_ocr": {"queue": GIJIROKU_INDEX_QUEUE},
+        "deploy.scraper_runtime.celery.tasks.sweep_gijiroku_source_discovery": {"queue": GIJIROKU_INDEX_QUEUE},
+        "deploy.scraper_runtime.celery.tasks.sweep_reiki_source_discovery": {"queue": REIKI_INDEX_QUEUE},
     },
 )

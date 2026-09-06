@@ -700,18 +700,27 @@ def sweep_pdf_ocr(limit: int = 0) -> dict[str, object]:
 # 人が走らせて結果を見てから TSV へ書く前提だった。その人がいないと
 # 埋まらないので、ここから定期的に呼ぶ。確信度の高い結果だけを
 # 実行時の上書きとして記録し、登録簿は書き換えない。
-@app.task(name="deploy.scraper_runtime.celery.tasks.sweep_source_discovery")
-def sweep_source_discovery(limit: int = 0) -> dict[str, object]:
+# 会議録と例規集で別のタスクにする。**作業領域の mount が worker ごとに違う。**
+# 例規の worker には work/gijiroku が無いので、そこで会議録側を回すと
+# 何も見つからないまま「対象なし」で終わる。書き込みも消える。
+def _run_source_discovery(task_name: str, limit: int) -> dict[str, object]:
     from tools.tasks import discover_sources
 
     batch = int(limit or 0) or discover_sources.DEFAULT_LIMIT
-    results: dict[str, object] = {}
-    for task_name in ("gijiroku", "reiki"):
-        try:
-            results[task_name] = discover_sources.run(task_name, limit=batch)
-        except Exception as exc:
-            results[task_name] = {"error": str(exc)}
-    return results
+    try:
+        return discover_sources.run(task_name, limit=batch)
+    except Exception as exc:
+        return {"task": task_name, "error": str(exc)}
+
+
+@app.task(name="deploy.scraper_runtime.celery.tasks.sweep_gijiroku_source_discovery")
+def sweep_gijiroku_source_discovery(limit: int = 0) -> dict[str, object]:
+    return _run_source_discovery("gijiroku", limit)
+
+
+@app.task(name="deploy.scraper_runtime.celery.tasks.sweep_reiki_source_discovery")
+def sweep_reiki_source_discovery(limit: int = 0) -> dict[str, object]:
+    return _run_source_discovery("reiki", limit)
 
 
 # 待ち行列に残っている自治体を投げ直す。**取得のやり直しを待たない。**
