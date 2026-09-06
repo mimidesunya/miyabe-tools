@@ -11,12 +11,44 @@ ChatGPTは契約・管理者設定・段階提供の注意を明記します。C
 会議録・例規集検索は MCP の Streamable HTTP エンドポイントでも公開します。
 PHP 側には MCP SDK を入れず、`docker/mcp` の Node.js サービスが既存の `/api/search` と `/api/document` を内部 HTTP で呼びます。
 
+MCP SDK は TypeScript SDK v2 を使います。単一パッケージだった v1 の `@modelcontextprotocol/sdk` は
+2025-11-25 までしか話せないため、2026-07-28 に対応した v2 の分割パッケージへ移行しました。
+
+- `@modelcontextprotocol/server`: `McpServer` と `createMcpHandler`
+- `@modelcontextprotocol/node`: `toNodeHandler`（Express へ載せる）
+- `@modelcontextprotocol/express`: `createMcpExpressApp`
+- `zod` は 4.2 以上が必須（v2 の要件）。スキーマは `zod/v4` から書く。
+
 ## エンドポイント
 
 - 本番: `https://tools.miya.be/mcp`
 - ローカル: `http://localhost:8301/mcp`
 
 nginx は `/mcp` と `/mcp/` を `mcp:3000/mcp` へ proxy します。MCP サービスは検索ロジックを持たず、OpenSearch への問い合わせは従来どおり PHP の公開 API に集約します。
+
+## プロトコル版
+
+同じ `/mcp` で新旧2つの世代を受けます。クライアント側の設定は必要ありません。
+
+- modern: `2026-07-28`。`initialize` を使わず、`server/discover` で版と機能を返し、各リクエストが `_meta` の版表明と `MCP-Protocol-Version` ヘッダーを持つ。
+- legacy: `2025-11-25` 以前。従来どおり `initialize` で交渉する。
+
+legacy 側は `createMcpHandler` の既定である `legacy: 'stateless'` のままです。移行前と同じく
+リクエストごとにサーバを組み立ててセッションを持たないので、`GET /mcp` と `DELETE /mcp` は
+`405` を返します。
+
+POST の `Content-Type` は `application/json` が必須です。v2 は媒体型を解析して検証するため、
+別の値や未指定は `415` になります（v1 は部分一致で通していました）。
+
+動作確認:
+
+```bash
+# legacy（2025 系のクライアントと同じ入口）
+curl -s -X POST http://localhost:8301/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+
+# modern（2026-07-28）
+curl -s -X POST http://localhost:8301/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'MCP-Protocol-Version: 2026-07-28' -H 'Mcp-Method: server/discover' -d '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"curl","version":"1.0.0"}}}}'
+```
 
 ## ツール
 
@@ -40,3 +72,6 @@ MCP Inspector などから `http://localhost:8301/mcp` に接続します。
 - `MCP_API_TIMEOUT_MS`: `/api/search` と `/api/document` の呼び出しタイムアウト
 - `MCP_ALLOWED_HOSTS`: カンマ区切りで Host ヘッダーを制限します。空なら制限しません
 - `MCP_ALLOWED_ORIGINS`: カンマ区切りでブラウザ Origin を制限します。空なら制限しません
+
+`MCP_ALLOWED_HOSTS` が空のとき、起動時に SDK が DNS リバインディング保護なしの警告を出します。
+公開時は nginx が前段に立ち、Host と Origin の制限は上の2つで行うため、この警告は想定どおりです。

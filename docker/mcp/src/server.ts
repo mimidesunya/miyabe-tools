@@ -1,6 +1,7 @@
-import express, { type Request, type Response, type NextFunction } from "express";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { type Request, type Response, type NextFunction } from "express";
+import { createMcpExpressApp } from "@modelcontextprotocol/express";
+import { toNodeHandler } from "@modelcontextprotocol/node";
+import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
 const apiBaseUrl = (process.env.MIYABE_API_BASE_URL || "http://web").replace(/\/+$/, "");
@@ -280,7 +281,7 @@ function errorResult(error: unknown) {
   };
 }
 
-const searchInputSchema = {
+const searchInputSchema = z.object({
   q: z.string().min(1).describe("検索語。空白区切りはAND検索、引用符で完全一致、OR/NOT/括弧も利用できます。"),
   pref_code: z.string().optional().describe("都道府県コード。例: 神奈川県は 14。"),
   slug: z.string().optional().describe("自治体を1つに絞るcanonical slug。例: 14130-kawasaki-shi。"),
@@ -294,7 +295,7 @@ const searchInputSchema = {
   per_page: z.number().int().min(1).max(50).default(10).describe("1ページあたりの件数。MCPでは最大50件。"),
   include_facets: z.boolean().optional().describe("true の場合、文書種別・都道府県・自治体の集計も返します。"),
   include_body_highlight: z.boolean().optional().describe("false の場合、本文ハイライト生成を抑制します。")
-};
+});
 
 // 会議録と例規集で意味を持つフィールドが違い、API側の項目も増えうる。
 // 常に入るものだけ必須にし、残りは任意にして検証で落ちないようにする。
@@ -331,12 +332,12 @@ const documentCommonShape = {
   amended_on: z.string().optional().describe("最終改正日。例規集で入る。")
 };
 
-const facetBucketSchema = z.object({
+const facetBucketSchema = z.looseObject({
   key: z.string().describe("集計キー。"),
   count: z.number().describe("該当件数。")
 });
 
-const searchOutputSchema = {
+const searchOutputSchema = z.looseObject({
   status: z.string().describe("ok または error。"),
   error: z.string().optional().describe("エラーメッセージ。正常時は空文字。"),
   doc_type: z.string().describe("minutes は会議録、reiki は例規集。"),
@@ -348,27 +349,28 @@ const searchOutputSchema = {
   has_more: z.boolean().optional().describe("次のページがあるか。"),
   took_ms: z.number().optional().describe("検索にかかった時間（ミリ秒）。"),
   index_alias: z.string().optional().describe("検索に使った索引の別名。"),
-  items: z.array(z.object(documentCommonShape)).describe("検索結果。id を get_municipal_document に渡すと本文を取得できる。"),
-  aggregations: z.object({
+  items: z.array(z.looseObject(documentCommonShape)).describe("検索結果。id を get_municipal_document に渡すと本文を取得できる。"),
+  aggregations: z.looseObject({
     doc_types: z.array(facetBucketSchema).optional().describe("文書種別ごとの件数。"),
     prefectures: z.array(facetBucketSchema).optional().describe("都道府県ごとの件数。key は都道府県コード。"),
     municipalities: z.array(facetBucketSchema).optional().describe("自治体ごとの件数。key は canonical slug。")
   }).optional().describe("include_facets が true のときだけ返る集計結果。")
-};
+});
 
-const documentOutputSchema = {
+const documentOutputSchema = z.looseObject({
   status: z.string().describe("ok または error。"),
   error: z.string().optional().describe("エラーメッセージ。正常時は空文字。"),
-  document: z.object({
+  document: z.looseObject({
     ...documentCommonShape,
     indexed_at: z.string().optional().describe("索引に取り込んだ日時。"),
     speaker: z.string().optional().describe("発言者名。"),
     speaker_role: z.string().optional().describe("発言者の役職。"),
     body: z.string().describe("本文。max_body_chars を超える分は切り詰められる。"),
     body_full_length: z.number().describe("切り詰める前の本文の文字数。"),
-    body_truncated: z.boolean().describe("本文が切り詰められたかどうか。")
+    body_truncated: z.boolean().describe("本文が切り詰められたかどうか。"),
+    evaluation_text: z.string().optional().describe("AI が付けた評価。自治体の見解でも法文でもない。")
   }).describe("取得した文書。")
-};
+});
 
 // 3ツールとも公開データを読むだけで、書き込みも削除も行わない。注釈がないと
 // クライアントは既定で「書き込みあり・破壊的」とみなすため、明示しておく。
@@ -436,11 +438,11 @@ function createServer(): McpServer {
     {
       title: "文書本文取得",
       description: "search_minutes/search_reiki の結果IDから、会議録または例規集の本文を取得します。長文は max_body_chars で返却量を調整できます。",
-      inputSchema: {
+      inputSchema: z.object({
         id: z.string().min(1).describe("検索結果の id。"),
         doc_type: z.enum(["minutes", "reiki"]).default("minutes").describe("minutes は会議録、reiki は例規集。"),
         max_body_chars: z.number().int().min(0).max(200000).default(20000).describe("返却する本文の最大文字数。最大200000。")
-      },
+      }),
       outputSchema: documentOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS
     },
@@ -465,14 +467,27 @@ function createServer(): McpServer {
   return server;
 }
 
-const app = express();
-app.use(express.json({ limit: "1mb" }));
+// 2026-07-28（modern）と2025-11-25以前（legacy）を同じ /mcp で受ける。legacy は既定の
+// 'stateless' のまま、従来どおりリクエストごとにサーバを組み立ててセッションを持たない。
+const mcpHandler = createMcpHandler(() => createServer(), {
+  onerror: (error) => {
+    console.error("Error handling MCP request:", error);
+  }
+});
+const mcpNodeHandler = toNodeHandler(mcpHandler);
+
+// bind は 0.0.0.0。ホストとオリジンの制限は MCP_ALLOWED_HOSTS と MCP_ALLOWED_ORIGINS で
+// 行うので、localhost 向けの既定の保護は使わない。
+const app = createMcpExpressApp({ host: "0.0.0.0", jsonLimit: "1mb" });
 app.use(hostGuard);
 app.use(originGuard);
 
 app.options("/mcp", (req, res) => {
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept, MCP-Protocol-Version, Mcp-Session-Id");
+  res.setHeader("Access-Control-Allow-Methods", "POST, GET, DELETE, OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Accept, MCP-Protocol-Version, Mcp-Session-Id, Mcp-Method, Mcp-Name"
+  );
   res.status(204).end();
 });
 
@@ -480,49 +495,17 @@ app.get("/healthz", (req, res) => {
   res.json({ status: "ok", service: "miyabe-tools-mcp" });
 });
 
-app.post("/mcp", async (req: Request, res: Response) => {
-  const server = createServer();
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined
-  });
-
-  try {
-    await server.connect(transport);
-    res.on("close", () => {
-      transport.close();
-      server.close();
-    });
-    await transport.handleRequest(req, res, req.body);
-  } catch (error) {
-    console.error("Error handling MCP request:", error);
-    transport.close();
-    server.close();
-    if (!res.headersSent) {
-      res.status(500).json({
-        jsonrpc: "2.0",
-        error: { code: -32603, message: "Internal server error" },
-        id: null
-      });
-    }
-  }
+app.all("/mcp", (req: Request, res: Response) => {
+  void mcpNodeHandler(req, res, req.body);
 });
 
-app.get("/mcp", (req, res) => {
-  res.status(405).setHeader("Allow", "POST, OPTIONS").json({
-    jsonrpc: "2.0",
-    error: { code: -32000, message: "Method not allowed." },
-    id: null
-  });
-});
-
-app.delete("/mcp", (req, res) => {
-  res.status(405).setHeader("Allow", "POST, OPTIONS").json({
-    jsonrpc: "2.0",
-    error: { code: -32000, message: "Method not allowed." },
-    id: null
-  });
-});
-
-app.listen(port, "0.0.0.0", () => {
+const httpServer = app.listen(port, "0.0.0.0", () => {
   console.log(`Miyabe Tools MCP server listening on port ${port}`);
 });
+
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(signal, () => {
+    httpServer.close();
+    void mcpHandler.close().finally(() => process.exit(0));
+  });
+}
