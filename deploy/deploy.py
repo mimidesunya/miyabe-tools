@@ -611,6 +611,10 @@ if [ -d {shared_data_dir}/gijiroku ]; then find {shared_data_dir}/gijiroku -type
 if [ -d {shared_data_dir}/work ]; then find {shared_data_dir}/work -type d -exec chgrp {web_group} {{}} + -exec chmod 2775 {{}} +; fi
 if [ -d {shared_data_dir}/reiki ]; then find {shared_data_dir}/reiki -type f -name '*.sqlite' -exec chgrp {web_group} {{}} + -exec chmod 664 {{}} +; fi
 if [ -d {shared_data_dir}/gijiroku ]; then find {shared_data_dir}/gijiroku -type f -name '*.sqlite' -exec chgrp {web_group} {{}} + -exec chmod 664 {{}} +; fi
+# 走査記録や進捗は公開画面の PHP（www-data）が読む。読めないと「記録が無い」
+# として扱われ、取り切れているのに未判定のまま固定される。tempfile.mkstemp が
+# 0600 で作った取りこぼしをここで戻す。書き込みは取得側だけなので読みだけ足す。
+if [ -d {shared_data_dir}/work ]; then find {shared_data_dir}/work -type f ! -perm -g+r -exec chmod g+r,o+r {{}} +; fi
 """
     ssh_exec(config, permission_cmd)
 

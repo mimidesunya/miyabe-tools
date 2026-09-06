@@ -57,6 +57,11 @@ def _write(kind: str, queued: dict[str, float]) -> None:
     }
     # 書いている途中で落ちても、読む側が壊れた JSON を読まないようにする。
     handle, temporary = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+    # mkstemp は 0600。掃き取りの状態も公開画面から読むので、読める権限にする。
+    try:
+        os.chmod(temporary, 0o644)
+    except OSError:
+        pass
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as stream:
             json.dump(payload, stream, ensure_ascii=False, indent=2)

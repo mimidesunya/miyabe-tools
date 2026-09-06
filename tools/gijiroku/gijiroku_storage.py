@@ -280,6 +280,11 @@ def existing_named_outputs(
     return valid
 
 
+# 公開画面の PHP（www-data）が読める権限。走査記録や進捗は公開データの
+# 控えで、秘密情報を含まない。読めないと状態の判定がまるごと効かなくなる。
+WEB_READABLE_FILE_MODE = 0o644
+
+
 def write_via_temporary_file(
     path: Path,
     writer: Callable[[Path], Any],
@@ -301,6 +306,16 @@ def write_via_temporary_file(
     )
     os.close(fd)
     temporary = Path(temporary_name)
+    # mkstemp は 0600 で作る。そのまま replace すると、公開画面の PHP
+    # （www-data）が走査記録を読めない。読めないと「記録が無い」として
+    # 扱われ、取り切れているのに「取得範囲未判定」のまま固定される。
+    # 2026-09-06 の点検では会議録 1,400 自治体がこの形だった。
+    # ここに置く記録は公開データの控えで、秘密情報は含まない。
+    try:
+        os.chmod(temporary, WEB_READABLE_FILE_MODE)
+    except OSError:
+        # 権限を変えられない環境でも書き込み自体は続ける。
+        pass
     try:
         writer(temporary)
         if not temporary.is_file():
