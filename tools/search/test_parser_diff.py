@@ -5,6 +5,7 @@
 いれば気づけないので、部品に試験を置く。
 """
 
+import os
 import subprocess
 import sys
 import tempfile
@@ -66,12 +67,17 @@ class LoadModuleTest(unittest.TestCase):
 class CommandLineTest(unittest.TestCase):
     def test_it_runs(self):
         """引数の組み立てが壊れていないことだけ見る。データは触らない。"""
+        # 説明文には日本語と中黒が入る。Windows の既定コンソール（cp932）
+        # だと --help を書き出すだけで落ちるので、子プロセスの出力を
+        # UTF-8 に固定する。見たいのは引数の組み立てで、端末の文字コードではない。
+        env = dict(os.environ, PYTHONIOENCODING="utf-8")
         out = subprocess.run(
             [sys.executable, str(Path(parser_diff.__file__).resolve()), "--help"],
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
+            env=env,
         )
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertIn("--baseline", out.stdout or "")
