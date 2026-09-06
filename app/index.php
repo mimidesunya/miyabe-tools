@@ -59,10 +59,40 @@ function home_h(?string $value): string
     </nav>
 
     <main>
-        <section class="map-intro" aria-label="自治体マップの概要">
-            <div class="map-intro-copy">
+        <section class="hero-search" aria-label="全国横断検索">
+            <div class="hero-search-copy">
                 <p class="eyebrow"><span>01</span> 全国横断検索</p>
                 <h1>全国の<em>会議録・例規集</em>を横断検索</h1>
+            </div>
+            <form class="search-ribbon" action="/search/" method="get" role="search" aria-label="自治体資料を検索">
+                <div class="search-ribbon-control">
+                    <span aria-hidden="true">⌕</span>
+                    <label class="visually-hidden" for="home-record-search">自治体名・資料の言葉から探す</label>
+                    <input id="home-record-search" name="q" type="search" enterkeyhint="search" autocomplete="off" placeholder="例：川崎市　盛土　メガソーラー">
+                    <button type="submit">検索</button>
+                </div>
+                <div class="search-ribbon-scope">
+                    <span id="home-doc-type-label">探す資料</span>
+                    <div class="search-scope-options" role="radiogroup" aria-labelledby="home-doc-type-label">
+                        <label><input type="radio" name="doc_type" value="minutes" checked><span>会議録</span></label>
+                        <label><input type="radio" name="doc_type" value="reiki"><span>例規集（条例・規則）</span></label>
+                    </div>
+                </div>
+                <p class="search-ribbon-examples">
+                    <span>試してみる</span>
+                    <a href="/search/?q=%E7%9B%9B%E5%9C%9F&amp;doc_type=minutes">盛土</a>
+                    <a href="/search/?q=%E3%83%A1%E3%82%AC%E3%82%BD%E3%83%BC%E3%83%A9%E3%83%BC&amp;doc_type=minutes">メガソーラー</a>
+                    <a href="/search/?q=%E7%A9%BA%E3%81%8D%E5%AE%B6&amp;doc_type=minutes">空き家</a>
+                    <a href="/search/?q=%E5%AD%A6%E6%A0%A1%E7%B5%B1%E5%BB%83%E5%90%88&amp;doc_type=minutes">学校統廃合</a>
+                    <a href="/search/?q=%E5%AE%98%E8%A3%BD%E8%AB%87%E5%90%88&amp;doc_type=minutes">官製談合</a>
+                </p>
+            </form>
+        </section>
+
+        <section class="map-intro" aria-label="自治体マップの概要">
+            <div class="map-intro-copy">
+                <p class="eyebrow"><span>02</span> このサイトについて</p>
+                <h2 class="intro-title">自治体が公開する一次資料を、そのまま引けます</h2>
                 <p class="intro-lead">
                     自治体が公開する会議録・例規集を収集し、
                     ひとつの検索窓で全国をまとめて検索できます。
@@ -81,18 +111,9 @@ function home_h(?string $value): string
             </aside>
         </section>
 
-        <form class="search-ribbon" action="/search/" method="get" aria-label="自治体資料を検索">
-            <label for="home-record-search">自治体名・資料の言葉から探す</label>
-            <div class="search-ribbon-control">
-                <span aria-hidden="true">⌕</span>
-                <input id="home-record-search" name="q" type="search" placeholder="例：川崎市　盛土　メガソーラー">
-                <button type="submit">記録を検索</button>
-            </div>
-        </form>
-
         <section class="coverage-dashboard" aria-label="自治体対応状況">
             <div class="coverage-head">
-                <p class="eyebrow"><span>02</span> 地図から探す</p>
+                <p class="eyebrow"><span>03</span> 地図から探す</p>
                 <span class="coverage-count" data-home-display-count>表示自治体: 0</span>
             </div>
             <div class="toolbar">
@@ -156,7 +177,7 @@ function home_h(?string $value): string
 
         <section class="municipality-results" aria-label="表示中の自治体">
             <div class="section-head">
-                <div><span>03</span><h2>自治体索引</h2></div>
+                <div><span>04</span><h2>自治体索引</h2></div>
                 <p>地図に表示している自治体を都道府県別に掲載します。</p>
             </div>
             <div class="municipality-list" data-home-grid>
