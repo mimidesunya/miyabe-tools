@@ -12,7 +12,9 @@ psycopg[binary]>=3.2,<4
 # モデルは vendor/ndlocr-lite に同梱のものを使うので、実行時の取得は無い。
 onnxruntime>=1.20
 opencv-python-headless>=4.10
-pypdfium2>=4.30
+# pypdfium2 は 5 系で PdfDocument.render が消えている。ndlocr-lite は
+# 4 系の API を呼ぶので、上流の指定に合わせて固定する。
+pypdfium2==4.30.0
 numpy>=2.0
 lxml>=5.0
 reportlab>=4.0
