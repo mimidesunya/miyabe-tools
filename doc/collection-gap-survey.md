@@ -4367,10 +4367,10 @@ RILG（地方自治研究機構）の全国例規集リンク集
 `/gijiroku/r08/…` の元号ディレクトリから年を読む。
 
 **浦幌町の robots.txt は `/assets/images/` と `*.pdf` を拒否している。**
-会議録の PDF はその下にある。この案件は
-`tools/gijiroku/crawl_policy.py` の運営判断（2026-08-28、`ENFORCE_ROBOTS = False`）と
-`crawl_status=enabled` の下で取得する形になるので、方針を変える場合は
-登録簿の側で `excluded` にする。
+会議録の PDF はその下にある。取得する判断とした（2026-09-06）。議事録と法令は
+国民の財産であり、公開されている以上は取得する、という方針を確認したもので、
+`tools/gijiroku/crawl_policy.py` の `ENFORCE_ROBOTS = False`（2026-08-28）を
+そのまま適用する。robots 由来の除外は両方の登録簿に 1 件も無い。
 
 `留寿都村`・`長沼町`・`三沢市` は登録 URL が空のままで、この 6 件とは別の
 「取得元未特定」の側にいる。

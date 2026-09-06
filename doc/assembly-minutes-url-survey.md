@@ -1,6 +1,26 @@
 # 会議録URL調査
 
-`data/municipalities/assembly_minutes_system_urls.tsv` は、全国自治体マスタ (`data/municipalities/municipality_master.tsv`) に対応する地方議会会議録URLと取得可否のレジストリです。robots.txtで取得経路が拒否されていてもURLは消さず、除外理由を同じ行に保持します。
+`data/municipalities/assembly_minutes_system_urls.tsv` は、全国自治体マスタ (`data/municipalities/municipality_master.tsv`) に対応する地方議会会議録URLと取得可否のレジストリです。取得できない自治体もURLは消さず、除外理由を同じ行に保持します。
+
+## robots.txt の扱い
+
+**robots.txt を取得可否の根拠にしません。** 議事録と法令は国民の財産であり、
+公開されている以上は取得します。robots.txt は法的な制限ではなく検索エンジン
+向けの慣行にすぎない、という運営判断です（2026-08-28 決定、2026-09-06 再確認）。
+実装は `tools/gijiroku/crawl_policy.py` の `ENFORCE_ROBOTS = False` です。
+
+個別の自治体で robots.txt が拒否していても方針は変えません。2026-09-06 の
+点検では浦幌町の robots.txt が会議録 PDF の置き場所を拒否していましたが、
+取得する判断としました。
+
+相手側への配慮は robots ではなく、**ホスト単位のレート制限と正直な
+User-Agent** で行います。
+
+`excluded` は robots とは別の理由にだけ使います。本文が存在しない
+（`not_published` / `video_only`）、認証が要る（`login_required`）などです。
+`robots_disallowed` と `robots_unreachable` は当面使いません。監査
+（`audit_minutes_robots.py`）は robots 由来の除外だけを解除し、それ以外の
+除外理由には触れません。
 
 ## ソース
 
@@ -22,9 +42,8 @@
 - 公式ホームページ再探索では、自治体サイト内の `議会` ページや `会議録` ページを優先し、見つかった代表ページを採用
 - ページに `提供なし` とある自治体、または一覧に見当たらない自治体は空欄
 - 空欄は「この調査手順でURLを確定できなかった」ことを意味し、Web 上での不存在を断定するものではありません
-- 代表URLが許可されていても、本文取得に必須のAPI・一覧URLが拒否されていれば `excluded` とします
-- `crawl_status=enabled` は運用者による明示許可として扱い、URLや `system_type` が変わってもrobots監査を行わず取得します
-- `enabled` 以外でURLまたは `system_type` を更新した場合は、robots差分監査が済むまで自動取得しません
+- `crawl_status=enabled` の行は、URLや `system_type` が変わってもそのまま取得します
+- 取得しないのは、本文が無い・認証が要るなど **robots とは別の理由**があるときだけです
 
 ## 列
 
@@ -32,30 +51,31 @@
 - `url`
 - `system_type`
 - `crawl_status`: `enabled` / `excluded` / `review_required` / `unresolved`
-- `exclusion_reason`: `robots_disallowed`、`robots_unreachable`、`source_url_unresolved` などの機械可読な理由
-- `exclusion_detail`: robots.txt URL、拒否された必須経路、確認不能の内容
+- `exclusion_reason`: `not_published`、`video_only`、`login_required`、`source_url_unresolved` などの機械可読な理由。`robots_disallowed` と `robots_unreachable` は当面使いません
+- `exclusion_detail`: 何が無いのか、なぜ取れないのかを日本語で書きます
 - `policy_checked_at`: 取得可否を確認した日（ISO日付）
 - `policy_fingerprint`: URL・`system_type`・必須取得経路の変更検出値（システム管理。手編集しない）
 
 `crawl_status` の意味は次のとおりです。
 
-- `enabled`: 運用者が自動取得を明示許可。robots監査は行わない
-- `excluded`: robots.txtが現在のスクレイパの必須経路を明示的に拒否
-- `review_required`: robots.txtを取得できない、またはURL更新後の自動再監査待ち
+- `enabled`: 自動取得の対象
+- `excluded`: 取得しても本文が得られない、または認証が要る
+- `review_required`: 人の確認待ち
 - `unresolved`: 会議録代表URLを未特定
 
 自動スクレイピングは `enabled` の行だけを対象にします。`excluded` と `review_required` のURLは登録情報や保存済み文書の原典情報から削除しません。
 
 ## 通常の追加・変更手順
 
-既存自治体は同じ `jis_code` の行を更新し、重複行は追加しません。通常の自動判定では `url` と `system_type` を更新します。robots判定にかかわらず取得するという運用判断を明示する場合だけ、`crawl_status` を `enabled` にします。その他の状態列はシステムが管理します。
+既存自治体は同じ `jis_code` の行を更新し、重複行は追加しません。通常の自動判定では `url` と `system_type` を更新します。その他の状態列はシステムが管理します。
 
 1. `assembly_minutes_system_urls.tsv` の `url` と `system_type` を追加または変更する
 2. 通常どおりデプロイする
-3. `crawl_status=enabled` ならrobots監査を省略し、稼働中の Celery dispatcher が取得サイクルを即時投入する
-4. `enabled` 以外なら変更行だけrobots.txtを監査し、許可なら `enabled`、拒否なら `excluded` と拒否経路を記録する
+3. `crawl_status=enabled` なら、稼働中の Celery dispatcher が取得サイクルを即時投入する
 
-robots.txtを取得できなかった場合は `review_required` となり、取得処理には入りません。監査結果をローカル正本へ確定してコミットしたい場合や手動再確認には、下記の監査コマンドを使います。
+本文が無い・認証が要ると分かった自治体は、`crawl_status` を `excluded` にし、
+`exclusion_reason` と `exclusion_detail` に理由を書きます。毎周回で失敗させ
+続けると、直せる失敗がその中に埋もれます。監査コマンドは次のとおりです。
 
 ## `system_type` の値
 
@@ -108,7 +128,7 @@ robots.txtを取得できなかった場合は `review_required` となり、取
 | `20452` | 筑北村 | `static-kaigiroku-dir` | `https://www.vill.chikuhoku.lg.jp/gikai/kaigiroku/` |
 | `21401` | 揖斐川町 | `dbsr` | `https://www.town.ibigawa.gifu.dbsr.jp/` |
 
-揖斐川町はURLを登録していますが、DBSRの必須一覧経路がrobots.txtで拒否されるため `excluded` です。
+揖斐川町は会議録の代表URLを特定できておらず `unresolved` です（robots とは関係ありません）。
 
 ## 再生成
 
@@ -131,7 +151,7 @@ python tools/gijiroku/audit_minutes_robots.py --write
 python tools/gijiroku/audit_minutes_robots.py --stale-only --write
 ```
 
-空欄自治体を公式ホームページから再探索する場合も、まずドライランで候補を確認します。この探索自体もrobots.txtを守ります。
+空欄自治体を公式ホームページから再探索する場合も、まずドライランで候補を確認します。探索は 1 自治体あたりのページ数と間隔で相手の負荷を抑えます。
 
 ```powershell
 python dev/municipalities/discover_blank_minutes_urls.py
