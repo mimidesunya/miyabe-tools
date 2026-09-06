@@ -81,6 +81,15 @@ class YearOnlyLinkTest(unittest.TestCase):
         for text in ("令和8年度予算", "会議録", "令和8年第1回定例会"):
             self.assertFalse(gikai_pdf.YEAR_ONLY_LINK.match(text), text)
 
+    def test_year_written_in_western_or_abbreviated_era(self) -> None:
+        # 年の書き方は取得元でばらつく。元号だけを見ていたころは、
+        # 岐南町の「2026年」と東峰村の「R8年度」で 1 件も見つけられなかった。
+        for text in ("2026年", "2021年", "R8年度", "H30年度", "R.8年", "S60年度"):
+            self.assertTrue(gikai_pdf.YEAR_ONLY_LINK.match(text), text)
+        # 年だけを指す形に限る。緩めても他所のページへは出ない。
+        for text in ("2026年度予算", "R8年度当初予算", "2026年の予定", "8年"):
+            self.assertFalse(gikai_pdf.YEAR_ONLY_LINK.match(text), text)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -242,8 +242,36 @@ def text_from_html(soup: BeautifulSoup) -> str:
     return normalize_pdf_text("\n".join(line for line in lines if line))
 
 
-def looks_like_html_minutes_document(title: str, url: str, text: str) -> bool:
+# 目次ページと会議録本文を分ける目安。年別一覧は短くて中身がほぼリンク文字、
+# 会議録の本文は長くてリンクをほとんど持たない。ときがわ町の年別一覧は
+# 818〜924 字でリンクが 0.59〜0.68、日ごとの本文は 23,416 字でリンク 0 だった。
+# 長い文書は割合に関係なく通す。短い文書だけを割合で落とす。
+INDEX_PAGE_LINK_TEXT_RATIO = 0.5
+INDEX_PAGE_MAX_LENGTH = 3000
+
+
+def link_text_ratio(soup: BeautifulSoup) -> float:
+    """ページの文字のうち、リンク文字が占める割合。"""
+    text = normalize_space(soup.get_text(" "))
+    if not text:
+        return 0.0
+    anchor = normalize_space(
+        " ".join(node.get_text(" ", strip=True) for node in soup.find_all("a"))
+    )
+    return len(anchor) / len(text)
+
+
+def looks_like_html_minutes_document(
+    title: str,
+    url: str,
+    text: str,
+    link_ratio: float = 0.0,
+) -> bool:
     if len(text) < 800:
+        return False
+    # 年別一覧は会議名と日付が並ぶので、語だけ見ると本文と区別が付かない。
+    # 一覧を本文として取り込むと、会議録の中身が入らないまま件数だけ増える。
+    if len(text) < INDEX_PAGE_MAX_LENGTH and link_ratio >= INDEX_PAGE_LINK_TEXT_RATIO:
         return False
     marker_count = sum(1 for marker in HTML_MINUTES_MARKERS if marker in text)
     if marker_count >= 2:
@@ -295,8 +323,12 @@ def discover_items(
             gijiroku_storage.write_text(pages_dir / relative_page_filename(page_url), page_html, compress=True)
 
         if include_html_documents:
-            html_text = text_from_html(BeautifulSoup(page_html, "html.parser"))
-            if looks_like_html_minutes_document(title, page_url, html_text):
+            # text_from_html は nav などを取り除くので、リンクの割合は
+            # 取り除く前の写しから測る。
+            document_soup = BeautifulSoup(page_html, "html.parser")
+            link_ratio = link_text_ratio(document_soup)
+            html_text = text_from_html(document_soup)
+            if looks_like_html_minutes_document(title, page_url, html_text, link_ratio):
                 year_label, source_year = extract_year_info(title, page_url)
                 if year_label == "不明":
                     year_label, source_year = page_year_label, page_source_year

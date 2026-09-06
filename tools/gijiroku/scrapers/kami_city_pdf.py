@@ -44,6 +44,11 @@ DEFAULT_USER_AGENT = (
 )
 YEAR_LABEL_RE = re.compile(r"(昭和|平成|令和)\s*([元\d０-９]+)年")
 WESTERN_REIWA_LABEL_RE = re.compile(r"(20\d{2})（令和([元\d０-９]+)）年")
+# 会議録を `/gijiroku/r08/01230101.htm` のように元号の略記ディレクトリで
+# 分ける取得元がある（ときがわ町）。題名が空なので、ここを読まないと
+# 年が「不明」のままになり、並び順も鮮度も出せない。
+ERA_DIR_RE = re.compile(r"/([rhs])(\d{2})/", re.IGNORECASE)
+ERA_DIR_PREFIX = {"r": "令和", "h": "平成", "s": "昭和"}
 PDF_SIZE_SUFFIX_RE = re.compile(
     r"\s*[［\[(（]?\s*PDF(?:ファイル)?\s*[／/：:｜|]\s*[^］\]）)]+[］\]）)]?\s*$",
     re.IGNORECASE,
@@ -54,6 +59,9 @@ ERA_BASE_YEAR = {"昭和": 1925, "平成": 1988, "令和": 2018}
 FULLWIDTH_DIGITS = str.maketrans("０１２３４５６７８９", "0123456789")
 MINUTES_PAGE_KEYWORDS = (
     "会議録",
+    # 「会議記録」と書く取得元がある（浦幌町）。「会議録」を含まないので
+    # 別の語として並べないと、年別一覧へ降りられず 1 件も見つからない。
+    "会議記録",
     "議事録",
     "kaigiroku",
     "gijiroku",
@@ -166,6 +174,17 @@ def extract_year_info(*values: str) -> tuple[str, int | None]:
             era = match.group(1)
             era_year = to_ascii_digits(match.group(2)).replace("元", "1")
             return f"{era}{era_year}年", era_to_gregorian(era, match.group(2))
+
+    # 題名から読めないときだけ、URL の元号ディレクトリを見る。
+    for value in values:
+        directory = ERA_DIR_RE.search(str(value or ""))
+        if not directory:
+            continue
+        era = ERA_DIR_PREFIX.get(directory.group(1).lower())
+        era_year = int(directory.group(2))
+        if era is None or era_year <= 0:
+            continue
+        return f"{era}{era_year}年", era_to_gregorian(era, str(era_year))
 
     return "不明", None
 
@@ -306,7 +325,18 @@ NOT_MINUTES_PAGE_RE = re.compile(
     re.I,
 )
 # 「令和8年」だけのリンク。会議録の一覧から年別へ降りるときの形。
-YEAR_ONLY_ANCHOR_RE = re.compile(r"^\s*(?:令和|平成|昭和)\s*(?:\d{1,2}|元)\s*年(?:度)?(?:[（(][^）)]*[）)])?\s*$")
+#
+# 書き方は取得元でばらつく。元号を並べるだけでは足りず、
+# 西暦（岐南町の「2026年」）と、元号の略記（東峰村の「R8年度」）でも
+# 年別一覧へ降りられなくなっていた。どちらも入口ページ直下、または
+# 会議録のページから辿るときにしか使わないので、緩めても他所へは出ない。
+YEAR_ONLY_ANCHOR_RE = re.compile(
+    r"^\s*(?:"
+    r"(?:令和|平成|昭和|大正)\s*(?:\d{1,2}|元)"
+    r"|(?:[RHSTrhst])\s*\.?\s*(?:\d{1,2}|元)"
+    r"|(?:19|20)\d{2}"
+    r")\s*年(?:度)?(?:[（(][^）)]*[）)])?\s*$"
+)
 
 
 def looks_like_generic_minutes_page(anchor_text: str, url: str, from_minutes_page: bool = False) -> bool:

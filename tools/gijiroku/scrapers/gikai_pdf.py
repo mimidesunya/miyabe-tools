@@ -54,6 +54,7 @@ from kami_city_pdf import (  # noqa: E402
     extract_year_info,
     looks_like_attachment_pdf,
     looks_like_generic_minutes_page,
+    YEAR_ONLY_ANCHOR_RE,
     now_ts,
     page_title,
     process_pdf_meeting_plan,
@@ -105,7 +106,11 @@ def build_parser() -> argparse.ArgumentParser:
 # 判定では 1 段目で行き止まりになる。入口 URL は台帳にその自治体の会議録の
 # 入口として登録されたものなので、そこに並ぶ年リンクだけは会議録の年度別
 # ページとみなして辿る。2 段目より深くは通常どおり判定する。
-YEAR_ONLY_LINK = re.compile(r"^(?:令和|平成|昭和)\s*(?:\d+|元)\s*年(?:度)?$")
+#
+# 年の書き方は取得元でばらつくので、判定は kami_city_pdf と共有する。
+# 元号だけを見ていたころは、西暦（岐南町）と元号の略記（東峰村）で
+# 1 件も見つけられなかった。
+YEAR_ONLY_LINK = YEAR_ONLY_ANCHOR_RE
 
 
 def _is_followable_html(start_netloc: str, url: str) -> bool:

@@ -106,7 +106,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 01471			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 01472	https://www.town.horokanai.hokkaido.jp/gikai/giroku	独自	enabled			2026-08-02	1fd1f29ae35d35a87a3cd14179e63638d1d0ce76b4b0e87d33ab97c9ef7a5990
 01481			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
-01482	https://www.town.obira.hokkaido.jp/hotnews/detail/00004061.html	独自	enabled			2026-08-02	85736d3531dda4574d342175f27b1ecf4376c9c15f9aafe2f30c1a175441df69
+01482	https://www.town.obira.hokkaido.jp/hotnews/detail/00004061.html	独自	excluded	not_published	【議事録】ページに本文も添付も無く、議会カテゴリにも会議録が無い	2026-08-02	85736d3531dda4574d342175f27b1ecf4376c9c15f9aafe2f30c1a175441df69
 01483			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 01484	https://www.town.haboro.lg.jp/gikai-iinkai/gikai/gijiroku/	static-kaigiroku-dir	enabled			2026-08-02	5b030169a5382b72a415e228bdccffac2337c11ab96f4db4090e8b8e13cb2060
 01485	https://www.vill.shosanbetsu.lg.jp/topics/gikaijimu/	独自	enabled				52acf07d016cd48aac8d90916a07d6e70f46f26b53c50fbd3e4eee940954db51
@@ -576,7 +576,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 11346	https://ssp.kaigiroku.net/tenant/kawajima/SpMinuteSearch.html	kaigiroku.net	enabled				50e921fd638f598a85a696add4cd7858ed6eced6a90bf085c1a2f18198dbc0bd
 11347	https://ssp.kaigiroku.net/tenant/yoshimi/MinuteSearch.html	kaigiroku.net	enabled				f717c7d8e42efbf30fcb7e42e6497f15b00b0874c073ce827cb0bf3aeabf197c
 11348	https://ssp.kaigiroku.net/tenant/hatoyama/pg/index.html	kaigiroku.net	enabled				dc8128dc50e49bea035f60daf9738bd0e59dfe168824d75a08c4341042e30e9e
-11349	https://www.town.tokigawa.lg.jp/info/156	独自	enabled			2026-08-02	ece1ab8b96735f852cae63c16997fa6b8bb77303477a848abe31e78ce11affd5
+11349	https://www.town.tokigawa.lg.jp/div/203010/htm/gijiroku/index.html	static-kaigiroku-dir	enabled			2026-08-02	ece1ab8b96735f852cae63c16997fa6b8bb77303477a848abe31e78ce11affd5
 11361	https://ssp.kaigiroku.net/tenant/prefsaitama/pg/index.html	kaigiroku.net	enabled			2026-08-20	4ecc982cffd3a5b0dd4de565121301d0aff1140cbf14d31f5cf617ddff4ddefc
 11362	https://www.town.minano.saitama.jp/section/gikai/815/	独自	enabled			2026-08-02	4e9ab31aa1a6b58630437df19801635132dfb3dc69bf42d9d0b8b6a0fdc2bd7f
 11363	https://www.town.nagatoro.saitama.jp/nagatorochougikai/%E4%BC%9A%E8%AD%B0%E9%8C%B2/	独自	enabled			2026-08-02	49259a90cd9b7e1f3b366e998ec977e6e027776643d484f4d994718a7252f4bb
@@ -1552,7 +1552,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 40382	https://www.town.mizumaki.lg.jp/li/gyosei/030/010/index.html	独自	enabled			2026-08-02	2fb8c68c3b7077abd7d10c65803a7e15375b0d4f0d723f4a21a5cbcf614d4114
 40383	https://ssp.kaigiroku.net/tenant/okagaki/MinuteSearch.html	kaigiroku.net	enabled				d00ed6506446838acfa53b987094afd0d8e671ef259691b83ab43d525789d3a0
 40384	http://iasb-sv.town.onga.lg.jp/voices/g08v_search.asp	voices	enabled			2026-08-02	ca5274d5d564d4ccc99dd3086899f100ddf366b1401ada1cb2cbd985b2554134
-40401	https://town.kotake.lg.jp/gikai/hpkiji/pub/List.aspx?c_id=3&class_set_id=6&class_id=547	独自	enabled			2026-08-02	9cb4af15d8de88fae51838852ef671646f5ea56aa1ac3a4f268bdcbc16719567
+40401	https://town.kotake.lg.jp/gikai/hpkiji/pub/List.aspx?c_id=3&class_set_id=6&class_id=547	独自	excluded	not_published	会議録の年別一覧に記事が無く、公開されているのは会期日程とお知らせのみ	2026-08-02	9cb4af15d8de88fae51838852ef671646f5ea56aa1ac3a4f268bdcbc16719567
 40402	https://www.town.kurate.lg.jp/gikai/minutes/index.html	独自	enabled			2026-08-02	be92bbd82c8d7414a30771c981bf85b4684c2051da0253648cdc078b73dda98b
 40421	https://www.town.keisen.fukuoka.jp/gikai/kaigiroku.php	独自	enabled			2026-08-02	e92ae46dcce778df523f32d6fce365c7aed666307d6a301f9b578be0f2e0ec27
 40447	https://www.town.chikuzen.fukuoka.jp/li/100/050/index.html	static-kaigiroku-dir	enabled			2026-08-02	113f1e55877a34db49c46f0e71e81e1ca56d6d9b3b669959d2fda3f66b50d6cb
