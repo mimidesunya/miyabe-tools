@@ -262,6 +262,57 @@ function municipality_prefecture_names(): array
     ];
 }
 
+// 地方の区分。総務省の統計などで使われる 8 区分に合わせる。
+// 中部を北陸・甲信越・東海へ割る流儀もあるが、ここでは分けない。
+function municipality_region_names(): array
+{
+    return [
+        'hokkaido' => '北海道',
+        'tohoku' => '東北',
+        'kanto' => '関東',
+        'chubu' => '中部',
+        'kinki' => '近畿',
+        'chugoku' => '中国',
+        'shikoku' => '四国',
+        'kyushu' => '九州・沖縄',
+    ];
+}
+
+// 都道府県コードから地方を決める。範囲はコードの並びそのもの。
+//
+// int も受ける。PHP は「14」のような数字だけの配列キーを int にするので、
+// 配列を回して渡すと型が揺れる。呼ぶ側で毎回 5 桁・2 桁へ戻すのは忘れやすく、
+// 実際にページが途中で切れる形で 3 度踏んだ。ここで受け止める。
+function municipality_region_for_prefecture(int|string $prefCode): string
+{
+    $code = (int)trim((string)$prefCode);
+    if ($code === 1) {
+        return 'hokkaido';
+    }
+    if ($code >= 2 && $code <= 7) {
+        return 'tohoku';
+    }
+    if ($code >= 8 && $code <= 14) {
+        return 'kanto';
+    }
+    if ($code >= 15 && $code <= 23) {
+        return 'chubu';
+    }
+    if ($code >= 24 && $code <= 30) {
+        return 'kinki';
+    }
+    if ($code >= 31 && $code <= 35) {
+        return 'chugoku';
+    }
+    if ($code >= 36 && $code <= 39) {
+        return 'shikoku';
+    }
+    if ($code >= 40 && $code <= 47) {
+        return 'kyushu';
+    }
+    return '';
+}
+
 function municipality_prefecture_code_from_code(string $code): string
 {
     $code = trim($code);

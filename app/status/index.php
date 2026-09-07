@@ -38,6 +38,7 @@ function status_asset_url(string $relativePath): string
             <nav aria-label="関連ページ">
                 <a href="/">地図から探す</a>
                 <a href="/search/">記録を検索</a>
+                <a href="/municipalities/">自治体一覧</a>
                 <a href="/api-guide/">AIから使う（MCP）</a>
             </nav>
         </header>

@@ -1,0 +1,154 @@
+/* 自治体一覧。1,700 行を超える表なので、読む手掛かりを絞って軽く保つ。 */
+
+.region-index {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    padding: 16px clamp(18px, 5vw, 92px);
+    border-bottom: 1px solid var(--ink);
+    font-size: 13px;
+}
+
+.region-index-label {
+    font-weight: 800;
+    letter-spacing: 0.04em;
+}
+
+.region-index a {
+    padding: 5px 13px;
+    border: 1px solid rgba(24, 24, 24, 0.45);
+    border-radius: 999px;
+    color: var(--ink);
+    text-decoration: none;
+}
+
+.region-index a:hover {
+    color: var(--panel);
+    background: var(--ink);
+}
+
+.list-note {
+    margin: 0;
+    padding: 14px clamp(18px, 5vw, 92px);
+    border-bottom: 1px solid var(--ink);
+    font-size: 13px;
+    line-height: 1.8;
+}
+
+.region {
+    padding: 0 clamp(18px, 5vw, 92px) 8px;
+}
+
+.region-heading {
+    margin: 0;
+    padding: 18px 0 10px;
+    background: var(--paper, #fffdf7);
+    font-family: var(--serif);
+    font-size: clamp(19px, 2.2vw, 26px);
+    border-bottom: 2px solid var(--ink);
+}
+
+.prefecture {
+    padding: 18px 0 6px;
+}
+
+.prefecture-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin: 0 0 8px;
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.prefecture-count {
+    font-size: 12px;
+    font-weight: 500;
+    opacity: 0.7;
+}
+
+/* 幅の狭い画面では表だけを横に流す。本文は折り返す。 */
+.table-scroll {
+    overflow-x: auto;
+}
+
+.municipality-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.municipality-table th,
+.municipality-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid rgba(24, 24, 24, 0.18);
+    text-align: left;
+    vertical-align: top;
+    white-space: nowrap;
+}
+
+/* 長い都道府県（北海道 186 件）を読む間、列の意味を見失わないよう
+   見出し行だけ貼り付ける。地方見出しも貼り付けると 2 つが重なるので、
+   貼り付けるのはここだけにする。 */
+.municipality-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    border-bottom: 1px solid var(--ink);
+    background: var(--paper, #fffdf7);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+}
+
+.municipality-table tbody tr:hover {
+    background: rgba(24, 24, 24, 0.04);
+}
+
+.col-code {
+    width: 5.5em;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.75;
+}
+
+.col-name {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.source-link {
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.source-link:hover {
+    background: var(--ink);
+    color: var(--panel);
+    text-decoration: none;
+}
+
+.source-none {
+    opacity: 0.45;
+}
+
+.source-note {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border: 1px solid rgba(24, 24, 24, 0.4);
+    border-radius: 999px;
+    font-size: 11px;
+    white-space: nowrap;
+    opacity: 0.8;
+}
+
+@media (max-width: 720px) {
+    .municipality-table thead th {
+        position: static;
+    }
+
+    .municipality-table {
+        font-size: 12px;
+    }
+}

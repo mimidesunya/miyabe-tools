@@ -13,6 +13,7 @@
 - [multi-municipality.md](multi-municipality.md) — 複数自治体対応の共通設計。slug 正規化、URL ルール、自治体追加手順
 - [domain-boundaries.md](domain-boundaries.md) — 自治体文書と選挙ポスター掲示場の所有範囲、許可する共有、互換入口
 - [home-page.md](home-page.md) — トップページ（自治体マップ）の描画方式と表示ルール
+- [municipalities-page.md](municipalities-page.md) — 自治体一覧。原典（自治体サイト）への入口を地方別・都道府県別の表で見せる画面
 - [status-architecture.md](status-architecture.md) — 実行状態管理。PostgreSQL 正本のテーブル構成、表示ルール、移行手順
 - [remote-scraping.md](remote-scraping.md) — リモートスクレイピング運用。事前同期、Celery 巡回、再起動・停止手順
 - [virtual-development-team.md](virtual-development-team.md) — AI エージェントと人間で共同開発するときの役割分担
@@ -23,5 +24,6 @@
 - [local-government-homepages.md](local-government-homepages.md) — 自治体公式ホームページ URL 一覧 `municipality_homepages.csv` の作成方法
 - [assembly-minutes-url-survey.md](assembly-minutes-url-survey.md) — 地方議会会議録システム URL 一覧 `assembly_minutes_system_urls.tsv` の調査手順
 - [reiki-url-survey.md](reiki-url-survey.md) — 自治体例規集システム URL 一覧 `reiki_system_urls.tsv` の調査手順
+- [hyoka-url-survey.md](hyoka-url-survey.md) — 事務事業評価の公開先 `hyoka_system_urls.tsv` の調査手順と全国調査の結果
 - [collection-gap-survey.md](collection-gap-survey.md) — 会議録・例規集の収集取りこぼしの全国調査と対応計画（未完了の作業あり）
 - [collection-design-issues.md](collection-design-issues.md) — 収集の不具合が繰り返し出る原因の分類と、直す順序

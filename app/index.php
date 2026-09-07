@@ -54,6 +54,7 @@ function home_h(?string $value): string
         <a href="/search/">記録を検索</a>
         <a href="/api-guide/">AIから使う</a>
         <a aria-current="page" href="#coverage-map">地図から探す</a>
+        <a href="/municipalities/">自治体一覧</a>
         <a href="/status/">収集・公開状況</a>
         <span class="nav-index">全国自治体資料</span>
     </nav>
@@ -106,6 +107,7 @@ function home_h(?string $value): string
                 </p>
                 <div class="map-intro-actions" aria-label="関連ページ">
                     <a class="primary-link" href="/search/">記録を検索する <span aria-hidden="true">→</span></a>
+                    <a href="/municipalities/">自治体一覧（原典へ） <span aria-hidden="true">→</span></a>
                     <a href="/api-guide/">AIから使う（MCP） <span aria-hidden="true">↗</span></a>
                     <a href="/boards/">選挙ポスター掲示場 <span aria-hidden="true">↗</span></a>
                     <a href="#coverage-map">地図から探す <span aria-hidden="true">↓</span></a>
@@ -195,6 +197,7 @@ function home_h(?string $value): string
                 <strong>自治体マップ</strong>
                 <nav class="footer-links" aria-label="サイト内ページ">
                     <a href="/search/">記録を検索</a>
+                    <a href="/municipalities/">自治体一覧</a>
                     <a href="/status/">収集・公開状況</a>
                     <a href="/api-guide/">AIから使う（MCP）</a>
                     <a href="/privacy/">プライバシー</a>
