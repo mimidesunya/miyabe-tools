@@ -265,7 +265,13 @@ OpenAPI YAML: https://tools.miya.be/openapi.yaml</code></pre>
                 <dt><code>start_date</code> / <code>end_date</code></dt>
                 <dd>対象日を絞ります。例: <code>start_date=2020-01-01&amp;end_date=2024-12-31</code>。</dd>
                 <dt><code>sort</code></dt>
-                <dd><code>date</code>（新しい順）または <code>relevance</code>（関連度順）。</dd>
+                <dd>
+                    <code>date</code>（新しい順）または <code>relevance</code>（関連度順）。
+                    <code>date</code> で演算子を使わないAND検索をすると、検索語が本文中で近くに現れた文書が
+                    まとまって先頭に並び、その中と外がそれぞれ新しい順になります。近さ順に整列するのではなく、
+                    近いかどうかで前後に分けます。働いたときは応答の <code>proximity_ranked</code> が
+                    <code>true</code> になり、各件の <code>proximity</code> でどちらの側かが分かります。
+                </dd>
                 <dt><code>page</code> / <code>per_page</code></dt>
                 <dd>ページ番号と1ページあたりの件数。<code>per_page</code> は最大100件です。</dd>
             </dl>

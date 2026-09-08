@@ -20,11 +20,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="デプロイ設定 JSON",
     )
     parser.add_argument(
+        "--script-file",
+        help="リモートへ流すローカルのスクリプトファイル。command の代わりに指定する。",
+    )
+    parser.add_argument(
+        "--python",
+        action="store_true",
+        help="--script-file を、リモートの python3 に標準入力から渡して実行する。",
+    )
+    parser.add_argument(
         "command",
         nargs=argparse.REMAINDER,
         help="リモートで実行する shell コマンド",
     )
     return parser
+
+
+# リモートでは sh -s に流し込むので、python は here-document で渡す。
+# 本文に現れない綴りを終端に使う。
+PYTHON_HEREDOC_MARKER = "MIYABE_REMOTE_PY_EOF"
 
 
 def main() -> int:
@@ -33,7 +47,28 @@ def main() -> int:
     if command_parts and command_parts[0] == "--":
         command_parts = command_parts[1:]
     command = " ".join(command_parts).strip()
-    if command == "":
+
+    if args.script_file:
+        if command != "":
+            print("Error: --script-file と command は同時に指定できません。", file=sys.stderr)
+            return 2
+        script = Path(args.script_file).read_text(encoding="utf-8")
+        if args.python:
+            if PYTHON_HEREDOC_MARKER in script:
+                print(f"Error: スクリプトに {PYTHON_HEREDOC_MARKER} を含められません。", file=sys.stderr)
+                return 2
+            command = (
+                f"python3 - <<'{PYTHON_HEREDOC_MARKER}'\n"
+                f"{script}\n"
+                f"{PYTHON_HEREDOC_MARKER}\n"
+            )
+        else:
+            command = script
+    elif args.python:
+        print("Error: --python は --script-file と一緒に使ってください。", file=sys.stderr)
+        return 2
+
+    if command.strip() == "":
         print("Error: remote command is required.", file=sys.stderr)
         return 2
 

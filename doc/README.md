@@ -10,6 +10,7 @@
 
 ## 設計・運用
 
+- [search-ranking.md](search-ranking.md) — 検索の並び順。日付順での近接優先、しきい値の根拠、速度への影響
 - [multi-municipality.md](multi-municipality.md) — 複数自治体対応の共通設計。slug 正規化、URL ルール、自治体追加手順
 - [domain-boundaries.md](domain-boundaries.md) — 自治体文書と選挙ポスター掲示場の所有範囲、許可する共有、互換入口
 - [home-page.md](home-page.md) — トップページ（自治体マップ）の描画方式と表示ルール

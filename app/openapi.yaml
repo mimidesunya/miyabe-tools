@@ -219,6 +219,9 @@ components:
           type: boolean
         took_ms:
           type: integer
+        proximity_ranked:
+          type: boolean
+          description: 近接優先が働いたか。true のとき、検索語が近くに現れた文書がまとまって先頭に並び、その中と外がそれぞれ日付順になる。
         items:
           type: array
           items:
@@ -257,6 +260,12 @@ components:
           type:
             - number
             - "null"
+          description: 検索スコア。関連度順のときの並び順に対応する。日付順のときは null。
+        proximity:
+          type:
+            - boolean
+            - "null"
+          description: 検索語が本文中で近く（おおむね同じ文の中）に現れたか。日付順の AND 検索でだけ入り、それ以外は null。
         doc_type:
           type: string
           enum: [minutes, reiki]

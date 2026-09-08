@@ -132,14 +132,27 @@ function toPublicUrl(value: unknown): string {
   return publicBaseUrl + (path.startsWith("/") ? path : "/" + path);
 }
 
+// 公開API は「値が無い」を null で表すことがある（関連度順でない検索の score、
+// 近接優先でない検索の proximity）。MCP の出力スキーマでは省略可の項目に null を
+// 入れられないので、null の項目は落としてから返す。REST 側は互換のため常にキーを返す。
+function withoutNulls(source: Record<string, unknown>): Record<string, unknown> {
+  const kept: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (value !== null) {
+      kept[key] = value;
+    }
+  }
+  return kept;
+}
+
 function withPublicUrls<T>(document: T): T {
   if (document === null || typeof document !== "object") {
     return document;
   }
   const source = document as Record<string, unknown>;
-  const fixed: Record<string, unknown> = { ...source };
+  const fixed: Record<string, unknown> = withoutNulls(source);
   for (const key of ["detail_url", "api_document_url"]) {
-    if (source[key] !== undefined) {
+    if (source[key] !== undefined && source[key] !== null) {
       fixed[key] = toPublicUrl(source[key]);
     }
   }
@@ -290,7 +303,7 @@ const searchInputSchema = z.object({
   end_date: z.string().optional().describe("検索対象期間の終了日。YYYY-MM-DD形式。"),
   start_year: z.number().int().min(1).max(9999).optional().describe("検索対象期間の開始年。"),
   end_year: z.number().int().min(1).max(9999).optional().describe("検索対象期間の終了年。"),
-  sort: z.enum(["date", "relevance"]).optional().describe("date は新しい順、relevance は関連度順。既定は会議録が date、例規集が relevance。"),
+  sort: z.enum(["date", "relevance"]).optional().describe("date は新しい順、relevance は関連度順。既定は会議録が date、例規集が relevance。date で演算子なしの AND 検索をすると、語が近くに現れた文書がまとまって先頭に来て、その中と外がそれぞれ新しい順になる。"),
   page: z.number().int().min(1).default(1).describe("ページ番号。"),
   per_page: z.number().int().min(1).max(50).default(10).describe("1ページあたりの件数。MCPでは最大50件。"),
   include_facets: z.boolean().optional().describe("true の場合、文書種別・都道府県・自治体の集計も返します。"),
@@ -310,7 +323,8 @@ const documentCommonShape = {
   title: z.string().optional().describe("文書のタイトル。"),
   title_highlight: z.string().optional().describe("タイトル中の一致箇所を示した文字列。"),
   excerpt: z.string().optional().describe("本文中の該当箇所の抜粋。[[[ ]]] で囲まれた部分が一致箇所。"),
-  score: z.number().optional().describe("検索スコア。関連度順のときの並び順に対応する。"),
+  score: z.number().nullable().optional().describe("検索スコア。関連度順のときの並び順に対応する。日付順のときは null。"),
+  proximity: z.boolean().nullable().optional().describe("検索語が本文中で近く（おおむね同じ文の中）に現れたか。日付順の AND 検索でだけ入る。true の文書は false の文書より前に並ぶ。"),
   body_length: z.number().optional().describe("本文全体の文字数。"),
   source_url: z.string().optional().describe("取得元（自治体側）のURL。"),
   detail_url: z.string().optional().describe("本サービスの詳細ページのURL。"),
@@ -348,6 +362,7 @@ const searchOutputSchema = z.looseObject({
   total_relation: z.string().optional().describe("eq は総数が確定、gte は total 以上あることを示す。"),
   has_more: z.boolean().optional().describe("次のページがあるか。"),
   took_ms: z.number().optional().describe("検索にかかった時間（ミリ秒）。"),
+  proximity_ranked: z.boolean().optional().describe("近接優先が働いたか。true のとき、検索語が近くに現れた文書がまとまって先頭に並び、その中と外がそれぞれ日付順になる。"),
   index_alias: z.string().optional().describe("検索に使った索引の別名。"),
   items: z.array(z.looseObject(documentCommonShape)).describe("検索結果。id を get_municipal_document に渡すと本文を取得できる。"),
   aggregations: z.looseObject({
@@ -391,7 +406,7 @@ function createServer(): McpServer {
     "search_minutes",
     {
       title: "会議録検索",
-      description: "全国自治体の会議録を検索し、該当箇所の抜粋、自治体、開催日、原典URL、全文取得用IDを返します。",
+      description: "全国自治体の会議録を検索し、該当箇所の抜粋、自治体、開催日、原典URL、全文取得用IDを返します。複数語を空白で区切ると AND 検索になり、日付順のときは語が近くに現れた文書を先に返します。",
       inputSchema: searchInputSchema,
       outputSchema: searchOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS
@@ -414,7 +429,7 @@ function createServer(): McpServer {
     "search_reiki",
     {
       title: "例規集検索",
-      description: "全国自治体の条例・規則などの例規集を検索し、該当箇所の抜粋、自治体、公布日等、原典URL、全文取得用IDを返します。",
+      description: "全国自治体の条例・規則などの例規集を検索し、該当箇所の抜粋、自治体、公布日等、原典URL、全文取得用IDを返します。複数語を空白で区切ると AND 検索になり、日付順のときは語が近くに現れた文書を先に返します。",
       inputSchema: searchInputSchema,
       outputSchema: searchOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS

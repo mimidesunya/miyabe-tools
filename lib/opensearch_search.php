@@ -4,6 +4,18 @@ declare(strict_types=1);
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'japanese_search.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'municipalities.php';
 
+// AND 検索で「2 語が近くに現れる文書」を日付順より先に出すときのしきい値。
+//
+// 語単位（body_terms）は 1 形態素につき表層形と正規形の両方が入るので、25 トークンで
+// おおむね 18〜21 形態素になり、LexisNexis の /s（同一文 = 約 25 語）と同じ粒度になる。
+// 本番データで測ると会議録の 1 文は中央値 35 文字・p75 61 文字で、slop 40 を超えた
+// あたりから「野猿対策事業」のような無関係な共起が混じり始めた。
+const MIYABE_SEARCH_PROXIMITY_SLOP = 25;
+
+// 文字単位（body の CJK bigram）のしきい値。bigram の position はほぼ文字位置なので、
+// slop がそのまま「2 語の間隔の文字数」になる。語単位の 25 トークンに対応する幅。
+const MIYABE_SEARCH_PROXIMITY_CHAR_SLOP = 40;
+
 final class MiyabeOpenSearchException extends RuntimeException
 {
     public function __construct(
@@ -285,8 +297,74 @@ function miyabe_search_build_query_clause(string $query): array
 
     return [
         'query' => $must === [] ? ['match_all' => (object)[]] : ['bool' => ['must' => $must]],
+        // 近接優先ではこの must をまるごと filter へ移し、スコアを近接判定だけに残す。
+        'must' => $must,
+        'proximity' => miyabe_search_proximity_clauses($prepared, $rawQuery, $termQuery, $exactPhrases),
         'highlight_terms' => array_values(array_filter(array_map('strval', $highlightTerms))),
     ];
+}
+
+/**
+ * 語が近くに現れるかを見る句。素の AND 検索のときだけ返す。
+ *
+ * 語単位（body_terms）と文字単位（body の CJK bigram）を両方見て、確かな順に重みを付ける。
+ * 語単位のほうが精度は高い（bigram だと「審議会」の中の「議会」を拾ってしまい、実データでも
+ * 誤ったヒットが出た）が、索引を作った時点と今で Sudachi の分割が変わっていて、
+ * 「ふるさと納税」「情報公開」のような複合語は body_terms 側で語が割れていて当たらない。
+ * そこで文字単位を控えめな重みで足し、複合語でも近接優先が働くようにする。
+ *
+ * 返すのは [句, 重み] の組。重みが大きいものから順に前へ出る。
+ */
+function miyabe_search_proximity_clauses(
+    array $prepared,
+    string $rawQuery,
+    string $termQuery,
+    array $exactPhrases
+): array {
+    if ($exactPhrases !== []) {
+        // 完全一致フレーズは位置を固定して探しているので、重ねて近接を見る意味がない。
+        return [];
+    }
+
+    $terms = array_values(array_filter(array_map(
+        static fn($value): string => trim((string)$value),
+        is_array($prepared['highlight_terms'] ?? null) ? $prepared['highlight_terms'] : []
+    ), static fn(string $value): bool => $value !== ''));
+    if (count($terms) < 2) {
+        return [];
+    }
+    if (!japanese_search_query_is_plain_and($rawQuery)) {
+        return [];
+    }
+
+    $clauses = [];
+    if ($termQuery !== '') {
+        $clauses[] = [
+            'clause' => [
+                'match_phrase' => [
+                    'body_terms' => [
+                        'query' => $termQuery,
+                        'slop' => MIYABE_SEARCH_PROXIMITY_SLOP,
+                    ],
+                ],
+            ],
+            'boost' => 2.0,
+        ];
+    }
+    if ($rawQuery !== '') {
+        $clauses[] = [
+            'clause' => [
+                'match_phrase' => [
+                    'body' => [
+                        'query' => $rawQuery,
+                        'slop' => MIYABE_SEARCH_PROXIMITY_CHAR_SLOP,
+                    ],
+                ],
+            ],
+            'boost' => 1.0,
+        ];
+    }
+    return $clauses;
 }
 
 function miyabe_search_build_request(array $params): array
@@ -332,26 +410,59 @@ function miyabe_search_build_request(array $params): array
         $filters[] = $yearFilter;
     }
 
-    $bodyQuery = $queryClause['query'];
-    if ($filters !== []) {
-        if (isset($bodyQuery['bool']) && is_array($bodyQuery['bool'])) {
-            $bodyQuery['bool']['filter'] = $filters;
-        } else {
-            $bodyQuery = [
-                'bool' => [
-                    'must' => [$bodyQuery],
-                    'filter' => $filters,
+    $proximityClauses = is_array($queryClause['proximity'] ?? null) ? $queryClause['proximity'] : [];
+    $clauseMust = is_array($queryClause['must'] ?? null) ? $queryClause['must'] : [];
+    // 関連度順は元から近い語を上に出せるので、日付順のときだけ近接を優先する。
+    $proximityRanked = $sort === 'date' && $proximityClauses !== [] && $clauseMust !== [];
+
+    if ($proximityRanked) {
+        // AND 条件を filter に落としてスコア計算から外し、_score を近接判定の結果だけにする。
+        // constant_score なので _score は語単位 2.0 / 文字単位 1.0 の足し合わせにしかならず、
+        // [_score, sort_date] の 2 段ソートで「近いものが先、その中では新しい順」が
+        // 検索 1 回で出せる。近さの度合いで並べ替えるのではなく、しきい値の内か外かで
+        // 前後に分けるのが狙い（内側は語単位で当たったほうが確かなので先に置く）。
+        $should = [];
+        foreach ($proximityClauses as $entry) {
+            $should[] = [
+                'constant_score' => [
+                    'filter' => $entry['clause'],
+                    'boost' => $entry['boost'],
                 ],
             ];
+        }
+        $bodyQuery = [
+            'bool' => [
+                'filter' => array_merge($filters, $clauseMust),
+                'should' => $should,
+            ],
+        ];
+    } else {
+        $bodyQuery = $queryClause['query'];
+        if ($filters !== []) {
+            if (isset($bodyQuery['bool']) && is_array($bodyQuery['bool'])) {
+                $bodyQuery['bool']['filter'] = $filters;
+            } else {
+                $bodyQuery = [
+                    'bool' => [
+                        'must' => [$bodyQuery],
+                        'filter' => $filters,
+                    ],
+                ];
+            }
         }
     }
 
     $sortSpec = [['_score' => ['order' => 'desc']]];
     if ($sort === 'date') {
-        $sortSpec = [
-            ['sort_date' => ['order' => 'desc', 'missing' => '_last']],
-            ['_score' => ['order' => 'desc']],
-        ];
+        $sortSpec = $proximityRanked
+            ? [
+                ['_score' => ['order' => 'desc']],
+                ['sort_date' => ['order' => 'desc', 'missing' => '_last']],
+            ]
+            : [
+                ['sort_date' => ['order' => 'desc', 'missing' => '_last']],
+                ['_score' => ['order' => 'desc']],
+            ];
     }
 
     $highlightFields = [
@@ -422,6 +533,7 @@ function miyabe_search_build_request(array $params): array
         'query' => $query,
         'page' => $page,
         'per_page' => $perPage,
+        'proximity_ranked' => $proximityRanked,
         'body' => $body,
     ];
 }
@@ -471,15 +583,18 @@ function miyabe_search_api_document_url(array $hit, array $source): string
     ]);
 }
 
-function miyabe_search_hit_to_item(array $hit, string $query = ''): array
+function miyabe_search_hit_to_item(array $hit, string $query = '', bool $proximityRanked = false): array
 {
     $source = is_array($hit['_source'] ?? null) ? $hit['_source'] : [];
     $titleHighlight = miyabe_search_first_highlight($hit, 'title');
     $meetingHighlight = miyabe_search_first_highlight($hit, 'meeting_name');
     $bodyHighlight = miyabe_search_first_highlight($hit, 'body');
+    // 近接優先のときの _score は関連度ではなく 0/1 の判定結果なので、
+    // 関連度として読まれないよう score には載せず proximity で返す。
     return [
         'id' => (string)($hit['_id'] ?? ''),
-        'score' => isset($hit['_score']) ? (float)$hit['_score'] : null,
+        'score' => (!$proximityRanked && isset($hit['_score'])) ? (float)$hit['_score'] : null,
+        'proximity' => $proximityRanked ? ((float)($hit['_score'] ?? 0) >= 1.0) : null,
         'doc_type' => (string)($source['doc_type'] ?? ''),
         'slug' => (string)($source['slug'] ?? ''),
         'municipality_code' => (string)($source['municipality_code'] ?? ''),
@@ -633,11 +748,13 @@ function miyabe_search_execute_request(array $params): array
     $relation = is_array($totalPayload) ? (string)($totalPayload['relation'] ?? 'eq') : 'eq';
     $page = (int)$searchRequest['page'];
     $perPage = (int)$searchRequest['per_page'];
+    $proximityRanked = (bool)($searchRequest['proximity_ranked'] ?? false);
 
     return [
         'status' => 'ok',
         'error' => '',
         'query' => $query,
+        'proximity_ranked' => $proximityRanked,
         'doc_type' => (string)$searchRequest['doc_type'],
         'index_alias' => $index,
         'page' => $page,
@@ -647,7 +764,9 @@ function miyabe_search_execute_request(array $params): array
         'has_more' => $relation === 'eq' ? ($page * $perPage) < $total : count($hits) >= $perPage,
         'took_ms' => (int)($response['took'] ?? 0),
         'items' => array_values(array_map(
-            static fn($hit): array => is_array($hit) ? miyabe_search_hit_to_item($hit, $query) : [],
+            static fn($hit): array => is_array($hit)
+                ? miyabe_search_hit_to_item($hit, $query, $proximityRanked)
+                : [],
             $hits
         )),
         'aggregations' => miyabe_search_serialize_aggregations(

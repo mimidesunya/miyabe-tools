@@ -247,6 +247,28 @@ function japanese_search_exact_phrases_from_prepared(array $preparedQuery): arra
     return array_values($phrases);
 }
 
+/**
+ * 演算子を含まない、素の AND 検索かどうか。
+ *
+ * OR や NOT が混ざったクエリでは「語が近い＝関連が強い」が成り立たないので、
+ * 近接優先はこれが true のときだけ効かせる。simple_query_string の演算子のうち
+ * +/- は語の先頭に置かれたときだけ意味を持つので、その位置だけを見る。
+ */
+function japanese_search_query_is_plain_and(string $query): bool
+{
+    $query = trim($query);
+    if ($query === '') {
+        return false;
+    }
+    if (preg_match('/["()|]/u', $query) === 1) {
+        return false;
+    }
+    if (preg_match('/(?:^|[\s　])[+\-]/u', $query) === 1) {
+        return false;
+    }
+    return preg_match('/\b(?:AND|OR|NOT|NEAR(?:\/\d+)?)\b/iu', $query) !== 1;
+}
+
 function japanese_search_text_matches_exact_phrases(string $text, array $phrases): bool
 {
     if ($phrases === []) {
