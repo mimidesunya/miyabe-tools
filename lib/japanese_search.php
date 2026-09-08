@@ -115,7 +115,7 @@ function japanese_search_run_tokenizer(string $mode, string $text): ?array
 
 function japanese_search_query_cache_path(string $query): string
 {
-    return data_path('background_tasks/japanese_search_query_cache/' . sha1('phrase-v6:' . $query) . '.json');
+    return data_path('background_tasks/japanese_search_query_cache/' . sha1('phrase-v7:' . $query) . '.json');
 }
 
 function japanese_search_query_cache_ttl_seconds(): int
@@ -353,8 +353,16 @@ function japanese_search_prepare_query(string $query): array
         if (is_array($cachedPayload)) {
             $cachedTokenizer = trim((string)($cachedPayload['tokenizer'] ?? ''));
             $cachedSchema = trim((string)($cachedPayload['query_cache_schema'] ?? ''));
-            if ($cachedTokenizer !== 'fallback' && $cachedSchema === 'phrase-v6') {
+            if ($cachedTokenizer !== 'fallback' && $cachedSchema === 'phrase-v7') {
                 $payload = $cachedPayload;
+                // 保存してあるのは下で組み立てた後の形なので、語は highlight_terms の名前で入って
+                // いる。tokenizer の生の返り値と同じ名前に戻しておかないと、下の surface_terms が
+                // 空になり、Sudachi で切った語を捨てて空白区切りへ落ちる。そうなると
+                // 「ふるさと納税」のように Sudachi が割る複合語が body_terms と噛み合わなくなる。
+                if (!array_key_exists('surface_terms', $payload)
+                    && array_key_exists('highlight_terms', $payload)) {
+                    $payload['surface_terms'] = $payload['highlight_terms'];
+                }
             }
         }
     }
@@ -421,7 +429,7 @@ function japanese_search_prepare_query(string $query): array
         'fts_query' => $ftsQuery,
         'highlight_terms' => array_values($surfaceTerms),
         'exact_phrases' => array_values($exactPhrases),
-        'query_cache_schema' => 'phrase-v6',
+        'query_cache_schema' => 'phrase-v7',
         'tokenizer' => $payload === null ? 'fallback' : 'sudachi',
     ];
 
