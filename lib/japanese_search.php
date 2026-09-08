@@ -124,6 +124,66 @@ function japanese_search_query_cache_ttl_seconds(): int
     return 3600;
 }
 
+function japanese_search_query_cache_dir(): string
+{
+    return dirname(japanese_search_query_cache_path(''));
+}
+
+function japanese_search_query_cache_max_age_seconds(): int
+{
+    // TTL を過ぎた分は、同じ検索語がもう一度来ない限り読まれない。読まれないまま積み上がる
+    // ので、1 日置いたものは捨てる。捨てても同じ語で検索されれば作り直すだけで、失うものはない。
+    // 実際、本番では 3,880 件のうち有効なのは 18 件で、76% は 7 日以上前のものだった。
+    return 24 * 60 * 60;
+}
+
+/**
+ * 読まれなくなったクエリキャッシュを捨てる。消した件数を返す。
+ *
+ * ファイル名は検索語とスキーマの hash なので、スキーマを上げると前のものは二度と
+ * 読まれない。TTL の判定は読むときにしか働かず、ファイル自体は残り続ける。
+ */
+function japanese_search_prune_query_cache(int $maxDeletions = 500): int
+{
+    $dir = japanese_search_query_cache_dir();
+    $handle = @opendir($dir);
+    if ($handle === false) {
+        return 0;
+    }
+
+    $threshold = time() - japanese_search_query_cache_max_age_seconds();
+    $deleted = 0;
+    // 全部を配列に読み込むと、件数が増えたときに重くなる。1 件ずつ見て上限で打ち切る。
+    while ($deleted < $maxDeletions && ($entry = readdir($handle)) !== false) {
+        if (!str_ends_with($entry, '.json')) {
+            continue;
+        }
+        $path = $dir . DIRECTORY_SEPARATOR . $entry;
+        $mtime = @filemtime($path);
+        if ($mtime === false || $mtime > $threshold) {
+            continue;
+        }
+        if (@unlink($path)) {
+            $deleted++;
+        }
+    }
+    closedir($handle);
+    return $deleted;
+}
+
+function japanese_search_maybe_prune_query_cache(): void
+{
+    // 検索のたびにディレクトリを走査するほどのものではないので、まれにだけ掃除する。
+    try {
+        if (random_int(1, 200) !== 1) {
+            return;
+        }
+    } catch (Throwable) {
+        return;
+    }
+    japanese_search_prune_query_cache();
+}
+
 function japanese_search_document_terms_map(array $fields): array
 {
     $normalized = [];
@@ -435,6 +495,7 @@ function japanese_search_prepare_query(string $query): array
 
     if ($normalized !== '') {
         write_json_cache_file(japanese_search_query_cache_path($normalized), $prepared);
+        japanese_search_maybe_prune_query_cache();
     }
 
     return $cache[$normalized] = $prepared;

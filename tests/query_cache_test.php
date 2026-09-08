@@ -66,5 +66,25 @@ check(
 @unlink($path);
 @unlink($fallbackPath);
 
+// --- 読まれなくなったファイルを捨てる
+// ファイル名は検索語とスキーマの hash なので、スキーマを上げると前のものは二度と読まれない。
+// TTL の判定は読むときにしか働かず、ファイル自体は残る。本番では 3,880 件のうち有効なのが
+// 18 件だけ、という状態になっていた。
+$dir = japanese_search_query_cache_dir();
+@mkdir($dir, 0777, true);
+
+$stale = $dir . DIRECTORY_SEPARATOR . 'test_stale_' . bin2hex(random_bytes(6)) . '.json';
+$fresh = $dir . DIRECTORY_SEPARATOR . 'test_fresh_' . bin2hex(random_bytes(6)) . '.json';
+file_put_contents($stale, '{}');
+file_put_contents($fresh, '{}');
+touch($stale, time() - japanese_search_query_cache_max_age_seconds() - 60);
+
+japanese_search_prune_query_cache();
+check('読まれなくなったファイルは捨てる', !is_file($stale));
+check('まだ読まれうるファイルは残す', is_file($fresh));
+
+@unlink($stale);
+@unlink($fresh);
+
 echo $failures === 0 ? "\nall passed\n" : "\n{$failures} failed\n";
 exit($failures === 0 ? 0 : 1);
