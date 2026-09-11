@@ -237,7 +237,7 @@ $updatedAt = $account ? app_format_tokyo_datetime((string)($account['updated_at'
         <div class="admin-title">YouTube 動画アップロード</div>
         <p class="muted">動画をアップロードすると、サーバー側で音声を正規化してから YouTube へ投稿します。既定は非公開です。</p>
         <div class="actions">
-          <a class="btn ghost" href="/youtube/">アップロード画面を開く</a>
+          <a class="btn ghost" href="https://tatsuhiko.miya.be/youtube/">アップロード画面を開く</a>
         </div>
       </div>
 
