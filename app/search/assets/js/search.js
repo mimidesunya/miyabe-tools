@@ -292,7 +292,7 @@
         });
     }
 
-    function updateUrl() {
+    function buildUrl() {
         const params = new URLSearchParams();
         if (state.query) params.set('q', state.query);
         if (state.docType !== 'minutes') params.set('doc_type', state.docType);
@@ -309,8 +309,92 @@
             params.set('end_year', state.endYear);
         }
         if (state.sort !== 'date') params.set('sort', state.sort);
-        const url = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
-        window.history.replaceState({}, '', url);
+        return `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
+    }
+
+    /* 履歴に残す検索条件。これが変わったときだけ履歴を1つ積む */
+    const HISTORY_KEYS = ['query', 'docType', 'slug', 'prefCode', 'startYear', 'endYear', 'startDate', 'endDate', 'sort', 'page'];
+
+    /* 今の履歴項目に書いてある表示。地図の円やタブは state を書き換えてから runSearch を
+       呼ぶので、「離れる前の表示」は state からではなくここから取る */
+    let historyEntry = null;
+
+    /** 今の検索条件の写し */
+    function searchSnapshot() {
+        const snapshot = {};
+        for (const key of HISTORY_KEYS) {
+            snapshot[key] = state[key];
+        }
+        return snapshot;
+    }
+
+    /** 地図の今の位置。「戻る」で同じ場所を見せるために履歴へ入れる */
+    function mapViewSnapshot() {
+        return hitMap
+            ? { center: [hitMap.getCenter().lat, hitMap.getCenter().lng], zoom: hitMap.getZoom() }
+            : null;
+    }
+
+    function sameSearch(a, b) {
+        return HISTORY_KEYS.every((key) => String(a[key] ?? '') === String(b[key] ?? ''));
+    }
+
+    /** 履歴項目に写しが無いとき（別版で積まれた項目など）は URL から条件を組み立てる */
+    function snapshotFromUrl() {
+        const params = new URLSearchParams(window.location.search);
+        const startDate = normalizeDate(params.get('start_date'));
+        const endDate = normalizeDate(params.get('end_date'));
+        return {
+            query: String(params.get('q') || '').trim(),
+            docType: normalizeDocType(params.get('doc_type') || params.get('type')),
+            slug: String(params.get('slug') || '').trim(),
+            prefCode: normalizePrefCode(params.get('pref_code') || params.get('pref')),
+            startYear: startDate ? startDate.slice(0, 4) : normalizeYear(params.get('start_year')),
+            endYear: endDate ? endDate.slice(0, 4) : normalizeYear(params.get('end_year')),
+            startDate,
+            endDate,
+            sort: normalizeSort(params.get('sort')),
+            page: 1,
+            mapView: null,
+            mapCollapsed: hitMapCollapsed,
+        };
+    }
+
+    /**
+     * 履歴を更新する。地図の円を押して絞り込んだあと「戻る」で絞る前の結果と地図の位置へ
+     * 帰れるように、条件が変わるときは離れる表示（地図の位置つき）を今の履歴項目へ
+     * 書き戻してから新しい表示を積む。同じ条件の引き直しは積まない（戻るを何度も押させない）。
+     */
+    function commitHistory() {
+        const current = { ...searchSnapshot(), mapView: null, mapCollapsed: hitMapCollapsed };
+        const url = buildUrl();
+        if (historyEntry && !sameSearch(historyEntry, current)) {
+            const leaving = { ...historyEntry, mapView: mapViewSnapshot(), mapCollapsed: hitMapCollapsed };
+            window.history.replaceState({ search: leaving }, '', window.location.href);
+            window.history.pushState({ search: current }, '', url);
+        } else {
+            window.history.replaceState({ search: current }, '', url);
+        }
+        historyEntry = current;
+    }
+
+    /** 「戻る」「進む」で履歴項目の表示へ戻す。履歴は触らない */
+    function restoreSnapshot(snapshot) {
+        state.query = String(snapshot.query || '').trim();
+        state.docType = normalizeDocType(snapshot.docType);
+        state.slug = String(snapshot.slug || '').trim();
+        state.prefCode = normalizePrefCode(snapshot.prefCode);
+        state.startDate = normalizeDate(snapshot.startDate);
+        state.endDate = normalizeDate(snapshot.endDate);
+        state.startYear = state.startDate ? state.startDate.slice(0, 4) : normalizeYear(snapshot.startYear);
+        state.endYear = state.endDate ? state.endDate.slice(0, 4) : normalizeYear(snapshot.endYear);
+        state.sort = normalizeSort(snapshot.sort);
+        state.page = Math.max(1, Number(snapshot.page || 1));
+        pendingMapView = snapshot.mapView || null;
+        setHitMapCollapsed(Boolean(snapshot.mapCollapsed));
+        historyEntry = { ...searchSnapshot(), mapView: null, mapCollapsed: hitMapCollapsed };
+        syncControls();
+        runSearch(state.page, { history: 'none' });
     }
 
     function apiParams(page = state.page) {
@@ -513,6 +597,8 @@
     let hitMap = null;
     let hitMarkerLayer = null;
     let hitMapCollapsed = false;
+    /* 「戻る」で来たとき、離れたときの地図の位置に戻すための控え。次の描画で使い切る */
+    let pendingMapView = null;
 
     function hitMapAvailable() {
         return Boolean(refs.hitMapPanel && refs.hitMapCanvas && window.L);
@@ -625,17 +711,25 @@
             refs.hitMapNote.textContent = notes.join(' ');
         }
 
+        const restoreView = pendingMapView;
+        pendingMapView = null;
         /* 描画直後は入れ物の大きさが確定していないことがある */
         window.setTimeout(() => {
             hitMap.invalidateSize();
-            if (points.length > 0) {
+            if (restoreView && Array.isArray(restoreView.center) && Number.isFinite(restoreView.zoom)) {
+                /* 「戻る」で来たときは、全体に合わせ直さず離れたときの位置へ */
+                hitMap.setView(restoreView.center, restoreView.zoom);
+            } else if (points.length > 0) {
                 hitMap.fitBounds(L.latLngBounds(points), { padding: [24, 24], maxZoom: 10 });
             }
         }, 0);
     }
 
-    function toggleHitMap() {
-        hitMapCollapsed = !hitMapCollapsed;
+    function setHitMapCollapsed(collapsed) {
+        hitMapCollapsed = Boolean(collapsed);
+        if (!refs.hitMapPanel) {
+            return;
+        }
         refs.hitMapPanel.classList.toggle('is-collapsed', hitMapCollapsed);
         if (refs.hitMapToggle) {
             refs.hitMapToggle.textContent = hitMapCollapsed ? 'ひらく' : 'たたむ';
@@ -644,6 +738,10 @@
         if (!hitMapCollapsed && hitMap) {
             window.setTimeout(() => hitMap.invalidateSize(), 0);
         }
+    }
+
+    function toggleHitMap() {
+        setHitMapCollapsed(!hitMapCollapsed);
     }
 
     function renderAll() {
@@ -672,7 +770,11 @@
         refs.queryHelpOpen?.focus();
     }
 
-    async function runSearch(page = 1) {
+    /**
+     * @param {number} page
+     * @param {{history?: 'auto'|'none'}} options history が 'none' なら履歴を触らない（「戻る」からの復元用）
+     */
+    async function runSearch(page = 1, { history = 'auto' } = {}) {
         state.query = refs.query.value.trim();
         state.prefCode = normalizePrefCode(refs.pref.value);
         // 自治体一覧の読み込み前は select にまだ選択肢が無い。ここでフォーム値を
@@ -698,7 +800,10 @@
         }
         state.sort = normalizeSort(refs.sort.value);
         state.page = Math.max(1, Number(page || 1));
-        updateUrl();
+        if (history !== 'none') {
+            pendingMapView = null;
+            commitHistory();
+        }
 
         if (state.abortController) {
             state.abortController.abort();
@@ -846,10 +951,19 @@
         }
     });
 
+    window.addEventListener('popstate', (event) => {
+        const snapshot = event.state && event.state.search ? event.state.search : snapshotFromUrl();
+        restoreSnapshot(snapshot);
+    });
+
     syncControls();
     renderAll();
     loadMunicipalities();
     if (state.query) {
         runSearch(1);
+    } else {
+        /* 検索前でも最初の項目に写しを持たせ、戻ってきたときに URL を読み直さずに済ませる */
+        historyEntry = { ...searchSnapshot(), mapView: null, mapCollapsed: hitMapCollapsed };
+        window.history.replaceState({ search: historyEntry }, '', window.location.href);
     }
 })();
