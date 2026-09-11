@@ -47,7 +47,7 @@ function bira_template_path(): string
 
 function bira_python_bin(): string
 {
-    // 既存機能（YouTube・検索）と同じ探し方にそろえる。
+    // 検索と同じ探し方にそろえる。
     $env = trim((string)getenv('MIYABE_PYTHON_BIN'));
     if ($env !== '') {
         return $env;

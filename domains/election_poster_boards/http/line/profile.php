@@ -234,14 +234,6 @@ $updatedAt = $account ? app_format_tokyo_datetime((string)($account['updated_at'
       </div>
 
       <div class="admin-item">
-        <div class="admin-title">YouTube 動画アップロード</div>
-        <p class="muted">動画をアップロードすると、サーバー側で音声を正規化してから YouTube へ投稿します。既定は非公開です。</p>
-        <div class="actions">
-          <a class="btn ghost" href="https://tatsuhiko.miya.be/youtube/">アップロード画面を開く</a>
-        </div>
-      </div>
-
-      <div class="admin-item">
         <div class="admin-title">掲示場データの書き出し</div>
         <p class="muted">現在の掲示場と作業状況をKMLで取得します（この書き出し自体は誰でも利用できます）。</p>
         <div class="actions">
