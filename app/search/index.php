@@ -148,6 +148,7 @@ $boot = [
         '/search/'
     ); ?>
     <?php echo site_render_favicon_links(); ?>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <link rel="stylesheet" href="<?php echo search_h(search_asset_url('css/search.css')); ?>">
 </head>
 <body>
@@ -262,6 +263,19 @@ $boot = [
                 <div id="search-stats" class="stats"></div>
             </div>
             <div id="message-area" class="message-area"></div>
+
+            <?php /* 該当した自治体を地図に出す。どこの話なのかは一覧を読んでも掴めない */ ?>
+            <section class="hit-map-panel" id="hit-map-panel" hidden>
+                <div class="hit-map-head">
+                    <h2 id="hit-map-title">該当した自治体</h2>
+                    <span class="hit-map-summary" id="hit-map-summary"></span>
+                    <button class="hit-map-toggle" type="button" id="hit-map-toggle"
+                            aria-expanded="true" aria-controls="hit-map">たたむ</button>
+                </div>
+                <div class="hit-map" id="hit-map"></div>
+                <p class="hit-map-note" id="hit-map-note"></p>
+            </section>
+
             <div id="results" class="results"></div>
             <div id="pager" class="pager"></div>
         </section>
@@ -294,6 +308,9 @@ $boot = [
 </div>
 
 <script id="search-boot" type="application/json"><?php echo json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE); ?></script>
+<?php /* 地図はトップと同じ Leaflet と地理院タイル。座標は自治体コードで引く */ ?>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="<?php echo search_h(site_asset_url('assets/js/municipality-coordinates.js')); ?>"></script>
 <script src="<?php echo search_h(search_asset_url('js/search.js')); ?>"></script>
 </body>
 </html>

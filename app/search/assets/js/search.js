@@ -29,6 +29,11 @@
         queryHelpModal: document.querySelector('[data-query-help-modal]'),
         queryHelpPanel: document.querySelector('[data-query-help-modal] .help-modal-panel'),
         queryHelpCloseButtons: Array.from(document.querySelectorAll('[data-query-help-close]')),
+        hitMapPanel: document.getElementById('hit-map-panel'),
+        hitMapCanvas: document.getElementById('hit-map'),
+        hitMapSummary: document.getElementById('hit-map-summary'),
+        hitMapNote: document.getElementById('hit-map-note'),
+        hitMapToggle: document.getElementById('hit-map-toggle'),
     };
 
     const prefNames = new Map((Array.isArray(boot.prefectures) ? boot.prefectures : [])
@@ -480,10 +485,172 @@
         `;
     }
 
+    /*
+     * ---- 該当した自治体を地図に出す ----
+     *
+     * 一覧を読んでも「どこの話なのか」は掴めない。全国で何百件と当たったとき、
+     * 北海道の話なのか西日本に偏っているのかは、並んだ見出しからは見えない。
+     *
+     * 出すのは検索の集計（aggregations.municipalities）で、表示中の頁の結果ではない。
+     * **1頁目に出ている20件ではなく、当たった全体から数えた上位50自治体。**
+     *
+     * 50 はサーバ側の集計の上限。増やすと点が散るだけで、どこに集中しているかが
+     * かえって見えなくなる（1〜2件しか当たっていない自治体まで全部打つことになる）。
+     * そのかわり**上限に達したときは画面にそう書く**——「これで全部」に見せない。
+     *
+     * 座標はトップと同じ municipality-coordinates.js（自治体コードで引く）。
+     * 地図とタイルもトップに合わせて Leaflet と地理院タイル。
+     */
+    const HIT_MAP_CENTER = [37.5, 137.0];
+    const HIT_MAP_ZOOM = 4;
+    /* サーバ側の自治体集計の上限（opensearch_search.php の terms size）と合わせる */
+    const HIT_MAP_BUCKET_LIMIT = 50;
+    const coordinatesByCode = (
+        window.MIYABE_MUNICIPALITY_COORDINATES
+        && typeof window.MIYABE_MUNICIPALITY_COORDINATES === 'object'
+    ) ? window.MIYABE_MUNICIPALITY_COORDINATES : {};
+
+    let hitMap = null;
+    let hitMarkerLayer = null;
+    let hitMapCollapsed = false;
+
+    function hitMapAvailable() {
+        return Boolean(refs.hitMapPanel && refs.hitMapCanvas && window.L);
+    }
+
+    function ensureHitMap() {
+        if (hitMap || !hitMapAvailable()) {
+            return hitMap;
+        }
+        hitMap = L.map(refs.hitMapCanvas, {
+            zoomControl: true,
+            scrollWheelZoom: false, // 頁を繰っているときに地図が拡大するのを防ぐ
+        }).setView(HIT_MAP_CENTER, HIT_MAP_ZOOM);
+        L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
+            attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a>',
+            maxZoom: 16,
+        }).addTo(hitMap);
+        hitMarkerLayer = L.layerGroup().addTo(hitMap);
+        return hitMap;
+    }
+
+    /** 件数から円の半径。件数は桁が開くので平方根で潰す */
+    function hitRadius(count, max) {
+        if (max <= 0) {
+            return 5;
+        }
+        const ratio = Math.sqrt(count) / Math.sqrt(max);
+        return 4 + ratio * 14;
+    }
+
+    function hitMapBuckets(payload) {
+        const aggs = payload && payload.status === 'ok' ? (payload.aggregations || {}) : {};
+        const buckets = Array.isArray(aggs.municipalities) ? aggs.municipalities : [];
+        return buckets
+            .map((bucket) => ({
+                slug: String(bucket.key || '').trim(),
+                count: Number(bucket.count) || 0,
+            }))
+            .filter((bucket) => bucket.slug && bucket.count > 0);
+    }
+
+    function renderHitMap(payload = state.lastPayload) {
+        if (!refs.hitMapPanel) {
+            return;
+        }
+        const buckets = hitMapBuckets(payload);
+        if (!state.query || buckets.length === 0 || !hitMapAvailable()) {
+            refs.hitMapPanel.hidden = true;
+            return;
+        }
+        refs.hitMapPanel.hidden = false;
+        ensureHitMap();
+        hitMarkerLayer.clearLayers();
+
+        const max = buckets.reduce((top, bucket) => Math.max(top, bucket.count), 0);
+        const points = [];
+        let missing = 0;
+
+        for (const bucket of buckets) {
+            const municipality = municipalityBySlug.get(bucket.slug);
+            const coordinate = municipality ? coordinatesByCode[municipality.code] : null;
+            if (!coordinate) {
+                /* 座標が無いものは黙って落とさず、あとで件数を出す */
+                missing += 1;
+                continue;
+            }
+            points.push(coordinate);
+            const marker = L.circleMarker(coordinate, {
+                radius: hitRadius(bucket.count, max),
+                color: '#8a2b2b',
+                weight: 1,
+                opacity: 0.9,
+                fillColor: '#c0392b',
+                fillOpacity: 0.55,
+            });
+            const label = municipality.label || municipality.name;
+            marker.bindTooltip(`${label}　${bucket.count.toLocaleString('ja-JP')}件`, {
+                direction: 'top',
+                sticky: true,
+            });
+            /* 押したらその自治体だけに絞って引き直す。地図から掘り下げられるように */
+            marker.on('click', () => {
+                state.slug = bucket.slug;
+                if (refs.slug) {
+                    refs.slug.value = bucket.slug;
+                }
+                runSearch(1);
+            });
+            marker.addTo(hitMarkerLayer);
+        }
+
+        const total = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
+        const capped = buckets.length >= HIT_MAP_BUCKET_LIMIT;
+        if (refs.hitMapSummary) {
+            refs.hitMapSummary.textContent = capped
+                ? `上位${buckets.length.toLocaleString('ja-JP')}自治体 / ${total.toLocaleString('ja-JP')}件`
+                : `${buckets.length.toLocaleString('ja-JP')}自治体 / ${total.toLocaleString('ja-JP')}件`;
+        }
+        if (refs.hitMapNote) {
+            const notes = ['円の大きさは件数。押すとその自治体だけに絞ります。'];
+            if (capped) {
+                /* 上限に達したときだけ言う。12自治体しか当たっていないのに
+                   「上位」と書くと、それはそれで誤解を招く */
+                notes.push('件数の多い順に50自治体まで出しています。これより少ない件数の自治体は地図に出ません。');
+            }
+            if (missing > 0) {
+                /* 黙って減らさない。地図の点の数と自治体の数が合わない理由を書く */
+                notes.push(`${missing}自治体は座標が無いため地図に出せません。`);
+            }
+            refs.hitMapNote.textContent = notes.join(' ');
+        }
+
+        /* 描画直後は入れ物の大きさが確定していないことがある */
+        window.setTimeout(() => {
+            hitMap.invalidateSize();
+            if (points.length > 0) {
+                hitMap.fitBounds(L.latLngBounds(points), { padding: [24, 24], maxZoom: 10 });
+            }
+        }, 0);
+    }
+
+    function toggleHitMap() {
+        hitMapCollapsed = !hitMapCollapsed;
+        refs.hitMapPanel.classList.toggle('is-collapsed', hitMapCollapsed);
+        if (refs.hitMapToggle) {
+            refs.hitMapToggle.textContent = hitMapCollapsed ? 'ひらく' : 'たたむ';
+            refs.hitMapToggle.setAttribute('aria-expanded', hitMapCollapsed ? 'false' : 'true');
+        }
+        if (!hitMapCollapsed && hitMap) {
+            window.setTimeout(() => hitMap.invalidateSize(), 0);
+        }
+    }
+
     function renderAll() {
         syncControls();
         renderStats();
         renderFacets();
+        renderHitMap();
         renderResults();
     }
 
@@ -597,6 +764,8 @@
         state.prefCode = normalizePrefCode(refs.pref.value);
         renderMunicipalityOptions();
     });
+
+    refs.hitMapToggle?.addEventListener('click', toggleHitMap);
 
     refs.municipalityFilter?.addEventListener('input', () => {
         state.municipalityFilter = refs.municipalityFilter.value.trim();

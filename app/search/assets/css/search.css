@@ -1040,3 +1040,76 @@ h1,
     font-size: 20px;
   }
 }
+
+/* ---- 該当した自治体の地図 ---- */
+.hit-map-panel {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+
+.hit-map-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.hit-map-head h2 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.hit-map-summary {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.hit-map-toggle {
+  margin-left: auto;
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.hit-map {
+  height: 360px;
+}
+
+.hit-map-note {
+  margin: 0;
+  padding: 8px 16px 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* たたんだときは地図と注記だけ消し、見出しは残す */
+.hit-map-panel.is-collapsed .hit-map,
+.hit-map-panel.is-collapsed .hit-map-note {
+  display: none;
+}
+
+.hit-map-panel.is-collapsed .hit-map-head {
+  border-bottom: 0;
+}
+
+/* 地図の中の字は本文と合わせる。Leaflet の既定は大きすぎる */
+.hit-map .leaflet-container {
+  font: inherit;
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .hit-map {
+    height: 260px;
+  }
+}
