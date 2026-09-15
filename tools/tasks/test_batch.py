@@ -75,6 +75,23 @@ class StalledWorkersTest(unittest.TestCase):
             worker["output_size"] = batch.worker_output_size(worker)
             self.assertEqual(batch.stalled_workers([worker], 0), [])
 
+    def test_stalled_worker_is_recorded_as_a_failure_not_a_stop(self) -> None:
+        from tools.tasks import priority
+
+        stalled = {"stalled": True}
+        returncode = batch.scrape_worker_returncode(stalled, -15)
+        # 打ち切りを「止められた実行」と記録すると、待たずにすぐ再起動される。
+        self.assertNotIn(returncode, priority.STOP_RETURN_CODES)
+        from tools.tasks import backfill
+
+        self.assertTrue(backfill.failed_item_should_persist({"status": "failed", "returncode": returncode}))
+
+    def test_stopped_worker_keeps_its_returncode(self) -> None:
+        from tools.tasks import priority
+
+        self.assertIn(batch.scrape_worker_returncode({}, -15), priority.STOP_RETURN_CODES)
+
+
 class RetryFailedCoversAutoRetryTest(unittest.TestCase):
     def test_failed_retry_is_picked_up_by_retry_failed(self) -> None:
         # 失敗から時間が経って自動再試行の対象になったものも、手動で拾えないと

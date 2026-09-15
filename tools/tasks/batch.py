@@ -754,6 +754,20 @@ def stalled_workers(active_workers: list[dict], stall_seconds: int) -> list[dict
     return stalled
 
 
+# 見張りが打ち切った子の終了コード。SIGTERM の -15 のままだと「止められた実行」
+# （priority.STOP_RETURN_CODES）と区別できず、失敗の待ち日数が効かない。
+# 伊東・調布・大和は 2 時間黙って打ち切られ、すぐまた起動されるのを 1 週間に
+# 35 回ずつ繰り返していた。timeout(1) と同じ 124 を失敗として残す。
+STALLED_RETURNCODE = 124
+
+
+def scrape_worker_returncode(worker: dict, returncode: int) -> int:
+    """子の終了コードを、結果として記録する値に直す。"""
+    if worker.get("stalled"):
+        return STALLED_RETURNCODE
+    return int(returncode)
+
+
 # 稼働中 worker の進捗を state に反映し、heartbeat を更新する。
 def refresh_active_worker_heartbeats(
     spec: BatchSpec,
@@ -950,6 +964,8 @@ def run_batch(spec: BatchSpec, args: argparse.Namespace, targets: list[dict]) ->
             nonlocal completed_count
             target = worker["target"]
             summary = summarize_worker(worker["stdout_path"], worker["stderr_path"])
+            if worker.get("stalled"):
+                summary = f"出力が {args.target_stall_seconds} 秒止まったため打ち切り / {summary}"
             progress = extract_worker_progress_for_display(spec, worker)
             validation_error = spec.scrape_completion_error(target, progress) if returncode == 0 else ""
             scrape_ok = returncode == 0 and validation_error == ""
@@ -1157,6 +1173,7 @@ def run_batch(spec: BatchSpec, args: argparse.Namespace, targets: list[dict]) ->
                     f"[WARN] {slug}: {args.target_stall_seconds}秒 出力が無いので打ち切ります",
                     flush=True,
                 )
+                worker["stalled"] = True
                 terminate_process_group(worker["process"])
                 made_progress = True
 
@@ -1169,7 +1186,7 @@ def run_batch(spec: BatchSpec, args: argparse.Namespace, targets: list[dict]) ->
                     still_running.append(worker)
                     continue
                 close_worker_streams(worker)
-                completed_workers.append((worker, int(returncode)))
+                completed_workers.append((worker, scrape_worker_returncode(worker, returncode)))
             active_workers = still_running
 
             completed_index_workers: list[tuple[dict, int]] = []

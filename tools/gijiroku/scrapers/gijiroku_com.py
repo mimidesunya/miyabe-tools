@@ -425,16 +425,34 @@ def parse_legacy_voices_list_page(raw_html: str, page_url: str) -> tuple[list[Me
         text = normalize_space(anchor.get_text(" ", strip=True))
         # ページ送り。
         if "PAGE=" in href:
-            page_urls.append(urljoin(page_url, href))
+            page_urls.append(legacy_list_page_url(urljoin(page_url, href)))
             continue
         # 年の絞り込み。一覧の中に「令和 07年」のような年リンクが並ぶ取得元が
         # ある。ページ送りが 1 ページで終わっているので、これを辿らないと
         # 1,607 件のうち 23 件しか見えない（各務原市・氷見市）。
         # `FYY=` を持たないので、年度ページの判定にも引っかからなかった。
         if LEGACY_YEAR_LINK_RE.match(text):
-            page_urls.append(urljoin(page_url, href))
+            page_urls.append(legacy_list_page_url(urljoin(page_url, href)))
 
     return meetings, unique_preserve_order(page_urls)
+
+
+def legacy_list_page_url(url: str) -> str:
+    """一覧のページ送り URL から、開いている会議の指定 `TITL_SUBT` を外す。
+
+    会議の枝を開いた一覧では、ページ送りのリンクにその会議名が付いてくる。
+    同じ 1 ページが会議名の数だけ別の URL に見え、訪問済みの判定をすり抜ける。
+    伊東市は一覧 943 件（95 ページ）を 2 時間で回り切れず、見張りに打ち切られては
+    やり直していた（調布・大和も同じ、1 週間で 230 時間）。年の絞り込みは
+    `YEAR=` で、`TITL_SUBT` は表示の状態でしかないので外してよい。
+    本文 URL と同じく Shift_JIS のまま百分率符号化されているので、組み立て直さず
+    該当の 1 項目だけを取り除く。
+    """
+    parts = urlsplit(url)
+    if "TITL_SUBT=" not in parts.query:
+        return url
+    kept = [item for item in parts.query.split("&") if not item.startswith("TITL_SUBT=")]
+    return parts._replace(query="&".join(kept)).geturl()
 
 
 # 一覧の中に並ぶ年リンクの文言。`令和 07年` `平成 元年`。
@@ -489,6 +507,13 @@ def discover_legacy_voices_meeting_items(
             declared_totals.append(declared)
         page_meetings, page_urls = parse_legacy_voices_list_page(raw_html, page_url)
         meetings.extend(page_meetings)
+        # 一覧だけで 1 時間を超える取得元がある。黙っていると見張り
+        # （--target-stall-seconds）に止まったと見なされて打ち切られる。
+        if len(visited_pages) % 10 == 0:
+            print(
+                f"[INFO] 一覧 {len(visited_pages)} ページ / 会議 {len(meetings)} 件 / 残り {len(pending_urls)} ページ",
+                flush=True,
+            )
         if max_meetings > 0 and len(meetings) >= max_meetings:
             break
         for candidate_url in page_urls:
