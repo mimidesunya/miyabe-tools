@@ -222,12 +222,77 @@ class SourceIntegrityAudit:
 
 SOURCE_INTEGRITY_AUDITS: dict[tuple[str, str], SourceIntegrityAudit] = {}
 INTENTIONAL_SOURCE_OUTCOMES = frozenset({"toc", "aux", "duplicate_body", "limit"})
+# 取得物はあるのに、全部が目次・会議録でない文書（議会だより・日程表・名簿）と
+# 判定された自治体。「取得 dir 欠落・パーサが落とした」の 0 件とは違い、
+# 今の判定で会議録が 1 件も無いと確定している。旧文書を残す理由が無い。
+# えりも町・興部町は議会だより 52 件・44 件が、判定を直したあとも索引に残り、
+# 索引の掃き取りが 6 時間おきに同じ 0 件を作り直していた。
+CONFIRMED_NON_MINUTES_KINDS = frozenset({"toc", "aux", "duplicate_body"})
+CONFIRMED_NON_MINUTES_SLUGS: set[str] = set()
 
 
 def reset_source_integrity_tracking() -> None:
     """同じプロセスで main やテストを繰り返しても、前回のdropを持ち越さない。"""
     SKIPPED_SOURCES.clear()
     SOURCE_INTEGRITY_AUDITS.clear()
+    CONFIRMED_NON_MINUTES_SLUGS.clear()
+
+
+def minutes_source_signature(source_files: Iterable[Path]) -> dict[str, int]:
+    """保存ファイルの数と、いちばん新しい更新時刻。取り直しで中身が変われば変わる。"""
+    count = 0
+    latest = 0
+    for path in source_files:
+        count += 1
+        try:
+            latest = max(latest, int(path.stat().st_mtime))
+        except OSError:
+            continue
+    return {"count": count, "latest_mtime": latest}
+
+
+def minutes_empty_result_is_current(target: dict[str, Any]) -> bool:
+    """前回の索引で会議録が 0 件で、そのあと世代も保存ファイルも変わっていないか。
+
+    そういう自治体を積み直しても、同じ 0 件をもう一度作るだけである。和寒町は
+    8 日で 69 回、えりも町・興部町は 33 回ずつ、同じ 0 件を作り直していた。
+    内訳が古い（世代や署名が無い）ときは判断できないので False を返す。"""
+    work_dir = str(target.get("work_dir") or "").strip()
+    if not work_dir:
+        return False
+    try:
+        payload = json.loads((Path(work_dir) / DOCUMENT_KINDS_FILENAME).read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    if not isinstance(payload, dict) or int(payload.get("version") or 0) < 2:
+        return False
+    if int(payload.get("yielded", -1)) != 0:
+        return False
+    if payload.get("parser_generation") != PARSER_GENERATION:
+        return False
+    recorded = payload.get("source_signature")
+    if not isinstance(recorded, dict):
+        return False
+    downloads_dir = Path(str(target.get("downloads_dir") or ""))
+    try:
+        current = minutes_source_signature(
+            choose_minutes_source_files(downloads_dir) if downloads_dir.is_dir() else []
+        )
+    except Exception:
+        return False
+    return {key: int(recorded.get(key, -1)) for key in current} == current
+
+
+def confirmed_non_minutes(kinds: dict[str, int], *, raw_total: int, yielded: int) -> bool:
+    """全ファイルを読み切り、どれも会議録でないと判定できたかを返す。
+
+    読めなかった（`unreadable`）・想定外の種別が 1 件でもあれば確定しない。
+    ファイルが 0 件なのも確定しない（保存先が見えていないだけかもしれない）。"""
+    if raw_total <= 0 or yielded != 0:
+        return False
+    if sum(kinds.values()) != raw_total:
+        return False
+    return all(kind in CONFIRMED_NON_MINUTES_KINDS for kind, count in kinds.items() if count)
 
 
 def start_source_integrity_audit(
@@ -504,6 +569,7 @@ def write_document_kind_counts(
     indexable_before_dedupe: int,
     deduplicated: int,
     yielded: int,
+    source_signature: dict[str, int] | None = None,
 ) -> None:
     """取得したファイルの種別内訳を取得元ごとに残す。
 
@@ -544,6 +610,11 @@ def write_document_kind_counts(
         "indexable": yielded,
         "kinds": dict(sorted(kinds.items())),
     }
+    if source_signature is not None:
+        # 次にこの自治体を積み直す価値があるかを、掃き取りが判断する材料。
+        # 世代も保存ファイルも同じなら、索引し直しても同じ結果にしかならない。
+        payload["parser_generation"] = PARSER_GENERATION
+        payload["source_signature"] = dict(source_signature)
     path = work_dir / DOCUMENT_KINDS_FILENAME
     try:
         temporary = path.with_suffix(".json.tmp")
@@ -752,6 +823,10 @@ def iter_minutes_documents(
                 break
 
         # 途中で打ち切ったときの内訳は取得元の実態を表さないので残さない。
+        if not truncated and confirmed_non_minutes(
+            kind_counts, raw_total=len(source_files), yielded=yielded_count
+        ):
+            CONFIRMED_NON_MINUTES_SLUGS.add(target_slug)
         if not truncated:
             write_document_kind_counts(
                 target,
@@ -761,6 +836,7 @@ def iter_minutes_documents(
                 indexable_before_dedupe=indexable_before_dedupe,
                 deduplicated=deduplicated_count,
                 yielded=yielded_count,
+                source_signature=minutes_source_signature(source_files),
             )
         if truncated:
             mark_pending_sources_as_limited("minutes", target_slug)
@@ -1526,7 +1602,16 @@ def update_one(
             f"Incremental update generated documents outside requested slugs: {sorted(unexpected_slugs)}"
         )
     empty_slugs = slugs - yielded_slugs
-    if empty_slugs:
+    # 取得物を全部読んで、どれも会議録でないと確定した自治体。旧文書は消す。
+    confirmed_empty_slugs = empty_slugs & CONFIRMED_NON_MINUTES_SLUGS if doc_type == "minutes" else set()
+    if confirmed_empty_slugs:
+        print(
+            f"[INFO] {doc_type} has only non-minutes documents for "
+            f"{','.join(sorted(confirmed_empty_slugs))}; 旧文書を削除します。",
+            file=sys.stderr,
+        )
+    unconfirmed_empty_slugs = empty_slugs - confirmed_empty_slugs
+    if unconfirmed_empty_slugs:
         # 0件は「原典から全廃」と「取得dir欠落・parser drop」を区別できない。
         # 実際に生成できたslugだけを世代削除へ渡し、全廃は明示時だけ扱う。
         if allow_empty_slug_delete:
@@ -1538,10 +1623,10 @@ def update_one(
             )
         print(
             f"[WARN] {doc_type} generated no indexable documents for "
-            f"{','.join(sorted(empty_slugs))}; {message}",
+            f"{','.join(sorted(unconfirmed_empty_slugs))}; {message}",
             file=sys.stderr,
         )
-    delete_slugs = slugs if allow_empty_slug_delete else yielded_slugs
+    delete_slugs = slugs if allow_empty_slug_delete else (yielded_slugs | confirmed_empty_slugs)
     if not documents_list and not delete_slugs:
         return 0
 

@@ -101,6 +101,35 @@ class SourceIntegrityGuardTest(unittest.TestCase):
             )
         )
 
+    def _iterate(self, records: dict) -> list:
+        indexer.reset_source_integrity_tracking()
+        with (
+            mock.patch.object(gijiroku_targets, "iter_gijiroku_targets", return_value=iter([self.target])),
+            mock.patch.object(indexer, "choose_minutes_source_files", return_value=list(records)),
+            mock.patch.object(indexer, "parse_minutes_source_meta", return_value={}),
+            mock.patch.object(indexer, "build_minutes_record", side_effect=lambda path, *_a: records[path]),
+        ):
+            return list(indexer.iter_minutes_documents(strict=False))
+
+    def test_all_non_minutes_confirms_the_slug_empty(self) -> None:
+        paths = [self.downloads / name for name in ("dayori1.txt", "dayori2.txt", "toc.txt")]
+        records = {
+            paths[0]: minute_record(paths[0], "議会だより", kind="aux"),
+            paths[1]: minute_record(paths[1], "議会だより", kind="aux"),
+            paths[2]: minute_record(paths[2], "目次", kind="toc"),
+        }
+        self.assertEqual(self._iterate(records), [])
+        self.assertIn(self.slug, indexer.CONFIRMED_NON_MINUTES_SLUGS)
+
+    def test_an_unreadable_file_does_not_confirm_the_slug_empty(self) -> None:
+        paths = [self.downloads / name for name in ("dayori.txt", "broken.txt")]
+        records = {
+            paths[0]: minute_record(paths[0], "議会だより", kind="aux"),
+            paths[1]: None,
+        }
+        self.assertEqual(self._iterate(records), [])
+        self.assertNotIn(self.slug, indexer.CONFIRMED_NON_MINUTES_SLUGS)
+
     def test_strict_json_loader_raises_for_malformed_json(self) -> None:
         path = Path(self._tmp.name) / "broken.json"
         path.write_text("{", encoding="utf-8")

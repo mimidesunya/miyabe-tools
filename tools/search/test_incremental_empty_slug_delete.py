@@ -87,6 +87,40 @@ class IncrementalEmptySlugDeleteTest(unittest.TestCase):
         self.assertEqual(client.bulk_counts, [])
         self.assertEqual(client.deleted_slugs(), ["slug-b"])
 
+    def test_a_slug_with_only_non_minutes_documents_is_deleted(self) -> None:
+        # えりも町: 保存した 52 件がすべて議会だよりと判定された。取得物を全部
+        # 読んで会議録が無いと分かっているので、旧文書を残さない。
+        client = FakeClient()
+        indexer.reset_source_integrity_tracking()
+        indexer.CONFIRMED_NON_MINUTES_SLUGS.add("slug-b")
+        try:
+            documents = [("minutes:a:1", {"slug": "slug-a", "indexed_at": "2026-08-31T00:00:01Z"})]
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(update(client, documents, {"slug-a", "slug-b"}), 1)
+            self.assertEqual(sorted(client.deleted_slugs()), ["slug-a", "slug-b"])
+        finally:
+            indexer.reset_source_integrity_tracking()
+
+
+class ConfirmedNonMinutesTest(unittest.TestCase):
+    def test_all_files_judged_non_minutes(self) -> None:
+        self.assertTrue(indexer.confirmed_non_minutes({"aux": 50, "toc": 2}, raw_total=52, yielded=0))
+
+    def test_an_unreadable_file_keeps_the_old_documents(self) -> None:
+        self.assertFalse(
+            indexer.confirmed_non_minutes({"aux": 50, "unreadable": 1}, raw_total=51, yielded=0)
+        )
+
+    def test_no_files_is_not_confirmed(self) -> None:
+        # 保存先が見えていないだけかもしれない。
+        self.assertFalse(indexer.confirmed_non_minutes({}, raw_total=0, yielded=0))
+
+    def test_a_yielded_document_is_not_empty(self) -> None:
+        self.assertFalse(indexer.confirmed_non_minutes({"aux": 3, "minutes": 1}, raw_total=4, yielded=1))
+
+    def test_unexpected_kind_is_not_confirmed(self) -> None:
+        self.assertFalse(indexer.confirmed_non_minutes({"reiki": 3}, raw_total=3, yielded=0))
+
 
 if __name__ == "__main__":
     unittest.main()

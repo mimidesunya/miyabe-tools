@@ -352,6 +352,17 @@ function homepage_gijiroku_body_missing_status(array $feature): array
         return ['state' => '', 'label' => '', 'detail' => '', 'source_coverage' => null];
     }
     $tocCount = max(0, (int)($kinds['kinds']['toc'] ?? 0));
+    // 議会だより・日程表・名簿など、会議録ではないと判定した文書（aux）しか
+    // 無い取得元もある（えりも町・興部町）。本文が取り出せなかったのではない。
+    $auxCount = max(0, (int)($kinds['kinds']['aux'] ?? 0));
+    if ($tocCount < $total && $auxCount > 0 && $tocCount + $auxCount >= $total) {
+        return [
+            'state' => 'body_not_published',
+            'label' => '会議録なし（会議録以外の文書のみ）',
+            'detail' => sprintf('取得した%d件はどれも会議録ではない文書（議会だより・日程表・名簿など）で、検索できる会議録はありません。', $total),
+            'source_coverage' => null,
+        ];
+    }
     return [
         'state' => 'body_not_published',
         'label' => '本文なし（目次のみ公開）',

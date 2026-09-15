@@ -785,6 +785,41 @@ STALE_SWEEP_QUEUE_LIMIT = celery_runtime.env_int("CELERY_STALE_SWEEP_QUEUE_LIMIT
 NEVER_INDEXED_SWEEP_LIMIT = celery_runtime.env_int("CELERY_NEVER_INDEXED_SWEEP_LIMIT", 5, minimum=1)
 
 
+def _without_settled_empty_minutes(kind: str, slugs: list[str]) -> list[str]:
+    """前回 0 件で、そのあと入力が変わっていない会議録の自治体を外す。
+
+    議会だより・日程表しか取れていない自治体（えりも町・興部町）や、目次しか
+    公開していない自治体（新城市）は、索引し直しても 0 件のままである。
+    それを世代・未索引・公開不足の掃き取りが 6 時間おきに積み直し、索引の
+    枠を食っていた。保存ファイルか世代が変われば、また積む。
+    """
+    if kind != "gijiroku" or not slugs:
+        return list(slugs)
+    import sys as _sys
+
+    search_dir = str(ROOT / "tools" / "search")
+    if search_dir not in _sys.path:
+        _sys.path.insert(0, search_dir)
+    from tools.search import build_opensearch_index as search_index
+
+    wanted = set(slugs)
+    targets = {
+        str(target.get("slug") or "").strip(): target
+        for target in gijiroku_targets.iter_gijiroku_targets()
+        if str(target.get("slug") or "").strip() in wanted
+    }
+    kept: list[str] = []
+    for slug in slugs:
+        target = targets.get(slug)
+        try:
+            settled = target is not None and search_index.minutes_empty_result_is_current(target)
+        except Exception:
+            settled = False
+        if not settled:
+            kept.append(slug)
+    return kept
+
+
 # broker の待ち行列の長さ。読めなければ None を返し、呼び出し側は制限しない。
 def _queue_length(queue: str) -> int | None:
     try:
@@ -853,8 +888,9 @@ def sweep_stale_parser_generation(limit: int = 0) -> dict[str, object]:
             )
             continue
         try:
+            # 0 件のまま変わらない自治体を後で外すので、少し多めに取る。
             stale = stale_generation.stale_slugs(
-                client, alias, doc_type, PARSER_GENERATION, limit=sweep_limit
+                client, alias, doc_type, PARSER_GENERATION, limit=sweep_limit * 2
             )
         except Exception as exc:
             # 索引が読めないのは掃き取り側の都合。次の周回でやり直す。
@@ -864,8 +900,8 @@ def sweep_stale_parser_generation(limit: int = 0) -> dict[str, object]:
         # まだ待っている自治体をもう一度積むと、キューだけが伸びる。
         counts = dict(stale)
         pending = generation_sweep_state.filter_recently_queued(
-            doc_type, [slug for slug, _ in stale]
-        )
+            doc_type, _without_settled_empty_minutes(kind, [slug for slug, _ in stale])
+        )[:sweep_limit]
         queued_now: list[str] = []
         for slug in pending:
             try:
@@ -971,12 +1007,13 @@ def sweep_never_indexed(limit: int = 0) -> dict[str, object]:
             alias,
             doc_type,
             [(slug, int(counts.get(slug, 0))) for slug in sorted(missing)],
-            limit=sweep_limit,
+            # 0 件のまま変わらない自治体が上位の枠を占めないよう、外してから切る。
+            limit=max(sweep_limit, len(missing)),
             present=present,
         )
         pending = generation_sweep_state.filter_recently_queued(
-            f"{doc_type}_never", [slug for slug, _ in found]
-        )
+            f"{doc_type}_never", _without_settled_empty_minutes(kind, [slug for slug, _ in found])
+        )[:sweep_limit]
         counts_by_slug = dict(found)
         queued_now: list[str] = []
         for slug in pending:
@@ -1223,7 +1260,7 @@ def sweep_index_gap(limit: int = 0) -> dict[str, object]:
             continue
         rows = coverage_ledger.index_gap_rows(saved, indexed)
         pending = generation_sweep_state.filter_recently_queued(
-            f"{doc_type}_index_gap", [row["slug"] for row in rows]
+            f"{doc_type}_index_gap", _without_settled_empty_minutes(kind, [row["slug"] for row in rows])
         )[:sweep_limit]
         queued_now: list[str] = []
         for slug in pending:

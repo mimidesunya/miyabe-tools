@@ -65,7 +65,9 @@ SKIP_LABEL_RE = re.compile(
     # 「一覧」で終わるものが 746 件あった。
     r"|(?:.*名簿)"
     r"|(?:.*(?:議決|審査|質問|採決)(?:結果)?一覧)"
-    r"|(?:.*議事日程(?:・[^\s]*)?)"
+    # 「議事日程・本文」は議事日程から始まる会議録そのもの（勝浦市 270 件）。
+    # 後ろに本文・会議録が続く形は落とさず、本文で判定する。
+    r"|(?:.*議事日程(?:・(?![^\s]*(?:本文|会議録|議事録))[^\s]*)?)"
     r"|(?:.*請願(?:・|、)?陳情一覧(?:表)?)"
     r")$"
 )
@@ -73,6 +75,62 @@ COVER_IN_TITLE_RE = re.compile(r"表紙")
 NEWSLETTER_RE = re.compile(r"議会だより|議会広報|CS議会広報")
 # 「広報広聴委員会会議録」は会議録。題名が広報そのものだけを落とす。
 PUBLICITY_ONLY_RE = re.compile(r"^広報(?:紙|誌)?(?:\s|[第0-9０-９]|$)")
+# 汎用 PDF の取得元で、会議録と同じ一覧に並んでいた会議の添え物。題名の後ろに
+# 「（ＰＤＦ：42ＫＢ）」「(令和２年１１月２７日閉会).pdf」「【ＮＥＷ】」が付くので
+# 全体一致ではなく語で探す。会議録の題名にはならない語だけを並べる。
+# 直島町の日程表・審議内容、赤井川村の「第４回定例会結果」、村田町の
+# 「一般質問項目」「開催予定表」、中標津町の「議会概要」、青木村の「議会報９３号」、
+# 丹波山村の「No.3 平成３０年 １月発行」（議会だより）が会議録として公開されていた。
+# 「一般質問」だけの題名は gijiroku.com などで本物の会議録の日の名前なので落とさない。
+NON_MINUTES_TITLE_RE = re.compile(
+    r"日程表|予定表|審議内容"
+    r"|(?:定例会|臨時会)(?:の)?(?:議決|審議)?結果"
+    r"|一般質問(?:通告)?(?:項目|一覧|通告)"
+    r"|議会概要|諸般の報告|予算編成の内容"
+    r"|議会報\s*(?:第|No|NO|№|Vol|[0-9０-９])"
+    r"|議会のうごき"
+    r"|[0-9０-９]\s*月?\s*発行"
+)
+# 本文の冒頭が議会だよりを名乗っている。大鹿村は保存名が「会議録」のまま
+# 48 件、中身は「大鹿村議会だより●第３4号」だった。丹波山村は「議会」「だより」が
+# 別の行に割れている。「議会だより編集委員会」の会議録は落とさない。
+NEWSLETTER_BODY_RE = re.compile(r"議会だより|議会便り|ぎかいだより|議会報(?:第|No|NO|№|Vol|[0-9０-９])|議会のうごき")
+NEWSLETTER_ISSUE_RE = re.compile(r"(?:No|NO|№|Vol)\.?[0-9０-９]+")
+# 会議が開かれた記録にしか出てこない語。議会だよりにも「開会」「委員長」は出るので、
+# 会議録と議会だよりを分けるときはこちらだけを見る。
+MINUTES_ONLY_MARKERS = ("出席議員", "欠席議員", "会議録署名", "これより会議を開", "出席委員", "欠席委員")
+# 会議の添え物（日程表・結果・通告一覧）が本文の冒頭で名乗る語。
+AGENDA_BODY_RE = re.compile(
+    r"日程表|予定表|議事日程|会期日程|審議結果|議決結果|議決事項"
+    r"|(?:定例会|臨時会)(?:の)?結果"
+    r"|一般質問(?:通告)?(?:項目|一覧)|通告一覧"
+)
+# 添え物は短い。会議録は 1 日分でも数千字になる。
+AGENDA_BODY_MAX_LENGTH = 3000
+# 発言者の行。「○議長（山田太郎君）」「◎町長（佐藤）」「◆３番（鈴木議員）」。
+# 直島町の日程表は「〇令和４年第２回定例会 日程表」と行頭に〇を使うので、
+# 記号だけでなく役職か「君」を求める。
+SPEAKER_LINE_RE = re.compile(
+    r"^[○◯〇◎●◆◇□■△▲☆★]?\s*[^\s]{0,20}?"
+    r"(?:議長|委員長|議員|委員|町長|市長|村長|区長|知事|課長|部長|局長|室長|参事|教育長|管理者|事務局長)"
+    r"\s*[（(]"
+    r"|君\s*[）)]"
+    r"|^[○◯〇◎●◆]\s*[0-9０-９]+\s*番"
+)
+# 本文の行のうち、保存時に付けた見出し（`出典:` など）は中身ではない。
+META_LINE_RE = re.compile(r"^(?:出典|開催日|Held-On|Source URL)\s*[:：]")
+# 会議が始まった時刻の行。「午前10時35分　開会」「午前１０時０分開議」。
+# gijiroku.com は 1 日の会議録を頁で割るので、議事日程だけの頁（藤沢市 P.55・
+# 蕨市の議事日程の頁）がある。そこには開会の時刻か出席議員の欄が必ずある。
+MEETING_OPENED_RE = re.compile(r"午[前後][0-9０-９]+時(?:[0-9０-９]+分)?(?:開会|開議|再開)")
+# 議長が議事を進める言い回し。厚岸町の会議録は発言者を「議長ただいまより…」と
+# かっこ無しで書くので、発言者の行としては拾えない。
+MEETING_PROCEEDING_RE = re.compile(
+    r"会議を開きます|(?:開会|開議|続会|再開|休憩|散会|延会|閉会)いたします|ここに署名する"
+    r"|(?:開会|開議|休憩|再開|散会|延会|閉会)時刻"
+)
+# 農業委員会などの行政委員会の議事録は議会の会議録ではない（南富良野町）。
+NON_ASSEMBLY_BODY_RE = re.compile(r"農業委員会(?:総会|定例総会|臨時総会)")
 DIGIT_ONLY_RE = re.compile(r"^[0-9０-９]+$")
 WEAK_TITLE_RE = re.compile(
     r"^(?:"
@@ -183,6 +241,8 @@ BILL_OR_MATERIAL_MARKERS = (
     "事業計画",
     "別記様式",
     "議案概要",
+    # 補正予算書の本文。坂祝町は議案の PDF を会議録の一覧に並べていた。
+    "次に定めるところによる",
 )
 
 # 取得元は「令和４年（2022年）３月11日」と西暦を併記することがある。
@@ -457,6 +517,8 @@ def _label_reason(title: str) -> str | None:
         return "cover_only"
     if NEWSLETTER_RE.search(cleaned) or PUBLICITY_ONLY_RE.search(cleaned):
         return "non_minutes_label"
+    if NON_MINUTES_TITLE_RE.search(normalize_space(cleaned)):
+        return "non_minutes_label"
     return None
 
 
@@ -521,8 +583,82 @@ def body_is_only_a_pdf_notice(text: str) -> bool:
     return any(marker in body for marker in APPENDIX_ONLY_MARKERS)
 
 
+def _body_head_lines(text: str, limit: int) -> list[str]:
+    """保存時の見出し（`出典:` など）を除いた、本文の先頭の行。"""
+    lines: list[str] = []
+    for raw in str(text or "").splitlines():
+        line = normalize_space(raw)
+        if not line or META_LINE_RE.match(line):
+            continue
+        lines.append(line)
+        if len(lines) >= limit:
+            break
+    return lines
+
+
+def _body_without_meta(text: str) -> str:
+    return "\n".join(
+        line for line in str(text or "").splitlines() if not META_LINE_RE.match(line.strip())
+    )
+
+
+def _has_minutes_only_markers(text: str, count: int = 2) -> bool:
+    squeezed = _MARKER_SPACE_RE.sub("", str(text or "")[:6000])
+    return sum(1 for marker in MINUTES_ONLY_MARKERS if marker in squeezed) >= count
+
+
+def body_is_newsletter(text: str) -> bool:
+    """本文の冒頭が議会だより（議会報）を名乗っているかを返す。"""
+    lines = _body_head_lines(text, limit=12)
+    if not lines:
+        return False
+    if _has_minutes_only_markers(text):
+        return False
+    squeezed = [_MARKER_SPACE_RE.sub("", line) for line in lines]
+    for index, line in enumerate(squeezed):
+        # 「議会」「だより」が別の行に割れている（丹波山村）ので隣の行と繋げても見る。
+        pair = line + (squeezed[index + 1] if index + 1 < len(squeezed) else "")
+        for candidate in (line, pair):
+            match = NEWSLETTER_BODY_RE.search(candidate)
+            if match and "委員会" not in candidate:
+                return True
+    joined = "".join(squeezed)
+    return bool(NEWSLETTER_ISSUE_RE.search(joined) and "発行" in joined)
+
+
+def body_has_speaker_lines(text: str) -> bool:
+    return any(SPEAKER_LINE_RE.search(normalize_space(line)) for line in str(text or "").splitlines())
+
+
+def body_is_agenda_only(text: str) -> bool:
+    """本文が日程表・議決結果・一般質問の通告一覧だけかを返す。
+
+    冒頭にその名乗りがあり、短く、発言者の行が 1 つも無いものだけ。
+    発言が無いので、会議録として検索に載せても会議の中身は読めない。"""
+    body = _body_without_meta(text)
+    if len(normalize_space(body)) > AGENDA_BODY_MAX_LENGTH:
+        return False
+    head = "".join(_MARKER_SPACE_RE.sub("", line) for line in _body_head_lines(body, limit=8))
+    if not AGENDA_BODY_RE.search(head):
+        return False
+    squeezed = _MARKER_SPACE_RE.sub("", body)
+    if (
+        _has_minutes_only_markers(body)
+        or MEETING_OPENED_RE.search(squeezed)
+        or MEETING_PROCEEDING_RE.search(squeezed)
+    ):
+        return False
+    return not body_has_speaker_lines(body)
+
+
+def body_is_non_assembly_minutes(text: str) -> bool:
+    head = "".join(_MARKER_SPACE_RE.sub("", line) for line in _body_head_lines(text, limit=8))
+    return bool(NON_ASSEMBLY_BODY_RE.search(head))
+
+
 def looks_like_bill_or_material(text: str) -> bool:
-    head = _head_text(text, limit=30)
+    # 「次に定めるところに／よる」のように行をまたぐので、空白を詰めて探す。
+    head = _MARKER_SPACE_RE.sub("", _head_text(text, limit=30))
     return sum(1 for marker in BILL_OR_MATERIAL_MARKERS if marker in head) >= 1
 
 
@@ -605,6 +741,14 @@ def non_minutes_reason(title: str, text: str = "", *, url: str = "") -> str | No
         return "pdf_notice_only"
     if body_is_unreadable_glyph_names(text):
         return "unreadable_glyph_names"
+    # 次の 3 つは「名乗っているなら会議録」より先に見る。日程表の「会議録署名議員の
+    # 指名」が会議録の名乗りに当たってしまう（赤井川村）。
+    if body_is_newsletter(text):
+        return "newsletter_body"
+    if body_is_agenda_only(text):
+        return "agenda_only"
+    if body_is_non_assembly_minutes(text):
+        return "non_assembly_minutes"
     if looks_like_minutes_title(display) or looks_like_minutes_title(
         extract_meeting_title_from_text(text) or ""
     ):
