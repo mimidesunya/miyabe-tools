@@ -37,6 +37,12 @@ WORK_ROOT = WORKSPACE_ROOT / "work"
 USABLE_CONFIDENCE = ("high", "medium")
 # 同じ自治体を探索し直すまでの間隔。取得元は頻繁には現れない。
 DEFAULT_RETRY_DAYS = 14
+# 探索の判定を変えたら上げる。記録より新しい版の探索は、待ち日数や「使える」
+# 判定に関わらず全件をもう一度見る。古い判定の誤り（村田町の会期日程ページを
+# 会議録として取得対象にしていた）は、見直さない限り残り続ける。
+# 記録に版が無いものは 1 とみなす。
+# 例規は 2026-09-15 に d1-law のエラー画面判定・RILG・g-reiki の置き場推測を足して 2。
+DISCOVERER_VERSIONS = {"gijiroku": 2, "reiki": 2}
 JST = timezone(timedelta(hours=9))
 
 
@@ -109,8 +115,35 @@ def record(
         "confidence": str(confidence).strip(),
         "note": str(note).strip(),
         "observed_at": now_text(),
+        "discoverer_version": str(discoverer_version(task_name)),
     }
     save(task_name, entries)
+
+
+def discoverer_version(task_name: str) -> int:
+    return int(DISCOVERER_VERSIONS.get(str(task_name), 1))
+
+
+def entry_version(entry: dict[str, str] | None) -> int:
+    try:
+        return int(str((entry or {}).get("discoverer_version", "") or "1"))
+    except ValueError:
+        return 1
+
+
+def load_applicable(task_name: str) -> dict[str, dict[str, str]]:
+    """取得の対象に重ねてよい記録。いまの版の探索が出したものだけ。
+
+    版が古い記録は、見直しが回ってくるまで（1 回 20 件、6 時間おき）使わない。
+    使い続けると、判定を直しても村田町の会期日程ページを数日取得し続ける。
+    PHP 側（lib/municipalities.php・taikei.php）も同じ規則で読む。
+    """
+    current = discoverer_version(task_name)
+    return {
+        code: entry
+        for code, entry in load(task_name).items()
+        if entry_version(entry) >= current
+    }
 
 
 def is_usable(entry: dict[str, str] | None) -> bool:
@@ -158,6 +191,10 @@ def due_codes(
         if normalized == "":
             continue
         entry = entries.get(normalized)
+        if entry is not None and entry_version(entry) < discoverer_version(task_name):
+            # 判定が変わった。前の結論（使える／見つからない）を信じずにもう一度見る。
+            pending.append((parse_time(str(entry.get("observed_at", ""))), normalized))
+            continue
         if is_usable(entry):
             # すでに使える取得元がある。探索し直さない。
             continue

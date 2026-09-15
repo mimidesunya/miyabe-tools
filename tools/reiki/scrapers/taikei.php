@@ -25,6 +25,10 @@ const TAIKEI_LIKE_SYSTEM_TYPES = ['taikei' => true, 'g-reiki' => true];
 const TAIKEI_PARSER_VERSION = 2;
 // 一覧に現れない本文改正も拾うため、個票を最後に実照会した時刻で巡回する。
 const TAIKEI_VALIDATION_INTERVAL_SECONDS = 90 * 86400;
+// 429 を受けた取得元を覚えておく期間。取得元が制限を緩めることもあるので、いつかは忘れる。
+const TAIKEI_RATE_LIMIT_MEMORY_SECONDS = 86400;
+// 自動探索の記録の版。tools/discovered_sources.py の DISCOVERER_VERSIONS['reiki'] と同じ。
+const TAIKEI_DISCOVERER_VERSION = 2;
 
 // 読み込んだだけで走り出さないようにする。テストから関数だけを使いたい。
 if (PHP_SAPI === 'cli' && isset($argv[0]) && realpath($argv[0]) === realpath(__FILE__)) {
@@ -1475,6 +1479,7 @@ function load_local_reiki_url_index(): array
     }
 
     $index = [];
+    $discovered = taikei_load_discovered_sources();
     $header = fgetcsv($handle, 0, "\t");
     if (!is_array($header)) {
         fclose($handle);
@@ -1503,11 +1508,53 @@ function load_local_reiki_url_index(): array
         if ($code === '') {
             continue;
         }
-        $index[$code] = $assoc;
+        $index[$code] = taikei_apply_discovered_source($discovered[$code] ?? null, $assoc);
     }
 
     fclose($handle);
     return $index;
+}
+
+/**
+ * 登録簿に URL が無い行へ、自動探索で見つけた取得元を重ねる。
+ *
+ * 規則は tools/discovered_sources.py の apply_to_row と lib/municipalities.php の
+ * apply_discovered_source と同じ。巡回（Python）は探索結果で北方町を起動するのに、
+ * ここが登録簿だけを見て「system_type が空」と 1 秒で落ちていた。
+ */
+function taikei_apply_discovered_source(?array $entry, array $row): array
+{
+    if (trim((string)($row['url'] ?? '')) !== '' || !is_array($entry)) {
+        return $row;
+    }
+    $confidence = trim((string)($entry['confidence'] ?? ''));
+    $url = trim((string)($entry['url'] ?? ''));
+    $systemType = trim((string)($entry['system_type'] ?? ''));
+    if (!in_array($confidence, ['high', 'medium'], true) || $url === '' || $systemType === '') {
+        return $row;
+    }
+    $row['url'] = $url;
+    $row['system_type'] = $systemType;
+    $row['crawl_status'] = 'enabled';
+    return $row;
+}
+
+function taikei_load_discovered_sources(): array
+{
+    $path = build_work_path('reiki') . DIRECTORY_SEPARATOR . 'discovered_sources.json';
+    if (!is_file($path)) {
+        return [];
+    }
+    // 壊れた記録で取得を止めない。登録簿の値をそのまま使う。
+    $decoded = json_decode((string)@file_get_contents($path), true);
+    if (!is_array($decoded)) {
+        return [];
+    }
+    // 古い版の探索の記録は使わない（tools/discovered_sources.py の DISCOVERER_VERSIONS['reiki']）。
+    return array_filter(
+        $decoded,
+        static fn($entry): bool => is_array($entry) && (int)($entry['discoverer_version'] ?? 1) >= TAIKEI_DISCOVERER_VERSION
+    );
 }
 
 function build_reiki_target_entry(string $slug, array $entry, array $urlEntry, array $masterEntry): array
@@ -2369,9 +2416,6 @@ function host_rate_limit_path(): string
     return build_work_path('reiki') . DIRECTORY_SEPARATOR . 'host_rate_limits.json';
 }
 
-
-// 覚えておく期間。取得元が制限を緩めることもあるので、いつかは忘れる。
-const TAIKEI_RATE_LIMIT_MEMORY_SECONDS = 86400;
 
 
 function host_rate_limited_recently(string $host): bool

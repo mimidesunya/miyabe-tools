@@ -74,6 +74,18 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(entries["01234"]["system_type"], "独自")
         self.assertTrue(entries["01234"]["observed_at"])
 
+    def test_records_from_an_older_discoverer_are_not_applied(self) -> None:
+        # 判定を直す前の「使える」は、見直されるまで取得の対象に重ねない（村田町）。
+        path = discovered_sources.store_path("gijiroku")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            '{"old": {"url": "https://example.test/", "system_type": "独自", "confidence": "medium"}}',
+            encoding="utf-8",
+        )
+        discovered_sources.record("gijiroku", "new", url="https://example.test/new/",
+                                  system_type="独自", confidence="medium")
+        self.assertEqual(sorted(discovered_sources.load_applicable("gijiroku")), ["new"])
+
     def test_broken_store_is_ignored(self) -> None:
         path = discovered_sources.store_path("gijiroku")
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -100,6 +112,34 @@ class StoreTest(unittest.TestCase):
             "gijiroku", ["newer", "old"], retry_days=14, now="2026-09-01 00:00:00"
         )
         self.assertEqual(due, ["old", "newer"])
+
+    def test_a_newer_discoverer_rechecks_old_results(self) -> None:
+        # 判定を直した版では、前の版が「使える」とした結果も、直近に試した結果も見直す。
+        entries = {
+            "old-usable": {"url": "https://example.test/nittei/", "system_type": "独自",
+                           "confidence": "medium", "observed_at": "2026-09-07 00:00:00"},
+            "old-recent": {"confidence": "low", "observed_at": "2026-09-10 00:00:00"},
+        }
+        discovered_sources.save("gijiroku", entries)
+        due = discovered_sources.due_codes(
+            "gijiroku", ["old-usable", "old-recent"], retry_days=14, now="2026-09-15 00:00:00"
+        )
+        self.assertEqual(due, ["old-usable", "old-recent"])
+        # 新しい版で記録し直したものは、通常の待ち日数に戻る。
+        discovered_sources.record("gijiroku", "old-recent", confidence="low")
+        due = discovered_sources.due_codes("gijiroku", ["old-recent"], retry_days=14)
+        self.assertEqual(due, [])
+
+    def test_versions_are_per_task(self) -> None:
+        # 版を上げた task の記録だけを見直す。ほかの task の記録には触らない。
+        original = dict(discovered_sources.DISCOVERER_VERSIONS)
+        self.addCleanup(lambda: discovered_sources.DISCOVERER_VERSIONS.update(original))
+        discovered_sources.DISCOVERER_VERSIONS.update({"gijiroku": 2, "reiki": 1})
+        discovered_sources.save("reiki", {
+            "kept": {"url": "https://example.test/reiki/", "system_type": "taikei",
+                     "confidence": "high", "observed_at": "2026-09-07 00:00:00"},
+        })
+        self.assertEqual(discovered_sources.due_codes("reiki", ["kept"]), [])
 
     def test_limit_caps_the_batch(self) -> None:
         due = discovered_sources.due_codes("gijiroku", ["a", "b", "c"], limit=2)

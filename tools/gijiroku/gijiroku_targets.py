@@ -178,7 +178,7 @@ def load_local_minutes_url_index() -> dict[str, dict[str, str]]:
     # 登録簿に URL が無い自治体は巡回のキューに載らない。載らない限り
     # 状態は変わらないので、探索が見つけた取得元をここで重ねる。
     # 登録簿に URL があるときは触らない（人が書いた値が優先）。
-    discovered = discovered_sources.load("gijiroku")
+    discovered = discovered_sources.load_applicable("gijiroku")
     path = DATA_ROOT / "municipalities" / "assembly_minutes_system_urls.tsv"
     with open(path, "r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")

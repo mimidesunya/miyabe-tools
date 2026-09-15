@@ -57,6 +57,188 @@ def test_link_priority_prefers_minutes_and_vendor() -> None:
     assert external_noise < 6
 
 
+# --- 2026-09-15 点検で見つけた、判定できなかった原因ごとの回帰 ---------------------
+
+def test_decode_html_without_charset_header_is_not_latin1() -> None:
+    # Content-Type に charset が無いと requests は ISO-8859-1 と見なし、日本語が化けていた
+    # （勝浦市・美祢市・有田町）。化けると「会議録」「議会」のどの語にも当たらない。
+    raw = "<html><head><title>会議録</title></head><body><a href='/x'>令和8年会議録</a></body></html>".encode("utf-8")
+    assert "令和8年会議録" in disc.decode_html(raw, "text/html", "ISO-8859-1")
+    sjis = "<html><head><meta charset='Shift_JIS'></head><body>議会</body></html>".encode("cp932")
+    assert "議会" in disc.decode_html(sjis, "text/html")
+    # ヘッダが Latin-1 を名乗っても、日本の自治体サイトの実体は UTF-8。
+    assert "議会" in disc.decode_html("<p>議会</p>".encode("utf-8"), "text/html; charset=ISO-8859-1")
+
+
+GIKAI_ROUTE = "市議会 https://www.city.example.lg.jp/gikai/"
+MINUTES_ITEM_CASES = [
+    # (PDF の題名, 一覧ページの題名, 辿ってきた経路, 会議録として数えるか)
+    ("1月23日 議案審査 (PDFファイル: 1.2MB)", "令和8年 会議録・議決結果", GIKAI_ROUTE, True),   # 士別市
+    ("令和7年2月28日第1回定例会本会議会議録", "会議録／美祢市ホームページ", "", True),           # 美祢市
+    ("令和４年３月定例会会議録（第１号）.pdf", "会議録", "", True),                                # 遠野市
+    ("3月4日 会議録（1日目） PDF(3165KB)", "会議結果・会議録｜行政・まちづくり", GIKAI_ROUTE, True),  # 湧別町
+    ("3月4日 会議録（1日目） PDF(3165KB)", "会議結果・会議録｜行政・まちづくり", "", False),     # 議会と分からない
+    ("議決結果 (PDFファイル: 80KB)", "令和8年 会議録・議決結果", GIKAI_ROUTE, False),
+    ("開催予定表（R8.9.3更新）", "宮城県村田町 | 会期日程・各種行事", GIKAI_ROUTE, False),       # 村田町（誤って取得対象にしていた）
+    ("一般質問項目", "宮城県村田町 | 会期日程・各種行事", GIKAI_ROUTE, False),
+    ("令和8年第3回定例会一般質問順序表こちらからご覧になれます", "岩内町議会定例会＜一般質問順序表＞", GIKAI_ROUTE, False),
+    ("2～3ページ　第3回定例会", "北海道比布町｜ 議会だより　第120号", GIKAI_ROUTE, False),         # 比布町
+    ("平成３０年第１回子ども議会会議録（PDF形式：1.58MB）", "子ども議会の開催状況について", GIKAI_ROUTE, False),
+    ("第116号 （6月定例会）", "とよおか議会だより", GIKAI_ROUTE, False),
+    ("議事日程・本文 [PDFファイル／282KB]", "令和7年会議録", GIKAI_ROUTE, False),  # 取得側も議事日程として落とす
+    ("第２回６月定例会一般質問", "一般質問｜議会", GIKAI_ROUTE, False),              # 会議録を名乗らない頁
+    ("令和８年７月会議録", "教育委員会定例会会議録 | 葛巻町", GIKAI_ROUTE, False),    # 葛巻町（教育委員会）
+    ("令和8年第4回月形町農業委員会総会議事録", "総会日程・議事録（農業委員会）", "", False),  # 月形町（農業委員会）
+    ("令和8年第1回議会運営委員会会議録", "委員会会議録", "", True),                  # 議会の委員会は残す
+]
+
+
+def test_is_minutes_pdf_item() -> None:
+    for label, page, route, expected in MINUTES_ITEM_CASES:
+        got = disc.is_minutes_pdf_item(label, page, route)
+        assert got == expected, f"is_minutes_pdf_item({label!r}, {page!r}, {route!r}) = {got}, expected {expected}"
+
+
+def test_minutes_entry_title_excludes_newsletters_and_youth_assemblies() -> None:
+    assert disc.is_minutes_entry_title("令和8年会議録 - 勝浦市議会")
+    assert disc.is_minutes_entry_title("会議録検索")
+    assert not disc.is_minutes_entry_title("議会だより")
+    assert not disc.is_minutes_entry_title("子ども議会会議録")
+    assert not disc.is_minutes_entry_title("会期日程・各種行事")
+    assert not disc.is_minutes_entry_title("第3回定例会")
+    assert not disc.is_minutes_entry_title("教育委員会定例会会議録")
+    assert disc.is_minutes_entry_title("議会運営委員会会議録")
+
+
+def test_meta_refresh_in_noscript_is_followed() -> None:
+    # 遠野市のトップは JavaScript の入口ページで、本体へは noscript の meta refresh で送る。
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup('<html><head><noscript><meta http-equiv="refresh" content="1;URL=/index.cfm/1,html"></noscript></head></html>', "html.parser")
+    assert disc.meta_refresh_links(soup, "https://www.city.tono.iwate.jp/") == [("https://www.city.tono.iwate.jp/index.cfm/1,html", "refresh")]
+
+
+def test_video_only_vendors_are_not_sources() -> None:
+    assert disc.is_video_only_vendor("https://smart.discussvision.net/smart/tenant/ibusuki/WebView/rd/council_1.html", "discussvision")
+    assert disc.is_video_only_vendor("http://www.kensakusystem.jp/aridagawa-vod/index.html", "kensakusystem")
+    assert not disc.is_video_only_vendor("http://www.kensakusystem.jp/hirosaki/index.html", "kensakusystem")
+
+
+def test_video_link_does_not_stop_the_search() -> None:
+    # 議会中継のリンクで探索を打ち切らず、その先の会議録ページを見つける。
+    home = "https://www.city.example3.lg.jp/"
+    pages = {
+        home: _page("例市", [("https://smart.discussvision.net/smart/tenant/example/WebView/rd/council_1.html", "議会中継"), ("/gikai/", "市議会")]),
+        home + "gikai/": _page("市議会", [("/gikai/kaigiroku/", "会議録")]),
+        home + "gikai/kaigiroku/": _page("会議録", []),
+    }
+    original = _with_probe({home + "gikai/kaigiroku/": 5})
+    try:
+        found = disc.discover_one(_FakeSession(pages), "99996", "例市", home, 18, 3, 5.0, 0.0)
+    finally:
+        disc.probe_minutes_pdfs = original
+    assert found.system_type == "独自" and found.candidate_url == home + "gikai/kaigiroku/", found
+
+
+def test_same_site_across_old_domain_and_lg_jp() -> None:
+    hosts = {"www.city.tonami.toyama.jp"}
+    assert disc.is_same_site("https://info.city.tonami.lg.jp/", hosts)
+    assert disc.is_same_site("https://www.city.tonami.toyama.jp/gikai/", hosts)
+    assert not disc.is_same_site("https://www.city.toyama.toyama.jp/", hosts)
+    assert not disc.is_same_site("https://www.instagram.com/", hosts)
+
+
+class _FakeResponse:
+    def __init__(self, url: str, body: str, content_type: str = "text/html") -> None:
+        self.url = url
+        self.status_code = 200 if body is not None else 404
+        self.headers = {"Content-Type": content_type}
+        self.content = (body or "").encode("utf-8")
+        self.apparent_encoding = "utf-8"
+
+
+class _FakeSession:
+    def __init__(self, pages: dict) -> None:
+        self.pages = pages
+        self.requested: list[str] = []
+
+    def get(self, url, **_kwargs):
+        self.requested.append(url)
+        return _FakeResponse(url, self.pages.get(url))
+
+
+def _page(title: str, links: list[tuple[str, str]]) -> str:
+    anchors = "".join(f'<a href="{href}">{text}</a>' for href, text in links)
+    return f"<html><head><title>{title}</title></head><body>{anchors}</body></html>"
+
+
+def _with_probe(counts: dict):
+    """取得側の巡回（ネットワーク）を、URL ごとの数へ差し替える。"""
+    original = disc.probe_minutes_pdfs
+
+    def fake(_session, url, _timeout, _delay, **_kwargs):
+        minutes = counts.get(url, 0)
+        return {"items": minutes, "minutes": minutes, "pages": 1, "examples": ["第1回定例会会議録"] * min(minutes, 3)}
+
+    disc.probe_minutes_pdfs = fake
+    return original
+
+
+def test_entrance_page_charset_less_site_reaches_minutes_page() -> None:
+    # 入口ページ（くらし・行政 だけ）→ 組織一覧 → 議会 → 会議録。charset はヘッダに無い。
+    home = "https://www.city.example.lg.jp/"
+    pages = {
+        home: _page("例市", [("/main/", "例市公式サイト"), ("https://kanko.example.jp/", "観光")]),
+        home + "main/": _page("行政情報", [("/soshiki/", "組織"), ("/soshiki/a.html", "総務課"), ("/gikai/", "市議会")]),
+        home + "soshiki/": _page("組織", [("/soshiki/b.html", "財政課")]),
+        home + "gikai/": _page("市議会", [("/gikai/nittei.html", "会期日程"), ("/gikai/list27.html", "会議録")]),
+        home + "gikai/nittei.html": _page("会期日程", []),
+        home + "gikai/list27.html": _page("会議録 - 例市議会", [("/gikai/r8.html", "令和8年会議録")]),
+    }
+    original = _with_probe({home + "gikai/list27.html": 12})
+    try:
+        found = disc.discover_one(_FakeSession(pages), "99999", "例市", home, 18, 3, 5.0, 0.0)
+    finally:
+        disc.probe_minutes_pdfs = original
+    assert found.confidence == "medium", found
+    assert found.system_type == "独自", found
+    assert found.candidate_url == home + "gikai/list27.html", found
+
+
+def test_schedule_page_is_not_registered_as_minutes() -> None:
+    # 会議録の PDF を数えられなければ、会議録らしいページがあっても取得対象にしない。
+    home = "https://www.town.example.lg.jp/"
+    pages = {
+        home: _page("例町", [("/gikai/", "町議会")]),
+        home + "gikai/": _page("町議会", [("/gikai/nittei/", "会期日程・各種行事"), ("/gikai/dayori/", "議会だより")]),
+        home + "gikai/nittei/": _page("会期日程・各種行事", [("/gikai/nittei/1.pdf", "第3回定例会 開催予定表")]),
+        home + "gikai/dayori/": _page("議会だより", [("/gikai/dayori/1.pdf", "第3回定例会")]),
+    }
+    original = _with_probe({})
+    try:
+        found = disc.discover_one(_FakeSession(pages), "99998", "例町", home, 18, 3, 5.0, 0.0)
+    finally:
+        disc.probe_minutes_pdfs = original
+    assert found.confidence in ("low", "none"), found
+    assert found.system_type == "", found
+
+
+def test_minutes_page_without_countable_pdfs_stays_low() -> None:
+    # 仁淀川町: 会議録ページはあるが PDF が /download/?t=LD&id= の配信口で、取得側が拾えない。
+    home = "https://www.town.example2.lg.jp/"
+    pages = {
+        home: _page("例町", [("/gikai/", "議会情報")]),
+        home + "gikai/": _page("議会情報", [("/life/life_dtl.php?hdnKey=3275", "令和８年 例町議会 会議録")]),
+        home + "life/life_dtl.php?hdnKey=3275": _page("令和８年 例町議会 会議録", [("/download/?t=LD&id=3275&fid=1", "第１回臨時会（PDF：399KB）")]),
+    }
+    original = _with_probe({})
+    try:
+        found = disc.discover_one(_FakeSession(pages), "99997", "例町", home, 18, 3, 5.0, 0.0)
+    finally:
+        disc.probe_minutes_pdfs = original
+    assert found.confidence == "low", found
+    assert found.candidate_url == home + "life/life_dtl.php?hdnKey=3275", found
+
+
 def _run() -> int:
     failures = 0
     for name, fn in sorted(globals().items()):

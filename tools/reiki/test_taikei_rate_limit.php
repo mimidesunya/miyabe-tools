@@ -23,6 +23,22 @@ function check(string $label, bool $condition): void
     echo "FAIL {$label}\n";
 }
 
+// 最上位の const は実行がその行に届くまで定義されない。CLI では入口の main() が
+// 先に走るので、入口より後ろの const は本番だけで未定義になる（require する
+// このテストでは定義済みに見えて気づけない）。2026-09 に g-reiki 41 件がこれで落ちた。
+$scraperLines = file(__DIR__ . DIRECTORY_SEPARATOR . 'scrapers' . DIRECTORY_SEPARATOR . 'taikei.php');
+$entryLine = null;
+$lateConsts = [];
+foreach ($scraperLines as $index => $line) {
+    if ($entryLine === null && preg_match('/^\s+main\(\$argv\);/', $line)) {
+        $entryLine = $index + 1;
+    } elseif ($entryLine !== null && preg_match('/^const\s+(\w+)/', $line, $m)) {
+        $lateConsts[] = $m[1] . ':' . ($index + 1);
+    }
+}
+check('入口の main() を見つけた', $entryLine !== null);
+check('入口より後ろに最上位の const が無い (' . implode(', ', $lateConsts) . ')', $lateConsts === []);
+
 $path = host_rate_limit_path();
 $backup = is_file($path) ? file_get_contents($path) : null;
 if (is_file($path)) {

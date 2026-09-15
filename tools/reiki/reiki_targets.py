@@ -136,7 +136,7 @@ def load_local_reiki_url_index() -> dict[str, dict[str, str]]:
     overrides = load_source_url_overrides()
     # 登録簿に URL が無い自治体は巡回の対象にならない。探索が見つけた
     # 取得元をここで重ねる。登録簿に URL があるときは触らない。
-    discovered = discovered_sources.load("reiki")
+    discovered = discovered_sources.load_applicable("reiki")
     path = DATA_ROOT / "municipalities" / "reiki_system_urls.tsv"
     with open(path, "r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")

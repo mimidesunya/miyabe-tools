@@ -960,22 +960,79 @@ function load_system_url_index(string $relativePath): array
     }
 
     $index = [];
+    $discovered = load_discovered_sources($key);
     $runtimeRelativePath = preg_replace('/^municipalities\//', 'municipalities/', normalize_data_relative_path($relativePath)) ?? normalize_data_relative_path($relativePath);
     foreach (load_delimited_rows(data_path($runtimeRelativePath)) as $row) {
         $code = trim((string)($row['jis_code'] ?? ''));
         if ($code === '') {
             continue;
         }
-        $index[$code] = [
+        $index[$code] = apply_discovered_source($discovered[$code] ?? null, [
             'url' => trim((string)($row['url'] ?? '')),
             'system_type' => trim((string)($row['system_type'] ?? '')),
             'crawl_status' => trim((string)($row['crawl_status'] ?? '')),
             'exclusion_reason' => trim((string)($row['exclusion_reason'] ?? '')),
             'exclusion_detail' => trim((string)($row['exclusion_detail'] ?? '')),
-        ];
+        ]);
     }
     $cache[$key] = $index;
     return $index;
+}
+
+// 登録簿ごとの、探索結果の置き場（work/<task>/discovered_sources.json）の task 名。
+const DISCOVERED_SOURCE_TASKS = [
+    'municipalities/assembly_minutes_system_urls.tsv' => 'gijiroku',
+    'municipalities/reiki_system_urls.tsv' => 'reiki',
+];
+// tools/discovered_sources.py の USABLE_CONFIDENCE と同じ。
+const DISCOVERED_SOURCE_USABLE_CONFIDENCE = ['high' => true, 'medium' => true];
+// tools/discovered_sources.py の DISCOVERER_VERSIONS と同じ。古い版の探索の記録は使わない。
+const DISCOVERED_SOURCE_VERSIONS = ['gijiroku' => 2, 'reiki' => 2];
+
+function load_discovered_sources(string $relativePath): array
+{
+    $task = DISCOVERED_SOURCE_TASKS[str_replace(DIRECTORY_SEPARATOR, '/', normalize_data_relative_path($relativePath))] ?? '';
+    if ($task === '') {
+        return [];
+    }
+    $path = work_path($task . '/discovered_sources.json');
+    if (!is_file($path)) {
+        return [];
+    }
+    // 壊れた記録で画面を止めない。登録簿の値をそのまま使う。
+    $decoded = json_decode((string)@file_get_contents($path), true);
+    return is_array($decoded) ? discovered_sources_of_version($decoded, DISCOVERED_SOURCE_VERSIONS[$task] ?? 1) : [];
+}
+
+function discovered_sources_of_version(array $entries, int $version): array
+{
+    return array_filter(
+        $entries,
+        static fn($entry): bool => is_array($entry) && (int)($entry['discoverer_version'] ?? 1) >= $version
+    );
+}
+
+/**
+ * 登録簿の行へ、自動探索で見つけた取得元を重ねる（tools/discovered_sources.py の apply_to_row と同じ規則）。
+ *
+ * 取得側（Python）は探索結果で巡回しているのに、画面は登録簿の URL だけを見ていたので
+ * 「取得元未特定」と出ていた（村田町）。登録簿に URL があるときは触らない。
+ */
+function apply_discovered_source(?array $entry, array $row): array
+{
+    if (trim((string)($row['url'] ?? '')) !== '' || !is_array($entry)) {
+        return $row;
+    }
+    $confidence = trim((string)($entry['confidence'] ?? ''));
+    $url = trim((string)($entry['url'] ?? ''));
+    $systemType = trim((string)($entry['system_type'] ?? ''));
+    if (!isset(DISCOVERED_SOURCE_USABLE_CONFIDENCE[$confidence]) || $url === '' || $systemType === '') {
+        return $row;
+    }
+    $row['url'] = $url;
+    $row['system_type'] = $systemType;
+    $row['crawl_status'] = 'enabled';
+    return $row;
 }
 
 function municipality_public_slug(string $slug): string

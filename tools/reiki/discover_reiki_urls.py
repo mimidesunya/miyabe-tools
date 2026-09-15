@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import csv
 import re
+import ssl
 import sys
 import time
 from dataclasses import dataclass
@@ -32,6 +33,7 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import requests
 from bs4 import BeautifulSoup
+from requests.adapters import HTTPAdapter
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 for path in (str(REPO_ROOT), str(REPO_ROOT / "tools" / "reiki")):
@@ -84,11 +86,43 @@ class Finding:
     note: str = ""
 
 
+class _LegacyTlsAdapter(HTTPAdapter):
+    """古い暗号スイートしか話さない取得元に繋ぐ。
+
+    legal-square（`*.legal-square.com`）は OpenSSL 3 の既定（SECLEVEL 2）では
+    `SSLV3_ALERT_HANDSHAKE_FAILURE` で繋がらない。ブラウザ（スクレイパの
+    Playwright）は繋がるので、探索だけが入口を確かめられずにいた。
+    """
+
+    def init_poolmanager(self, *args, **kwargs):
+        context = ssl.create_default_context()
+        context.set_ciphers("DEFAULT:@SECLEVEL=1")
+        context.options |= getattr(ssl, "OP_LEGACY_SERVER_CONNECT", 0x4)
+        kwargs["ssl_context"] = context
+        return super().init_poolmanager(*args, **kwargs)
+
+
+LEGACY_TLS_HOST_SUFFIXES = (".legal-square.com",)
+_legacy_session: requests.Session | None = None
+
+
+def session_for(session: requests.Session, url: str) -> requests.Session:
+    global _legacy_session
+    host = (urlsplit(url).hostname or "").lower()
+    if not any(host.endswith(suffix) for suffix in LEGACY_TLS_HOST_SUFFIXES):
+        return session
+    if _legacy_session is None:
+        _legacy_session = requests.Session()
+        _legacy_session.mount("https://", _LegacyTlsAdapter())
+    return _legacy_session
+
+
 def fetch(session: requests.Session, url: str, *, referer: str = "") -> tuple[int, str, str]:
     """(HTTP 状態, 最終 URL, 本文)。失敗は状態 0。"""
     headers = {"User-Agent": USER_AGENT, "Accept-Language": "ja,en;q=0.8"}
     if referer:
         headers["Referer"] = referer
+    session = session_for(session, url)
     try:
         response = session.get(url, headers=headers, timeout=TIMEOUT, allow_redirects=True)
     except Exception as exc:
@@ -161,6 +195,21 @@ def _dir_of(url: str) -> str:
     return urlunsplit((parts.scheme, parts.netloc, path, "", ""))
 
 
+def looks_like_error_page(html: str) -> bool:
+    """取得元が HTTP 200 で返すエラー画面。
+
+    d1-law の opensearch は契約の切れた（移転した）自治体でも 200 で
+    「システムエラーが発生しました」を返す。URL に `/opensearch/` があるだけで
+    入口と認めると、死んだ入口を正しいと判定してしまう（御前崎市、2026-09）。
+    """
+    if not html:
+        return False
+    title = re.search(r"<title>\s*(.*?)\s*</title>", html, re.I | re.S)
+    if title and title.group(1).strip() in ("エラー", "システムエラー"):
+        return True
+    return "システムエラーが発生しました" in html
+
+
 def verify_entry(session: requests.Session, system: str, url: str) -> tuple[str, str, str]:
     """系統に合わせて入口 URL を組み立て、スクレイパが最初に開くページを確かめる。
 
@@ -193,6 +242,8 @@ def verify_entry(session: requests.Session, system: str, url: str) -> tuple[str,
         return url, "ng", "reiki_taikei / reiki_menu が返らない"
     if system in ("d1-law", "reiki.html"):
         status, final, html = fetch(session, url)
+        if looks_like_error_page(html):
+            return url, "ng", f"{status} エラーページ"
         if status == 200 and ("d1w_reiki" in html or "/opensearch/" in final or "mokujicd" in html or "Reiki-Base" in html):
             return final if "/opensearch/" in final else url, "ok", f"{status} d1-law markers"
         return url, "ng", f"{status} d1-law の印が無い"
@@ -269,12 +320,144 @@ def discover_one(session: requests.Session, finding: Finding, homepage: str, *, 
             for link in reiki_links(html, final)[:8]:
                 if link not in visited:
                     queue.append((link, depth + 1))
+    # 4. 公式サイトから辿れなければ RILG の全国例規集リンク集を引く。
+    #    小さな町村や移転直後の自治体は、サイトに例規集へのリンクを置いていない。
+    for link in rilg_candidates(session, finding.code, finding.name):
+        system = detect_from_url(link)
+        if not system:
+            continue
+        other = registered_elsewhere(link, finding.code)
+        if other:
+            # RILG には同名の別自治体の URL が載っていることがある（奈良県川上村に
+            # 長野県川上村の例規集、など）。他の自治体で使っている入口は採らない。
+            if best is None:
+                best = (system, link, f"rilg: {other} と同じ URL")
+            continue
+        entry, ok, evidence = verify_entry(session, system, link)
+        time.sleep(pause)
+        if ok == "ok":
+            finding.detected_system, finding.entry_url, finding.verified = system, entry, ok
+            finding.evidence = f"rilg / {evidence}"
+            return finding
+        if best is None:
+            best = (system, link, f"rilg ({evidence})")
+    # 5. g-reiki は置き場の名前がローマ字の自治体名で決まる。公式サイトにも
+    #    RILG にも載っていない村の例規集がここにあった（姫島村、2026-09）。
+    for link in guessed_g_reiki_urls(finding.code):
+        if registered_elsewhere(link, finding.code):
+            continue
+        entry, ok, evidence = verify_entry(session, "g-reiki", link)
+        time.sleep(pause)
+        if ok != "ok":
+            continue
+        # 推測した URL は同じ読みの別の自治体を掴みうる。体系目次に名前が出るかを見る。
+        if finding.name and not names_municipality(session, link, finding.name):
+            if best is None:
+                best = ("g-reiki", link, f"guess: {finding.name} の名前が体系目次に無い")
+            continue
+        finding.detected_system, finding.entry_url, finding.verified = "g-reiki", entry, ok
+        finding.evidence = f"guess / {evidence}"
+        return finding
     if best is not None:
         finding.detected_system, finding.entry_url, finding.verified = best[0], best[1], "ng"
         finding.evidence = best[2]
     else:
         finding.note = "製品の印も例規集のリンクも見つからない"
     return finding
+
+
+RILG_LINK_URL = "https://www.rilg.or.jp/htdocs/main/zenkoku_reiki/zenkoku_link.html"
+_rilg_cache: dict[str, dict[str, list[str]]] = {}
+
+
+def parse_rilg_links(html: str) -> dict[str, dict[str, list[str]]]:
+    """RILG のリンク集を {都道府県コード: {自治体名: [URL]}} にする。
+
+    都道府県ごとに `<a name="29">` のアンカーで区切られている。コメントアウト
+    された旧リンクは読まない。リンクの無い自治体（名前だけの td）は載せない。
+    """
+    html = re.sub(r"<!--.*?-->", "", html, flags=re.S)
+    sections: dict[str, dict[str, list[str]]] = {}
+    parts = re.split(r"""<a\s+name=["']?(\d{2})["']?\s*>\s*</a>""", html, flags=re.I)
+    # parts = [前置き, "01", 本文, "02", 本文, ...]
+    for index in range(1, len(parts) - 1, 2):
+        pref = parts[index]
+        names: dict[str, list[str]] = {}
+        for href, text in re.findall(r"""<a\s[^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>""", parts[index + 1], flags=re.I | re.S):
+            label = re.sub(r"<[^>]+>|\s+", "", text)
+            if not label or not href.startswith("http"):
+                continue
+            names.setdefault(label, []).append(href.strip())
+        sections[pref] = names
+    return sections
+
+
+def rilg_candidates(session: requests.Session, code: str, name: str) -> list[str]:
+    """RILG のリンク集に載っている、その自治体の例規集 URL。"""
+    if not code or not name:
+        return []
+    if "sections" not in _rilg_cache:
+        status, _final, html = fetch(session, RILG_LINK_URL)
+        _rilg_cache["sections"] = parse_rilg_links(html) if status == 200 else {}
+    return list(_rilg_cache["sections"].get(code[:2], {}).get(name, []))
+
+
+_romaji_cache: dict[str, str] = {}
+ROMAJI_SUFFIX_RE = re.compile(r"-(shi|ku|machi|cho|mura|son)$")
+G_REIKI_PREFIX = {"shi": "city.", "ku": "city.", "machi": "town.", "cho": "town.", "mura": "vill.", "son": "vill."}
+
+
+def guessed_g_reiki_urls(code: str) -> list[str]:
+    """ローマ字の自治体名から、g-reiki の置き場になりうる URL を作る。
+
+    実例は `himeshima/`・`vill.ginoza/`・`town.heguri.nara/`・`city.beppu/` など。
+    県名付き（`town.heguri.nara`）は組み合わせが増えるので試さない。
+    """
+    if not _romaji_cache:
+        try:
+            with open(MUNI_DIR / "municipality_master.tsv", encoding="utf-8-sig", newline="") as handle:
+                for row in csv.DictReader(handle, delimiter="\t"):
+                    _romaji_cache[str(row.get("jis_code") or "")] = str(row.get("name_romaji") or "").strip().lower()
+        except OSError:
+            return []
+    romaji = _romaji_cache.get(code, "")
+    match = ROMAJI_SUFFIX_RE.search(romaji)
+    if not romaji or not match:
+        return []
+    base = romaji[: match.start()].replace("-", "")
+    if not re.fullmatch(r"[a-z]+", base):
+        return []
+    return [
+        f"https://www1.g-reiki.net/{base}/reiki_menu.html",
+        f"https://www1.g-reiki.net/{G_REIKI_PREFIX[match.group(1)]}{base}/reiki_menu.html",
+    ]
+
+
+def names_municipality(session: requests.Session, url: str, name: str) -> bool:
+    """体系目次の最初の編（総則）に自治体名が出るか。"""
+    first = urljoin(_dir_of(url), "reiki_taikei/r_taikei_01.html")
+    status, _final, html = fetch(session, first)
+    return status == 200 and name in html
+
+
+def _url_key(url: str) -> str:
+    parts = urlsplit(url.strip())
+    return f"{parts.netloc.lower()}{parts.path.rstrip('/')}?{parts.query}"
+
+
+def registered_elsewhere(url: str, code: str) -> str:
+    """同じ URL を別の自治体が台帳で使っていれば、その jis_code。"""
+    key = _url_key(url)
+    try:
+        with open(MUNI_DIR / "reiki_system_urls.tsv", encoding="utf-8-sig", newline="") as handle:
+            for row in csv.DictReader(handle, delimiter="\t"):
+                other = str(row.get("jis_code") or "")
+                registered = str(row.get("url") or "")
+                if other and other != code and registered and _url_key(registered) == key:
+                    return other
+    except OSError:
+        return ""
+    return ""
 
 
 def load_homepages() -> dict[str, str]:
