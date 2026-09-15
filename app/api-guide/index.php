@@ -201,9 +201,52 @@ function api_guide_asset_url(string $relativePath): string
   }
 }</code></pre>
                 <h2>Claude Code</h2>
-                <pre><code>claude mcp add --transport http 自治体マップ https://tools.miya.be/mcp</code></pre>
                 <p>
+                    ターミナルで次を実行します。
+                    サーバー名に使えるのは英数字・ハイフン・アンダースコアだけなので、「自治体マップ」ではなく
+                    <code>jichitai-map</code> のような名前にします。
+                </p>
+                <pre><code>claude mcp add --transport http jichitai-map https://tools.miya.be/mcp</code></pre>
+                <p>
+                    何も付けないと、そのフォルダ（プロジェクト）だけで使えます。
+                    どのフォルダでも使うなら <code>--scope user</code>、
+                    チームで共有するなら <code>--scope project</code> を付けます。
+                    <code>--scope project</code> はフォルダの <code>.mcp.json</code> に次のように書かれ、
+                    初めて使うときに許可を求められます。
+                </p>
+                <pre><code>{
+  "mcpServers": {
+    "jichitai-map": {
+      "type": "http",
+      "url": "https://tools.miya.be/mcp"
+    }
+  }
+}</code></pre>
+                <p>
+                    つながったかは <code>claude mcp list</code>、またはClaude Codeの中で <code>/mcp</code> と入力して確かめます。
+                    認証は不要です。
                     <a href="https://code.claude.com/docs/en/mcp" target="_blank" rel="noopener">Claude Code公式の説明</a>
+                </p>
+
+                <h2>Codex</h2>
+                <p>
+                    OpenAIのCodexは、CLI・IDE拡張・デスクトップアプリで同じ設定を使います。
+                    サーバー名は英数字などに限られるので、<code>jichitai-map</code> のような名前にします。
+                    ターミナルでは次を実行します。
+                </p>
+                <pre><code>codex mcp add jichitai-map --url https://tools.miya.be/mcp</code></pre>
+                <p>
+                    設定ファイルに直接書く場合は、<code>~/.codex/config.toml</code> に次の2行を足します。
+                    信頼済みのプロジェクトなら、そのフォルダの <code>.codex/config.toml</code> にも書けます。
+                </p>
+                <pre><code>[mcp_servers.jichitai-map]
+url = "https://tools.miya.be/mcp"</code></pre>
+                <p>
+                    IDE拡張では、歯車のメニュー→<strong>「MCP servers」</strong>→<strong>「Add server」</strong>と進み、
+                    <strong>「Streamable HTTP」</strong>を選んでアドレスを入れます。
+                    認証は不要なので、トークンの設定や <code>codex mcp login</code> はいりません。
+                    つながったかは <code>codex mcp list</code>、またはCodexの中で <code>/mcp</code> と入力して確かめます。
+                    <a href="https://learn.chatgpt.com/docs/extend/mcp" target="_blank" rel="noopener">Codex公式の説明</a>
                 </p>
 
                 <h2>Cursor</h2>
