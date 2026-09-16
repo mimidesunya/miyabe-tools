@@ -86,12 +86,19 @@ def clean_label(text: str) -> str:
     return label
 
 
+# 1 自治体あたりに開くページ数の上限。
+#
+# 200 では足りていなかった。実測（2026-09-17）: 美唄市は 225 ページで歩き切り、
+# 会議録 534 件 → 626 件。富良野市は 371 ページで 715 件 → 1,595 件。どちらも
+# 上限を外すと最後まで歩けており、200 が途中で切っていただけだった。
+# 本番では 40 自治体がこの上限で止まっている。
+DEFAULT_MAX_PAGES = 600
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="汎用 自治体サイト PDF 会議録スクレイパ")
     parser.add_argument("--slug", required=True, help="対象自治体 slug")
     parser.add_argument("--ack-robots", action="store_true", help="robots.txt・利用規約・許諾確認済みとして実行する")
     parser.add_argument("--max-meetings", type=int, default=0, help="処理するPDF件数上限（0 は無制限）")
-    parser.add_argument("--max-pages", type=int, default=200, help="クロールするページ数上限")
+    parser.add_argument("--max-pages", type=int, default=DEFAULT_MAX_PAGES, help="クロールするページ数上限")
     parser.add_argument("--max-depth", type=int, default=3, help="入口からのリンク追跡の深さ上限")
     parser.add_argument("--delay-seconds", type=float, default=1.5, help="PDFアクセス間の待機秒数")
     parser.add_argument("--timeout-ms", type=int, default=10_000, help="HTTPタイムアウト（ミリ秒）")

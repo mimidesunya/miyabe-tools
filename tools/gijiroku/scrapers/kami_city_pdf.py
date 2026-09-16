@@ -289,7 +289,24 @@ def looks_like_html_response(content_type: str, raw: bytes) -> bool:
     return b"\x00" not in head
 
 
+# 接続を切られたページをもう一度だけ試す。取得元が時々切ることがあり
+# （出水市は 6 回中 2 回 RemoteDisconnected）、1 回で諦めるとその先の
+# 会議録がまるごと見えなくなる。HTML でない応答など、やり直しても
+# 結果が変わらない失敗は繰り返さない。
+FETCH_RETRY_COUNT = 1
+FETCH_RETRY_WAIT_SECONDS = 2.0
+
+
 def request_text(session: requests.Session, url: str, timeout_ms: int) -> str:
+    for attempt in range(FETCH_RETRY_COUNT):
+        try:
+            return _request_text_once(session, url, timeout_ms)
+        except requests.RequestException:
+            time.sleep(FETCH_RETRY_WAIT_SECONDS)
+    return _request_text_once(session, url, timeout_ms)
+
+
+def _request_text_once(session: requests.Session, url: str, timeout_ms: int) -> str:
     response = session.get(url, timeout=max(timeout_ms / 1000.0, 1.0))
     response.raise_for_status()
     raw = response.content
