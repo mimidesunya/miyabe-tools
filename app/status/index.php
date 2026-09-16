@@ -46,8 +46,8 @@ function status_asset_url(string $relativePath): string
             <div class="eyebrow">自治体資料の収集状況</div>
             <h1>収集・公開状況</h1>
             <div class="hero-copy">
-                会議録と例規集の取得と検索反映が、全国でどこまで進んでいるかの集計です。
-                自治体ごとの状態は<a href="/">自治体マップ</a>で確認できます。
+                会議録と例規集をどこまで取り込み、どこまで検索に載せられたかを全国分まとめています。
+                自治体ごとの状態は<a href="/">自治体マップ</a>で見られます。
             </div>
             <div class="hero-meta">
                 <a href="/search/">記録を検索へ</a>
@@ -84,7 +84,7 @@ function status_asset_url(string $relativePath): string
         <section class="running-board" hidden data-running-section>
             <div class="running-board-head">
                 <div class="eyebrow">実行中の処理</div>
-                <div class="running-board-title">データ処理の実行状況</div>
+                <div class="running-board-title">いま動いている処理</div>
                 <div class="running-summary-list" data-running-summary-list></div>
             </div>
             <div class="running-list" data-running-list></div>

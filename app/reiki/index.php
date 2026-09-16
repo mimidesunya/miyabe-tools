@@ -36,7 +36,7 @@ require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPAR
                 <?php $switchMunicipality = municipality_entry((string)$item['slug']); ?>
                 <?php $switchUrl = (string)($switchMunicipality['reiki']['url'] ?? ''); ?>
                 <option value="<?php echo h($switchUrl); ?>" <?php echo $item['slug'] === $slug ? 'selected' : ''; ?>>
-                    <?php echo h($item['name'] . (!empty($item['enabled']) ? '' : ' (準備中)')); ?>
+                    <?php echo h($item['name'] . (!empty($item['enabled']) ? '' : '（準備中）')); ?>
                 </option>
             <?php endforeach; ?>
         </select>
@@ -76,7 +76,7 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
 
             <div class="filter-block" data-filter-group>
                 <div class="filter-title">
-                    <span>判定結果 (複数選択可)</span>
+                    <span>判定結果（複数選べます）</span>
                     <span class="filter-count" data-selected-count>0件選択</span>
                 </div>
                 <div class="checkbox-grid" data-filter-options>
@@ -92,7 +92,7 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
             
             <div class="filter-block" data-filter-group>
                 <div class="filter-title">
-                    <span>分類 (複数選択可)</span>
+                    <span>分類（複数選べます）</span>
                     <span class="filter-count" data-selected-count>0件選択</span>
                 </div>
                 <div class="checkbox-grid" data-filter-options>
@@ -108,7 +108,7 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
 
             <div class="filter-block" data-filter-group>
                 <div class="filter-title">
-                    <span>種別 (複数選択可)</span>
+                    <span>種別（複数選べます）</span>
                     <span class="filter-count" data-selected-count>0件選択</span>
                 </div>
                 <div class="checkbox-grid" data-filter-options>
@@ -125,7 +125,7 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
             <button type="submit">検索・並べ替え</button>
             
             <div style="margin-top:12px; border-top:1px solid #eef2f7; padding-top:8px;">
-                <div style="font-size:11px; color:#64748b; margin-bottom:4px;">クイックフィルタ (最悪順)</div>
+                <div style="font-size:11px; color:#64748b; margin-bottom:4px;">ワースト順で見る</div>
                 <div style="display:flex; flex-wrap:wrap; gap:4px;">
                     <a href="<?php echo h(query_with(['sort' => 'score_necessity', 'dir' => 'asc', 'page' => null])); ?>" style="font-size:11px; padding:3px 8px; border:1px solid #cbd5e1; border-radius:12px; text-decoration:none; color:#334155; background:#fff;">必要度ワースト</a>
                     <a href="<?php echo h(query_with(['sort' => 'score_effectiveness', 'dir' => 'asc', 'page' => null])); ?>" style="font-size:11px; padding:3px 8px; border:1px solid #cbd5e1; border-radius:12px; text-decoration:none; color:#334155; background:#fff;">効果ワースト</a>
@@ -230,7 +230,7 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
                     <?php echo h($featureNotice); ?>
                 </div>
                 <div style="font-size:14px; color:#64748b;">
-                    自治体切り替えUIには対応済みです。データを配置すると、この画面からそのまま検索・閲覧できます。
+                    自治体の切り替えには対応しています。データを置けば、この画面から検索して読めます。
                 </div>
             </div>
         <?php elseif ($selectedRecord === null): ?>
@@ -243,7 +243,7 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
                         <?php echo h((string)$total); ?>件の例規が見つかりました
                     </div>
                     <div style="font-size:14px; color:#64748b;">
-                        左の一覧から条例を選択すると、ここに評価結果と本文が表示されます。
+                        左の一覧で条例を選ぶと、ここに評価と本文が出ます。
                     </div>
                 </div>
             <?php endif; ?>
@@ -315,7 +315,7 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
                         <dd style="line-height:1.6;"><?php echo nl2br(h((string)($selectedClassification['reason'] ?? '-'))); ?></dd>
                     </dl>
                 <?php else: ?>
-                    <div class="meta">分類結果ファイル（<?php echo h((string)($reikiFeature['classification_dir_rel'] ?? 'reiki/*_json')); ?>）が未作成、または該当データなし。</div>
+                    <div class="meta">分類結果ファイル（<?php echo h((string)($reikiFeature['classification_dir_rel'] ?? 'reiki/*_json')); ?>）がまだありません。</div>
                 <?php endif; ?>
             </section>
 

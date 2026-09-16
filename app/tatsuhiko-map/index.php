@@ -31,8 +31,8 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . 'lib.php';
         <section class="tmap-lead">
             <h1>宮部たつひこマップ</h1>
             <p>
-                川崎市で活動する宮部たつひこの現在の活動場所です。
-                位置情報は本人が提供を有効にしている間だけ、GPS から更新されます。
+                川崎市で活動する宮部たつひこが、いまどこにいるかを出しています。
+                位置は、本人が公開を有効にしている間だけ GPS で更新されます。
             </p>
             <div class="tmap-status" data-tmap-status aria-live="polite">状態を確認しています。</div>
         </section>

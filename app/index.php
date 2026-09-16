@@ -16,7 +16,7 @@ function home_h(?string $value): string
     <title>自治体マップ｜全国の会議録・例規集を横断検索</title>
     <?php echo site_render_page_meta(
         '自治体マップ｜全国の会議録・例規集を横断検索',
-        '全国の自治体が公開する議会の会議録と例規集（条例・規則）をひとつの検索窓で横断検索。ClaudeやChatGPTなどのAIからはMCPで直接使えます。地図で自治体ごとの公開状況も確認でき、原典URLまでたどれます。無料・登録不要。',
+        '全国の自治体が公開している議会の会議録と例規集（条例・規則）を、ひとつの検索窓でまとめて探せます。ClaudeやChatGPTなどのAIからはMCPでそのまま使えます。地図から自治体ごとの公開状況も見られ、原典のURLまでたどれます。無料・登録不要。',
         '/'
     ); ?>
     <?php echo site_render_favicon_links(); ?>
@@ -46,7 +46,7 @@ function home_h(?string $value): string
         <?php echo site_render_brand('/'); ?>
         <div class="header-meta">
             <span class="live-mark"><i></i> データ公開中</span>
-            <span>原典URL・取得元情報を収録</span>
+            <span>原典のURLつき</span>
         </div>
     </header>
 
@@ -73,9 +73,9 @@ function home_h(?string $value): string
                     <button type="submit">検索</button>
                 </div>
                 <p id="home-record-search-hint" class="search-ribbon-hint">
-                    空白で区切った語をすべて含む資料を探します。自治体名も本文中の語として探します。
+                    空白で区切ると、その語をすべて含む資料を探します。自治体名も本文の語として扱います。
                     <code>"引用符"</code>で語句の完全一致、<code>OR</code>・<code>NOT</code>・<code>( )</code>も使えます。
-                    都道府県・自治体・期間の絞り込みは結果ページで行えます。
+                    都道府県や自治体、期間での絞り込みは結果のページでできます。
                 </p>
                 <div class="search-ribbon-scope">
                     <span id="home-doc-type-label">探す資料</span>
@@ -100,10 +100,10 @@ function home_h(?string $value): string
                 <p class="eyebrow"><span>02</span> このサイトについて</p>
                 <h2 class="intro-title">自治体が公開する一次資料を、そのまま引けます</h2>
                 <p class="intro-lead">
-                    自治体が公開する会議録・例規集を収集し、
-                    ひとつの検索窓で全国をまとめて検索できます。
-                    ClaudeやChatGPTなどのAIからもMCPで直接使えます。
-                    選挙ポスター掲示場の作業支援は、文書検索とは独立したサービスです。
+                    全国の自治体が公開している会議録と例規集を集めて、
+                    ひとつの検索窓からまとめて探せるようにしています。
+                    ClaudeやChatGPTなどのAIからは、MCPでそのまま使えます。
+                    選挙ポスター掲示場のページは、この文書検索とは別のものです。
                 </p>
                 <div class="map-intro-actions" aria-label="関連ページ">
                     <a class="primary-link" href="/search/">記録を検索する <span aria-hidden="true">→</span></a>
@@ -176,7 +176,7 @@ function home_h(?string $value): string
                 <aside class="detail-panel" data-home-detail aria-live="polite">
                     <div class="detail-empty">
                         <h2>自治体を選択</h2>
-                        <p>地図上の点を選ぶと、対応している機能と公開先を確認できます。</p>
+                        <p>地図の点を選ぶと、その自治体で何が集まっているか、原典がどこにあるかが出ます。</p>
                     </div>
                 </aside>
             </div>
@@ -185,7 +185,7 @@ function home_h(?string $value): string
         <section class="municipality-results" aria-label="表示中の自治体">
             <div class="section-head">
                 <div><span>04</span><h2>自治体索引</h2></div>
-                <p>地図に表示している自治体を都道府県別に掲載します。</p>
+                <p>地図に出ている自治体を、都道府県ごとに並べています。</p>
             </div>
             <div class="municipality-list" data-home-grid>
                 <div class="loading-panel">自治体データを読み込んでいます。</div>

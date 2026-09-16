@@ -167,7 +167,7 @@ $boot = [
                 <label class="field" for="search-query">
                     <span class="field-head">
                         <span>キーワード</span>
-                        <button class="inline-help-button" type="button" data-query-help-open>検索構文</button>
+                        <button class="inline-help-button" type="button" data-query-help-open>書き方</button>
                     </span>
                     <input id="search-query" name="q" type="search" value="<?php echo search_h((string)$boot['query']); ?>" autocomplete="off" autofocus>
                 </label>
@@ -286,7 +286,7 @@ $boot = [
     <div class="help-modal-backdrop" data-query-help-close></div>
     <section class="help-modal-panel" role="dialog" aria-modal="true" aria-labelledby="query-help-title" tabindex="-1">
         <div class="help-modal-head">
-            <h2 id="query-help-title">検索クエリの構文</h2>
+            <h2 id="query-help-title">検索の書き方</h2>
             <button class="help-close-button" type="button" data-query-help-close aria-label="閉じる">×</button>
         </div>
         <div class="help-modal-body">
@@ -294,15 +294,15 @@ $boot = [
                 <dt>複数語</dt>
                 <dd><code>盛土 メガソーラー</code><span>すべての語を含む文書を探します。</span></dd>
                 <dt>完全一致</dt>
-                <dd><code>"同和団体" 温泉</code><span>引用符内の語句をひとまとまりで探し、ほかの語と組み合わせます。</span></dd>
+                <dd><code>"同和団体" 温泉</code><span>引用符の中はひとまとまりの語句として探します。ほかの語とも組み合わせられます。</span></dd>
                 <dt>いずれか</dt>
                 <dd><code>盛土 OR 土砂</code><span>どちらかを含む文書を探します。</span></dd>
                 <dt>除外</dt>
-                <dd><code>メガソーラー NOT 促進</code><span>後ろの語を含む文書を除外します。</span></dd>
+                <dd><code>メガソーラー NOT 促進</code><span>後ろの語を含む文書を外します。</span></dd>
                 <dt>組み合わせ</dt>
                 <dd><code>(盛土 OR メガソーラー) 条例</code><span>括弧で条件をまとめられます。</span></dd>
             </dl>
-            <p>記号をそのまま検索したい場合は、まず引用符で囲むのが安全です。</p>
+            <p>記号をそのまま探したいときは、引用符で囲んでください。</p>
         </div>
     </section>
 </div>

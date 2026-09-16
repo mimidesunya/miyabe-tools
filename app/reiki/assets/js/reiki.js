@@ -239,7 +239,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         .then(d => renderComments(d.comments))
                         .catch(() => {});
                 } else {
-                    document.getElementById('vote-status').textContent = 'エラーが発生しました';
+                    document.getElementById('vote-status').textContent = '送信できませんでした';
                 }
             })
             .catch(() => {
