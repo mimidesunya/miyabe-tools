@@ -11,7 +11,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "scrapers"))
 
-from d1_law import menu_pages_from_entry  # noqa: E402
+from d1_law import (  # noqa: E402
+    PLAIN_HONBUN_LINK_RE,
+    REIKI_HONBUN_LINK_RE,
+    branch_pages,
+    menu_pages_from_entry,
+)
 
 
 class MenuPagesFromEntryTest(unittest.TestCase):
@@ -62,3 +67,67 @@ class GuessedMenuTest(unittest.TestCase):
 
     def test_no_menu_link_means_we_are_guessing(self):
         self.assertEqual(menu_pages_from_entry('<link href="css/base.css">'), [])
+
+
+class BranchPagesTest(unittest.TestCase):
+    """目次の枝を辿る。
+
+    古い静的版は `href=bunya_0010000.html` と引用符を付けない（錦江町・猿払村）。
+    引用符付きしか読めていなかったので、目次は開けるのに例規 ID が 1 件も
+    集まらず、毎周回 `No regulations were collected` で失敗していた。
+    """
+
+    def test_unquoted_branch_links(self):
+        html = (
+            '<li TYPE=square><a href=bunya_0010000.html target=FRAME_MOKUJI_RIGHT '
+            'onclick="javascript:ViewMokujiList(\'0010000\',\'IMGBOOK1\')">第１編 総規</a></li>'
+            '<li TYPE=square><a href=bunya_00100000010000.html target=FRAME_MOKUJI_RIGHT>第１章</a></li>'
+        )
+        self.assertEqual(branch_pages(html), ["bunya_0010000.html", "bunya_00100000010000.html"])
+
+    def test_quoted_branch_links_still_work(self):
+        html = '<a href="bunya_0020000.html">第２編</a><a href=\'index_002.html\'>あ</a>'
+        self.assertEqual(branch_pages(html), ["bunya_0020000.html", "index_002.html"])
+
+    def test_body_pages_are_not_branches(self):
+        """本文ページは目次ではない。目録として開くと無駄に取りに行く。"""
+        html = '<a href=H417901010001/H417901010001_j.html>錦江町役場の位置を定める条例</a>'
+        self.assertEqual(branch_pages(html), [])
+
+    def test_other_sites_are_not_followed(self):
+        html = '<a href=http://example.jp/other/bunya_0010000.html>x</a>'
+        self.assertEqual(branch_pages(html), [])
+
+    def test_no_duplicates(self):
+        html = '<a href=bunya_0010000.html>a</a><a href="bunya_0010000.html">b</a>'
+        self.assertEqual(branch_pages(html), ["bunya_0010000.html"])
+
+
+class PlainHonbunLinkTest(unittest.TestCase):
+    """例規を JavaScript ではなく普通のリンクで並べる取得元（京都市・留寿都村）。"""
+
+    def test_unquoted_body_link(self):
+        html = '<a href=H417901010001/H417901010001_j.html target=_blank>条例</a>'
+        self.assertEqual([hno for hno, _ in PLAIN_HONBUN_LINK_RE.findall(html)], ["H417901010001"])
+
+    def test_quoted_body_link(self):
+        html = '<a href="H417901010002/H417901010002_j.html">条例</a>'
+        self.assertEqual([hno for hno, _ in PLAIN_HONBUN_LINK_RE.findall(html)], ["H417901010002"])
+
+    def test_mismatched_pair_is_not_a_body_link(self):
+        html = '<a href="H417901010002/H999_j.html">条例</a>'
+        self.assertEqual(PLAIN_HONBUN_LINK_RE.findall(html), [])
+
+
+class ReikiHonbunLinkTest(unittest.TestCase):
+    """新しい Reiki-Base は本文を `../reiki_honbun/x000RG….html` に置く。"""
+
+    def test_unquoted_and_quoted(self):
+        self.assertEqual(
+            REIKI_HONBUN_LINK_RE.findall('<a href=../reiki_honbun/z500RG00000122.html>x</a>'),
+            ["../reiki_honbun/z500RG00000122.html"],
+        )
+        self.assertEqual(
+            REIKI_HONBUN_LINK_RE.findall('<a href="reiki_honbun/c534RG00000016.html">x</a>'),
+            ["reiki_honbun/c534RG00000016.html"],
+        )

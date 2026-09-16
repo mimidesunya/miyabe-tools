@@ -352,6 +352,28 @@ MENU_LINK_RE = re.compile(
 # 決め打ちの目次。入口ページからリンクが読めないときの控え。
 FALLBACK_MENU_PAGES = ("mokuji_index_index.html", "mokuji_bunya_index.html")
 
+# 目次の枝・本文へのリンク。古い静的版は `href=bunya_0010000.html` と
+# **引用符を付けない**（錦江町・猿払村）。入口ページ側（MENU_LINK_RE）では
+# 引用符なしを読めていたのに、枝の側が引用符付きしか読めず、目次は開けるのに
+# 例規 ID が 1 件も集まらず毎周回失敗していた。
+BRANCH_LINK_RE = re.compile(r'href=["\']?([A-Za-z0-9_.-]+\.html)(?=["\'\s>])', re.IGNORECASE)
+PLAIN_HONBUN_LINK_RE = re.compile(
+    r'href=["\']?([A-Za-z0-9]+)/(\1)_j\.html(?=["\'\s>])', re.IGNORECASE
+)
+REIKI_HONBUN_LINK_RE = re.compile(
+    r'href=["\']?([^"\'\s>]*reiki_honbun/[A-Za-z0-9]+\.html)(?=["\'\s>])', re.IGNORECASE
+)
+
+
+def branch_pages(content: str) -> list[str]:
+    """目次に書かれている、同じディレクトリの html リンク（本文ページを除く）。"""
+    found: list[str] = []
+    for link in BRANCH_LINK_RE.findall(str(content or "")):
+        if link.endswith("_j.html") or link in found:
+            continue
+        found.append(link)
+    return found
+
 
 def menu_pages_from_entry(entry_html: str) -> list[str]:
     """入口ページが指している目次ページを、書かれている順で返す。"""
@@ -426,12 +448,9 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None
         # `r_50_a.html`）。決め打ちせず、目次に書かれている相対リンクを辿る。
         # 同じディレクトリの html だけを見る。上位や別サイトへは出ない。
         prefix = current.rsplit("/", 1)[0] + "/" if "/" in current else ""
-        for link in re.findall(r'href="([A-Za-z0-9_.-]+\.html)"', content):
+        for link in branch_pages(content):
             branch = prefix + link
             if branch in scanned or branch in to_scan:
-                continue
-            # 本文ページは目次ではない。目録として開くと無駄に取りに行く。
-            if link.endswith("_j.html"):
                 continue
             to_scan.append(branch)
 
@@ -441,12 +460,12 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None
         # 例規を JavaScript ではなく普通のリンクで並べる取得元がある
         # （京都市・留寿都村）。H…/H…_j.html の形なので、ディレクトリ名を
         # そのまま例規 ID として拾う。
-        for hno in re.findall(r'href="([A-Za-z0-9]+)/\1_j\.html"', content):
+        for hno, _same in PLAIN_HONBUN_LINK_RE.findall(content):
             hno_set.add(hno)
 
         # 新しい Reiki-Base は本文を `../reiki_honbun/x000RG….html` に置く。
         # `{id}/{id}_j.html` とは形が違うので、組み立て直さず相対パスで控える。
-        for path in re.findall(r'href="([^"]*reiki_honbun/[A-Za-z0-9]+\.html)"', content):
+        for path in REIKI_HONBUN_LINK_RE.findall(content):
             honbun_paths.add(urljoin(prefix, path))
 
     if walk is not None:
