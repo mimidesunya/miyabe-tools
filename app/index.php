@@ -98,11 +98,11 @@ function home_h(?string $value): string
         <section class="map-intro" aria-label="自治体マップの概要">
             <div class="map-intro-copy">
                 <p class="eyebrow"><span>02</span> このサイトについて</p>
-                <h2 class="intro-title">自治体が公開する一次資料を、そのまま引けます</h2>
+                <h2 class="intro-title">自治体の文書そのものを検索できます</h2>
                 <p class="intro-lead">
                     全国の自治体が公開している会議録と例規集を集めて、
                     ひとつの検索窓からまとめて探せるようにしています。
-                    ClaudeやChatGPTなどのAIからは、MCPでそのまま使えます。
+                    ClaudeやChatGPTなどのAIからも、MCPで使えます。
                     選挙ポスター掲示場のページは、この文書検索とは別のものです。
                 </p>
                 <div class="map-intro-actions" aria-label="関連ページ">

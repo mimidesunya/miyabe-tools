@@ -2,7 +2,7 @@
 // 初回訪問時に表示する例規集ページの利用ガイド。
 ?>
 <section class="card guide" id="guide-section">
-    <h2 class="title guide-toggle">📖 このページの見方（はじめての方向け）<span class="guide-arrow"></span></h2>
+    <h2 class="title guide-toggle">このページの見方（はじめての方へ）<span class="guide-arrow"></span></h2>
     <div class="guide-body">
     <div style="background:#fffbeb; border:1px solid #f59e0b; border-radius:6px; padding:12px 16px; margin-bottom:16px; font-size:13.5px; line-height:1.7; color:#78350f;">
         <strong>⚠ ご注意</strong>　ここに出る評価は、AIが<strong>条文だけ</strong>を読んで、決めておいた観点で自動的に判定したものです。
