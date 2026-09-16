@@ -156,7 +156,7 @@ function api_guide_asset_url(string $relativePath): string
                 </div>
             </div>
             <p>
-                AIは検索と本文の読み取りを自動で使い分けます。道具の名前を覚える必要はありません。
+                AIは検索と本文の読み取りを自動で使い分けます。ツールの名前を覚える必要はありません。
             </p>
         </section>
 

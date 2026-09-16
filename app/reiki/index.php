@@ -28,7 +28,7 @@ require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPAR
 <header class="header">
     <div style="display:flex; align-items:center; gap:10px;">
         <h1><a href="<?php echo h($clearUrl); ?>" style="color:inherit; text-decoration:none;"><?php echo h($pageTitle); ?></a></h1>
-        <button id="menu-toggle" type="button">🔍 検索・一覧</button>
+        <button id="menu-toggle" type="button">検索・一覧</button>
     </div>
     <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
         <select aria-label="自治体切り替え" onchange="if (this.value) { window.location.href = this.value; }" style="padding:8px 10px; border:1px solid #cbd5e1; border-radius:999px; font-size:13px;">
@@ -100,7 +100,7 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
                         <label class="checkbox-item" data-filter-option>
                             <input type="checkbox" name="class[]" value="<?php echo h($cls); ?>" 
                                 <?php if (!$hasClassFilterParam || in_array($cls, $filterClasses, true)) echo 'checked'; ?>>
-                            <span><?php echo h($cls); ?></span>
+                            <span><?php echo h(reiki_primary_class_label($cls)); ?></span>
                         </label>
                     <?php endforeach; ?>
                 </div>
@@ -155,7 +155,7 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
                         
                         <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; align-items:center;">
                             <?php if (!empty($record['primary_class'])): ?>
-                                <?php $primaryClassLabel = preg_replace('/^([A-G])_/', '$1 ', (string)($record['primary_class'] ?? '')); ?>
+                                <?php $primaryClassLabel = reiki_primary_class_label((string)($record['primary_class'] ?? '')); ?>
                                 <span class="badge" style="font-size:10px; margin:0; padding:2px 6px; border:1px solid #cbd5e1; background:#f1f5f9; color:#475569;">
                                     <?php echo h((string)$primaryClassLabel); ?>
                                 </span>
@@ -278,7 +278,7 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
                     <?php endif; ?>
                     <div style="margin-bottom:10px;">
                         <?php if (!empty($selectedClassification['primaryClass'])): ?>
-                            <span class="badge"><?php echo h((string)$selectedClassification['primaryClass']); ?></span>
+                            <span class="badge"><?php echo h(reiki_primary_class_label((string)$selectedClassification['primaryClass'])); ?></span>
                         <?php endif; ?>
                         <?php
                         $secondaryTags = $selectedClassification['secondaryTags'] ?? [];

@@ -49,7 +49,7 @@ function support_asset_url(string $relativePath): string
             <p class="kicker">Support</p>
             <h1>サポート・お問い合わせ</h1>
             <p>
-                使い方、不具合、掲載内容の修正、AI連携（MCP）のことは、
+                使い方、不具合、掲載内容の修正、AI連携（MCP）については、
                 このページの窓口へお寄せください。
             </p>
         </section>

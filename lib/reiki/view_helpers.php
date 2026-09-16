@@ -5,6 +5,16 @@ declare(strict_types=1);
  * 例規集ページで使う表示補助と HTML 整形の共通関数。
  */
 
+// 分類コードを人が読む形にする。
+//
+// `A_法定必須_維持前提` はデータ側の符号で、区切りの `_` がそのまま画面に
+// 出ていた。機械が吐いた文字列に見えるので、頭の記号は空白、残りは中黒にする。
+// 値そのもの（絞り込みの比較に使う）は変えない。
+function reiki_primary_class_label(string $code): string {
+    $label = preg_replace('/^([A-G])_/u', '$1 ', trim($code)) ?? trim($code);
+    return str_replace('_', '・', $label);
+}
+
 // 各スコアの色と補助ラベルを UI 用に決める。
 function get_score_style_and_label(string $key, float|int $val): array {
     $style = '';
