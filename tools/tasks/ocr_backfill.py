@@ -64,24 +64,36 @@ def empty_pdf_count(work_dir: Path) -> int:
         return 0
 
 
-def exhausted_count(work_dir: Path) -> int:
-    """OCR しても本文にならず、試行回数を使い切った件数。"""
-    exhausted = 0
+def settled_count(work_dir: Path) -> int:
+    """もう OCR を試さなくてよい件数。読めたものと、試し尽くしたもの。
+
+    **読めたものも引く。** 通常の巡回は OCR 無しで走るので、OCR で本文に
+    できた PDF も毎回「文字情報が無い」と数え直される。読めた分を引かないと
+    件数が永久に減らず、同じ自治体が待ち行列の先頭に居座る（三宅町 235・
+    士幌町 87 は 9 月初めに OCR 済みなのに、2 時間おきに 50 分ずつ
+    取り直していた）。
+    """
+    settled = 0
     for entry in pdf_ocr.load_attempts(work_dir).values():
         if not isinstance(entry, dict):
             continue
         if str(entry.get("status") or "") == "ok":
+            settled += 1
             continue
-        if int(entry.get("attempts") or 0) >= pdf_ocr.MAX_ATTEMPTS:
-            exhausted += 1
-    return exhausted
+        try:
+            attempts = int(entry.get("attempts") or 0)
+        except (TypeError, ValueError):
+            attempts = 0
+        if attempts >= pdf_ocr.MAX_ATTEMPTS:
+            settled += 1
+    return settled
 
 
 def pending_targets() -> list[tuple[str, int]]:
     """OCR 待ちの自治体を、件数の多い順に返す。
 
-    試し尽くした分を引いて数える。全部試し終えた自治体は載せない。
-    そうしないと、OCR でも読めない自治体を毎回選び直すことになる。
+    読めた分と試し尽くした分を引いて数える。全部片付いた自治体は載せない。
+    そうしないと、OCR 済みの自治体や OCR でも読めない自治体を毎回選び直す。
     """
     pending: list[tuple[str, int]] = []
     if not WORK_ROOT.is_dir():
@@ -92,7 +104,7 @@ def pending_targets() -> list[tuple[str, int]]:
         empty = empty_pdf_count(work_dir)
         if empty <= 0:
             continue
-        remaining = empty - exhausted_count(work_dir)
+        remaining = empty - settled_count(work_dir)
         if remaining > 0:
             pending.append((work_dir.name, remaining))
     pending.sort(key=lambda row: -row[1])
