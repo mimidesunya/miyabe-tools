@@ -86,7 +86,11 @@ def looks_like_attachment_pdf(url: str, anchor_text: str) -> bool:
     """
     if anchor_text_names_a_pdf(url, anchor_text):
         return True
-    if not ATTACHMENT_ENDPOINT_RE.search(url) and not query_names_a_pdf(url):
+    if (
+        not ATTACHMENT_ENDPOINT_RE.search(url)
+        and not query_names_a_pdf(url)
+        and not anchor_text_annotates_a_pdf(url, anchor_text)
+    ):
         return False
     haystack = normalize_space(anchor_text).lower()
     return any(keyword.lower() in haystack for keyword in MINUTES_PAGE_KEYWORDS)
@@ -106,14 +110,42 @@ def query_names_a_pdf(url: str) -> bool:
 
 # ファイル名を URL のどこにも出さず、リンク文字列だけで示す配信口がある
 # （上士幌町の /dl.php?up_code=… に「…会議録.pdf」と添える形）。
-DOWNLOAD_ENDPOINT_RE = re.compile(r"/(?:dl|download|file)\.(?:php|aspx?|cgi|do)\b", re.I)
+# 拡張子を付けずディレクトリの形で配る取得元もある
+# （仁淀川町の /download/?t=LD&id=3119&fid=21124）。この形は問い合わせが
+# 付いているときだけ配信口とみなす。付いていなければただのページである。
+DOWNLOAD_ENDPOINT_RE = re.compile(r"/(?:dl|download|file|files|fileoutput|attach(?:ment)?)\.(?:php|aspx?|cgi|do|jsp)\b", re.I)
+DOWNLOAD_DIRECTORY_RE = re.compile(r"/(?:dl|download|file|files|fileoutput|attach(?:ment)?)/?$", re.I)
+# リンク文字列に添えられたファイル種別の注記。「（PDF：399KB）」「[PDFファイル／1.2MB]」
+# 「PDF(1192KB)」「(PDF形式：1.58MB)」など、取得元ごとに書き方が違う。
+PDF_LABEL_ANNOTATION_RE = re.compile(
+    r"[（(\[［【]\s*PDF[^）)\]］】]*[）)\]］】]"
+    r"|PDF\s*[（(][^）)]*[）)]"
+    r"|PDF\s*(?:ファイル|形式)\s*[：:／/｜|]",
+    re.I,
+)
+
+
+def is_download_endpoint(url: str) -> bool:
+    """PDF を配る口らしい URL か。ディレクトリ形は問い合わせ付きのときだけ。"""
+    parts = urlsplit(url)
+    path = parts.path
+    if DOWNLOAD_ENDPOINT_RE.search(path):
+        return True
+    return bool(parts.query) and bool(DOWNLOAD_DIRECTORY_RE.search(path))
 
 
 def anchor_text_names_a_pdf(url: str, anchor_text: str) -> bool:
-    """配信口へのリンクで、文字列側がファイル名を名乗っているかを見る。"""
-    if not DOWNLOAD_ENDPOINT_RE.search(url):
+    """配信口へのリンクで、文字列側が PDF だと名乗っているかを見る。"""
+    if not is_download_endpoint(url):
         return False
     return normalize_space(anchor_text).lower().endswith(".pdf")
+
+
+def anchor_text_annotates_a_pdf(url: str, anchor_text: str) -> bool:
+    """配信口へのリンクで、文字列側が「（PDF：399KB）」のように種別を添えているか。"""
+    if not is_download_endpoint(url):
+        return False
+    return bool(PDF_LABEL_ANNOTATION_RE.search(normalize_space(anchor_text)))
 
 
 YEAR_OR_LIST_RE = re.compile(r"(20\d{2}|令和[元\d０-９]+|平成[元\d０-９]+|昭和[元\d０-９]+|list\d+|\d{4,6}\.html)", re.I)
@@ -279,6 +311,38 @@ def request_bytes(session: requests.Session, url: str, timeout_ms: int) -> bytes
     response = session.get(url, timeout=max(timeout_ms / 1000.0, 1.0))
     response.raise_for_status()
     return response.content
+
+
+def looks_like_pdf_response(content_type: str, content_disposition: str, raw: bytes) -> bool:
+    """応答が PDF そのものか。拡張子の無い配信口を確かめるために使う。
+
+    URL に拡張子が出ない配信口（仁淀川町の /download/?t=LD&id=…）は、リンク
+    文字列の「（PDF：399KB）」だけを頼りに PDF と判定している。取り違えたまま
+    HTML を本文として保存しないよう、取得したところで実体を見る。
+    """
+    if raw[:5] == b"%PDF-":
+        return True
+    media_type = str(content_type or "").split(";", 1)[0].strip().lower()
+    if media_type in ("application/pdf", "application/x-pdf"):
+        return True
+    return ".pdf" in str(content_disposition or "").lower()
+
+
+def request_pdf_bytes(session: requests.Session, url: str, timeout_ms: int) -> bytes:
+    """PDF を取る。PDF でない応答は、本文として扱わずに断る。"""
+    response = session.get(url, timeout=max(timeout_ms / 1000.0, 1.0))
+    response.raise_for_status()
+    raw = response.content
+    if not looks_like_pdf_response(
+        response.headers.get("Content-Type", ""),
+        response.headers.get("Content-Disposition", ""),
+        raw,
+    ):
+        raise ValueError(
+            f"PDF ではない応答のため取り込みを中止します: "
+            f"{response.headers.get('Content-Type', '')!r} {url}"
+        )
+    return raw
 
 
 def page_title(soup: BeautifulSoup) -> str:
@@ -667,7 +731,7 @@ def process_pdf_meeting_plan(
 
     def fetch_pdf_text() -> str:
         nonlocal downloaded
-        pdf_bytes = request_bytes(session, item.url, timeout_ms)
+        pdf_bytes = request_pdf_bytes(session, item.url, timeout_ms)
         gijiroku_storage.write_bytes(pdf_path, pdf_bytes, compress=False)
         downloaded = True
         return extract_pdf_text(pdf_bytes)

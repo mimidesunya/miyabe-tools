@@ -90,3 +90,83 @@ class AnchorTextNamesAPdfTest(unittest.TestCase):
         self.assertFalse(
             kami_city_pdf.anchor_text_names_a_pdf("https://example.lg.jp/entry/1", "資料.pdf")
         )
+
+class DownloadEndpointWithoutExtensionTest(unittest.TestCase):
+    """拡張子を出さずディレクトリの形で PDF を配る取得元（仁淀川町）。"""
+
+    NIYODO = "https://www.town.niyodogawa.lg.jp/download/?t=LD&id=3119&fid=21124"
+
+    def test_minutes_link_with_a_pdf_annotation_is_detected(self) -> None:
+        self.assertTrue(
+            kami_city_pdf.looks_like_attachment_pdf(self.NIYODO, "令和７年 第２回定例会（初日）（PDF：653KB）")
+        )
+
+    def test_other_annotation_styles_are_detected(self) -> None:
+        for label in (
+            "令和8年第1回定例会会議録 [PDFファイル／1.2MB]",
+            "第85回定例会 PDF(1192KB)",
+            "令和5年第1回臨時会会議録（PDF形式：1.58MB）",
+        ):
+            self.assertTrue(kami_city_pdf.looks_like_attachment_pdf(self.NIYODO, label), label)
+
+    def test_a_directory_without_a_query_is_not_an_endpoint(self) -> None:
+        # ただの /download/ ページを PDF 扱いしない。
+        self.assertFalse(
+            kami_city_pdf.looks_like_attachment_pdf("https://example.lg.jp/download/", "会議録（PDF：399KB）")
+        )
+
+    def test_an_ordinary_page_link_is_not_an_endpoint(self) -> None:
+        self.assertFalse(
+            kami_city_pdf.looks_like_attachment_pdf("https://example.lg.jp/page9324.html", "会議録（PDF：399KB）")
+        )
+
+    def test_a_label_without_a_pdf_annotation_is_ignored(self) -> None:
+        # 種別の注記が無ければ、配信口でも PDF とは決められない。
+        self.assertFalse(kami_city_pdf.looks_like_attachment_pdf(self.NIYODO, "令和７年 第２回定例会（初日）"))
+
+    def test_a_non_minutes_label_is_ignored(self) -> None:
+        self.assertFalse(kami_city_pdf.looks_like_attachment_pdf(self.NIYODO, "広報紙 8月号（PDF：399KB）"))
+
+
+class PdfResponseGuardTest(unittest.TestCase):
+    def test_pdf_body_is_accepted(self) -> None:
+        self.assertTrue(kami_city_pdf.looks_like_pdf_response("text/html", "", b"%PDF-1.4 ..."))
+
+    def test_pdf_content_type_is_accepted(self) -> None:
+        self.assertTrue(kami_city_pdf.looks_like_pdf_response("application/pdf", "", b"garbled"))
+
+    def test_pdf_filename_in_content_disposition_is_accepted(self) -> None:
+        self.assertTrue(
+            kami_city_pdf.looks_like_pdf_response("application/octet-stream", 'attachment; filename="r7-1.pdf"', b"garbled")
+        )
+
+    def test_html_response_is_refused(self) -> None:
+        # 配信口だと思って開いたら案内ページだった、を本文にしない。
+        self.assertFalse(kami_city_pdf.looks_like_pdf_response("text/html; charset=UTF-8", "", b"<html><body>"))
+
+
+class RequestPdfBytesTest(unittest.TestCase):
+    class _Response:
+        def __init__(self, content: bytes, headers: dict) -> None:
+            self.content = content
+            self.headers = headers
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class _Session:
+        def __init__(self, response) -> None:
+            self.response = response
+
+        def get(self, _url, **_kwargs):
+            return self.response
+
+    def test_pdf_is_returned(self) -> None:
+        session = self._Session(self._Response(b"%PDF-1.7 body", {"Content-Type": "application/pdf"}))
+        self.assertEqual(kami_city_pdf.request_pdf_bytes(session, "https://example.lg.jp/download/?id=1", 10_000), b"%PDF-1.7 body")
+
+    def test_html_is_refused(self) -> None:
+        session = self._Session(self._Response("<html>案内</html>".encode("utf-8"), {"Content-Type": "text/html"}))
+        with self.assertRaises(ValueError):
+            kami_city_pdf.request_pdf_bytes(session, "https://example.lg.jp/download/?id=1", 10_000)
+
