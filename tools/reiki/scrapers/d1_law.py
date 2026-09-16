@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import html
+import json
 import re
 import sys
 import time
@@ -30,7 +31,10 @@ import reiki_targets
 
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-DELAY = 0.5
+# 1 件ごとの間隔。**同じホストに 208 自治体が乗っている**（en3-jg.d1-law.com）。
+# 1 自治体 800 件として十数万件を 0.5 秒間隔で投げ続け、2026-09 に弾かれた。
+# 取得元は自治体の本番サイトなので、速さより通り続けることを優先する。
+DELAY = 1.5
 # 原典が変わらない限り変換を飛ばす運用では、コードだけ直しても既存成果物へ届かない。
 # d1_parser の抽出規則を変えたときは、この値を明示的に上げて保存済み source を変換し直す。
 #
@@ -172,6 +176,105 @@ DOWNLOAD_MISSING: list[str] = []
 GONE_STATUS_CODES = frozenset({404, 410})
 
 
+# 取得元に弾かれたことを覚えておく置き場。自治体ごとに別プロセスで走るので、
+# 同じホストを共有する 208 自治体が順に同じ壁へ突っ込まないよう、ファイルに残す。
+HOST_BLOCK_FILE = "host_blocks.json"
+# 接続を続けて切られたら「弾かれた」と見なす回数。数件なら回線の綾でも起きる。
+HOST_BLOCK_THRESHOLD = 10
+# 弾かれたホストを避ける時間。短すぎると壁を叩き続け、長すぎると復旧に気づけない。
+HOST_BLOCK_SECONDS = 6 * 60 * 60
+# 接続が切れたときの作り直し。相手が詰まっているだけのことがある。
+CONNECTION_RETRY_ATTEMPTS = 3
+CONNECTION_RETRY_BASE_SECONDS = 2.0
+# 同じホストへ続けて接続を切られた回数（このプロセスの中だけ）。
+_CONNECTION_FAILURES: dict[str, int] = {}
+# 弾かれたホストのせいで取りに行かなかった URL。取りこぼしとは意味が違う。
+SKIPPED_BY_HOST_BLOCK: list[str] = []
+
+
+def host_of(url: str) -> str:
+    return (urlsplit(str(url)).hostname or "").strip().lower()
+
+
+def host_block_path() -> Path:
+    return reiki_targets.WORK_ROOT / "reiki" / HOST_BLOCK_FILE
+
+
+def load_host_blocks() -> dict[str, float]:
+    try:
+        payload = json.loads(host_block_path().read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except Exception:
+        # 壊れた記録で取得を止めない。
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    blocks: dict[str, float] = {}
+    for host, until in payload.items():
+        try:
+            blocks[str(host)] = float(until)
+        except (TypeError, ValueError):
+            continue
+    return blocks
+
+
+def host_is_blocked(host: str, now: float | None = None) -> bool:
+    if host == "":
+        return False
+    current = time.time() if now is None else now
+    until = load_host_blocks().get(host)
+    return until is not None and current < until
+
+
+def remember_host_block(host: str, *, seconds: int = HOST_BLOCK_SECONDS, now: float | None = None) -> None:
+    """このホストへは当分行かない、と残す。期限切れの記録は落とす。"""
+    if host == "":
+        return
+    current = time.time() if now is None else now
+    blocks = {h: u for h, u in load_host_blocks().items() if u > current}
+    blocks[host] = current + seconds
+    path = host_block_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(path.suffix + ".tmp")
+        temporary.write_text(json.dumps(blocks, ensure_ascii=False, indent=2) + chr(10), encoding="utf-8")
+        temporary.replace(path)
+    except Exception as exc:
+        print(f"[WARN] ホストの休止を残せませんでした: {exc}", flush=True)
+
+
+def is_connection_error(error: Exception) -> bool:
+    """応答が返る前に切られた・時間切れになった、という失敗か。
+
+    取得元に弾かれると、TLS の握手までは通って HTTP の応答が返らない。
+    状態コードのある失敗（404 や 500）とは分けて数える。
+    """
+    if isinstance(error, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)):
+        return True
+    return isinstance(error, requests.exceptions.ChunkedEncodingError)
+
+
+def note_connection_failure(host: str) -> bool:
+    """接続断を数え、弾かれたと判断したら休止を記録して True を返す。"""
+    if host == "":
+        return False
+    _CONNECTION_FAILURES[host] = _CONNECTION_FAILURES.get(host, 0) + 1
+    if _CONNECTION_FAILURES[host] < HOST_BLOCK_THRESHOLD:
+        return False
+    remember_host_block(host)
+    print(
+        f"[WARN] {host} に続けて接続を切られました（{_CONNECTION_FAILURES[host]} 回）。"
+        f"{HOST_BLOCK_SECONDS // 3600} 時間は取りに行きません。",
+        flush=True,
+    )
+    return True
+
+
+def note_connection_success(host: str) -> None:
+    _CONNECTION_FAILURES.pop(host, None)
+
+
 def _forget_download_failure(url: str) -> None:
     """無くてもよいページの取得失敗を、個票の失敗から外す。"""
     while url in DOWNLOAD_FAILURES:
@@ -189,6 +292,34 @@ def _gone_status_code(error: Exception) -> int:
     except (TypeError, ValueError):
         return 0
     return status_code if status_code in GONE_STATUS_CODES else 0
+
+
+def fetch_with_retry(requester, url: str, headers: dict, host: str, *, sleep=time.sleep):
+    """接続を切られたら少し待って作り直す。応答が返った失敗はそのまま投げる。
+
+    取得元に弾かれると応答が返る前に切られる。1 回で諦めると、詰まっただけの
+    ときまで取りこぼす。逆に延々と作り直すと壁を叩き続けることになるので、
+    数回で止めて呼ぶ側の数え上げに任せる。
+    """
+    last_error: Exception | None = None
+    for attempt in range(1, CONNECTION_RETRY_ATTEMPTS + 1):
+        try:
+            response = requester.get(url, headers=headers, timeout=15)
+            note_connection_success(host)
+            return response
+        except Exception as exc:
+            if not is_connection_error(exc):
+                raise
+            last_error = exc
+            if attempt == CONNECTION_RETRY_ATTEMPTS:
+                break
+            wait = CONNECTION_RETRY_BASE_SECONDS * (2 ** (attempt - 1))
+            print(
+                f"[WARN] 接続を切られました（{attempt}/{CONNECTION_RETRY_ATTEMPTS}）。{wait:.0f} 秒待って作り直します: {url}",
+                flush=True,
+            )
+            sleep(wait)
+    raise last_error if last_error is not None else RuntimeError("unreachable")
 
 
 def download_file(
@@ -215,6 +346,24 @@ def download_file(
         )
 
     dest_path.parent.mkdir(parents=True, exist_ok=True)
+    host = host_of(url)
+    if host_is_blocked(host):
+        # 弾かれている相手を叩き続けても、失敗が増えるだけで壁は厚くなる。
+        SKIPPED_BY_HOST_BLOCK.append(str(url))
+        return (
+            False,
+            existing_path or dest_path,
+            "",
+            {
+                "download_failed": True,
+                "host_blocked": True,
+                "status_code": "",
+                "not_modified": False,
+                "conditional": False,
+                "etag": str((previous_manifest or {}).get("source_etag") or ""),
+                "last_modified": str((previous_manifest or {}).get("source_last_modified") or ""),
+            },
+        )
     try:
         requester = session or requests
         previous_manifest = previous_manifest if isinstance(previous_manifest, dict) else {}
@@ -230,7 +379,7 @@ def download_file(
                 headers["If-Modified-Since"] = last_modified
                 conditional = True
 
-        response = requester.get(url, headers=headers, timeout=15)
+        response = fetch_with_retry(requester, url, headers, host)
         if response.status_code == 304 and existing_path is not None:
             print(f"Not modified: {url}")
             return (
@@ -262,6 +411,8 @@ def download_file(
         time.sleep(DELAY)
         return True, written_path, source_hash, metadata
     except Exception as exc:
+        if is_connection_error(exc):
+            note_connection_failure(host)
         gone_status = _gone_status_code(exc)
         if gone_status:
             # 取得元が本文を消した。こちらの取りこぼしではないので、
