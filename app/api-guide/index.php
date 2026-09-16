@@ -172,6 +172,13 @@ function api_guide_asset_url(string $relativePath): string
         <details class="docs-section docs-details">
             <summary>そのほかのAI・開発ツールで使う</summary>
             <div class="docs-details-body">
+                <p class="docs-note">
+                    ここで付ける「サーバー名」は、AIの側でツール名の一部に使われます。
+                    日本語の名前を受け付けないツールがあるので、以下では英数字の
+                    <code>jichitai-map</code> にそろえています。画面に出す表示名ではないので、
+                    好きな英数字の名前で構いません。
+                </p>
+
                 <h2>Microsoft Copilot Studio</h2>
                 <p>
                     会社などでAIを作る「Copilot Studio」はMCPに対応しています。
@@ -184,6 +191,7 @@ function api_guide_asset_url(string $relativePath): string
                 <h2>Gemini CLI</h2>
                 <p>
                     プログラム開発者向けのGemini CLIでは、<code>settings.json</code> に次のように書きます。
+                    名前にアンダースコア（<code>_</code>）は使わないよう公式が案内しています。
                     ふつうのGeminiのウェブ画面やスマートフォンアプリの設定ではありません。
                     <a href="https://geminicli.com/docs/tools/mcp-server/" target="_blank" rel="noopener">Gemini CLI公式の説明</a>
                 </p>
@@ -195,16 +203,15 @@ function api_guide_asset_url(string $relativePath): string
                 </p>
                 <pre><code>{
   "mcpServers": {
-    "自治体マップ": {
+    "jichitai-map": {
       "httpUrl": "https://tools.miya.be/mcp"
     }
   }
 }</code></pre>
                 <h2>Claude Code</h2>
                 <p>
-                    ターミナルで次を実行します。
-                    サーバー名に使えるのは英数字・ハイフン・アンダースコアだけなので、「自治体マップ」ではなく
-                    <code>jichitai-map</code> のような名前にします。
+                    ターミナルで次を実行します。名前に使えるのは英数字・ハイフン・アンダースコアだけで、
+                    日本語の名前は登録できません。
                 </p>
                 <pre><code>claude mcp add --transport http jichitai-map https://tools.miya.be/mcp</code></pre>
                 <p>
@@ -231,8 +238,7 @@ function api_guide_asset_url(string $relativePath): string
                 <h2>Codex</h2>
                 <p>
                     OpenAIのCodexは、CLI・IDE拡張・デスクトップアプリで同じ設定を使います。
-                    サーバー名は英数字などに限られるので、<code>jichitai-map</code> のような名前にします。
-                    ターミナルでは次を実行します。
+                    Claude Codeと同じく、日本語の名前は登録できません。ターミナルでは次を実行します。
                 </p>
                 <pre><code>codex mcp add jichitai-map --url https://tools.miya.be/mcp</code></pre>
                 <p>
@@ -256,7 +262,7 @@ url = "https://tools.miya.be/mcp"</code></pre>
                 </p>
                 <pre><code>{
   "mcpServers": {
-    "自治体マップ": {
+    "jichitai-map": {
       "url": "https://tools.miya.be/mcp"
     }
   }
@@ -269,7 +275,7 @@ url = "https://tools.miya.be/mcp"</code></pre>
                 </p>
                 <pre><code>{
   "servers": {
-    "自治体マップ": {
+    "jichitai-map": {
       "type": "http",
       "url": "https://tools.miya.be/mcp"
     }
