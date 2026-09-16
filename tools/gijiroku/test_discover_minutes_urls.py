@@ -239,6 +239,101 @@ def test_minutes_page_without_countable_pdfs_stays_low() -> None:
     assert found.candidate_url == home + "life/life_dtl.php?hdnKey=3275", found
 
 
+# --- 2026-09-16 の点検で足した分 ------------------------------------------------
+
+def test_file_name_names_minutes() -> None:
+    # 一覧ページの題名が会議録を名乗らなくても、PDF の名前で分かる（和束町）。
+    assert disc.is_minutes_pdf_item(
+        "定例会1日目 (PDFファイル: 897.6KB)", "令和8年9月定例会", GIKAI_ROUTE,
+        "https://www.town.wazuka.lg.jp/material/files/group/15/gijiroku_teireikai202635.pdf")
+    # 会議録の棚にあっても、日程・名簿・議決結果のファイルは数えない。
+    assert not disc.is_minutes_pdf_item(
+        "9月定例会", "令和8年9月定例会", GIKAI_ROUTE,
+        "https://www.town.example.lg.jp/gikai/kaigiroku/r8-nittei.pdf")
+    assert not disc.is_minutes_pdf_item(
+        "議会だより 第120号", "議会だより", GIKAI_ROUTE,
+        "https://www.town.example.lg.jp/gikai/kaigiroku/dayori120.pdf")
+    # 議会と分からない経路では、ファイル名だけでは採らない。
+    assert not disc.is_minutes_pdf_item(
+        "総会", "農業委員会", "", "https://www.town.example.lg.jp/nougyou/gijiroku202603.pdf")
+
+
+def test_page_url_names_the_minutes_list() -> None:
+    # 題名を持たない一覧ページ（昭和村）や、題名が「令和8年度」だけの年別ページ（勝浦町）。
+    # 頁の URL が会議録の棚を名乗っていれば、そこに並ぶ会議の PDF を数える。
+    assert disc.is_minutes_pdf_item(
+        "令和８年第１回定例会（第１号）_本文", "", GIKAI_ROUTE,
+        "https://www.vill.showa.gunma.jp/kurashi/gyousei/assembly/files/01/20260305_honbun.pdf",
+        "https://www.vill.showa.gunma.jp/kurashi/gyousei/assembly/kaigiroku.html")
+    assert disc.is_minutes_pdf_item(
+        "5月会議", "令和8年度", GIKAI_ROUTE,
+        "https://www.town.katsuura.lg.jp/_files/00661089/r8_5.pdf",
+        "https://www.town.katsuura.lg.jp/gikai/kaigiroku/")
+    # 会議録の棚でも、日程・名簿の PDF は数えない。
+    assert not disc.is_minutes_pdf_item(
+        "会期日程", "令和8年度", GIKAI_ROUTE,
+        "https://www.town.katsuura.lg.jp/_files/00661090/r8_nittei.pdf",
+        "https://www.town.katsuura.lg.jp/gikai/kaigiroku/")
+    # 会議録の棚でない頁では、これまでどおり題名で決める。
+    assert not disc.is_minutes_pdf_item(
+        "5月会議", "令和8年度", GIKAI_ROUTE,
+        "https://www.town.example.lg.jp/_files/1/r8_5.pdf",
+        "https://www.town.example.lg.jp/gikai/nittei/")
+
+
+def test_assembly_only_host_is_followed() -> None:
+    # 議会だけ別ホストに置く自治体（にかほ市 www.nikahoshigikai.akita.jp）。
+    hosts = {"www.city.nikaho.akita.jp"}
+    assert disc.is_assembly_site("https://www.nikahoshigikai.akita.jp/conference.html", hosts)
+    # 名前が違う議会サイトや、ただの外部サイトは通さない。
+    assert not disc.is_assembly_site("https://www.othershigikai.akita.jp/", hosts)
+    assert not disc.is_assembly_site("https://www.instagram.com/nikaho/", hosts)
+
+
+def test_homepage_variants() -> None:
+    # 吉岡町: www 付きが引けず、www 無しが現行サイトへ送る。
+    variants = disc.homepage_variants("https://www.town.yoshioka.gunma.jp/")
+    assert "https://town.yoshioka.gunma.jp/" in variants
+    assert "http://town.yoshioka.gunma.jp/" in variants
+
+
+def test_pdf_listing_page_becomes_a_candidate() -> None:
+    # 会議録PDFが直に並ぶが、頁の題名が会議録を名乗らない（和束町）。
+    home = "https://www.town.example4.lg.jp/"
+    pdfs = [(f"/material/files/gijiroku_teireikai{n}.pdf", f"定例会{n}日目 (PDFファイル: 897.6KB)") for n in (1, 2, 3)]
+    pages = {
+        home: _page("例町", [("/gikai/", "町議会")]),
+        home + "gikai/": _page("町議会", [("/gikai/r8/", "令和8年9月定例会")]),
+        home + "gikai/r8/": _page("令和8年9月定例会", pdfs),
+    }
+    original = _with_probe({home + "gikai/r8/": 6})
+    try:
+        found = disc.discover_one(_FakeSession(pages), "99995", "例町", home, 18, 3, 5.0, 0.0)
+    finally:
+        disc.probe_minutes_pdfs = original
+    assert found.confidence == "medium" and found.candidate_url == home + "gikai/r8/", found
+
+
+def test_entrance_page_prefers_the_administrative_side() -> None:
+    # 観光の案内が先に並ぶ入口（土佐清水市）。行政側を先に開く。
+    home = "https://www.city.example5.lg.jp/"
+    pages = {
+        home: _page("例市", [("/kanko/g01.html", "足摺岬"), ("/kanko/g02.html", "白山洞門"),
+                             ("/kanko/g03.html", "見残し海岸"), ("/kanko/g04.html", "金剛福寺"),
+                             ("/kanko/g05.html", "叶崎"), ("/kurashi/", "暮らしの情報")]),
+        home + "kurashi/": _page("暮らしの情報", [("/kurashi/gikai/", "市議会")]),
+        home + "kurashi/gikai/": _page("市議会", [("/kurashi/gikai/kaigiroku/", "会議録")]),
+        home + "kurashi/gikai/kaigiroku/": _page("会議録", []),
+    }
+    original = _with_probe({home + "kurashi/gikai/kaigiroku/": 8})
+    try:
+        found = disc.discover_one(_FakeSession(pages), "99994", "例市", home, 18, 3, 5.0, 0.0)
+    finally:
+        disc.probe_minutes_pdfs = original
+    assert found.confidence == "medium", found
+    assert found.candidate_url == home + "kurashi/gikai/kaigiroku/", found
+
+
 def _run() -> int:
     failures = 0
     for name, fn in sorted(globals().items()):

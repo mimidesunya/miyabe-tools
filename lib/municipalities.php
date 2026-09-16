@@ -987,7 +987,7 @@ const DISCOVERED_SOURCE_TASKS = [
 // tools/discovered_sources.py の USABLE_CONFIDENCE と同じ。
 const DISCOVERED_SOURCE_USABLE_CONFIDENCE = ['high' => true, 'medium' => true];
 // tools/discovered_sources.py の DISCOVERER_VERSIONS と同じ。古い版の探索の記録は使わない。
-const DISCOVERED_SOURCE_VERSIONS = ['gijiroku' => 2, 'reiki' => 2];
+const DISCOVERED_SOURCE_VERSIONS = ['gijiroku' => 3, 'reiki' => 2];
 
 function load_discovered_sources(string $relativePath): array
 {

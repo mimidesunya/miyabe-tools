@@ -34,7 +34,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import requests
 from bs4 import BeautifulSoup
@@ -190,7 +190,28 @@ def is_non_assembly(text: str) -> bool:
     return bool(NON_ASSEMBLY_RE.search(ASSEMBLY_COMMITTEE_RE.sub("", str(text or ""))))
 
 
-def is_minutes_pdf_item(label: str, page_title: str, context: str = "") -> bool:
+# ファイル名が会議録を名乗る PDF。一覧ページの題名が「令和8年9月定例会」でも、
+# 置かれている PDF が gijiroku_teireikai2026.pdf なら会議録である（和束町）。
+MINUTES_FILE_RE = re.compile(r"kaigiroku|gijiroku|kaigi[-_]?roku|gijirok|minutes", re.I)
+
+
+# 会議録の棚に置かれていても会議の記録ではないファイル名。
+MINUTES_FILE_NEG_RE = re.compile(
+    r"dayori|tayori|kouhou|koho|nittei|meibo|kekka|sanpi|junjo|junnjo|tsuukoku|tuukoku|"
+    r"youshi|yoshi|gian|shiryo|siryo|ichiran|seigan|chinjo",
+    re.I,
+)
+
+
+def file_name_names_minutes(url: str) -> bool:
+    path = urlsplit(str(url or "")).path
+    if MINUTES_FILE_NEG_RE.search(path):
+        return False
+    return bool(MINUTES_FILE_RE.search(path))
+
+
+def is_minutes_pdf_item(label: str, page_title: str, context: str = "", url: str = "",
+                        page_url: str = "") -> bool:
     """会議録の PDF として数えてよいか。
 
     題名が会議録を名乗るか、会議録を名乗るページに会議の名前・日付で並んでいるか。
@@ -212,11 +233,16 @@ def is_minutes_pdf_item(label: str, page_title: str, context: str = "") -> bool:
         return False
     if is_non_assembly(label) or is_non_assembly(page_title):
         return False
-    if not ASSEMBLY_RE.search(f"{label} {page_title} {context}"):
+    if not ASSEMBLY_RE.search(f"{label} {page_title} {context} {url}"):
         return False
     if MINUTES_STRONG_RE.search(label):
         return True
-    if not MINUTES_STRONG_RE.search(page_title):
+    if file_name_names_minutes(url):
+        # ファイル名が会議録を名乗る。一覧ページの題名は当てにしない。
+        return True
+    # 一覧ページが会議録を名乗るか。題名を持たない頁（昭和村）や、題名が自治体名
+    # だけの頁（勝浦町の年別一覧）があるので、頁の URL の名前も見る。
+    if not MINUTES_STRONG_RE.search(page_title) and not file_name_names_minutes(page_url):
         return False
     return bool(MEETING_LABEL_RE.search(label))
 
@@ -281,7 +307,7 @@ def _load_gikai_pdf():
 
 def probe_minutes_pdfs(session: requests.Session, start_url: str, timeout: float,
                        page_delay: float, max_pages: int = 12, max_depth: int = 2,
-                       context: str = "") -> dict | None:
+                       context: str = "", start_title: str = "") -> dict | None:
     """「独自」（gikai_pdf）が入口から実際に集める PDF を数え、会議録らしいものを判定する。
 
     探索とスクレイパで辿り方が違うと、探索では会議録に見えても取得では 0 件、
@@ -302,7 +328,22 @@ def probe_minutes_pdfs(session: requests.Session, start_url: str, timeout: float
     except Exception:
         return {"items": 0, "minutes": 0, "pages": 0, "examples": []}
     route = f"{context} {start_url}"
-    minutes = [item for item in items if is_minutes_pdf_item(item.title, item.page_title, route)]
+    # 取得側は頁の名前を h1 から採る。CMS によっては h1 が自治体名で、頁の名前は
+    # <title> にしかない（仁淀川町の「令和８年 仁淀川町議会 会議録｜仁淀川町」）。
+    # 入口の頁だけは探索側が読んだ題名（<title> と h1）を使う。
+    start_key = start_url.split("#", 1)[0]
+    def page_name(item) -> str:
+        on_start = item.page_url.split("#", 1)[0] == start_key
+        if start_title and (on_start or not item.page_title.strip()):
+            # 題名を持たない頁は、辿ってきた入口の題名を引き継ぐ。取得側の巡回は
+            # 会議録らしい頁しか辿らないので、入口の性格がそのまま当てはまる。
+            return start_title
+        return item.page_title
+
+    minutes = [
+        item for item in items
+        if is_minutes_pdf_item(item.title, page_name(item), route, item.url, item.page_url or start_url)
+    ]
     return {
         "items": len(items),
         "minutes": len(minutes),
@@ -342,7 +383,7 @@ def probe_own_site(session: requests.Session, start_url: str, home_host: str,
         links = iter_links(soup, final)
         pdf_hits = [
             (u, t) for (u, t) in links
-            if u.lower().split("?", 1)[0].endswith(".pdf") and is_minutes_pdf_item(t, title, f"{context} {start_url} {final}")
+            if u.lower().split("?", 1)[0].endswith(".pdf") and is_minutes_pdf_item(t, title, f"{context} {start_url} {final}", u, final)
         ]
         html_dated = [(u, t) for (u, t) in links if looks_like_dated_minutes_html(u, t)]
 
@@ -496,6 +537,41 @@ def fetch_page(session: requests.Session, url: str, timeout: float) -> tuple[Bea
     return soup, final_url
 
 
+def homepage_variants(url: str) -> list[str]:
+    """開けなかったトップの言い換え。www の有無と http/https を試す。
+
+    登録簿のホームページが古い自治体がある（吉岡町 www.town.yoshioka.gunma.jp は
+    名前が引けず、town.yoshioka.gunma.jp が現行の www.town.yoshioka.lg.jp へ送る）。
+    """
+    parts = urlsplit(url)
+    host = parts.netloc
+    hosts = [host[4:]] if host.startswith("www.") else [f"www.{host}"]
+    out: list[str] = []
+    for scheme in (parts.scheme or "https", "http"):
+        for candidate in hosts:
+            variant = urlunsplit((scheme, candidate, parts.path or "/", parts.query, ""))
+            if variant != url and variant not in out:
+                out.append(variant)
+    return out
+
+
+def describe_fetch_failure(session: requests.Session, url: str, timeout: float) -> str:
+    """トップが開けない理由を短く書く。人が登録簿を直すときの手掛かりにする。"""
+    try:
+        resp = session.get(url, timeout=timeout, allow_redirects=True)
+    except requests.exceptions.SSLError:
+        return "証明書を検証できない"
+    except requests.exceptions.ConnectionError:
+        return "ホスト名を引けない/接続できない"
+    except requests.exceptions.Timeout:
+        return "応答がない"
+    except requests.RequestException as error:
+        return f"取得できない({type(error).__name__})"
+    if resp.status_code != 200:
+        return f"HTTP {resp.status_code}"
+    return "HTML として読めない"
+
+
 def fetch(session: requests.Session, url: str, timeout: float) -> BeautifulSoup | None:
     soup, _final = fetch_page(session, url, timeout)
     return soup
@@ -580,8 +656,44 @@ def is_same_site(url: str, hosts: set[str]) -> bool:
     return False
 
 
+ASSEMBLY_HOST_RE = re.compile(r"gikai|gicho|council|assembly", re.I)
+
+
+def municipal_token(host: str) -> str:
+    """ホスト名に出る自治体の名前。city.nikaho.akita.jp なら nikaho。"""
+    match = MUNICIPAL_HOST_RE.search(host.lower())
+    if match:
+        return match.group(2)
+    labels = [label for label in host.lower().split(".") if label not in ("www", "jp", "lg", "ne", "or", "co", "com", "net", "go")]
+    return labels[0] if labels else ""
+
+
+def is_assembly_site(url: str, hosts: set[str]) -> bool:
+    """議会だけ別のホストに置いている自治体か（にかほ市 nikahoshigikai.akita.jp）。
+
+    同じ自治体の名前を含み、かつホスト名が議会を名乗るときだけ通す。
+    """
+    host = urlsplit(url).netloc.lower()
+    if host == "" or not ASSEMBLY_HOST_RE.search(host):
+        return False
+    tokens = {municipal_token(known) for known in hosts}
+    tokens.discard("")
+    return any(token and token in host for token in tokens)
+
+
 ASSET_SUFFIXES = (".pdf", ".jpg", ".jpeg", ".png", ".gif", ".zip", ".doc", ".docx",
                   ".xls", ".xlsx", ".ppt", ".pptx", ".mp4", ".mp3", ".css", ".js")
+# 入口ページで行政の側へ進むリンク。
+ENTRANCE_ADMIN_RE = re.compile(
+    r"役場|市役所|公式|行政|くらし|暮らし|市政|町政|村政|kurashi|gyosei|gyousei|shisei|chosei|"
+    r"official|/main|/top|/index|hokkaido\.",
+    re.I,
+)
+# 入口ページから先に進まない方がよいリンク。
+NEGATIVE_ENTRANCE_RE = re.compile(
+    r"観光|kanko|kankou|tourism|移住|iju|ijyu|ふるさと納税|furusato|facebook|twitter|instagram|youtube|line\.me",
+    re.I,
+)
 NEWS_URL_RE = re.compile(r"news|topics|oshirase|whatsnew|/info/|/blog/|/event", re.I)
 # 1 自治体で会議録の入口候補を確かめる数。候補ごとに取得側の巡回を走らせる。
 MAX_PROBES = 2
@@ -605,8 +717,11 @@ def discover_one(session: requests.Session, code: str, name: str, homepage: str,
     best_local: Discovery | None = None  # 自ホスト会議録ページの低信頼候補
     # 会議録の入口候補: URL -> 点数（題名が会議録を名乗る頁 30、リンク文字列だけ 20）
     candidates: dict[str, int] = {}
+    homepage_problem = ""
     # 候補へ辿ってきた経路（リンク元の頁題名・URL・リンク文字列）。議会の会議録かの判断に使う。
     routes: dict[str, str] = {}
+    # 候補の頁で読んだ題名（<title> と h1）。
+    headings: dict[str, str] = {}
     probed: set[str] = set()
     probe_notes: list[str] = []
     video_only: list[str] = []
@@ -622,7 +737,8 @@ def discover_one(session: requests.Session, code: str, name: str, homepage: str,
     def probe(url: str) -> Discovery | None:
         probed.add(url)
         route = routes.get(url, "")
-        found = probe_minutes_pdfs(session, url, timeout, page_delay, context=route)
+        found = probe_minutes_pdfs(session, url, timeout, page_delay, context=route,
+                                   start_title=headings.get(url, ""))
         if found is None:
             # 取得側を読み込めない環境。簡易判定で代える。
             simple = probe_own_site(session, url, urlsplit(url).netloc.lower(), timeout, page_delay,
@@ -658,6 +774,18 @@ def discover_one(session: requests.Session, code: str, name: str, homepage: str,
             time.sleep(page_delay)
         soup, final = fetch_page(session, norm, timeout)
         result.pages_fetched += 1
+        if soup is None and depth == 0:
+            # トップが開けないとその先が全部見えない。言い換えを試してから諦める。
+            for variant in homepage_variants(norm):
+                if page_delay:
+                    time.sleep(page_delay)
+                soup, final = fetch_page(session, variant, timeout)
+                result.pages_fetched += 1
+                if soup is not None:
+                    visited.add(variant.split("#", 1)[0])
+                    break
+            if soup is None:
+                homepage_problem = describe_fetch_failure(session, norm, timeout)
         if soup is None:
             continue
         final = final.split("#", 1)[0]
@@ -693,11 +821,12 @@ def discover_one(session: requests.Session, code: str, name: str, homepage: str,
             return result
 
         heading = page_heading(soup)
-        if depth >= 1 and is_same_site(final, hosts) and is_minutes_entry_title(heading):
+        if depth >= 1 and (is_same_site(final, hosts) or is_assembly_site(final, hosts)) and is_minutes_entry_title(heading):
             # 「会議録を掲載しました」のお知らせ記事は、その回の分しか並ばない。
             # 常設の会議録ページ（湧別町 content=516）を先に確かめる。
             score = 25 if NEWS_URL_RE.search(final) else 30
             candidates[final] = max(candidates.get(final, 0), score)
+            headings[final] = heading
             routes[final] = f"{routes.get(norm, '')} {heading} {final}"
 
         # 自ホストで会議録らしいページに来ていれば低信頼候補として控える。
@@ -710,9 +839,24 @@ def discover_one(session: requests.Session, code: str, name: str, homepage: str,
                     evidence="own-site minutes-like page", note="要人手判定(独自/PDF/静的)",
                 )
 
+        # 会議録の PDF が直に並ぶページ。題名が「令和8年9月定例会」で会議録を
+        # 名乗らないことがある（和束町）。並んでいる PDF の方で見分ける。
+        route_here = f"{routes.get(norm, '')[-200:]} {heading} {final}"
+        pdf_hits = [
+            (u, t) for (u, t) in links
+            if u.lower().split("?", 1)[0].endswith(".pdf")
+            and is_minutes_pdf_item(t, heading, route_here, u, final)
+        ]
+        if depth >= 1 and len(pdf_hits) >= MIN_MINUTES_PDFS and is_same_site(final, hosts):
+            candidates[final] = max(candidates.get(final, 0), 30)
+            headings[final] = heading
+            routes[final] = route_here
+
         for absolute, text in links:
             path = urlsplit(absolute).path.lower()
-            if path.endswith(ASSET_SUFFIXES) or not is_same_site(absolute, hosts):
+            if path.endswith(ASSET_SUFFIXES):
+                continue
+            if not is_same_site(absolute, hosts) and not is_assembly_site(absolute, hosts):
                 continue
             if is_minutes_entry_title(text):
                 key = absolute.split("#", 1)[0]
@@ -751,18 +895,26 @@ def discover_one(session: requests.Session, code: str, name: str, homepage: str,
                 break
         if depth == 0 and added < 2:
             # 入口ページ: 「くらし・行政」「公式サイト」だけが並ぶ。手掛かりの語が無くても
-            # 同ホストの先を少し開く（指宿市 /main/・室戸市 top.php・宿毛市）。
-            extra = 0
-            for absolute, _text in links:
+            # その先を少し開く（指宿市 /main/・室戸市 top.php・宿毛市）。
+            # 観光の案内が先に並ぶ入口（土佐清水市）では行政側を先に選び、
+            # 役場のサイトが別ホストの入口（標茶町 hokkaido.shibecha.jp）も辿る。
+            fallback: list[tuple[int, str]] = []
+            for absolute, text in links:
                 nn = absolute.split("#", 1)[0]
                 if nn in visited or urlsplit(nn).path.lower().endswith(ASSET_SUFFIXES):
                     continue
-                if urlsplit(nn).netloc.lower() not in hosts:
+                host = urlsplit(nn).netloc.lower()
+                same = host in hosts or is_same_site(nn, hosts)
+                blob = f"{text} {nn}"
+                official = bool(ENTRANCE_ADMIN_RE.search(blob))
+                if not same and not official:
                     continue
+                if NEGATIVE_ENTRANCE_RE.search(blob):
+                    continue
+                fallback.append((2 if official else 1, nn))
+            fallback.sort(key=lambda item: -item[0])
+            for _rank, nn in fallback[:ENTRANCE_FALLBACK_LINKS]:
                 heapq.heappush(frontier, (-5, depth + 1, next(order), nn))
-                extra += 1
-                if extra >= ENTRANCE_FALLBACK_LINKS:
-                    break
 
     if deep_probe:
         while len(probed) < MAX_PROBES:
@@ -785,6 +937,8 @@ def discover_one(session: requests.Session, code: str, name: str, homepage: str,
             evidence="own-site minutes page", note=note, pages_fetched=result.pages_fetched,
         )
     video_note = f"録画配信のみ見つかった: {video_only[0]}" if video_only else ""
+    if homepage_problem:
+        video_note = f"公式ホームページを開けない（{homepage_problem}）"
     if best_local is not None:
         best_local.pages_fetched = result.pages_fetched
         if video_note:

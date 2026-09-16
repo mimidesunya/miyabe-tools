@@ -42,7 +42,7 @@ DEFAULT_RETRY_DAYS = 14
 # 会議録として取得対象にしていた）は、見直さない限り残り続ける。
 # 記録に版が無いものは 1 とみなす。
 # 例規は 2026-09-15 に d1-law のエラー画面判定・RILG・g-reiki の置き場推測を足して 2。
-DISCOVERER_VERSIONS = {"gijiroku": 2, "reiki": 2}
+DISCOVERER_VERSIONS = {"gijiroku": 3, "reiki": 2}
 JST = timezone(timedelta(hours=9))
 
 
