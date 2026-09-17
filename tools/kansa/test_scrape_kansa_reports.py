@@ -97,6 +97,25 @@ class ClassifyLinkTest(unittest.TestCase):
         self.assertEqual(k.classify_link("本文", "https://x/a.pdf", "", True), "houkatsu")
         self.assertEqual(k.classify_link("本文", "https://x/a.pdf", "", False), "unknown")
 
+    def test_ordinance_text_is_not_a_report(self) -> None:
+        self.assertEqual(
+            k.classify_link("江戸川区外部監査契約に基づく監査に関する条例（PDF：58KB）",
+                            "https://x/jyourei.pdf", "包括外部監査", True),
+            "unrelated",
+        )
+        # 題名に条例の名前が入る報告書は取る。
+        self.assertEqual(
+            k.classify_link("令和6年度包括外部監査結果報告書（空家等対策条例に関する事務）",
+                            "https://x/r6.pdf", "", False),
+            "houkatsu",
+        )
+
+    def test_system_explanation_is_not_a_report(self) -> None:
+        self.assertEqual(
+            k.classify_link("参考資料（外部監査制度について）", "https://x/misc.pdf", "外部監査", True),
+            "unrelated",
+        )
+
     def test_forms_are_not_reports(self) -> None:
         self.assertEqual(k.classify_link("包括外部監査人の応募様式", "https://x/a.pdf", "", True), "unrelated")
 
@@ -110,6 +129,41 @@ class ClassifyLinkTest(unittest.TestCase):
         self.assertTrue(k.entry_is_houkatsu("https://x/kansa/index.html", "包括外部監査の結果", ""))
         self.assertTrue(k.entry_is_houkatsu("https://x/houkatsugaibu", "監査", ""))
         self.assertFalse(k.entry_is_houkatsu("https://x/kansa/kanichikikaku/index.html", "監査結果の公表", ""))
+
+    def test_external_audit_title_only_allows_descending(self) -> None:
+        """題名が「外部監査」だけの一覧は、降りてよいが文脈にはしない（青森市）。"""
+        self.assertTrue(k.entry_names_external_audit("外部監査の結果及び措置状況 │ 青森市"))
+        self.assertFalse(k.entry_names_external_audit("定期監査の結果"))
+        self.assertFalse(k.entry_names_external_audit("監査委員"))
+        self.assertFalse(k.entry_is_houkatsu("https://x/kansa/index.html", "外部監査の結果及び措置状況", ""))
+
+    def test_external_audit_only_page_is_context_but_mixed_page_is_not(self) -> None:
+        """岐阜市・滋賀県は外部監査だけのページ。京都市は個別と包括が混ざる。"""
+        self.assertTrue(k.entry_is_external_audit_only("外部監査報告（平成11年度～）｜岐阜市"))
+        self.assertTrue(k.entry_is_external_audit_only("外部監査｜滋賀県"))
+        self.assertFalse(k.entry_is_external_audit_only("京都市：外部監査（個別・包括）"))
+        self.assertFalse(k.entry_is_external_audit_only("監査の結果／長野県"))
+
+    def test_external_audit_heading_decides_bare_labels(self) -> None:
+        """長野県は監査委員の総合ページに「外部監査人による外部監査」の見出しがある。"""
+        self.assertEqual(
+            k.classify_link("全体版（PDF：3,310KB）", "https://x/kekka/documents/20260311kekka.pdf",
+                            "外部監査人による外部監査", False),
+            "houkatsu",
+        )
+        self.assertEqual(
+            k.classify_link("報告書", "https://x/kekka/r7.pdf", "個別外部監査", False),
+            "individual",
+        )
+        self.assertEqual(
+            k.classify_link("令和7年度", "https://x/kekka/r7.pdf", "定期監査", False),
+            "negative",
+        )
+
+    def test_year_link_is_followed_only_when_descending_is_allowed(self) -> None:
+        year_link = k.Link(url="https://x/kansa/r7.html", label="令和7年度", heading="年度別")
+        self.assertEqual(k.descend_priority(year_link, False), 0)
+        self.assertGreater(k.descend_priority(year_link, False, may_descend=True), 0)
 
     def test_filename_counts(self) -> None:
         self.assertEqual(k.classify_link("本文", "https://x/%E5%8C%85%E6%8B%AC%E5%A4%96%E9%83%A8%E7%9B%A3%E6%9F%BB.pdf", "", False), "houkatsu")

@@ -185,10 +185,10 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 01698			unresolved	source_url_unresolved	
 01699			unresolved	source_url_unresolved	
 01700			unresolved	source_url_unresolved	
-02000	https://www.pref.aomori.lg.jp/soshiki/kansa/soshiki.html	独自	review_required	needs_confirmation	都道府県（義務） 本文に『包括外部監査』 添付0 入口かどうか要確認
-02201	https://www.city.aomori.aomori.jp/shisei/seido/1006735/1006780.html	独自	review_required	needs_confirmation	中核市（義務） 本文に『包括外部監査』 添付0 入口かどうか要確認
+02000	https://www.pref.aomori.lg.jp/soshiki/kansa/gaibu.html	独自	enabled		都道府県（義務） 取得確認(試運転): 候補57件 年度2006-2025
+02201	https://www.city.aomori.aomori.jp/shisei/seido/1006735/1006771/index.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補18件 年度2020-2025
 02202			unresolved	source_url_unresolved	
-02203	https://www.city.hachinohe.aomori.jp/soshikikarasagasu/kansaiinjimukyoku/4676.html	独自	review_required	needs_confirmation	中核市（義務） 本文に『包括外部監査』 添付21 入口かどうか要確認
+02203	https://www.city.hachinohe.aomori.jp/soshikikarasagasu/kansaiinjimukyoku/4676.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補121件 年度2016-2025
 02204			unresolved	source_url_unresolved	
 02205			unresolved	source_url_unresolved	
 02206			unresolved	source_url_unresolved	
@@ -359,7 +359,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 06428			unresolved	source_url_unresolved	
 06461			unresolved	source_url_unresolved	
 07000	https://www.pref.fukushima.lg.jp/sec/63010a/houkatsugaibu.html	独自	enabled		都道府県（義務） リンク文字『包括外部監査の結果』 添付41
-07201	https://www.city.fukushima.fukushima.jp/shisei/kansa/10874.html	独自	review_required	needs_confirmation	中核市（義務） 本文に『包括外部監査』 添付0 入口かどうか要確認
+07201	https://www.city.fukushima.fukushima.jp/soshiki/17/2265.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補60件 年度2018-2025
 07202			unresolved	source_url_unresolved	
 07203	https://www.city.koriyama.lg.jp/soshiki/216/2565.html	独自	enabled		中核市（義務） リンク文字『包括外部監査の結果及び措置状況』 添付21
 07204	https://www.city.iwaki.lg.jp/www/contents/1701908013047/index.html	独自	enabled		中核市（義務） リンク文字『包括外部監査の結果及び措置状況』 添付76
@@ -419,7 +419,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 07561			unresolved	source_url_unresolved	
 07564			unresolved	source_url_unresolved	
 08000	https://www.pref.ibaraki.jp/kansa/kanichikikaku/oshirase.html	独自	enabled		都道府県（義務） リンク文字『包括外部監査に対する措置状況（令和2、6、7年度』 添付344
-08201	https://www.city.mito.lg.jp/life/6/38/181/	独自	review_required	needs_confirmation	中核市（義務） 本文に『包括外部監査』 添付0 入口かどうか要確認
+08201	https://www.city.mito.lg.jp/life/6/38/181/	独自	enabled		中核市（義務） 取得確認(試運転): 候補38件 年度2020-2025
 08202			unresolved	source_url_unresolved	
 08203			unresolved	source_url_unresolved	
 08204			unresolved	source_url_unresolved	
@@ -532,7 +532,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 11203	https://www.city.kawaguchi.lg.jp/soshiki/06030/010/houkatsugaibukansakekka/index.html	独自	enabled		中核市（義務） リンク文字『包括外部監査結果』 添付0
 11206			unresolved	source_url_unresolved	
 11207			unresolved	source_url_unresolved	
-11208			unresolved	source_url_unresolved	
+11208			unresolved	source_url_unresolved	任意（条例）: 所沢市外部監査契約に基づく監査に関する条例 平成23〜25年度に実施、平成26年度から休止中（市のページで明記）。報告書の掲載なし
 11209			unresolved	source_url_unresolved	
 11210			unresolved	source_url_unresolved	
 11211			unresolved	source_url_unresolved	
@@ -604,7 +604,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 12213			unresolved	source_url_unresolved	
 12215			unresolved	source_url_unresolved	
 12216			unresolved	source_url_unresolved	
-12217	https://www.city.kashiwa.lg.jp/somukanzai/shiseijoho/inspection/4761/index.html	独自	review_required	needs_confirmation	中核市（義務） 本文に『包括外部監査』 添付0 入口かどうか要確認
+12217	https://www.city.kashiwa.lg.jp/kansa/shiseijoho/inspection/4761/4762.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補92件 年度2008-2025
 12218			unresolved	source_url_unresolved	
 12219			unresolved	source_url_unresolved	
 12220			unresolved	source_url_unresolved	
@@ -647,27 +647,27 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 13000	https://www.kansa.metro.tokyo.lg.jp/houkatsugaibu	独自	enabled		都道府県（義務） リンク文字『包括外部監査』 添付0
 13101			unresolved	source_url_unresolved	
 13102			unresolved	source_url_unresolved	
-13103			unresolved	source_url_unresolved	
+13103	https://www.city.minato.tokyo.jp/kikaku/kuse/kansa/taio/gaibukansa/index.html	独自	enabled		任意（条例）: 港区外部監査契約に基づく監査に関する条例 取得確認(試運転): 候補43件 年度2014-2026
 13104			unresolved	source_url_unresolved	
 13105			unresolved	source_url_unresolved	
 13106			unresolved	source_url_unresolved	
 13107			unresolved	source_url_unresolved	
-13108			unresolved	source_url_unresolved	
+13108	https://www.city.koto.lg.jp/051101/kuse/kansa/kansanitsuite/43095.html	独自	enabled		任意（条例）: 江東区外部監査契約に基づく監査に関する条例 取得確認(試運転): 候補40件 年度2008-2025
 13109			unresolved	source_url_unresolved	
 13110			unresolved	source_url_unresolved	
-13111			unresolved	source_url_unresolved	
-13112			unresolved	source_url_unresolved	
+13111	https://www.city.ota.tokyo.jp/kuseijoho/gaibukansa/index.html	独自	enabled		任意（条例）: 大田区外部監査契約に基づく監査に関する条例 取得確認(試運転): 候補81件 年度2008-2024
+13112			unresolved	source_url_unresolved	任意（条例）: 世田谷区外部監査契約に基づく監査に関する条例 平成23年度から休止（区のページで明記）
 13113			unresolved	source_url_unresolved	
 13114			unresolved	source_url_unresolved	
 13115			unresolved	source_url_unresolved	
-13116			unresolved	source_url_unresolved	
+13116			unresolved	source_url_unresolved	任意（条例）: 条例本体は例規集に見当たらず、包括外部監査契約に係る資格書面の閲覧規則のみ 区のサイトで実施・報告書を確認できず
 13117			unresolved	source_url_unresolved	
-13118			unresolved	source_url_unresolved	
+13118	https://www.city.arakawa.tokyo.jp/kansa/gaibukansa/houkatsugaibu/index.html	独自	enabled		任意（条例）: 荒川区外部監査契約に基づく監査に関する条例 取得確認(試運転): 候補53件 年度2001-2025
 13119			unresolved	source_url_unresolved	
 13120			unresolved	source_url_unresolved	
 13121			unresolved	source_url_unresolved	
 13122			unresolved	source_url_unresolved	
-13123			unresolved	source_url_unresolved	
+13123	https://www.city.edogawa.tokyo.jp/e001/kuseijoho/kansa/gaibukansa/index.html	独自	review_required	needs_confirmation	任意（条例）: 江戸川区外部監査契約に基づく監査に関する条例 要確認: 令和8年度から導入。年度ページはあるが報告書は未公表
 13201	https://www.city.hachioji.tokyo.jp/shisei/001/010/004/003/index.html	独自	enabled		中核市（義務） リンク文字『包括外部監査の結果と措置状況』 添付0
 13202			unresolved	source_url_unresolved	
 13203			unresolved	source_url_unresolved	
@@ -676,7 +676,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 13206			unresolved	source_url_unresolved	
 13207			unresolved	source_url_unresolved	
 13208			unresolved	source_url_unresolved	
-13209			unresolved	source_url_unresolved	
+13209	https://www.city.machida.tokyo.jp/shisei/gyousei/keiei/gaibukansa/kekka_shintyoku.html	独自	enabled		任意（条例）: 町田市外部監査契約に基づく監査に関する条例 取得確認(試運転): 候補38件 年度2018-2024
 13210			unresolved	source_url_unresolved	
 13211			unresolved	source_url_unresolved	
 13212			unresolved	source_url_unresolved	
@@ -742,7 +742,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 14401			unresolved	source_url_unresolved	
 14402			unresolved	source_url_unresolved	
 15000	https://www.pref.niigata.lg.jp/sec/kansa/1356757108638.html	独自	enabled		都道府県（義務） リンク文字『包括外部監査結果等はこちら』 添付0
-15100	https://www.city.niigata.lg.jp/shisei/soshiki/soshikiinfo/kansaiin.html	独自	review_required	needs_confirmation	政令市（義務） 本文に『包括外部監査』 添付1 入口かどうか要確認
+15100	https://www.city.niigata.lg.jp/shisei/kansa/gaibu_kansa/gaibu_kansa.html	独自	enabled		政令市（義務） 取得確認(試運転): 候補78件 年度2007-2026
 15202			unresolved	source_url_unresolved	
 15204			unresolved	source_url_unresolved	
 15205			unresolved	source_url_unresolved	
@@ -773,7 +773,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 15581			unresolved	source_url_unresolved	
 15586			unresolved	source_url_unresolved	
 16000	https://www.pref.toyama.jp/200/kensei/kenseiunei/zaisei/kj00001626.html	独自	enabled		都道府県（義務） リンク文字『現包括外部監査人』 添付0
-16201	https://www.city.toyama.lg.jp/shisei/kansa/1011021/1007226.html	独自	review_required	needs_confirmation	任意 手で確認: 本文に『包括外部監査』 添付6 入口かどうか要確認
+16201	https://www.city.toyama.lg.jp/shisei/kansa/1011021/1007226.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補46件 年度2000-2025
 16202			unresolved	source_url_unresolved	
 16204			unresolved	source_url_unresolved	
 16205			unresolved	source_url_unresolved	
@@ -789,7 +789,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 16342			unresolved	source_url_unresolved	
 16343			unresolved	source_url_unresolved	
 17000	https://www.pref.ishikawa.lg.jp/soumu/gaibukansa/index.html	独自	enabled		都道府県（義務） リンク文字『包括外部監査について』 添付11
-17201	https://www4.city.kanazawa.lg.jp/shiseijoho/kansa/kansaseido/10362.html	独自	review_required	needs_confirmation	中核市（義務） 本文に『包括外部監査』 添付0 入口かどうか要確認
+17201	https://www4.city.kanazawa.lg.jp/s/13021/gaibukansa.html	独自	review_required	needs_confirmation	中核市（義務） 要確認: 旧「包括外部監査（R4～）」のページ(24158)が404。報告書PDFは取得元に残るが、並べたページが見つからない
 17202			unresolved	source_url_unresolved	
 17203			unresolved	source_url_unresolved	
 17204			unresolved	source_url_unresolved	
@@ -809,7 +809,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 17461			unresolved	source_url_unresolved	
 17463			unresolved	source_url_unresolved	
 18000	https://www.pref.fukui.lg.jp/doc/kansaiinjimukyoku/gaibukansa/sub10.html	独自	enabled		都道府県（義務） 題名『包括外部監査（報告の公表、措置の公表） | 福井』 添付34
-18201	https://www.city.fukui.lg.jp/sisei/kansa/seido/p021826.html	独自	review_required	needs_confirmation	中核市（義務） 本文に『包括外部監査』 添付14 入口かどうか要確認
+18201	https://www.city.fukui.lg.jp/sisei/kansa/seido/p021826.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補14件 年度2023-2026
 18202			unresolved	source_url_unresolved	
 18204			unresolved	source_url_unresolved	
 18205			unresolved	source_url_unresolved	
@@ -854,7 +854,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 19430			unresolved	source_url_unresolved	
 19442			unresolved	source_url_unresolved	
 19443			unresolved	source_url_unresolved	
-20000	https://www.pref.nagano.lg.jp/kansa/kensei/kansa/kekka/kekka.html	独自	review_required	needs_confirmation	都道府県（義務） 本文に『包括外部監査』 添付110 入口かどうか要確認
+20000	https://www.pref.nagano.lg.jp/kansa/kensei/kansa/kekka/kekka.html	独自	enabled		都道府県（義務） 取得確認(試運転): 候補16件
 20201	https://www.city.nagano.nagano.jp/n540500/contents/p005248.html	独自	enabled		中核市（義務） リンク文字『包括外部監査』 添付120
 20202	https://www.city.matsumoto.nagano.jp/soshiki/208/50078.html	独自	enabled		中核市（義務） リンク文字『包括外部監査』 添付9
 20203			unresolved	source_url_unresolved	
@@ -933,7 +933,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 20590			unresolved	source_url_unresolved	
 20602			unresolved	source_url_unresolved	
 21000	https://www.pref.gifu.lg.jp/page/201073.html	独自	enabled		都道府県（義務） リンク文字『令和3年3月26日に公表した令和元年度包括外部監』 添付1
-21201	https://www.city.gifu.lg.jp/info/kansa/1009505/1009506.html	独自	review_required	needs_confirmation	中核市（義務） 本文に『包括外部監査』 添付0 入口かどうか要確認
+21201	https://www.city.gifu.lg.jp/info/kansa/1009505/1009507.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補62件 年度1999-2025
 21202			unresolved	source_url_unresolved	
 21203			unresolved	source_url_unresolved	
 21204			unresolved	source_url_unresolved	
@@ -976,7 +976,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 21521			unresolved	source_url_unresolved	
 21604			unresolved	source_url_unresolved	
 22000	https://www.pref.shizuoka.jp/kensei/zaiseisuito/kansa/1002104/1004016/1081975.html	独自	enabled		都道府県（義務） リンク文字『令和7年度包括外部監査（DX推進の施策に係る財務』 添付1
-22100	https://www.city.shizuoka.lg.jp/s4367/s008190.html	独自	review_required	needs_confirmation	政令市（義務） 本文に『包括外部監査』 添付15 入口かどうか要確認
+22100	https://www.city.shizuoka.lg.jp/s4367/s008190.html	独自	enabled		政令市（義務） 取得確認(試運転): 候補15件 年度2021-2026
 22130	https://www.city.hamamatsu.shizuoka.jp/kansa/kansa/gaibu/gaibu.html	独自	enabled		政令市（義務） リンク文字『包括外部監査結果に基づく措置』 添付10
 22203			unresolved	source_url_unresolved	
 22205			unresolved	source_url_unresolved	
@@ -1011,11 +1011,11 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 22424			unresolved	source_url_unresolved	
 22429			unresolved	source_url_unresolved	
 22461			unresolved	source_url_unresolved	
-23000	https://www.pref.aichi.jp/soshiki/somubu-somu/0000040152.html	独自	review_required	needs_confirmation	任意 手で確認: 本文に『包括外部監査』 添付10 入口かどうか要確認
+23000	https://www.pref.aichi.jp/soshiki/somubu-somu/0000040152.html	独自	enabled		都道府県（義務） 取得確認(試運転): 候補63件 年度2009-2025
 23100	https://www.city.nagoya.jp/shisei/kansa/1030226/1030297/1046157.html	独自	enabled		政令市（義務） リンク文字『令和7年度包括外部監査の結果』 添付2
 23201	https://www.city.toyohashi.lg.jp/7926.htm	独自	enabled		中核市（義務） リンク文字『包括外部監査制度について』 添付14
 23202	https://www.city.okazaki.lg.jp/shisei/kansa/1005945.html	独自	enabled		中核市（義務） リンク文字『包括外部監査制度』 添付8
-23203	https://www.city.ichinomiya.aichi.jp/kansa/kansa/kansa/1040009.html	独自	review_required	needs_confirmation	中核市（義務） 本文に『包括外部監査』 添付0 入口かどうか要確認
+23203	https://www.city.ichinomiya.aichi.jp/kansa/kansa/kansa/1013274/1046990.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補20件 年度2022-2022
 23204			unresolved	source_url_unresolved	
 23205			unresolved	source_url_unresolved	
 23206			unresolved	source_url_unresolved	
@@ -1023,7 +1023,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 23208			unresolved	source_url_unresolved	
 23209			unresolved	source_url_unresolved	
 23210			unresolved	source_url_unresolved	
-23211	https://www.city.toyota.aichi.jp/shisei/kansa/1005124.html	独自	review_required	needs_confirmation	中核市（義務） 本文に『包括外部監査』 添付62 入口かどうか要確認
+23211	https://www.city.toyota.aichi.jp/shisei/kansa/1005124.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補62件 年度2008-2025
 23212			unresolved	source_url_unresolved	
 23213			unresolved	source_url_unresolved	
 23214			unresolved	source_url_unresolved	
@@ -1096,7 +1096,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 24543			unresolved	source_url_unresolved	
 24561			unresolved	source_url_unresolved	
 24562			unresolved	source_url_unresolved	
-25000	https://www.pref.shiga.lg.jp/be00/9108.html	独自	review_required	needs_confirmation	都道府県（義務） 本文に『包括外部監査』 添付0 入口かどうか要確認
+25000	https://www.pref.shiga.lg.jp/lc00/8871.html	独自	enabled		都道府県（義務） 取得確認(試運転): 候補27件 年度2020-2025
 25201	https://www.city.otsu.lg.jp/shisei/k/ga/ho/index.html	独自	enabled		中核市（義務） リンク文字『包括外部監査』 添付0
 25202			unresolved	source_url_unresolved	
 25203			unresolved	source_url_unresolved	
@@ -1104,7 +1104,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 25206			unresolved	source_url_unresolved	
 25207			unresolved	source_url_unresolved	
 25208			unresolved	source_url_unresolved	
-25209			unresolved	source_url_unresolved	
+25209	https://www.city.koka.lg.jp/10933.htm	独自	enabled		任意（条例）: 甲賀市包括外部監査条例 取得確認(試運転): 候補37件 年度2016-2018
 25210			unresolved	source_url_unresolved	
 25211			unresolved	source_url_unresolved	
 25212			unresolved	source_url_unresolved	
@@ -1117,7 +1117,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 25442			unresolved	source_url_unresolved	
 25443			unresolved	source_url_unresolved	
 26000	https://www.pref.kyoto.jp/kansa/gaibu-kekka.html	独自	enabled		都道府県（義務） リンク文字『包括外部監査のテーマと監査結果』 添付6
-26100	https://www.city.kyoto.lg.jp/kansa/page/0000145927.html	独自	review_required	needs_confirmation	政令市（義務） 本文に『包括外部監査』 添付92 入口かどうか要確認
+26100	https://www.city.kyoto.lg.jp/kansa/page/0000145927.html	独自	enabled		政令市（義務） 取得確認(試運転): 候補18件
 26201			unresolved	source_url_unresolved	
 26202			unresolved	source_url_unresolved	
 26203			unresolved	source_url_unresolved	
@@ -1151,7 +1151,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 27204			unresolved	source_url_unresolved	
 27205	https://www.city.suita.osaka.jp/shisei/1019101/1022334/1007951.html	独自	enabled		中核市（義務） リンク文字『各年度の包括外部監査人と監査テーマ』 添付0
 27206			unresolved	source_url_unresolved	
-27207	https://www.city.takatsuki.osaka.jp/soshiki/9/183667.html	独自	enabled		中核市（義務） リンク文字『令和9年度高槻市包括外部監査人の募集』 添付6
+27207	https://www.city.takatsuki.osaka.jp/soshiki/81/4719.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補4件 年度2023-2025
 27208			unresolved	source_url_unresolved	
 27209			unresolved	source_url_unresolved	
 27210	https://www.city.hirakata.osaka.jp/0000000189.html	独自	enabled		中核市（義務） リンク文字『包括外部監査』 添付93
@@ -1172,7 +1172,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 27225			unresolved	source_url_unresolved	
 27226			unresolved	source_url_unresolved	
 27227	https://www.city.higashiosaka.lg.jp/0000000321.html	独自	enabled		中核市（義務） リンク文字『包括外部監査』 添付0
-27228			unresolved	source_url_unresolved	
+27228	https://www.city.sennan.lg.jp/shisei/kansa/6735.html	独自	enabled		任意（条例）: 泉南市包括外部監査契約に基づく監査に関する条例 取得確認(試運転): 候補21件 年度2022-2025
 27229			unresolved	source_url_unresolved	
 27230			unresolved	source_url_unresolved	
 27231			unresolved	source_url_unresolved	
@@ -1188,11 +1188,11 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 27382			unresolved	source_url_unresolved	
 27383			unresolved	source_url_unresolved	
 28000	https://web.pref.hyogo.lg.jp/ka01/ad01_000000039.html	独自	enabled		都道府県（義務） リンク文字『包括外部監査』 添付0
-28100	https://www.city.kobe.lg.jp/a80955/shise/kansa/kansashurui.html	独自	review_required	needs_confirmation	政令市（義務） 本文に『包括外部監査』 添付0 入口かどうか要確認
+28100	https://www.city.kobe.lg.jp/a80955/shise/kansa/kekka/2024~houkatsu.html	独自	enabled		政令市（義務） 取得確認(試運転): 候補134件 年度2002-2025
 28201	https://www.city.himeji.lg.jp/shisei/0000002790.html	独自	enabled		中核市（義務） リンク文字『包括外部監査結果（年度別） 包括外部監査人が実施』 添付35
 28202	https://www.city.amagasaki.hyogo.jp/shisei/kansa_joho/114kansa/1033779/index.html	独自	enabled		中核市（義務） リンク文字『外部監査人による監査（包括外部監査、個別外部監査』 添付0
-28203	https://www.city.akashi.lg.jp/kansa/gaibukansaninkansa.html	独自	review_required	needs_confirmation	中核市（義務） 本文に『包括外部監査』 添付16 入口かどうか要確認
-28204	https://www.nishi.or.jp/shisei/kakushugyoseiiinkai/kansa/kansa/gaibukansa.html	独自	review_required	needs_confirmation	中核市（義務） 本文に『包括外部監査』 添付0 入口かどうか要確認
+28203	https://www.city.akashi.lg.jp/kansa/gaibukansaninkansa.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補17件
+28204	https://www.nishi.or.jp/shisei/kakushugyoseiiinkai/kansa/kansakekka/kansakekka.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補35件
 28205			unresolved	source_url_unresolved	
 28206			unresolved	source_url_unresolved	
 28207			unresolved	source_url_unresolved	
@@ -1229,7 +1229,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 28501			unresolved	source_url_unresolved	
 28585			unresolved	source_url_unresolved	
 28586			unresolved	source_url_unresolved	
-29000	https://www.pref.nara.lg.jp/n175/8330.html	独自	review_required	needs_confirmation	都道府県（義務） 本文に『包括外部監査』 添付54 入口かどうか要確認
+29000	https://www.pref.nara.lg.jp/n175/8330.html	独自	enabled		都道府県（義務） 取得確認(試運転): 候補54件 年度2012-2026
 29201	https://www.city.nara.lg.jp/soshiki/9/50472.html	独自	enabled		中核市（義務） リンク文字『包括外部監査』 添付64
 29202			unresolved	source_url_unresolved	
 29203			unresolved	source_url_unresolved	
@@ -1320,8 +1320,8 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 31401			unresolved	source_url_unresolved	
 31402			unresolved	source_url_unresolved	
 31403			unresolved	source_url_unresolved	
-32000	https://www.pref.shimane.lg.jp/admin/commission/kansa/kansa_hokoku/	独自	review_required	needs_confirmation	都道府県（義務） 本文に『包括外部監査』 添付0 入口かどうか要確認
-32201	https://www.city.matsue.lg.jp/gyoseijoho/kansa/10000.html	独自	enabled		中核市（義務） リンク文字『包括外部監査制度』 添付0
+32000	https://www.pref.shimane.lg.jp/admin/commission/kansa/kansa_hokoku/	独自	review_required	needs_confirmation	都道府県（義務） 要確認: 全監査の年度別一覧（各年度ページに包括外部監査の報告書が混在）。包括だけのページが無い
+32201	https://www.city.matsue.lg.jp/gyoseijoho/kansa/3/9873.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補37件 年度2018-2025
 32202			unresolved	source_url_unresolved	
 32203			unresolved	source_url_unresolved	
 32204			unresolved	source_url_unresolved	
@@ -1341,7 +1341,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 32527			unresolved	source_url_unresolved	
 32528			unresolved	source_url_unresolved	
 33000	https://www.pref.okayama.jp/page/415011.html	独自	enabled		都道府県（義務） リンク文字『包括外部監査』 添付63
-33100	https://www.city.okayama.jp/shisei/0000009605.html	独自	review_required	needs_confirmation	政令市（義務） 本文に『包括外部監査』 添付10 入口かどうか要確認
+33100	https://www.city.okayama.jp/shisei/0000009605.html	独自	enabled		政令市（義務） 取得確認(試運転): 候補10件 年度2004-2021
 33202	https://www.city.kurashiki.okayama.jp/cityinfo/legal/1007990/index.html	独自	enabled		中核市（義務） リンク文字『包括外部監査』 添付0
 33203			unresolved	source_url_unresolved	
 33204			unresolved	source_url_unresolved	
@@ -1368,9 +1368,9 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 33663			unresolved	source_url_unresolved	
 33666			unresolved	source_url_unresolved	
 33681			unresolved	source_url_unresolved	
-34000	https://www.pref.hiroshima.lg.jp/soshiki/16.html	独自	review_required	needs_confirmation	都道府県（義務） 本文に『包括外部監査』 添付0 入口かどうか要確認
+34000	https://www.pref.hiroshima.lg.jp/site/kannsaiinn/1172101851329.html	独自	enabled		都道府県（義務） 取得確認(試運転): 候補25件 年度2020-2025
 34100	https://www.city.hiroshima.lg.jp/shisei/gyosei/1006008/1027339/1047331.html	独自	enabled		政令市（義務） リンク文字『令和7年度包括外部監査結果(令和8年2月5日公表』 添付1
-34202	https://www.city.kure.lg.jp/soshiki/23/kansa5.html	独自	review_required	needs_confirmation	中核市（義務） 本文に『包括外部監査』 添付20 入口かどうか要確認
+34202	https://www.city.kure.lg.jp/soshiki/23/kansa5.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補22件 年度2021-2026
 34203			unresolved	source_url_unresolved	
 34204			unresolved	source_url_unresolved	
 34205			unresolved	source_url_unresolved	
@@ -1393,7 +1393,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 34462			unresolved	source_url_unresolved	
 34545			unresolved	source_url_unresolved	
 35000	https://www.pref.yamaguchi.lg.jp/soshiki/173/25713.html	独自	enabled		都道府県（義務） リンク文字『令和7年度包括外部監査の結果の報告があったので公』 添付12
-35201	https://www.city.shimonoseki.lg.jp/soshiki/119/3032.html	独自	review_required	needs_confirmation	中核市（義務） 本文に『包括外部監査』 添付61 入口かどうか要確認
+35201	https://www.city.shimonoseki.lg.jp/soshiki/119/3032.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補59件 年度2008-2026
 35202			unresolved	source_url_unresolved	
 35203			unresolved	source_url_unresolved	
 35204			unresolved	source_url_unresolved	
@@ -1438,10 +1438,10 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 36468			unresolved	source_url_unresolved	
 36489			unresolved	source_url_unresolved	
 37000	https://www.pref.kagawa.lg.jp/kansai/hokatsu/kfvn.html	独自	enabled		都道府県（義務） リンク文字『包括外部監査』 添付0
-37201	https://www.city.takamatsu.kagawa.jp/kurashi/shinotorikumi/johokokai/kansa/kekka/index.html	独自	review_required	needs_confirmation	任意 手で確認: 本文に『包括外部監査』 添付0 入口かどうか要確認
+37201	https://www.city.takamatsu.kagawa.jp/kurashi/shinotorikumi/johokokai/kansa/kekka/index.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補191件 年度2021-2025
 37202			unresolved	source_url_unresolved	
 37203			unresolved	source_url_unresolved	
-37204			unresolved	source_url_unresolved	
+37204			unresolved	source_url_unresolved	任意（条例）: 善通寺市包括外部監査契約に基づく監査に関する条例（平成13年条例第20号、改正附則で確認） 現行例規集に条例本体が無く、公式サイトにも報告書なし（廃止の可能性）
 37205			unresolved	source_url_unresolved	
 37206			unresolved	source_url_unresolved	
 37207			unresolved	source_url_unresolved	
@@ -1476,8 +1476,8 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 38484			unresolved	source_url_unresolved	
 38488			unresolved	source_url_unresolved	
 38506			unresolved	source_url_unresolved	
-39000	https://www.pref.kochi.lg.jp/doc/gaibu/	独自	review_required	needs_confirmation	都道府県（義務） 本文に『包括外部監査』 添付18 入口かどうか要確認
-39201	https://www.city.kochi.kochi.jp/soshiki/98/kannsasoti0416.html	独自	review_required	needs_confirmation	中核市（義務） 本文に『包括外部監査』 添付29 入口かどうか要確認
+39000	https://www.pref.kochi.lg.jp/doc/gaibu/	独自	enabled		都道府県（義務） 取得確認(試運転): 候補18件
+39201	https://www.city.kochi.kochi.jp/soshiki/98/kannsasoti0416.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補13件 年度2018-2024
 39202			unresolved	source_url_unresolved	
 39203			unresolved	source_url_unresolved	
 39204			unresolved	source_url_unresolved	
@@ -1515,7 +1515,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 40100	https://www.city.kitakyushu.lg.jp/kansa/file_0010.html	独自	enabled		政令市（義務） リンク文字『包括外部監査』 添付71
 40130	https://www.city.fukuoka.lg.jp/kansajimu/kansa1/shisei/kansa/020-8.html	独自	enabled		政令市（義務） リンク文字『包括外部監査（令和6年度）』 添付27
 40202			unresolved	source_url_unresolved	
-40203	https://www.city.kurume.fukuoka.jp/1100keikaku/2090kansa/3060gaibukansa/2009-0316-1403-441.html	独自	review_required	needs_confirmation	任意 手で確認: 本文に『包括外部監査』 添付106 入口かどうか要確認
+40203	https://www.city.kurume.fukuoka.jp/1100keikaku/2090kansa/3060gaibukansa/2009-0316-1403-441.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補106件 年度2008-2025
 40204			unresolved	source_url_unresolved	
 40205			unresolved	source_url_unresolved	
 40206			unresolved	source_url_unresolved	
@@ -1594,8 +1594,8 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 41425			unresolved	source_url_unresolved	
 41441			unresolved	source_url_unresolved	
 42000	https://www.pref.nagasaki.lg.jp/doc/page-570146.html	独自	enabled		都道府県（義務） リンク文字『包括外部監査結果への措置状況』 添付14
-42201	https://www.city.nagasaki.lg.jp/page/1869.html	独自	review_required	needs_confirmation	中核市（義務） 本文に『包括外部監査』 添付2 入口かどうか要確認
-42202	https://www.city.sasebo.lg.jp/kansa/kansajim/kekka2024.html	独自	review_required	needs_confirmation	任意 手で確認: 本文に『包括外部監査』 添付41 入口かどうか要確認
+42201	https://www.city.nagasaki.lg.jp/page/83032.html	独自	review_required	needs_confirmation	中核市（義務） 要確認: 監査公表の電子掲示場。包括外部監査の報告書本体を並べたページが見つからない
+42202	https://www.city.sasebo.lg.jp/kansa/kansajim/kekka2024.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補20件 年度2020-2025
 42203			unresolved	source_url_unresolved	
 42204			unresolved	source_url_unresolved	
 42205			unresolved	source_url_unresolved	
@@ -1616,7 +1616,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 42391			unresolved	source_url_unresolved	
 42411			unresolved	source_url_unresolved	
 43000	https://www.pref.kumamoto.jp/soshiki/149/275186.html	独自	enabled		都道府県（義務） リンク文字『令和8年度(2026年度)包括外部監査人補助者』 添付1
-43100	https://www.city.kumamoto.jp/kiji0033937/index.html	独自	review_required	needs_confirmation	政令市（義務） 本文に『包括外部監査』 添付47 入口かどうか要確認
+43100	https://www.city.kumamoto.jp/kiji0033937/index.html	独自	enabled		政令市（義務） 取得確認(試運転): 候補6件 年度2023-2025
 43202			unresolved	source_url_unresolved	
 43203			unresolved	source_url_unresolved	
 43204			unresolved	source_url_unresolved	
@@ -1708,7 +1708,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 45442			unresolved	source_url_unresolved	
 45443			unresolved	source_url_unresolved	
 46000	https://www.pref.kagoshima.jp/da01/kensei/gyokaku/kansa/houkatuhoukoku.html	独自	enabled		都道府県（義務） リンク文字『包括外部監査の報告書及び措置状況』 添付49
-46201	https://www.city.kagoshima.lg.jp/kansa/kansa/shise/kansa/gaibu.html	独自	review_required	needs_confirmation	中核市（義務） 本文に『包括外部監査』 添付44 入口かどうか要確認
+46201	https://www.city.kagoshima.lg.jp/kansa/kansa/shise/kansa/gaibu.html	独自	enabled		中核市（義務） 取得確認(試運転): 候補48件 年度2015-2025
 46203			unresolved	source_url_unresolved	
 46204			unresolved	source_url_unresolved	
 46206			unresolved	source_url_unresolved	

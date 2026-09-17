@@ -121,11 +121,14 @@ CHAPTER_RE = re.compile(r"^(第\s*[0-9０-９一二三四五六七八九十]+\s*
 NOT_REPORT_WORDS = (
     "様式", "申請", "応募", "募集", "公募", "仕様書", "入札", "契約書", "要綱",
     "要領", "チラシ", "パンフレット", "アンケート",
+    # 制度の説明資料（愛知県「参考資料（外部監査制度について）」）。
+    "制度について",
 )
 # 年度別ページ・報告書ページへ降りるときの手掛かり。
 DESCEND_WORDS = STRONG_WORDS + ("外部監査", "監査結果", "結果報告", "報告書")
 
 HOUKATSU_URL_RE = re.compile(r"houkatsu|hokatsu|houkatu|hokatu", re.I)
+ORDINANCE_TITLE_RE = re.compile(r"(条例|規則)$")
 
 HEADING_RE = re.compile(r"<(h[1-6])\b[^>]*>(.*?)</\1>", re.I | re.S)
 ANCHOR_RE = re.compile(r"<a\b[^>]*?href\s*=\s*[\"']([^\"']+)[\"'][^>]*>(.*?)</a>", re.I | re.S)
@@ -235,6 +238,10 @@ def classify_link(label: str, url: str, heading: str, page_is_houkatsu: bool) ->
         return "individual"
     if any(word in label for word in NOT_REPORT_WORDS):
         return "unrelated"
+    # 条例・規則の本文（江戸川区「…外部監査契約に基づく監査に関する条例」）。
+    # 報告書の題名にも条例の名前は出るので、末尾が条例・規則のものだけを除く。
+    if ORDINANCE_TITLE_RE.search(strip_file_note(label).strip()):
+        return "unrelated"
     if strong:
         return "houkatsu"
     if has_negative(own) or OTHER_AUDIT_FILENAME_RE.search(filename):
@@ -247,6 +254,9 @@ def classify_link(label: str, url: str, heading: str, page_is_houkatsu: bool) ->
             return "houkatsu"
         if has_negative(heading):
             return "negative"
+        if heading_names_external_audit(heading):
+            # 監査委員の総合ページで、外部監査の見出しの下に並ぶ文書（長野県）。
+            return "houkatsu"
     return "houkatsu" if page_is_houkatsu else "unknown"
 
 
@@ -329,7 +339,7 @@ def link_names_houkatsu(link: Link) -> bool:
     return has_strong(link.label) or bool(HOUKATSU_URL_RE.search(link.url)) or has_strong(link.heading)
 
 
-def descend_priority(link: Link, page_is_houkatsu: bool) -> int:
+def descend_priority(link: Link, page_is_houkatsu: bool, may_descend: bool = False) -> int:
     """年度別ページ・報告書ページへ降りる優先度。0 は降りない。
 
     全体メニューが大きいサイトでは、ページ上の順に辿ると別の監査の
@@ -345,7 +355,7 @@ def descend_priority(link: Link, page_is_houkatsu: bool) -> int:
     year, _ = fiscal_year(link.label)
     if year is not None and has_strong(link.heading):
         return 60
-    if not page_is_houkatsu:
+    if not page_is_houkatsu and not may_descend:
         return 0
     if year is not None and link.heading:
         # 見出しの下に並ぶ年度リンク。見出しの無い全体メニューの年度は後回し。
@@ -614,6 +624,39 @@ class RunResult:
     status: str = "ok"
 
 
+def entry_names_external_audit(title: str) -> bool:
+    """入口の題名が外部監査を名乗るか（包括とは書いていない）。
+
+    年度ごとにページを分けるサイトは、一覧の題名が「外部監査の結果及び措置状況」
+    のように「包括」を書かない（青森市・岐阜市・一宮市）。この入口からは
+    年度別ページへ降りてよい。降りた先で取るのは、包括外部監査を名乗る PDF と、
+    外部監査の見出しの下にある PDF だけ。
+    """
+    return "外部監査" in title and not has_negative(title)
+
+
+def entry_is_external_audit_only(title: str) -> bool:
+    """入口が外部監査だけのページか。そうなら素のリンク文字も拾ってよい。
+
+    岐阜市「外部監査報告（平成11年度～）」・滋賀県「外部監査」は、報告書の
+    リンク文字が「報告書 下水道事業の…」「令和8年3月16日別冊」で、見出しも
+    「令和7年度」だけだった。監査委員の総合ページ（茨城県）と違って、ここに
+    並ぶのは外部監査の文書だけなので、ページ全体を文脈にする。
+    題名に「個別」が入る（京都市「外部監査（個別・包括）」）ときは混ざるので除く。
+    """
+    return entry_names_external_audit(title) and not has_individual(title) and "個別" not in title
+
+
+def heading_names_external_audit(heading: str) -> bool:
+    """見出しが外部監査の区画か（「外部監査人による外部監査」長野県）。"""
+    return (
+        "外部監査" in heading
+        and not has_individual(heading)
+        and "個別" not in heading
+        and not has_negative(heading)
+    )
+
+
 def entry_is_houkatsu(url: str, title: str, html: str) -> bool:
     """入口ページそのものが包括外部監査のページか。
 
@@ -669,9 +712,13 @@ def collect_candidates(fetcher: Fetcher, target: Target, *, max_pages: int, max_
         # 名乗るリンクから来たか、ページの題名で決める。ただの年度リンクから
         # 来たページは文脈を引き継がない（別の監査の年度ページがある）。
         if depth == 0:
-            page_is_houkatsu = entry_is_houkatsu(final_url, title, html)
+            page_is_houkatsu = (
+                entry_is_houkatsu(final_url, title, html) or entry_is_external_audit_only(title)
+            )
+            may_descend = entry_names_external_audit(title)
         else:
             page_is_houkatsu = via_houkatsu or has_strong(title)
+            may_descend = False
         for link in page_links(final_url, html):
             link_host = (urlsplit(link.url).hostname or "").lower()
             if not same_organization(entry_host, link_host):
@@ -692,7 +739,7 @@ def collect_candidates(fetcher: Fetcher, target: Target, *, max_pages: int, max_
                 continue
             if depth >= max_depth or link.url in visited or link.url in queued:
                 continue
-            priority = descend_priority(link, page_is_houkatsu)
+            priority = descend_priority(link, page_is_houkatsu, may_descend)
             if priority <= 0:
                 continue
             order += 1
