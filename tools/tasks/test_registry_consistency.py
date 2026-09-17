@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 REGISTRIES = {
     "会議録": ROOT / "data" / "municipalities" / "assembly_minutes_system_urls.tsv",
     "例規": ROOT / "data" / "municipalities" / "reiki_system_urls.tsv",
+    "包括外部監査": ROOT / "data" / "municipalities" / "gaibu_kansa_system_urls.tsv",
 }
 VALID_STATUSES = {"enabled", "excluded", "unresolved", "review_required"}
 
