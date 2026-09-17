@@ -176,7 +176,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 01667			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 01668			unresolved	source_url_unresolved	2026-09-17: 以前の候補『ウェブアクセシビリティ方針取組確認・評価結果 ｜白糠』は事務事業評価ではなかった
 01691			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-01692	https://www.nakashibetsu.jp/chousei/gyosei/gyousei_hyouka/naiyou/	独自	review_required	needs_confirmation	2026-09-17: 本文に『事務事業評価』。評価表は下の階層にある
+01692	https://www.nakashibetsu.jp/chousei/gyosei/gyousei_hyouka/naiyou/	独自	enabled		2026-09-17 確認: 子ページ『６．評価結果』: 年度ごとの評価文書 13 件／評価表14件（子ページ https://www.nakashibetsu.jp/chousei/gyosei/gyousei_hyouka/kekka/）
 01693			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 01694			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 01695			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
@@ -447,7 +447,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 08230	https://www.city.kasumigaura.lg.jp/page/page000620.html	独自	enabled		2026-09-17 確認: 『事業仕分』と『評価シート』／添付4件
 08231	https://www.city.sakuragawa.lg.jp/shisei/gyousei_hyouka/page001991.html	独自	review_required	needs_confirmation	2026-09-17: 本文に『事務事業評価』。評価表は下の階層にある
 08232	https://www.city.kamisu.ibaraki.jp/shisei/committee/1006257/index.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『行政経営適正化推進委員会 / 茨城県神栖市』
-08233	https://www.city.namegata.ibaraki.jp/shisei/jinji-hyouka/	独自	review_required	weak_signal	2026-09-17: 評価の入口『人事・行政評価&nbsp;|&nbsp;行方市公』
+08233	https://www.city.namegata.ibaraki.jp/shisei/jinji-hyouka/	独自	enabled		2026-09-17 確認: 子ページ『行方市行政評価委員会による行政評価結果報』: 年度ごとの評価文書 4 件／評価表7件（子ページ https://www.city.namegata.ibaraki.jp/shisei/jinji-hyouka/gyousei-hyouka/page002358.html）
 08234			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 08235			unresolved	source_url_unresolved	2026-09-17: 以前の候補『市政について&nbsp;|&nbsp;つくばみらい市』は事務事業評価ではなかった
 08236			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
@@ -462,7 +462,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 08521			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 08542			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 08546	https://www.town.ibaraki-sakai.lg.jp/page/page000663.html	独自	enabled		2026-09-17 確認: 『行政評価』と『評価結果一覧』／添付3件
-08564	https://www.town.tone.ibaraki.jp/chosei/gyouseikaikaku-hyouka/hyouka/hyouka-syousai/page004139.html	独自	review_required	needs_confirmation	2026-09-17: 本文に『事務事業評価』。評価表は下の階層にある
+08564	https://www.town.tone.ibaraki.jp/chosei/gyouseikaikaku-hyouka/hyouka/hyouka-syousai/page004139.html	独自	enabled		2026-09-17 確認: 子ページ『評価結果はこちらから』: 年度ごとの評価文書 6 件（子ページ https://www.town.tone.ibaraki.jp/chosei/gyouseikaikaku-hyouka/hyouka/hyouka-syousai/page004117.html）
 09000	https://www.pref.tochigi.lg.jp/kensei/kenseiunei/seisakuhyouka/index.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『栃木県／政策評価』
 09201	https://www.city.utsunomiya.lg.jp/shisei/johokokai/gyoseihyouka/1042010/index.html	独自	enabled		2026-09-17 確認: 『行政評価』と『評価表』／添付17件
 09202	https://www.city.ashikaga.tochigi.jp/office/000002/index.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『行政経営部 | 足利市 公式ホームページ』
@@ -551,7 +551,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 11227	https://www.city.asaka.lg.jp/soshiki/2/sesakuhyouka8.html	独自	enabled		
 11228	https://www.city.shiki.lg.jp/life/4/34/181/	独自	review_required	weak_signal	2026-09-17: 評価の入口『行政評価 - ずっと住み続けたいまち 志木』
 11229	https://www.city.wako.lg.jp/shisei/seisaku/1006568/1006673/1013996.html	独自	enabled		
-11230	https://www.city.niiza.lg.jp/site/gyouseihyouka/	独自	review_required	needs_confirmation	2026-09-17: 本文に『事務事業評価』。評価表は下の階層にある
+11230	https://www.city.niiza.lg.jp/site/gyouseihyouka/	独自	enabled		2026-09-17 確認: 子ページ『【令和8年度実施】行政評価』: 本文に『事務事業評価』／評価表14件（子ページ https://www.city.niiza.lg.jp/site/gyouseihyouka/gyoseihyoka-r8.html）
 11231			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 11232	https://www.city.kuki.lg.jp/shisei/seisaku/gyoseihyoka/1002253/1007016/index.html	独自	enabled		
 11233	https://www.city.kitamoto.lg.jp/shisei/unei/1508894616454.html	独自	enabled		2026-09-17 確認: 本文に『事務事業評価』／添付7件
@@ -645,13 +645,13 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 12443			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 12463			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 13000			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-13101	https://www.city.chiyoda.lg.jp/koho/kuse/shisaku/hyoka/index.html	独自	review_required	needs_confirmation	2026-09-17: 本文に『事務事業評価』。評価表は下の階層にある
+13101	https://www.city.chiyoda.lg.jp/koho/kuse/shisaku/hyoka/index.html	独自	enabled		2026-09-17 確認: 子ページ『平成28・29年度 施策評価』: 『施策評価』と『評価結果一覧』／評価表2件（子ページ https://www.city.chiyoda.lg.jp/koho/kuse/shisaku/hyoka/h29-shisakuhyoka/index.html）
 13102	https://www.city.chuo.lg.jp/a0001/kusei/gyouseihyouka/hyouka/r5gyouseihyouka.html	独自	enabled		2026-09-17 確認: 『行政評価』と『評価シート』／添付12件
 13103	https://www.city.minato.tokyo.jp/kikaku/kuse/shisaku/gyozaise/gyosehyoka/kekka/h29evaluation.html	独自	enabled		
-13104	https://www.city.shinjuku.lg.jp/kusei/index24.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『行政評価：新宿区』
+13104	https://www.city.shinjuku.lg.jp/kusei/index24.html	独自	enabled		2026-09-17 確認: 子ページ『内部評価と外部評価結果を踏まえた区の取組』: 年度ごとの評価文書 13 件／評価表13件（子ページ https://www.city.shinjuku.lg.jp/kusei/gyosei01_000003.html）
 13105			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 13106	https://www.city.taito.lg.jp/other/kikaku/gyoseihyoka_head/gyoseihyoka01/jimujigyo01/jimutop01.html	独自	enabled		
-13107	https://www.city.sumida.lg.jp/kuseijoho/gyoseikaikaku_zaisei/gyousei_hyouka/index.html	独自	review_required	needs_confirmation	2026-09-17: 本文に『事務事業評価』。評価表は下の階層にある
+13107	https://www.city.sumida.lg.jp/kuseijoho/gyoseikaikaku_zaisei/gyousei_hyouka/index.html	独自	enabled		2026-09-17 確認: 子ページ『令和6年度行政評価』: 本文に『事務事業評価』／評価表2件（子ページ https://www.city.sumida.lg.jp/kuseijoho/gyoseikaikaku_zaisei/gyousei_hyouka/r6gyouseihyouka.html）
 13108	https://www.city.koto.lg.jp/010100/r6gyouseihyouka.html	独自	enabled		2026-09-17 確認: 本文に『事務事業評価』／添付42件
 13109			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 13110			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
@@ -677,7 +677,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 13207			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 13208			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 13209	https://www.city.machida.tokyo.jp/shisei/gyousei/keiei/machidashiwake/zigyohyoka.html	独自	enabled		2026-09-17 確認: 『事業評価』と『評価シート』／添付10件
-13210	https://www.city.koganei.lg.jp/shisei/zaiseiyosan/kaikaku/hyoka/24gyouseihyouka2.html	独自	review_required	needs_confirmation	2026-09-17: 本文に『事務事業評価』。評価表は下の階層にある
+13210	https://www.city.koganei.lg.jp/shisei/zaiseiyosan/kaikaku/hyoka/24gyouseihyouka2.html	独自	enabled		2026-09-17 確認: 子ページ『平成24年度行政評価を実施しました（その』: 本文に『事務事業評価』／評価表2件（子ページ https://www.city.koganei.lg.jp/shisei/zaiseiyosan/kaikaku/hyoka/H24gyouseihyouka1.html）
 13211	https://www.city.kodaira.tokyo.jp/kurashi/071/071864.html	独自	enabled		2026-09-17 確認: 本文に『事務事業評価』／添付3件
 13212	https://www.city.hino.lg.jp/shisei/gyozaisei/hyoka/1025984/1005052.html	独自	enabled		2026-09-17 確認: 年度ごとの評価文書 3 件
 13213			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
@@ -708,7 +708,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 13402			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 13421			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 14000			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-14100	https://www.city.yokohama.lg.jp/city-info/gyosei-kansa/innovation/jigyohyoka/r08/	独自	review_required	needs_confirmation	2026-09-17: 『事業評価』と『評価書』。評価表は下の階層にある
+14100	https://www.city.yokohama.lg.jp/city-info/gyosei-kansa/innovation/jigyohyoka/r08/	独自	enabled		2026-09-17 確認: 子ページ『令和７年度事業の事業計画書及び事業評価書』: 『事業評価』と『評価書』／評価表43件（子ページ https://www.city.yokohama.lg.jp/city-info/gyosei-kansa/innovation/jigyohyoka/r08/reiwa07jigyo.html）
 14130	https://www.city.kawasaki.jp/450/page/0000154117.html	独自	enabled		2026-09-17 確認: 年度ごとの評価文書 8 件
 14150	https://www.city.sagamihara.kanagawa.jp/shisei/1026766/seido/1026769/gyoseihyouka/1004263.html	独自	enabled		
 14201	https://www.city.yokosuka.kanagawa.jp/0830/upi/hyouka/soutenken25.html	独自	enabled		2026-09-17 確認: 本文に『事務事業評価』／添付1件
@@ -723,13 +723,13 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 14212	https://www.city.atsugi.kanagawa.jp/shiseijoho/gyosei_kansa/5/39035.html	独自	enabled		
 14213	https://www.city.yamato.lg.jp/gyosei/soshik/69/seisaku_keikaku/gyoseihyoka/jimujigyohyoka/index.html	独自	enabled		
 14214	https://www.city.isehara.kanagawa.jp/docs/2023080800016/	独自	enabled		
-14215	https://www.city.ebina.kanagawa.jp/shisei/zaisei/gyoukaku/index.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『行政改革・行政評価｜海老名市公式ウェブサイト』
-14216	https://www.city.zama.kanagawa.jp/shisei/sougoukeikaku/4sougou/hyouka/index.html	独自	review_required	needs_confirmation	2026-09-17: 『行政評価』と『評価書』。評価表は下の階層にある
+14215	https://www.city.ebina.kanagawa.jp/shisei/zaisei/gyoukaku/index.html	独自	enabled		2026-09-17 確認: 子ページ『海老名市の行政評価』: 年度ごとの評価文書 21 件／評価表21件（子ページ https://www.city.ebina.kanagawa.jp/shisei/zaisei/gyoukaku/1003930.html）
+14216	https://www.city.zama.kanagawa.jp/shisei/sougoukeikaku/4sougou/hyouka/index.html	独自	enabled		2026-09-17 確認: 子ページ『行政評価 施策評価書』: 年度ごとの評価文書 8 件／評価表8件（子ページ https://www.city.zama.kanagawa.jp/shisei/sougoukeikaku/4sougou/hyouka/1004102.html）
 14217	https://www.city.minamiashigara.kanagawa.jp/machi/seisaku/hyouka/	独自	review_required	weak_signal	2026-09-17: 評価の入口『行政評価 | 南足柄市』
 14218			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 14301	https://www.town.hayama.lg.jp/chousei/jouhou/5602.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『行政評価／葉山町』
 14321			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-14341	https://www.town.oiso.kanagawa.jp/gyosei/seisaku/hyouka/24878.html	独自	review_required	needs_confirmation	2026-09-17: 本文に『事務事業評価』。評価表は下の階層にある
+14341	https://www.town.oiso.kanagawa.jp/gyosei/seisaku/hyouka/24878.html	独自	enabled		2026-09-17 確認: 子ページ『令和7年度事務事業評価シート』: リンク文字『令和7年度事務事業評価シート』／評価表1件（子ページ https://www.town.oiso.kanagawa.jp/soshiki/seisaku/seisaku/tantou/hyouka/reiwa/24760.html）
 14342			unresolved	source_url_unresolved	2026-09-17: 以前の候補『二宮町政策評価委員会（令和元年度） | 二宮町』は事務事業評価ではなかった
 14361			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 14362	https://www.town.oi.kanagawa.jp/soshiki/4/gyouseihyouka.html	独自	enabled		2026-09-17 確認: 本文に『事務事業評価』／添付16件
@@ -762,7 +762,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 15225			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 15226			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 15227	https://www.city.tainai.niigata.jp/gyose/sogoseisasu/gk_hyouka.html	独自	enabled		2026-09-17 確認: 年度ごとの評価文書 13 件
-15307	https://www.town.seiro.niigata.jp/7/6/2/index.html	独自	review_required	needs_confirmation	2026-09-17: 『政策評価』と『評価調書』。評価表は下の階層にある
+15307	https://www.town.seiro.niigata.jp/7/6/2/index.html	独自	enabled		2026-09-17 確認: 子ページ『令和元年度政策評価調書』: 本文に『事務事業評価』／評価表5件（子ページ https://www.town.seiro.niigata.jp/7/6/2/1271.html）
 15342			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 15361			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 15385			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
@@ -1030,7 +1030,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 23215			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 23216	https://www.city.tokoname.aichi.jp/shisei/gyoseikaikaku/1001447/1001449.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『事業仕分け｜常滑市』
 23217	https://www.city.konan.lg.jp/shisei/hyouka/1006263/index.html	独自	enabled		2026-09-17 確認: 本文に『事務事業評価』／添付5件
-23219	https://www.city.komaki.aichi.jp/admin/shisei/shisei/gyouseikaikaku/2/index.html	独自	review_required	needs_confirmation	2026-09-17: 本文に『事務事業評価』。評価表は下の階層にある
+23219	https://www.city.komaki.aichi.jp/admin/shisei/shisei/gyouseikaikaku/2/index.html	独自	enabled		2026-09-17 確認: 子ページ『令和7年度事務事業評価』: リンク文字『令和7年度事務事業評価』／評価表2件（子ページ https://www.city.komaki.aichi.jp/admin/shisei/shisei/gyouseikaikaku/2/50819.html）
 23220			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 23221			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 23222	https://www.city.tokai.aichi.jp/shisei/1003503/1006692/index.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『地域づくり・行政経営｜東海市公式ウェブサイト』
@@ -1057,7 +1057,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 23424			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 23425			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 23427			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-23441	https://www.town.agui.lg.jp/0000001747.html	独自	review_required	needs_confirmation	2026-09-17: 本文に『事務事業評価』。評価表は下の階層にある
+23441	https://www.town.agui.lg.jp/0000001747.html	独自	enabled		2026-09-17 確認: 子ページ『行政評価・事業仕分け』: 年度ごとの評価文書 2 件（子ページ https://www.town.agui.lg.jp/soshiki/1-3-1-0-0_8.html）
 23442			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 23445	https://www.town.minamichita.lg.jp/gyosei/zaiseikansa/1001738/index.html	独自	enabled		2026-09-17 確認: 年度ごとの評価文書 6 件
 23446			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
@@ -1195,7 +1195,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 28204	https://www.nishi.or.jp/shisei/gyoseikeiei/gyoseihyoka/hyokakekka.html	独自	enabled		
 28205	https://www.city.sumoto.lg.jp/soshiki/7/29847.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『地域公共交通確保維持改善事業に関する事業評価 -』
 28206	https://www.city.ashiya.lg.jp/gyousei/gyouseihyouka/gyouseihyoukanopege.html	独自	review_required	needs_confirmation	2026-09-17: 本文に『事務事業評価』。評価表は下の階層にある
-28207	https://www.city.itami.lg.jp/shiseijoho/gyozaiseikaikaku/35170.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『実施計画・行政評価／伊丹市』
+28207	https://www.city.itami.lg.jp/shiseijoho/gyozaiseikaikaku/35170.html	独自	enabled		2026-09-17 確認: 子ページ『行政評価の結果』: 年度ごとの評価文書 5 件（子ページ https://www.city.itami.lg.jp/SOSIKI/SOGOSEISAKU/SEISAKU/keikakuhyouka/GAIYO_KEKKA/index.html）
 28208	https://www.city.aioi.lg.jp/site/hyouka/jimujigyouhyouka26.html	独自	enabled		
 28209			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 28210			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
@@ -1234,7 +1234,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 29202	https://www.city.yamatotakada.nara.jp/shisei/seisaku_keikaku/2986.html	独自	enabled		2026-09-17 確認: 本文に『事務事業評価』／添付2件
 29203			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 29204			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-29205	https://www.city.kashihara.nara.jp/shiseijoho/seisaku_keikaku/5/index.html	独自	review_required	needs_confirmation	2026-09-17: 『行政評価』と『評価表』。評価表は下の階層にある
+29205	https://www.city.kashihara.nara.jp/shiseijoho/seisaku_keikaku/5/index.html	独自	enabled		2026-09-17 確認: 子ページ『平成26年度評価表』: 本文に『事務事業評価』／評価表4件（子ページ https://www.city.kashihara.nara.jp/shiseijoho/seisaku_keikaku/5/10532.html）
 29206			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 29207	https://www.city.gojo.lg.jp/soshiki/gyosei/index.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『行政経営管理課／五條市』
 29208			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
@@ -1418,7 +1418,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 36203			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 36204			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 36205			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-36206	https://www.city.awa.lg.jp/docs/2012022300011/	独自	review_required	needs_confirmation	2026-09-17: 本文に『事務事業評価』。評価表は下の階層にある
+36206	https://www.city.awa.lg.jp/docs/2012022300011/	独自	enabled		2026-09-17 確認: 子ページ『行政評価』: 年度ごとの評価文書 3 件（子ページ https://www.city.awa.lg.jp/category/bunya/johokokai/hyoka/）
 36207			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 36208	https://www.miyoshi.i-tokushima.jp/shisei/zaisei/management/	独自	enabled		2026-09-17 新規発見: 題名『事務事業評価（マネジメントシート） - 三好市』
 36301			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
@@ -1684,9 +1684,9 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 45201	https://www.city.miyazaki.miyazaki.jp/city/finance/evaluation/409663.html	独自	enabled		2026-09-17 確認: 『事業評価』と『評価表』／添付2件
 45202	https://www.city.miyakonojo.miyazaki.jp/soshiki/78/4443.html	独自	enabled		2026-09-17 確認: 『施策評価』と『評価シート』／添付5件
 45203			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-45204	https://www.city.nichinan.lg.jp/gyoseijoho/gyozaisei_gyoseihyoka/index.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『行財政・行政評価／日南市ホームページ』
+45204	https://www.city.nichinan.lg.jp/gyoseijoho/gyozaisei_gyoseihyoka/index.html	独自	enabled		2026-09-17 確認: 子ページ『日南市行政評価外部評価について』: 年度ごとの評価文書 13 件／評価表13件（子ページ https://www.city.nichinan.lg.jp/gyoseijoho/gyozaisei_gyoseihyoka/2441.html）
 45205	https://www.city.kobayashi.lg.jp/gyoseijoho/gyoseihyoka/11318.html	独自	enabled		2026-09-17 確認: 本文に『事務事業評価』／添付11件
-45206	https://www.hyugacity.jp/display.php?clist=0194	独自	review_required	weak_signal	2026-09-17: 評価の入口『行財政改革・行政経営「行政評価」- 日向市ホーム』
+45206	https://www.hyugacity.jp/display.php?clist=0194	独自	enabled		2026-09-17 確認: 子ページ『行政評価の取組』: 年度ごとの評価文書 3 件／評価表3件（子ページ https://www.hyugacity.jp/display.php?cont=150811095351）
 45207			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 45208			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 45209	https://www.city.ebino.lg.jp/gyosei_shisei/gyosei/1966.html	独自	enabled		2026-09-17 確認: 『外部評価』と『評価シート』／添付3件
@@ -1707,7 +1707,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 45441			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 45442			unresolved	source_url_unresolved	2026-09-17: 以前の候補『平成30年度電源立地地域対策交付金における事業評価報』は事務事業評価ではなかった
 45443			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-46000	https://www.pref.kagoshima.jp/kensei/gyokaku/index.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『鹿児島県／行政改革・行政評価・監査』
+46000	https://www.pref.kagoshima.jp/kensei/gyokaku/index.html	独自	enabled		2026-09-17 確認: 子ページ『行政評価の実施状況』: 年度ごとの評価文書 9 件／評価表9件（子ページ https://www.pref.kagoshima.jp/ab02/kensei/gyokaku/hyokaseido/a_02_49670.html）
 46201	https://www.city.kagoshima.lg.jp/soumu/soumu/gyokan/shise/shisaku/hyoka/hyoka/jimujigyo.html	独自	enabled		
 46203	https://www.city.kanoya.lg.jp/kyoukanri/kyoiku/kyoiku/kyoikuinkai/gyosehyoka.html	独自	excluded	education_board	2026-09-17: 教育委員会の点検・評価（地方教育行政法26条の別制度）
 46204	https://www.city.makurazaki.lg.jp/soshiki/kyousou/7760.html	独自	enabled		2026-09-17 確認: 年度ごとの評価文書 10 件

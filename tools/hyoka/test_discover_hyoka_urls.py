@@ -171,3 +171,10 @@ class PlanProgressTest(unittest.TestCase):
             '<a href="/b.pdf">令和6年度行政評価結果</a>'
         )
         self.assertEqual(discover.score_page("https://example.test/a", page("行政評価", body), "")[0], "high")
+
+
+class CorporationReviewTest(unittest.TestCase):
+    def test_public_corporation_review_is_not_a_program_review(self) -> None:
+        # 青森県: 公社等経営評価の結果。出資法人の経営評価。
+        html = page("令和７年度青森県公社等経営評価の結果について", '<a href="/a.pdf">経営評価結果一覧</a>')
+        self.assertEqual(discover.score_page("https://example.test/a", html, "")[0], "none")

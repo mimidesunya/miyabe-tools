@@ -82,6 +82,8 @@ NEGATIVE_WORDS = (
     "アイヌ", "総合戦略", "地方創生", "まち・ひと・しごと",
     "移住", "空き家", "耐震改修", "補助金の評価", "入居者",
     "施設整備計画", "個別施設計画", "長寿命化",
+    # 青森県の公社等経営評価は、出資法人の経営の評価で事務事業評価ではない。
+    "公社等", "外郭団体", "出資法人", "出資団体",
 )
 # 「事後評価」「再評価」は行政評価でも普通に使う言葉で、三条市・大月市・
 # 由布市の「事後評価シート」は事務事業評価そのものだった。公共事業の
@@ -319,6 +321,75 @@ def only_other_scheme_attachments(html: str) -> bool:
 def looks_education(text: str) -> bool:
     """教育委員会の点検・評価かどうか。別制度なので分けて数える。"""
     return any(word in text for word in EDUCATION_WORDS)
+
+
+# 入口ページから子ページへ降りるとき、評価の文書らしいリンクだけを選ぶ語。
+CHILD_LINK_WORDS = STRONG_WORDS + SHEET_WORDS + ("評価結果", "行政評価", "施策評価", "事業評価")
+# 子ページへ降りるときに避ける頁。計画の進行管理は「評価シート」を年度ごとに
+# 並べるが、事務事業評価ではない（国見町の歴史的風致維持向上計画）。入口の
+# 判定では題名の条件で落としているが、子ページはリンク文字と題名で先に落とす。
+# 題名が事務事業評価を名乗るときは落とさない。
+CHILD_NEGATIVE_WORDS = ("進行管理", "歴史的風致", "維持向上計画")
+# 子ページの表が評価表らしいことの手掛かり。事業ごとの行に並ぶ列の名前。
+TABLE_COLUMN_WORDS = ("事業名", "事業費", "決算額", "予算額", "成果", "今後の方向", "評価", "担当課")
+
+
+def child_evaluation_links(base_url: str, html: str, limit: int = 4) -> list[tuple[str, str]]:
+    """入口ページから降りる先の候補。評価の文書らしい同じサイトの頁だけ、上限まで。
+
+    南知多町の入口は「事業評価」だけで、評価書は「令和8年度事業評価書（予算時）」
+    の先にある。年度つき・事務事業評価の語つきを先に、評価表の語つきを後に並べる。
+    別制度（電源立地・総合戦略・指定管理・教育委員会など）のリンクは辿らない。
+    """
+    host = urlsplit(base_url).netloc.lower()
+    ranked: list[tuple[int, str, str]] = []
+    seen: set[str] = set()
+    for target, label in iter_links(base_url, html):
+        if not label or target in seen or target.split("#", 1)[0] == base_url.split("#", 1)[0]:
+            continue
+        if urlsplit(target).netloc.lower() != host:
+            continue
+        if ATTACHMENT_RE.search(urlsplit(target).path):
+            continue
+        if looks_negative(label) or looks_education(label) or child_page_is_off_topic(label):
+            continue
+        if not any(word in label for word in CHILD_LINK_WORDS):
+            continue
+        seen.add(target)
+        rank = 0
+        if any(word in label for word in STRONG_WORDS):
+            rank += 3
+        if FISCAL_YEAR_RE.search(label):
+            rank += 2
+        if EVALUATION_DOC_RE.search(label):
+            rank += 1
+        ranked.append((rank, target, label))
+    ranked.sort(key=lambda row: -row[0])
+    return [(target, label) for _rank, target, label in ranked[: max(0, limit)]]
+
+
+def child_page_is_off_topic(text: str) -> bool:
+    """子ページのリンク文字・題名が、事務事業評価以外の計画の評価を名乗るか。"""
+    if any(word in text for word in STRONG_WORDS):
+        return False
+    return any(word in text for word in CHILD_NEGATIVE_WORDS)
+
+
+def has_evaluation_table(html: str) -> bool:
+    """頁の中に、事業ごとの評価を並べた HTML の表があるか。
+
+    評価表を PDF にせず HTML の表で載せる自治体がある。表の中に評価の語と、
+    事業名・事業費などの列の語が 2 つ以上あれば評価表とみなす。
+    """
+    for table in re.findall(r"(?is)<table[^>]*>.*?</table>", html):
+        text = visible_text(table)
+        if looks_negative(text):
+            continue
+        if "評価" not in text:
+            continue
+        if sum(1 for word in TABLE_COLUMN_WORDS if word in text) >= 3:
+            return True
+    return False
 
 
 def score_page(url: str, html: str, label: str) -> tuple[str, str]:

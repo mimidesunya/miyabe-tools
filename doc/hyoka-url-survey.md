@@ -87,6 +87,29 @@ python tools/hyoka/discover_hyoka_urls.py --codes 22100 26100 --verbose
 python tools/hyoka/recheck_hyoka_urls.py --status review_required --save-out work/hyoka/recheck.csv
 ```
 
+### 子ページへ 1 階層降りる（`--descend`）
+
+入口ページには「事務事業評価」の説明しか無く、評価表は年度ごとの子ページに
+ある自治体が多くあります（小牧市「令和7年度事務事業評価」、座間市「施策評価書」）。
+`--descend` を付けると、入口で決まらなかった自治体について、評価の文書らしい
+同じサイトのリンク（年度つき・事務事業評価の語つきを優先）を **最大 4 本、
+1.2 秒間隔で** 開き、その先に評価表（PDF・Excel、または事業名・事業費・評価の
+列を持つ HTML の表）が並ぶかを見ます。
+
+- 除外は子ページ側でも効きます。リンク文字が別制度（電源立地・総合戦略・
+  指定管理・教育委員会など）のものは開かず、開いた先の題名が計画の進行管理
+  （国見町の歴史的風致維持向上計画など）なら採りません
+- 公社・出資法人の経営評価（青森県）も除外します
+- 登録簿の URL は**入口ページのまま**にします。子ページは年度ごとに変わるので、
+  確かめた子ページは `exclusion_detail` に根拠として残します
+
+```powershell
+python tools/hyoka/recheck_hyoka_urls.py --status review_required --reason needs_confirmation --descend
+```
+
+2026-09-17 に適用した結果、「有力だが添付なし」46 件のうち 14 件、「弱い」165 件の
+うち 7 件を取得対象にしました。
+
 ## 確信度
 
 | 値 | 意味 | 次にすること |
