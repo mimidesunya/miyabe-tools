@@ -44,6 +44,30 @@ DEFAULT_CHILD_DELAY = 1.2
 DEFAULT_MAX_CHILDREN = 4
 
 
+def evaluation_file_count(base_url: str, html: str) -> int:
+    """頁に置かれた評価表の数。HTML の表は 1 件と数える。
+
+    題名が評価の頁を名乗るなら、置いてあるファイルを全部数える。津島市の
+    「行政評価結果について」は 32 本の PDF が課の名前だけで並んでおり、
+    評価の語で数えると 0 本になる。そうでない頁（総合計画・行革大綱など）は
+    評価の文書と名乗るものだけを数える（まんのう町の実施計画の頁は 0 本）。
+    """
+    title = discover.page_title(html)
+    review_page = (
+        any(word in title for word in discover.HUB_WORDS + discover.STRONG_WORDS)
+        and not discover.looks_negative(title)
+        and not discover.child_page_is_off_topic(title)
+    )
+    if review_page:
+        files = discover.count_attachments(base_url, html)
+    else:
+        files = sum(
+            1 for name in discover.evaluation_attachment_labels(html)
+            if not discover.looks_negative(name)
+        )
+    return max(files, 1 if discover.has_evaluation_table(html) else 0)
+
+
 def settled(confidence: str, attachments: int) -> bool:
     """取得対象にしてよい判定か。前回と同じ基準（確実、または有力で実ファイルあり）。"""
     return confidence == "high" or (confidence == "medium" and attachments > 0)
@@ -79,10 +103,7 @@ def descend(
         confidence, evidence = discover.score_page(final_url, child_html, label)
         if confidence in {"none", "education", "low"}:
             continue
-        attachments = sum(
-            1 for name in discover.evaluation_attachment_labels(child_html)
-            if not discover.looks_negative(name)
-        )
+        attachments = evaluation_file_count(final_url, child_html)
         table = discover.has_evaluation_table(child_html)
         if confidence == "medium" and attachments == 0 and not table:
             continue
@@ -124,7 +145,9 @@ def recheck_one(
     result["confidence"] = confidence
     result["evidence"] = evidence
     result["title"] = discover.page_title(html)
-    result["attachments"] = str(discover.count_attachments(final_url, html))
+    # 数えるのは評価の文書だけ。まんのう町の総合計画・実施計画の頁は PDF が
+    # 11 本あったが、どれも評価表ではなく、全ファイル数で数えると通ってしまった。
+    result["attachments"] = str(evaluation_file_count(final_url, html))
     result["year_docs"] = str(len(discover.year_evaluation_links(final_url, html)))
     result["url"] = final_url
     if descend_children and confidence in {"medium", "low"} and not settled(
@@ -145,6 +168,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="登録簿の URL を開き直して判定し直す。")
     parser.add_argument("--status", default="", help="この crawl_status の行だけを見る")
     parser.add_argument("--reason", default="", help="この exclusion_reason の行だけを見る")
+    parser.add_argument("--from-csv", default="",
+                        help="jis_code と url の列を持つ CSV。台帳に URL が無い候補（探索・検索で見つけたもの）を判定する")
     parser.add_argument("--descend", action="store_true",
                         help="入口で決まらなければ、評価の子ページへ 1 階層だけ降りる")
     parser.add_argument("--max-children", type=int, default=DEFAULT_MAX_CHILDREN,
@@ -162,7 +187,14 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
     rows = load_registry()
-    if args.codes:
+    if args.from_csv:
+        # 台帳にまだ無い候補。探索や検索で見つけた入口を、登録前に判定する。
+        with io.open(args.from_csv, encoding="utf-8-sig", newline="") as handle:
+            rows = [
+                {"jis_code": str(row.get("jis_code", "")).strip(), "url": str(row.get("url", "")).strip()}
+                for row in csv.DictReader(handle)
+            ]
+    elif args.codes:
         wanted = set(args.codes)
         rows = [row for row in rows if str(row.get("jis_code", "")).strip() in wanted]
     else:

@@ -206,5 +206,41 @@ class RecheckOneTest(unittest.TestCase):
         self.assertEqual(session.opened, [entry_url])
 
 
+class EvaluationFileCountTest(unittest.TestCase):
+    def test_plan_files_are_not_review_sheets(self) -> None:
+        # まんのう町: 総合計画・実施計画の頁。PDF はあるが評価表ではない。
+        entry_url = "https://example.test/keikaku/"
+        entry = page(
+            "総合計画・実施計画について",
+            "<p>実施計画は事務事業評価の結果を踏まえて作ります。</p>"
+            '<a href="/a.pdf">実施計画（令和7年度）</a><a href="/b.pdf">総合計画本編</a>',
+        )
+        session = FakeSession({entry_url: entry})
+        found = recheck.recheck_one(session, {"jis_code": "99999", "url": entry_url}, 10)
+        self.assertEqual(found["attachments"], "0")
+        self.assertFalse(recheck.settled(found["confidence"], int(found["attachments"])))
+
+
+class ReviewPageFileCountTest(unittest.TestCase):
+    def test_review_page_counts_files_named_only_by_section(self) -> None:
+        # 津島市: 「行政評価結果について」の頁に、課の名前だけの PDF が並ぶ。
+        html = page(
+            "行政評価結果について",
+            '<a href="/a.pdf">総務課（PDF）</a><a href="/b.pdf">建設課（PDF）</a>',
+        )
+        self.assertEqual(recheck.evaluation_file_count("https://example.test/hyoka/", html), 2)
+
+    def test_plan_page_counts_only_review_documents(self) -> None:
+        html = page(
+            "総合計画・実施計画について",
+            '<a href="/a.pdf">実施計画</a><a href="/b.pdf">令和6年度行政評価結果</a>',
+        )
+        self.assertEqual(recheck.evaluation_file_count("https://example.test/keikaku/", html), 1)
+
+    def test_other_scheme_review_page_counts_nothing(self) -> None:
+        html = page("地域公共交通確保維持改善事業の評価について", '<a href="/a.pdf">資料</a>')
+        self.assertEqual(recheck.evaluation_file_count("https://example.test/a/", html), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

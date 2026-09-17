@@ -82,6 +82,16 @@ NEGATIVE_WORDS = (
     "アイヌ", "総合戦略", "地方創生", "まち・ひと・しごと",
     "移住", "空き家", "耐震改修", "補助金の評価", "入居者",
     "施設整備計画", "個別施設計画", "長寿命化",
+    # 個別の補助事業・計画の事業評価。事務事業評価とは別の制度
+    # （矢吹町・久万高原町の地域再生計画、まんのう町の鳥獣被害防止対策、
+    # 久米島町の防衛施設周辺の交付金事業、松崎町の過疎地域持続的発展計画）。
+    "地域再生", "鳥獣被害", "防衛施設", "周辺環境整備", "過疎",
+    # 国の補助・交付金の事業評価・事後評価（恵庭市・吉備中央町の高度無線環境整備、
+    # 君津市の地域公共交通、柏崎市のエネルギー構造高度化・転換理解促進、宇治市・
+    # 長洲町の都市再生整備計画、市川三郷町・延岡市の社会資本総合整備計画、
+    # 永平寺町の電源地域振興補助金）。
+    "高度無線", "地域公共交通", "エネルギー構造", "理解促進", "社会資本総合整備",
+    "都市再生整備", "電源地域", "男女共同参画",
     # 青森県の公社等経営評価は、出資法人の経営の評価で事務事業評価ではない。
     "公社等", "外郭団体", "出資法人", "出資団体",
 )
@@ -89,7 +99,8 @@ NEGATIVE_WORDS = (
 # 由布市の「事後評価シート」は事務事業評価そのものだった。公共事業の
 # 再評価・事後評価を指すときだけ落とす。
 PAIRED_NEGATIVE_WORDS = {
-    "事後評価": ("公共事業", "建設事業", "補助事業", "工事", "施設整備", "大規模事業"),
+    # 「事後評価シート（甚目寺駅周辺地区）」は都市再生整備計画の事後評価（あま市）。
+    "事後評価": ("公共事業", "建設事業", "補助事業", "工事", "施設整備", "大規模事業", "地区"),
     "再評価": ("公共事業", "建設事業", "補助事業", "工事", "施設整備", "大規模事業"),
 }
 # 教育委員会の点検・評価は地方教育行政法 26 条による別制度。登録簿では
@@ -117,8 +128,15 @@ SHEET_WORDS = ("評価シート", "評価調書", "評価表", "評価書", "評
 # 「令和7年度行政評価結果」「令和8年度事業評価書（予算時）」のように、
 # 年度を冠した評価の文書が複数並ぶ自治体がある（三島市・南知多町）。
 # 毎年度きちんと公開している証拠なので、入口の言葉が弱くてもこれを見る。
-FISCAL_YEAR_RE = re.compile(r"(令和|平成|昭和)\s*[元\d０-９]{1,2}\s*年度")
-EVALUATION_DOC_RE = re.compile(r"評価(?:結果|書|表|シート|調書|報告)")
+# 「2025年(令和7年)度」のように、年と度の間に括弧が挟まる書き方もある（江戸川区）。
+FISCAL_YEAR_RE = re.compile(
+    r"(?:(?:令和|平成|昭和)\s*[元\d０-９]{1,2}\s*年\s*[)）]?\s*度|(?:19|20)\d{2}\s*年\s*度)"
+)
+# 評価の文書の名前。「令和6年度行政評価」（那珂川市）、「行政評価実施報告書」
+# （江戸川区）のように、制度の名前がそのまま文書名になっていることがある。
+EVALUATION_DOC_RE = re.compile(
+    r"(?:行政|事務事業|施策|政策|事業)評価|評価(?:結果|書|表|シート|調書|報告)"
+)
 # 添付として置かれる評価表。あれば「実際に公開している」証拠になる。
 ATTACHMENT_RE = re.compile(r"\.(pdf|xlsx?|docx?|csv)(?:$|\?)", re.I)
 ASSET_RE = re.compile(r"\.(jpg|jpeg|png|gif|svg|css|js|zip|ico|mp4|mp3)(?:$|\?)", re.I)
@@ -194,7 +212,8 @@ def link_priority(label: str, url: str, depth: int = 1) -> int:
             return 8
     if any(word in label for word in STRONG_WORDS):
         return 100
-    if re.search(r"jimujigyo|jigyouhyouka|jigyohyoka|jimu_jigyou", url, re.I):
+    # 訓令式の綴りもある（泉大津市・光市の zimuzigyou）。
+    if re.search(r"jimu_?jigyo|zimu_?zigyo|jigyou?_?hyou?ka|zigyou?_?hyou?ka", url, re.I):
         return 90
     if any(word in label for word in HUB_WORDS):
         # 「人事評価」「公共事業評価」などを先に落とす。同じ言葉を含むが
@@ -295,6 +314,11 @@ def strong_word_hit(text: str) -> str:
     return ""
 
 
+# 評価の名前を含んでいても、評価そのものではない添付。砂川市の行政評価の
+# 頁にあるのは日程表だけだった。数えないだけで、頁は入口として扱う。
+NON_DOCUMENT_WORDS = ("スケジュール", "日程表", "記入例", "記入要領")
+
+
 def evaluation_attachment_labels(html: str) -> list[str]:
     """そのページに置かれている評価文書（PDF・Excel）のリンク文字。"""
     labels: list[str] = []
@@ -302,7 +326,9 @@ def evaluation_attachment_labels(html: str) -> list[str]:
         if not ATTACHMENT_RE.search(urlsplit(href).path):
             continue
         label = clean_label(raw_label)
-        if label and EVALUATION_DOC_RE.search(label):
+        if not label or any(word in label for word in NON_DOCUMENT_WORDS):
+            continue
+        if EVALUATION_DOC_RE.search(label):
             labels.append(label)
     return labels
 
@@ -431,6 +457,11 @@ def score_page(url: str, html: str, label: str) -> tuple[str, str]:
         sheet_hit = next((word for word in SHEET_WORDS if word in head), "")
         if sheet_hit:
             return "medium", f"『{hub_hit}』と『{sheet_hit}』"
+        # 評価の入口の頁に、評価の文書そのものが置いてある（那珂川市の
+        # 「令和6年度行政評価」の頁に「令和6年度行政評価」の PDF が 1 本）。
+        documents = [name for name in evaluation_attachment_labels(html) if not looks_negative(name)]
+        if documents:
+            return "medium", f"『{hub_hit}』と評価文書 {len(documents)} 件"
         return "low", f"評価の入口『{(title or label)[:24]}』"
     return "none", ""
 

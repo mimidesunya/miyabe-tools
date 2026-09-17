@@ -100,9 +100,6 @@ class EntryPortalTest(unittest.TestCase):
         self.assertEqual(discover.link_priority("くらし", "https://example.test/kurashi/", depth=2), 0)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class FacilityEvaluationTest(unittest.TestCase):
     def test_designated_manager_facility_review_is_not_a_program_review(self) -> None:
@@ -178,3 +175,93 @@ class CorporationReviewTest(unittest.TestCase):
         # 青森県: 公社等経営評価の結果。出資法人の経営評価。
         html = page("令和７年度青森県公社等経営評価の結果について", '<a href="/a.pdf">経営評価結果一覧</a>')
         self.assertEqual(discover.score_page("https://example.test/a", html, "")[0], "none")
+
+
+class DocumentNamingTest(unittest.TestCase):
+    """検索で見つかったのに探索が拾えなかった書き方（2026-09-17）。"""
+
+    def test_plain_review_name_counts_as_a_review_document(self) -> None:
+        # 那珂川市: PDF の名前が「令和6年度行政評価」だけ。
+        body = '<a href="/uploaded/attachment/31100.pdf">令和6年度行政評価 [PDFファイル／506KB]</a>'
+        self.assertEqual(discover.evaluation_attachment_labels(page("令和6年度行政評価", body)),
+                         ["令和6年度行政評価 [PDFファイル／506KB]"])
+
+    def test_implementation_report_counts_as_a_review_document(self) -> None:
+        # 江戸川区: 「令和6年度江戸川区行政評価実施報告書」。
+        body = '<a href="/a.pdf">令和6年度江戸川区行政評価実施報告書（PDF：23,938KB）</a>'
+        self.assertEqual(len(discover.evaluation_attachment_labels(page("行政評価", body))), 1)
+
+    def test_year_with_parenthesized_era_is_a_fiscal_year(self) -> None:
+        # 江戸川区: 「2025年(令和7年)度江戸川区行政評価」。
+        body = (
+            '<a href="/e001/hyoka/2025hyouka.html">2025年(令和7年)度江戸川区行政評価</a>'
+            '<a href="/e001/hyoka/2024hyouka.html">2024年(令和6年)度江戸川区行政評価</a>'
+        )
+        self.assertEqual(discover.score_page("https://example.test/a", page("行政評価", body), "")[0], "high")
+
+    def test_regional_plan_project_reviews_stay_excluded(self) -> None:
+        # 広げた名前の判定で、別制度の事業評価を拾い直さない。
+        for title in (
+            "地域再生計画の中間期間における事業評価について",
+            "鳥獣被害防止対策事業の事業評価について",
+            "特定防衛施設周辺整備調整交付金事業（事業評価報告書）",
+            "過疎地域持続的発展計画事業評価書",
+        ):
+            with self.subTest(title=title):
+                self.assertEqual(discover.score_page("https://example.test/a", page(title), "")[0], "none")
+
+
+class HubWithDocumentTest(unittest.TestCase):
+    def test_review_page_with_one_review_pdf_is_medium(self) -> None:
+        # 那珂川市: 「令和6年度行政評価」の頁に、同名の PDF が 1 本。
+        body = '<a href="/uploaded/attachment/31100.pdf">令和6年度行政評価 [PDFファイル／506KB]</a>'
+        self.assertEqual(discover.score_page("https://example.test/a", page("令和6年度行政評価", body), "")[0], "medium")
+
+    def test_review_page_with_only_unrelated_pdfs_stays_low(self) -> None:
+        body = '<a href="/a.pdf">行政改革大綱</a><a href="/b.pdf">実施計画</a>'
+        self.assertEqual(discover.score_page("https://example.test/a", page("行政評価", body), "")[0], "low")
+
+
+class RomanizedUrlTest(unittest.TestCase):
+    def test_kunrei_romanization_is_followed_first(self) -> None:
+        # 泉大津市: /g_hyouka/zimuzigyouhyouka/、光市: /zisei/zimuzigyou/
+        for url in (
+            "https://example.test/g_hyouka/zimuzigyouhyouka/14847.html",
+            "https://example.test/soshiki/1/zaisei/zimuzigyou/index.html",
+            "https://example.test/gyosei/jimujigyo/index.html",
+        ):
+            with self.subTest(url=url):
+                self.assertEqual(discover.link_priority("お知らせ", url), 90)
+
+
+class SubsidyProjectReviewTest(unittest.TestCase):
+    """評価文書の名前の判定を広げたときに入り込んだ、国の補助事業の評価。"""
+
+    def test_subsidy_program_reviews_are_rejected(self) -> None:
+        for title in (
+            "高度無線環境整備推進事業（令和2年度）における中間評価結果について",
+            "地域公共交通確保維持改善事業に係る事業評価の公表",
+            "エネルギー構造高度化・転換理解促進事業の事業評価報告書を公表します",
+            "大久保駅周辺地区都市再生整備計画に係る事後評価結果の公表について",
+            "社会資本総合整備計画の事後評価結果を公表します",
+            "福井県電源地域振興補助金を活用した事業評価報告書の公表",
+        ):
+            with self.subTest(title=title):
+                html = page(title, '<a href="/a.pdf">評価結果（PDF）</a>')
+                self.assertEqual(discover.score_page("https://example.test/a", html, "")[0], "none")
+
+    def test_district_post_evaluation_is_rejected(self) -> None:
+        # あま市: 題名は「事後評価結果の公表をします」だけで、添付が地区の事後評価シート。
+        body = '<a href="/a.pdf">事後評価シート（甚目寺駅周辺地区） （PDF 555.5KB）</a>'
+        html = page("事後評価結果の公表をします。", "評価結果と評価シートを公表します" + body)
+        self.assertEqual(discover.score_page("https://example.test/a", html, "")[0], "none")
+
+    def test_a_schedule_is_not_a_review_document(self) -> None:
+        # 砂川市: 行政評価の頁にあるのは日程表だけ。
+        body = '<a href="/a.pdf">事務事業進行管理・行政評価スケジュール(146KB)</a>'
+        # 日程表しか無い入口は、評価文書ありの「有力」にはしない。
+        self.assertEqual(discover.score_page("https://example.test/a", page("行政評価目次", body), "")[0], "low")
+
+
+if __name__ == "__main__":
+    unittest.main()
