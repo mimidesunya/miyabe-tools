@@ -72,11 +72,11 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 01407			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 01408			unresolved	source_url_unresolved	2026-09-17: 以前の候補『余市町アイヌ施策推進事業評価｜町政情報 ｜北海道余市』は事務事業評価ではなかった
 01409			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-01423	https://www.town.nanporo.hokkaido.jp/teach/board-education/	独自	enabled	education_board	教育委員会の点検・評価の可能性
+01423	https://www.town.nanporo.hokkaido.jp/teach/board-education/	独自	excluded	education_board	教育委員会の点検・評価の可能性 地方教育行政法26条の点検・評価で、事務事業評価とは別制度。
 01424			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 01425	https://town.kamisunagawa.hokkaido.jp/soshiki/kikaku/kikaku/kotsu/1963.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『地域公共交通確保維持改善事業に係る事業評価につい』
 01427			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-01428	https://www.maoi-net.jp/gyosei/kohyo_data/fuzokukikan_kaigi/kyoikugaibuhyoka.html	独自	review_required	education_board	2026-09-17: 教育委員会の点検・評価（地方教育行政法26条の別制度）
+01428	https://www.maoi-net.jp/gyosei/kohyo_data/fuzokukikan_kaigi/kyoikugaibuhyoka.html	独自	excluded	education_board	2026-09-17: 教育委員会の点検・評価（地方教育行政法26条の別制度）
 01429	https://www.town.kuriyama.hokkaido.jp/soshiki/31/27905.html	独自	enabled		2026-09-17 確認: 年度ごとの評価文書 5 件
 01430			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 01431			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
@@ -141,7 +141,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 01578	https://www.town.shiraoi.hokkaido.jp/docs/7434.html	独自	enabled		2026-09-17 確認: 『行政評価』と『評価調書』／添付61件
 01581			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 01584	http://www.town.toyako.hokkaido.jp/town_administration/administration/adm001/	独自	enabled		2026-09-17 確認: 本文に『事務事業評価』／添付20件
-01585	https://www.town.abira.lg.jp/kosodate/kyoikuiinkai	独自	enabled	education_board	教育委員会の点検・評価の可能性
+01585	https://www.town.abira.lg.jp/kosodate/kyoikuiinkai	独自	excluded	education_board	教育委員会の点検・評価の可能性 地方教育行政法26条の点検・評価で、事務事業評価とは別制度。
 01586			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 01601			unresolved	source_url_unresolved	2026-09-17: 以前の候補『電源立地地域対策交付金事業評価報告書の公表｜計画・取』は事務事業評価ではなかった
 01602			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
@@ -197,7 +197,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 02209			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 02210			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 02301			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-02303	https://www.town.imabetsu.lg.jp/gyousei/koukai/2022-0706-1416-1.html	独自	enabled	education_board	教育委員会の点検・評価の可能性
+02303	https://www.town.imabetsu.lg.jp/gyousei/koukai/2022-0706-1416-1.html	独自	excluded	education_board	教育委員会の点検・評価の可能性 地方教育行政法26条の点検・評価で、事務事業評価とは別制度。
 02304			unresolved	source_url_unresolved	2026-09-17: 以前の候補『保険者機能強化推進交付金等の評価結果について｜青森県』は事務事業評価ではなかった
 02307			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 02321			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
@@ -267,7 +267,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 04205			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 04206			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 04207	https://www.city.natori.miyagi.jp/page/37527.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『令和7年度行政評価結果 - 名取市公式ホームペー』
-04208	https://www.city.kakuda.lg.jp/soshiki/21/14461.html	独自	enabled	education_board	教育委員会の点検・評価の可能性
+04208	https://www.city.kakuda.lg.jp/soshiki/21/14461.html	独自	excluded	education_board	教育委員会の点検・評価の可能性 地方教育行政法26条の点検・評価で、事務事業評価とは別制度。
 04209			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 04211			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 04212	https://www.city.tome.miyagi.jp/zaisei/shisejoho/gyose/gyouseihyoukagaibuhyouka/index.html	独自	enabled		2026-09-17 確認: 本文に『事務事業評価』／添付1件
@@ -312,7 +312,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 05215			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 05303			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 05327			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-05346	https://www.town.fujisato.akita.jp/town/soshiki/c58/3127	独自	review_required	education_board	2026-09-17: 教育委員会の点検・評価（地方教育行政法26条の別制度）
+05346	https://www.town.fujisato.akita.jp/town/soshiki/c58/3127	独自	excluded	education_board	2026-09-17: 教育委員会の点検・評価（地方教育行政法26条の別制度）
 05348			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 05349			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 05361			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
@@ -320,7 +320,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 05366			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 05368			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 05434	https://www.town.misato.akita.jp/archive/contents-3080/	独自	enabled		
-05463	https://www.town.ugo.lg.jp/administration/detail.html?id=2232&category_id=49	独自	review_required	education_board	2026-09-17: 教育委員会の点検・評価（地方教育行政法26条の別制度）
+05463	https://www.town.ugo.lg.jp/administration/detail.html?id=2232&category_id=49	独自	excluded	education_board	2026-09-17: 教育委員会の点検・評価（地方教育行政法26条の別制度）
 05464			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 06000	https://www.pref.yamagata.jp/020011/kensei/shoukai/soshikiannai/somu/020011.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『行政経営企画課 | 山形県』
 06201	https://www.city.yamagata-yamagata.lg.jp/shiseijoho/gyokaku/index.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『行政経営・行政手続｜山形市公式ホームページ』
@@ -335,14 +335,14 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 06210			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 06211			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 06212			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-06213	http://www.city.nanyo.yamagata.jp/kyoui/1082	独自	enabled	education_board	教育委員会の点検・評価の可能性
+06213	http://www.city.nanyo.yamagata.jp/kyoui/1082	独自	excluded	education_board	教育委員会の点検・評価の可能性 地方教育行政法26条の点検・評価で、事務事業評価とは別制度。
 06301			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 06302			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 06321			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 06322			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 06323			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 06324			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-06341	https://www.town.oishida.yamagata.jp/chousei/chousa/jimujigyouhyouka.html	独自	review_required	education_board	2026-09-17: 教育委員会の点検・評価（地方教育行政法26条の別制度）
+06341	https://www.town.oishida.yamagata.jp/chousei/chousa/jimujigyouhyouka.html	独自	excluded	education_board	2026-09-17: 教育委員会の点検・評価（地方教育行政法26条の別制度）
 06361			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 06362			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 06363			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
@@ -497,7 +497,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 10205			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 10206			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 10207			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-10208	https://www.city.shibukawa.lg.jp/kyouiku/000110/000111/p001021.html	独自	review_required	education_board	2026-09-17: 教育委員会の点検・評価（地方教育行政法26条の別制度）
+10208	https://www.city.shibukawa.lg.jp/kyouiku/000110/000111/p001021.html	独自	excluded	education_board	2026-09-17: 教育委員会の点検・評価（地方教育行政法26条の別制度）
 10209	https://www.city.fujioka.gunma.jp/shiseijoho/gyozaisei/3/3683.html	独自	enabled		2026-09-17 確認: 年度ごとの評価文書 5 件
 10210			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 10211	https://www.city.annaka.lg.jp/life/6/33/146/	独自	review_required	weak_signal	2026-09-17: 評価の入口『行政評価 - 安中市ホームページ』
@@ -718,7 +718,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 14206	https://www.city.odawara.kanagawa.jp/field/municipality/administra/gyoukaku/p25884.html	独自	enabled		2026-09-17 確認: 年度ごとの評価文書 10 件
 14207	https://www.city.chigasaki.kanagawa.jp/kikaku_gyosei/hyoka/1008479/index.html	独自	enabled		
 14208			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-14210	https://www.city.miura.kanagawa.jp/soshiki/kyoikusomuka/1827.html	独自	enabled	education_board	教育委員会の点検・評価の可能性
+14210	https://www.city.miura.kanagawa.jp/soshiki/kyoikusomuka/1827.html	独自	excluded	education_board	教育委員会の点検・評価の可能性 地方教育行政法26条の点検・評価で、事務事業評価とは別制度。
 14211			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 14212	https://www.city.atsugi.kanagawa.jp/shiseijoho/gyosei_kansa/5/39035.html	独自	enabled		
 14213	https://www.city.yamato.lg.jp/gyosei/soshik/69/seisaku_keikaku/gyoseihyoka/jimujigyohyoka/index.html	独自	enabled		
@@ -851,7 +851,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 19424			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 19425			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 19429			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-19430	https://www.town.fujikawaguchiko.lg.jp/info/info.php?if_id=2097&ca_id=28	独自	review_required	education_board	2026-09-17: 教育委員会の点検・評価（地方教育行政法26条の別制度）
+19430	https://www.town.fujikawaguchiko.lg.jp/info/info.php?if_id=2097&ca_id=28	独自	excluded	education_board	2026-09-17: 教育委員会の点検・評価（地方教育行政法26条の別制度）
 19442			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 19443			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 20000	https://www.pref.nagano.lg.jp/kensei/soshiki/jigyokaizen/index.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『事業点検／長野県』
@@ -968,7 +968,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 21421			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 21501			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 21502			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-21503	https://www.kawabe-gifu.jp/?page_id=54223	独自	review_required	education_board	2026-09-17: 教育委員会の点検・評価（地方教育行政法26条の別制度）
+21503	https://www.kawabe-gifu.jp/?page_id=54223	独自	excluded	education_board	2026-09-17: 教育委員会の点検・評価（地方教育行政法26条の別制度）
 21504			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 21505			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 21506			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
@@ -1276,7 +1276,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 30204			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 30205			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 30206			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-30207	https://www.city.shingu.lg.jp/Info/74	独自	enabled	education_board	教育委員会の点検・評価の可能性
+30207	https://www.city.shingu.lg.jp/Info/74	独自	excluded	education_board	教育委員会の点検・評価の可能性 地方教育行政法26条の点検・評価で、事務事業評価とは別制度。
 30208	https://www.city.kinokawa.lg.jp/004/gyouseihyoukaseido.html	独自	enabled		2026-09-17 確認: 本文に『事務事業評価』／添付1件
 30209			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 30304			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
@@ -1379,7 +1379,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 34209	https://www.city.miyoshi.hiroshima.jp/soshiki/5/35922.html	独自	enabled		2026-09-17 確認: 『行政評価』と『評価結果一覧』／添付5件
 34210	https://www.city.shobara.hiroshima.jp/main/government/seisaku/cat04/cat1/post_1654.html	独自	enabled		2026-09-17 確認: 本文に『事務事業の評価』／添付2件
 34211			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-34212	https://www.city.higashihiroshima.lg.jp/soshiki/kyoikuiinkaigakkokyoiku/2/4/12752.html	独自	enabled	education_board	教育委員会の点検・評価の可能性
+34212	https://www.city.higashihiroshima.lg.jp/soshiki/kyoikuiinkaigakkokyoiku/2/4/12752.html	独自	excluded	education_board	教育委員会の点検・評価の可能性 地方教育行政法26条の点検・評価で、事務事業評価とは別制度。
 34213	https://www.city.hatsukaichi.hiroshima.jp/soshiki/140/132243.html	独自	enabled		
 34214	https://www.akitakata.jp/ja/shisei/section/soumu_soumu/g_hyouka/	独自	enabled		2026-09-17 確認: 本文に『事務事業評価』／添付4件
 34215			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
@@ -1398,7 +1398,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 35203	https://www.city.yamaguchi.lg.jp/soshiki/9/	独自	review_required	weak_signal	2026-09-17: 評価の入口『行政経営課 - 山口市ウェブサイト』
 35204			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 35206	https://www.city.hofu.yamaguchi.jp/soshiki/3/hofu-city-gyouseihyouka.html	独自	enabled		2026-09-17 確認: 本文に『事務事業評価』／添付4件
-35207	https://www.city.kudamatsu.lg.jp/kyo-soumu/index.html	独自	review_required	education_board	2026-09-17: 教育委員会の点検・評価（地方教育行政法26条の別制度）
+35207	https://www.city.kudamatsu.lg.jp/kyo-soumu/index.html	独自	excluded	education_board	2026-09-17: 教育委員会の点検・評価（地方教育行政法26条の別制度）
 35208	https://www.city.iwakuni.lg.jp/life/4/20/135/	独自	review_required	weak_signal	2026-09-17: 評価の入口『行政経営改革 - 岩国市』
 35210	https://www.city.hikari.lg.jp/soshiki/1/zaisei/zimuzigyou/index.html	独自	enabled		2026-09-17 新規発見: 題名『事務事業評価制度／光市』
 35211	https://www.city.nagato.yamaguchi.jp/soshiki/2/1191.html	独自	enabled		2026-09-17 確認: 本文に『事務事業評価』／添付52件
@@ -1428,7 +1428,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 36342			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 36368			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 36383			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-36387	https://www.town.minami.lg.jp/docs/3730000.html	独自	enabled	education_board	教育委員会の点検・評価の可能性
+36387	https://www.town.minami.lg.jp/docs/3730000.html	独自	excluded	education_board	教育委員会の点検・評価の可能性 地方教育行政法26条の点検・評価で、事務事業評価とは別制度。
 36388			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 36401			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 36402			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
@@ -1616,7 +1616,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 42391	https://www.sazacho-nagasaki.jp/list00137.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『行政経営改革委員会 / 佐々町ホームページ』
 42411	https://official.shinkamigoto.net/goto_chosei_full.php?eid=05113&amp;r=4&amp;wcid=l00004	独自	enabled		2026-09-17 確認: 本文に『事務事業評価』／添付28件
 43000			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-43100	https://www.city.kumamoto.jp/kiji0031789/index.html	独自	enabled	education_board	教育委員会の点検・評価の可能性
+43100	https://www.city.kumamoto.jp/kiji0031789/index.html	独自	excluded	education_board	教育委員会の点検・評価の可能性 地方教育行政法26条の点検・評価で、事務事業評価とは別制度。
 43202			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 43203			unresolved	source_url_unresolved	2026-09-17: 以前の候補『将来を見据えた【財政運営の確立】を目指して / 人吉』は事務事業評価ではなかった
 43204			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
@@ -1709,7 +1709,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 45443			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 46000	https://www.pref.kagoshima.jp/kensei/gyokaku/index.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『鹿児島県／行政改革・行政評価・監査』
 46201	https://www.city.kagoshima.lg.jp/soumu/soumu/gyokan/shise/shisaku/hyoka/hyoka/jimujigyo.html	独自	enabled		
-46203	https://www.city.kanoya.lg.jp/kyoukanri/kyoiku/kyoiku/kyoikuinkai/gyosehyoka.html	独自	review_required	education_board	2026-09-17: 教育委員会の点検・評価（地方教育行政法26条の別制度）
+46203	https://www.city.kanoya.lg.jp/kyoukanri/kyoiku/kyoiku/kyoikuinkai/gyosehyoka.html	独自	excluded	education_board	2026-09-17: 教育委員会の点検・評価（地方教育行政法26条の別制度）
 46204	https://www.city.makurazaki.lg.jp/soshiki/kyousou/7760.html	独自	enabled		2026-09-17 確認: 年度ごとの評価文書 10 件
 46206			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 46208	https://www.city.kagoshima-izumi.lg.jp/page/page_10034.html	独自	enabled		2026-09-17 確認: 年度ごとの評価文書 2 件
