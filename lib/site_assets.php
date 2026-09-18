@@ -82,6 +82,11 @@ function site_render_brand(string $href = '/'): string
 
 // ChatGPTのプラグイン名がサイト名と異なるため、審査や利用者が同一サービスだと
 // 確認できるよう、規約・プライバシー・サポートの各ページで名称の対応を明示する。
+//
+// 運営者名は ChatGPT アプリの Plugin Author（三川ミミ）と同じ綴りを先に出す。
+// 2026-09-17 の審査で「確認済みの個人がこのアプリ・ブランドを所有していると
+// 確認できない」と不承認になった。サイトが宮部たつひこ名義だけを名乗っていて、
+// 突き合わせられなかったため。両方が同じ人であることを書き、本人の X も示す。
 function site_render_service_identity(): string
 {
     return '<section class="docs-section">' . "
@@ -90,7 +95,11 @@ function site_render_service_identity(): string
 "
         . '            <p>' . "
 "
-        . '                本サイト「自治体マップ」（<a href="https://tools.miya.be/">https://tools.miya.be/</a>）は、宮部たつひこが運営しています。' . "
+        . '                本サイト「自治体マップ」（<a href="https://tools.miya.be/">https://tools.miya.be/</a>）は、' . "
+"
+        . '                三川ミミ（<a href="https://x.com/mimidesunya" target="_blank" rel="noopener">@mimidesunya</a>）が運営しています。' . "
+"
+        . '                筆名として宮部たつひこも使っており、同一人物です。' . "
 "
         . '                本サイトの検索機能をChatGPTから利用するためのプラグイン' . "
 "
