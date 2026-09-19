@@ -254,6 +254,14 @@ def apply_cached_policies(
             updated["policy_fingerprint"] = current_fingerprint
             restored.append(updated)
             continue
+        if updated["crawl_status"] == "excluded" and not updated["exclusion_reason"].startswith("robots_"):
+            # 録画のみ・公開なしなどの除外も運用者が台帳に書いた判断。キャッシュに
+            # 残る除外前の enabled で戻してはいけない（指紋は URL と system_type
+            # だけなので、除外しても一致する）。2026-09-18 にこれで 27 件が
+            # enabled に戻り、本文の無い取得元を取りに行っていた。
+            updated["policy_fingerprint"] = current_fingerprint
+            restored.append(updated)
+            continue
         if (
             str(cached.get("crawl_status", "")) in VALID_CACHE_STATUSES
             and str(cached.get("policy_fingerprint", "")) == current_fingerprint

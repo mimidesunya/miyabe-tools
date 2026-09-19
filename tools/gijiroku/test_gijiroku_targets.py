@@ -164,6 +164,35 @@ class MinutesRobotsPolicyTest(unittest.TestCase):
         fetch_robots.assert_not_called()
         write_rows.assert_called_once()
 
+    def test_runtime_cache_does_not_undo_an_operator_exclusion(self) -> None:
+        # 2026-09-18 に録画のみ・公開なしの 27 件が、除外前にキャッシュされた
+        # enabled で戻っていた。指紋は URL と system_type だけなので一致してしまう。
+        source = {
+            "jis_code": "00000",
+            "url": "https://example.test/gikai/",
+            "system_type": "独自",
+            "crawl_status": "excluded",
+            "exclusion_reason": "not_published",
+            "exclusion_detail": "議会だよりのみ",
+            "policy_checked_at": "2026-08-20",
+        }
+        source["policy_fingerprint"] = crawl_policy.policy_fingerprint(source)
+        cached = {
+            "00000": {
+                "crawl_status": "enabled",
+                "exclusion_reason": "",
+                "exclusion_detail": "",
+                "policy_checked_at": "2026-08-20",
+                "policy_fingerprint": source["policy_fingerprint"],
+            }
+        }
+
+        restored = audit_minutes_robots.apply_cached_policies([source], cached)
+
+        self.assertEqual(restored[0]["crawl_status"], "excluded")
+        self.assertEqual(restored[0]["exclusion_reason"], "not_published")
+        self.assertEqual(restored[0]["exclusion_detail"], "議会だよりのみ")
+
     def test_enabled_override_skips_robots_and_requests_immediate_cycle(self) -> None:
         source = {
             "jis_code": "00000",
