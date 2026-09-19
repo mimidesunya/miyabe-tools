@@ -645,7 +645,7 @@ def iter_minutes_documents(
     emitted = 0
     slug_filter = slugs or set()
     skip_slugs = exclude_slugs or set()
-    for target in gijiroku_targets.iter_gijiroku_targets():
+    for target in indexable_minutes_targets():
         target_slug = str(target.get("slug") or "").strip()
         if slug_filter and target_slug not in slug_filter:
             continue
@@ -1131,11 +1131,29 @@ def _count_reiki_target(target: dict[str, Any]) -> int:
     return len(collect_reiki_preferred_files(html_root, {".html", ".htm"}))
 
 
+def indexable_minutes_targets() -> list[dict]:
+    """会議録として索引してよい対象。
+
+    robots で除外した対象は本物の会議録なので残す。録画のみ・公開なしなど、
+    それ以外の理由で除外した対象は、取得元に会議録が無いと確かめたもの。
+    除外前に落とした議会だよりや議案が残っていても、会議録として載せない
+    （2026-09-19 に大鹿村 22 件・坂祝町 34 件が載っていた）。
+    """
+    return [
+        target
+        for target in gijiroku_targets.iter_gijiroku_targets()
+        if not (
+            str(target.get("crawl_status") or "") == "excluded"
+            and not str(target.get("exclusion_reason") or "").startswith("robots_")
+        )
+    ]
+
+
 def count_minutes_documents_by_slug(
     limit: int = 0, slugs: set[str] | None = None, exclude_slugs: set[str] | None = None
 ) -> dict[str, int]:
     return _count_documents_by_slug(
-        gijiroku_targets.iter_gijiroku_targets(), _count_minutes_target, limit=limit, slugs=slugs, exclude_slugs=exclude_slugs
+        indexable_minutes_targets(), _count_minutes_target, limit=limit, slugs=slugs, exclude_slugs=exclude_slugs
     )
 
 
