@@ -2163,6 +2163,9 @@ function homepage_feature_supported_system_types(string $featureKey): array
             'h-chosonkai',
             'jourei-v5',
             'legal-square',
+            'bk2reiki',
+            'wp-reiki',
+            'reiki-pdf',
         ], true),
         default => [],
     };

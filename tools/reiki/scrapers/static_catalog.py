@@ -157,6 +157,8 @@ def emit_progress(current: int, total: int, state_path: Path) -> None:
 
 DiscoverFn = Callable[[requests.Session, str], list[Article]]
 ParseFn = Callable[[str, str], ParsedArticle | None]
+# 個票を URL の GET 以外で取る取得元（1 本の PDF から切り出すなど）が渡す。
+FetchFn = Callable[[requests.Session, Article], str | None]
 
 
 def run(
@@ -169,6 +171,7 @@ def run(
     check_updates: bool = False,
     delay: float = DEFAULT_DELAY,
     limit: int = 0,
+    fetch: FetchFn | None = None,
 ) -> int:
     target = reiki_targets.load_reiki_target(slug, expected_system=expected_system)
     source_dir = Path(target["source_dir"])
@@ -235,7 +238,10 @@ def run(
         parsed: ParsedArticle | None = None
         iso_date = ""
         if force or check_updates or not complete:
-            raw = fetch_text(session, article.url, referer=source_url)
+            if fetch is not None:
+                raw = fetch(session, article)
+            else:
+                raw = fetch_text(session, article.url, referer=source_url)
             if raw is None:
                 failed += 1
                 continue

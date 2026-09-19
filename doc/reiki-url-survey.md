@@ -37,7 +37,28 @@
 - `jourei-v5`
 - `reiki_menu`
 - `reiki.html`
+- `bk2reiki`（東京法令出版の例規集検索システム。西宮市）
+- `wp-reiki`（WordPress の投稿タイプ `reiki`。日吉津村）
+- `reiki-pdf`（例規集全体を 1 本の PDF で公開。しおりで例規ごとに切り出す。海士町・知夫村）
 - `独自`
+
+## 除外を外した取得元（2026-09-19）
+
+`excluded` になっていた例規集のうち、実際には公開されていて取れるものを取り込んだ。
+
+| 自治体コード | 自治体 | 以前の除外理由 | 実態 | system_type |
+|---|---|---|---|---|
+| `27100` | 大阪市 | `login_required` | g-reiki の入口にログイン欄があるだけで、本体の legal-square は誰でも入れる | `legal-square` |
+| `28202` | 尼崎市 | `login_required` | 同上 | `legal-square` |
+| `28204` | 西宮市 | `login_required` | ID 欄は職員用。閲覧者向けにはページ自身が公開用の共通 ID（internet/internet）で自動的に入る | `bk2reiki` |
+| `31384` | 日吉津村 | `unsupported_system` | WordPress。REST API で全件（566 件）が並ぶ | `wp-reiki` |
+| `32525` | 海士町 | `pdf_only` | 3142 ページの PDF。しおりの「○」が例規（573 件） | `reiki-pdf` |
+| `32527` | 知夫村 | `pdf_only` | 2937 ページの PDF（530 件）。案内ページは `/gyosei/organization/153` へ移っていた | `reiki-pdf` |
+
+`reiki-pdf` の登録 URL は PDF ではなく案内ページにする。PDF の URL は改版のたびに変わる。
+除外のまま残したもの: 北方領土 6 村・例規を公開していない 4 町村（`not_published`）。
+宇検村は条例の PDF が 8 本あるだけ（うち 3 本は画像）で例規集ではないので、
+例規集として取り込むと取得済みに見えて実態とずれる。
 
 ## 公式導線の個別確認
 

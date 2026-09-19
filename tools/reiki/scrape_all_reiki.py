@@ -49,6 +49,9 @@ SUPPORTED_SYSTEMS = {
     "h-chosonkai": ("python", "scrapers/d1_law.py"),
     "jourei-v5": ("python", "scrapers/jourei_v5.py"),
     "legal-square": ("python", "scrapers/legal_square.py"),
+    "bk2reiki": ("python", "scrapers/bk2reiki.py"),
+    "wp-reiki": ("python", "scrapers/wp_reiki.py"),
+    "reiki-pdf": ("python", "scrapers/reiki_pdf.py"),
 }
 TAIKEI_LIKE_SYSTEMS = {"taikei", "g-reiki"}
 
