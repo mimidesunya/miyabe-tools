@@ -96,11 +96,16 @@ app.conf.update(
     task_track_started=True,
     result_expires=24 * 60 * 60,
     beat_schedule={
+        # 投入するかの判定は共有の状態を読むだけなので、取得 worker では動かさない。
+        # 取得 worker は 1 件を何日も掴むことがあり、その間 1 分ごとの判定が
+        # 取得キューに積み上がる（2026-09-20 に例規キューで 25,360 件。期限切れで
+        # 捨てられるだけの荷物が、手で投入した取得の前に並ぶ）。maintenance は
+        # 索引 worker が受けるので、判定はいつでも進む。
         "dispatch-gijiroku-cycle": {
             "task": "deploy.scraper_runtime.celery.tasks.dispatch_gijiroku_cycle",
             "schedule": float(DISPATCH_INTERVAL_SECONDS),
             "options": {
-                "queue": GIJIROKU_QUEUE,
+                "queue": "maintenance",
                 "expires": max(5, DISPATCH_INTERVAL_SECONDS - 5),
             },
         },
@@ -108,7 +113,7 @@ app.conf.update(
             "task": "deploy.scraper_runtime.celery.tasks.dispatch_reiki_cycle",
             "schedule": float(DISPATCH_INTERVAL_SECONDS),
             "options": {
-                "queue": REIKI_QUEUE,
+                "queue": "maintenance",
                 "expires": max(5, DISPATCH_INTERVAL_SECONDS - 5),
             },
         },
@@ -213,12 +218,14 @@ app.conf.update(
         },
     },
     task_routes={
-        "deploy.scraper_runtime.celery.tasks.dispatch_gijiroku_cycle": {"queue": GIJIROKU_QUEUE},
+        # 判定は maintenance（索引 worker）で動かす。取得は run_*_cycle として
+        # 取得キューへ送られるので、取得そのものは今までどおり取得 worker が担う。
+        "deploy.scraper_runtime.celery.tasks.dispatch_gijiroku_cycle": {"queue": "maintenance"},
         "deploy.scraper_runtime.celery.tasks.run_gijiroku_backfill": {"queue": GIJIROKU_QUEUE},
         "deploy.scraper_runtime.celery.tasks.run_gijiroku_cycle": {"queue": GIJIROKU_QUEUE},
         "deploy.scraper_runtime.celery.tasks.run_gijiroku_rebuild": {"queue": GIJIROKU_QUEUE},
         "deploy.scraper_runtime.celery.tasks.run_gijiroku_index_update": {"queue": GIJIROKU_INDEX_QUEUE},
-        "deploy.scraper_runtime.celery.tasks.dispatch_reiki_cycle": {"queue": REIKI_QUEUE},
+        "deploy.scraper_runtime.celery.tasks.dispatch_reiki_cycle": {"queue": "maintenance"},
         "deploy.scraper_runtime.celery.tasks.run_reiki_backfill": {"queue": REIKI_QUEUE},
         "deploy.scraper_runtime.celery.tasks.run_reiki_cycle": {"queue": REIKI_QUEUE},
         "deploy.scraper_runtime.celery.tasks.run_reiki_rebuild": {"queue": REIKI_QUEUE},
