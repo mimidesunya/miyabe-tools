@@ -152,6 +152,28 @@ docker compose -f docker-compose.scraping.yml exec scraper-reiki \
 python3 tools/reiki/scrape_all_reiki.py --list-targets --max-targets 20
 ```
 
+## 投入するかの判定と、取得の待ち行列
+
+`scraper-beat` は 1 分ごとに `dispatch_gijiroku_cycle` / `dispatch_reiki_cycle` を投げます。
+この判定は共有の状態を読んで `run_*_cycle` を送るだけなので、**maintenance キュー
+（索引 worker）で動かします**（2026-09-20 から）。取得 worker は concurrency 1 で
+1 自治体を何日も掴むことがあり、判定を取得キューへ送っていた頃は、その間ずっと
+荷物が溜まりました（同日の例規キューは 25,360 件。ほぼ期限切れの判定で、手で
+投入した取得もその後ろに並びました）。取得そのものは今までどおり取得キューで動きます。
+
+待ち行列を見るには:
+
+```bash
+python3 deploy/remote_exec.py deploy.json -- "cd ~/services/miyabe-tools && docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml exec -T scraper-redis sh -lc 'for q in gijiroku reiki maintenance gijiroku-index reiki-index; do printf \"%s \" \$q; redis-cli llen \$q; done'"
+```
+
+自治体を絞って取得を投入するには `--filter` を使います。部分一致で、`system_type`
+にも当たります（例: `--filter reiki-pdf` で PDF 1 本の例規集だけ）。
+
+```bash
+python3 deploy/scraper_runtime/celery/enqueue.py reiki-cycle --filter reiki-pdf
+```
+
 ## 索引 worker の数
 
 会議録の索引 worker（`scraper-gijiroku-index`）は既定で 3 replica 動きます（`deploy/scraping_stack.py` の `DEFAULT_GIJIROKU_INDEX_REPLICAS`、`prepare_remote_scraping.py --gijiroku-index-replicas N` で変更）。1 自治体の再索引に 13〜28 分かかり、世代の追いつきや取り直しで 1,000 自治体単位の待ち行列ができるためです。同じ自治体が同時に走らないことは、broker の Redis に置く印（`deploy/scraper_runtime/celery/index_enqueue.py`）が保証します。印は「積んだか実行中」を意味し、終わると消えます。
