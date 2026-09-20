@@ -36,7 +36,20 @@ GIJIROKU_SUPPORTED_SYSTEMS = {
     "kin-jsp",
     "voicetechno",
 }
-REIKI_SUPPORTED_SYSTEMS = {"d1-law", "taikei", "g-reiki"}
+# 例規のスクレイパを足すたびにここを書き直すと、必ず忘れる（bk2reiki / wp-reiki /
+# reiki-pdf を足した 2026-09-19 時点で、この一覧は d1-law・taikei・g-reiki の
+# 3 つのままだった）。対応表は scrape_all_reiki.py にあるので、そちらを読む。
+REIKI_FALLBACK_SUPPORTED_SYSTEMS = {"d1-law", "taikei", "g-reiki"}
+
+
+def reiki_supported_systems() -> set[str]:
+    try:
+        from tools.reiki import scrape_all_reiki
+
+        systems = {str(name).strip() for name in scrape_all_reiki.SUPPORTED_SYSTEMS}
+    except Exception:
+        return set(REIKI_FALLBACK_SUPPORTED_SYSTEMS)
+    return systems or set(REIKI_FALLBACK_SUPPORTED_SYSTEMS)
 
 
 # 環境変数を文字列として読む。空文字なら default に戻す。
@@ -250,9 +263,10 @@ def _iter_supported_target_slugs(task_name: str) -> list[str]:
         if task_name == "reiki":
             from tools.reiki import reiki_targets
 
+            supported = reiki_supported_systems()
             slugs = []
             for target in reiki_targets.iter_reiki_targets():
-                if str(target.get("system_type") or "").strip() not in REIKI_SUPPORTED_SYSTEMS:
+                if str(target.get("system_type") or "").strip() not in supported:
                     continue
                 slug = str(target.get("slug") or "").strip()
                 if slug:
