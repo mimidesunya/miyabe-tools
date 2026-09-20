@@ -193,6 +193,42 @@ class MinutesRobotsPolicyTest(unittest.TestCase):
         self.assertEqual(restored[0]["exclusion_reason"], "not_published")
         self.assertEqual(restored[0]["exclusion_detail"], "議会だよりのみ")
 
+    def test_a_note_on_an_enabled_row_survives(self) -> None:
+        # 兵庫県の「旧型 CGI で kensakusystem スクレイパが扱えない」のように、
+        # 除外していない行に書いた覚書は監査で消さない。
+        row = {field: "" for field in audit_minutes_robots.FIELDNAMES}
+        row.update(
+            {
+                "jis_code": "28000",
+                "url": "https://example.test/pref/index.html",
+                "system_type": "kensakusystem",
+                "crawl_status": "enabled",
+                "exclusion_detail": "旧型 CGI でスクレイパが扱えない",
+            }
+        )
+        restored = audit_minutes_robots.apply_cached_policies([row], {})
+        self.assertEqual(restored[0]["exclusion_detail"], "旧型 CGI でスクレイパが扱えない")
+
+        classified = audit_minutes_robots.classify_row(row, None, checked_at="2026-09-20")
+        self.assertEqual(classified["crawl_status"], "enabled")
+        self.assertEqual(classified["exclusion_detail"], "旧型 CGI でスクレイパが扱えない")
+
+    def test_a_robots_detail_is_still_cleared_when_it_is_enabled_again(self) -> None:
+        row = {field: "" for field in audit_minutes_robots.FIELDNAMES}
+        row.update(
+            {
+                "jis_code": "28000",
+                "url": "https://example.test/pref/index.html",
+                "system_type": "kensakusystem",
+                "crawl_status": "enabled",
+                "exclusion_reason": "robots_disallowed",
+                "exclusion_detail": "https://example.test/robots.txt / 拒否経路: /",
+            }
+        )
+        restored = audit_minutes_robots.apply_cached_policies([row], {})
+        self.assertEqual(restored[0]["exclusion_detail"], "")
+        self.assertEqual(restored[0]["exclusion_reason"], "")
+
     def test_enabled_override_skips_robots_and_requests_immediate_cycle(self) -> None:
         source = {
             "jis_code": "00000",

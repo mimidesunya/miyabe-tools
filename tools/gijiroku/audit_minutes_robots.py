@@ -92,6 +92,18 @@ def normalized_row(row: dict[str, str]) -> dict[str, str]:
     return {key: str(row.get(key, "") or "").strip() for key in FIELDNAMES}
 
 
+def kept_detail(row: dict[str, str]) -> str:
+    """enabled に戻すとき、残してよい説明を返す。
+
+    除外の理由が書かれていれば、説明はその理由のもの（robots の拒否経路など）
+    なので消す。理由が空のまま説明だけがある行は、運用者の覚書
+    （兵庫県「旧型 CGI で kensakusystem スクレイパが扱えない」など）なので残す。
+    """
+    if str(row.get("exclusion_reason", "")).strip():
+        return ""
+    return str(row.get("exclusion_detail", "")).strip()
+
+
 def classify_row(
     row: dict[str, str],
     result: RobotsResult | None,
@@ -132,7 +144,7 @@ def classify_row(
             {
                 "crawl_status": "enabled",
                 "exclusion_reason": "",
-                "exclusion_detail": "",
+                "exclusion_detail": kept_detail(row),
                 "policy_checked_at": checked_at,
                 "policy_fingerprint": current_fingerprint,
             }
@@ -165,7 +177,7 @@ def classify_row(
             {
                 "crawl_status": "enabled",
                 "exclusion_reason": "",
-                "exclusion_detail": "",
+                "exclusion_detail": kept_detail(row),
                 "policy_checked_at": checked_at,
                 "policy_fingerprint": current_fingerprint,
             }
@@ -200,7 +212,7 @@ def classify_row(
             {
                 "crawl_status": "enabled",
                 "exclusion_reason": "",
-                "exclusion_detail": "",
+                "exclusion_detail": kept_detail(row),
                 "policy_checked_at": checked_at,
                 "policy_fingerprint": current_fingerprint,
             }
@@ -249,8 +261,8 @@ def apply_cached_policies(
             # URL/system_type の現在値だけを記録して監査対象から外す。
             if updated["policy_fingerprint"] != current_fingerprint or updated["exclusion_reason"]:
                 updated["policy_checked_at"] = ""
+            updated["exclusion_detail"] = kept_detail(updated)
             updated["exclusion_reason"] = ""
-            updated["exclusion_detail"] = ""
             updated["policy_fingerprint"] = current_fingerprint
             restored.append(updated)
             continue
