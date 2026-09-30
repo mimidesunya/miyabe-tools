@@ -2,6 +2,8 @@ services:
   web:
     image: nginx:1.30.4@sha256:5cf90903deda2c5981b8ad05e7617ac010e389f0dde0ac83487c02c509281de6
     restart: "no"
+    # 日ごとのアクセスログはワーカー（nginx ユーザー）が開くので、置き場所を渡してから起動する。
+    entrypoint: ["/bin/sh", "-c", "mkdir -p /var/log/nginx/site && chown nginx:nginx /var/log/nginx/site && exec /docker-entrypoint.sh nginx -g 'daemon off;'"]
     ports:
       - "8301:80"
     volumes:
@@ -10,9 +12,19 @@ services:
       - ./work:/var/www/work
       - ./lib:/var/www/lib
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - nginx-logs:/var/log/nginx/site
     depends_on:
       - php
       - mcp
+
+  # nginx のログを30日以内に消す（プライバシーポリシーの保存期間）。
+  log-pruner:
+    image: nginx:1.30.4@sha256:5cf90903deda2c5981b8ad05e7617ac010e389f0dde0ac83487c02c509281de6
+    restart: "no"
+    entrypoint: ["/bin/sh", "/prune-logs.sh"]
+    volumes:
+      - ./nginx/prune-logs.sh:/prune-logs.sh:ro
+      - nginx-logs:/var/log/nginx/site
 
   mcp:
     build:
@@ -106,3 +118,4 @@ services:
 
 volumes:
   postgres-data:
+  nginx-logs:

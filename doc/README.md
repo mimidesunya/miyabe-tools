@@ -17,6 +17,7 @@
 - [municipalities-page.md](municipalities-page.md) — 自治体一覧。原典（自治体サイト）への入口を地方別・都道府県別の表で見せる画面
 - [status-architecture.md](status-architecture.md) — 実行状態管理。PostgreSQL 正本のテーブル構成、表示ルール、移行手順
 - [remote-scraping.md](remote-scraping.md) — リモートスクレイピング運用。事前同期、Celery 巡回、再起動・停止手順
+- [access-logs.md](access-logs.md) — アクセスログの置き場所と、プライバシーポリシーで約束した30日以内の削除の仕組み
 - [virtual-development-team.md](virtual-development-team.md) — AI エージェントと人間で共同開発するときの役割分担
 
 ## 自治体マスタ・URL 調査

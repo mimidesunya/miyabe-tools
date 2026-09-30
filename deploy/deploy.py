@@ -1105,11 +1105,16 @@ fi
     # OpenSearch のデータ置き場は deploy.json の opensearch_data_dir で差し替えられる
     # （HDD の shared_data_dir から NVMe へ移すときは設定 1 行で切り替える）。
     opensearch_data_dir = str(config.get('opensearch_data_dir') or f"{shared_data_dir}/opensearch-data")
+    # nginx のログは web が nginx-logs ボリュームへ日ごとに書き、log-pruner が30日以内に消す
+    # （プライバシーポリシーの保存期間）。日ごとのアクセスログはワーカー（nginx ユーザー）が
+    # 開くので、web は置き場所の持ち主を nginx にしてから起動する。
+    # ssh_copy_content はロケールの文字コードで送るので、この YAML には日本語を書かない。
     docker_compose_prod = f"""version: '3'
 services:
   web:
     image: {img_web}
     restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c", "mkdir -p /var/log/nginx/site && chown nginx:nginx /var/log/nginx/site && exec /docker-entrypoint.sh nginx -g 'daemon off;'"]
     ports:
       - "{config.get('app_port', 8301)}:80"
     volumes:
@@ -1120,9 +1125,18 @@ services:
       - ./app:/var/www/html
       - ./lib:/var/www/lib
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - nginx-logs:/var/log/nginx/site
     depends_on:
       - php
       - mcp
+
+  log-pruner:
+    image: {img_web}
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/prune-logs.sh"]
+    volumes:
+      - ./nginx/prune-logs.sh:/prune-logs.sh:ro
+      - nginx-logs:/var/log/nginx/site
 
   mcp:
     build:
@@ -1204,6 +1218,7 @@ services:
 
 volumes:
   postgres-data:
+  nginx-logs:
 """
     
     print("=== 4. Deploy to Remote ===")
@@ -1229,7 +1244,7 @@ volumes:
             f"cd {dest_dir} && docker compose up -d php opensearch && "
             "docker compose up -d --build mcp && "
             "docker compose restart php mcp && sleep 2 && "
-            "docker compose up -d web && docker compose restart web"
+            "docker compose up -d web log-pruner && docker compose restart web"
         )
 
     if args.skip_prewarm:
