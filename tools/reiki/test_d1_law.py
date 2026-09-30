@@ -234,3 +234,51 @@ class D1LawGoneAtSourceTest(unittest.TestCase):
         d1_law._forget_download_failure(url)
         self.assertEqual(d1_law.DOWNLOAD_FAILURES, [])
         self.assertEqual(d1_law.DOWNLOAD_MISSING, [])
+
+    def test_a_missing_body_is_not_counted_again_as_a_parse_failure(self) -> None:
+        # 本文が 404 なら source が無いので、変換も必ず失敗する。それを
+        # 「変換できなかった」と数え直すと、失敗に数えないと決めた 404 が
+        # 完了を阻む（石狩市 20 件・島原市 17 件などが毎日やり直していた）。
+        self.download_with_error(self.http_error(404))
+        self.assertTrue(d1_law.download_already_accounted("https://example.test/a/a_j.html"))
+        # 本当に変換だけが失敗したものは、これまでどおり数える。
+        self.assertFalse(d1_law.download_already_accounted("https://example.test/b/b_j.html"))
+
+    def test_a_missing_body_is_not_a_parse_failure_in_the_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ("source", "html", "markdown"):
+                (root / name).mkdir()
+            plans, _ = d1_law.build_source_plan(
+                source_items=["H1"],
+                base_url="https://example.test/d1w_reiki/",
+                source_dir=root / "source",
+                html_dir=root / "html",
+                markdown_dir=root / "markdown",
+                opensearch_session=None,
+                previous_manifest_by_source={},
+            )
+            plan = plans[0]
+            d1_law.assign_work_mode([plan], force=False, check_updates=True)
+            session = mock.Mock()
+            session.get.side_effect = self.http_error(404)
+            plan["session"] = session
+            _downloaded, source_path, _hash, _meta = d1_law.fetch_source_for_plan(
+                plan, force=False, update_mode=False
+            )
+            parse_required, parse_succeeded = d1_law.parse_source_for_plan(
+                plan,
+                source_path,
+                downloaded=False,
+                force=False,
+                markdown_dir=root / "markdown",
+                html_dir=root / "html",
+                base_url="https://example.test/d1w_reiki/",
+                images_dir=root / "images",
+                image_public_url="/reiki/example/images",
+            )
+            # 変換は要るが成功しない。そのうえで、取得の段階で数え済みと分かる。
+            self.assertTrue(parse_required)
+            self.assertFalse(parse_succeeded)
+            self.assertEqual(d1_law.DOWNLOAD_MISSING, [str(plan["url"])])
+            self.assertTrue(d1_law.download_already_accounted(str(plan["url"])))

@@ -109,6 +109,61 @@ class HostBlockTest(unittest.TestCase):
         self.assertEqual(session.calls, 0)
         self.assertEqual(d1_law.DOWNLOAD_FAILURES, [])
         self.assertEqual(len(d1_law.SKIPPED_BY_HOST_BLOCK), 1)
+        # ただし確かめてもいないので、変換の失敗として数え直しもしない。
+        self.assertTrue(d1_law.download_already_accounted(f"https://{host}/a.html"))
+
+
+class HttpErrorResponse(FakeResponse):
+    status_code = 404
+
+    def raise_for_status(self) -> None:
+        raise requests.exceptions.HTTPError("404", response=self)
+
+
+class EntryPageTest(unittest.TestCase):
+    """入口ページに接続できないなら、その自治体はそこで止める。
+
+    en3-jg.d1-law.com は、廃止された自治体のパス（住田町の /sumita/）にも
+    応答を返さず接続を切る。入口で止めずに古い目録から本文を取りに行くと、
+    切られた回数が閾値に届いてホストごと 6 時間休止し、同じホストの
+    約 200 自治体を巻き込む（9/21〜9/26 の 6 回はすべて住田町だった）。
+    """
+
+    def setUp(self) -> None:
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.original = reiki_targets.WORK_ROOT
+        reiki_targets.WORK_ROOT = Path(self.directory.name)
+        self.addCleanup(lambda: setattr(reiki_targets, "WORK_ROOT", self.original))
+        d1_law._CONNECTION_FAILURES.clear()
+
+    def test_a_dropped_entry_stops_the_run_without_pausing_the_host(self) -> None:
+        host = "en3-jg.example.test"
+        session = FakeSession(failures=99)
+        with self.assertRaises(d1_law.EntryUnreachable):
+            d1_law.fetch_entry_html(f"https://{host}/sumita/d1w_reiki/reiki.html", session, sleep=lambda _s: None)
+        # 作り直しは数回だけ。ほかの自治体まで止める休止は残さない。
+        self.assertEqual(session.calls, d1_law.CONNECTION_RETRY_ATTEMPTS)
+        self.assertFalse(d1_law.host_is_blocked(host))
+
+    def test_an_answer_from_the_source_keeps_going(self) -> None:
+        # 404 は取得元が答えている。決め打ちの目次で続ける（従来どおり）。
+        class NotFoundSession(FakeSession):
+            def get(self, url, headers=None, timeout=None):  # noqa: ANN001
+                self.calls += 1
+                return HttpErrorResponse()
+
+        session = NotFoundSession(failures=0)
+        self.assertEqual(d1_law.fetch_entry_html("https://example.test/reiki.html", session), "")
+        self.assertEqual(session.calls, 1)
+
+    def test_a_paused_host_is_not_contacted(self) -> None:
+        host = "en3-jg.example.test"
+        d1_law.remember_host_block(host, seconds=3600)
+        session = FakeSession(failures=0)
+        with self.assertRaises(d1_law.EntryUnreachable):
+            d1_law.fetch_entry_html(f"https://{host}/city/d1w_reiki/reiki.html", session)
+        self.assertEqual(session.calls, 0)
 
 
 if __name__ == "__main__":

@@ -86,3 +86,84 @@ class TitleSplitWordTest(unittest.TestCase):
             legal_square.words_label((("の", False), ("市", True))),
             " 件名[の][除く市]",
         )
+
+
+class SplitWordChoiceTest(unittest.TestCase):
+    """件名の語は、「含む」側が上限未満でいちばん大きく分かれるものを採る。
+
+    以前は最初に分かれた語を採っていた。栃木市の合併日の条例は「等」2 件・
+    「職員」2 件で枠を使い切り、残り 100 件超を取り切れなかった。取得元で
+    確かめると、最後の枠を「センター」（18 件）にすれば残りは 86 件だった。
+    """
+
+    def test_the_largest_split_under_the_cap_wins(self) -> None:
+        probes = [("職員", 2), ("管理", 2), ("センター", 18), ("基金", 16)]
+        self.assertEqual(legal_square.pick_split_word(probes, 100), "センター")
+
+    def test_a_word_that_keeps_everything_is_not_a_split(self) -> None:
+        # 「含む」側も上限のままなら、その語では割れていない。
+        probes = [("要綱", 100), ("補助", 25)]
+        self.assertEqual(legal_square.pick_split_word(probes, 100), "補助")
+
+    def test_nothing_splits(self) -> None:
+        self.assertEqual(legal_square.pick_split_word([("補助", 0), ("館", 100)], 100), "")
+
+    def test_half_is_good_enough_to_stop_probing(self) -> None:
+        # 「の」が 62/100 なら、ほかの語を試すまでもない（検索を増やさない）。
+        self.assertTrue(legal_square.split_is_good_enough(62, 100))
+        self.assertFalse(legal_square.split_is_good_enough(18, 100))
+        self.assertFalse(legal_square.split_is_good_enough(100, 100))
+
+    def test_merger_day_words_are_candidates(self) -> None:
+        # 取得元で最後の枠を取り切れた語（栃木市・久喜市・静岡市）。
+        for word in ("センター", "要綱", "施行"):
+            self.assertIn(word, legal_square.title_split_candidates(()))
+
+
+class SplitConsistencyTest(unittest.TestCase):
+    """上限に張り付いた区間を割った先の合計は、元の件数に届くはず。
+
+    久喜市 9/29 は「規則 平成19.4〜平成24.3」が上限の 100 件なのに、割った
+    先がどちらも 0 件と読めて、規則 193 件が黙って一覧から落ちた。
+    """
+
+    def test_two_empty_halves_cannot_make_up_a_capped_range(self) -> None:
+        self.assertFalse(legal_square.split_accounts_for(100, [0, 0]))
+
+    def test_halves_that_reach_the_cap_are_fine(self) -> None:
+        self.assertTrue(legal_square.split_accounts_for(100, [0, 100]))
+        self.assertTrue(legal_square.split_accounts_for(100, [58, 46]))
+
+    def test_an_unresolved_half_is_judged_elsewhere(self) -> None:
+        # 取り切れなかった側は、そちらで未完了として記録している。
+        self.assertTrue(legal_square.split_accounts_for(100, [None, 0]))
+
+
+class KindContradictionTest(unittest.TestCase):
+    """検索した種別と結果の番号が食い違うなら、前の検索の結果を読んでいる。
+
+    栃木市 9/28 は「規則 全期間」が直前の条例と同じ 64 件を返し、上限に
+    届かないので取り切れたと扱われ、規則 291 件が一覧から消えた。
+    """
+
+    def test_ordinances_returned_for_a_rule_search(self) -> None:
+        self.assertTrue(
+            legal_square.numbers_contradict_kind("規則", ["条例第3号", "条例第64号", ""])
+        )
+
+    def test_matching_numbers_are_fine(self) -> None:
+        self.assertFalse(legal_square.numbers_contradict_kind("規則", ["規則第1号", "条例第2号"]))
+        self.assertFalse(
+            legal_square.numbers_contradict_kind("委員会等規則", ["教育委員会規則第1号"])
+        )
+        self.assertFalse(legal_square.numbers_contradict_kind("規則／財務", ["規則第9号"]))
+
+    def test_numbers_that_name_no_kind_are_not_judged(self) -> None:
+        # 「達第1号」はどちらとも言えない。数えると正しい結果まで捨てる。
+        self.assertFalse(legal_square.numbers_contradict_kind("訓令", ["達第1号"]))
+        self.assertFalse(legal_square.numbers_contradict_kind("告示", []))
+
+    def test_kinds_without_a_number_word_are_not_judged(self) -> None:
+        # 規程・要綱は「訓令第…号」「告示第…号」で出ることが多い。
+        self.assertFalse(legal_square.numbers_contradict_kind("規程", ["訓令第1号"]))
+        self.assertFalse(legal_square.numbers_contradict_kind("全件", ["条例第1号"]))

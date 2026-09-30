@@ -121,13 +121,37 @@ def fetch_catalog_version(source_url: str, session: requests.Session | None = No
     return version
 
 
+class EntryUnreachable(RuntimeError):
+    """入口ページに接続すらできない。取得元が止まったか、置き場所が変わった。"""
+
+
 # 入口ページの HTML。目次のリンクを読むために使う。取得は 1 回で済ませる。
-def fetch_entry_html(source_url: str, session: requests.Session | None = None) -> str:
+#
+# 接続そのものができないときは、ここで止める。以前は空のまま続けて、手元の
+# 古い目録から本文を 1 件ずつ取りに行き、切られた回数が閾値に届くと
+# **ホストごと 6 時間休止**していた。en3-jg.d1-law.com は、廃止された自治体の
+# パス（住田町の /sumita/）にも根元の / にも、応答を返さず接続を切る。
+# 住田町が g-reiki へ移ったあと、9/21〜9/26 の休止 6 回はすべて住田町の巡回が
+# 引き起こし、同じホストの約 200 自治体を巻き込んでいた。入口で止まれば
+# 休止の閾値には届かない。404 などの応答があったときは、これまでどおり
+# 決め打ちの目次で続ける。
+def fetch_entry_html(source_url: str, session: requests.Session | None = None, *, sleep=time.sleep) -> str:
     requester = session or requests
+    host = host_of(source_url)
+    if host_is_blocked(host):
+        # 休止中のホストへ進むと、本文はすべて飛ばされて「確認済み」に見える。
+        raise EntryUnreachable(
+            f"{host} は取得を休止中です（{HOST_BLOCK_FILE}）。休止が明けてから取り直します: {source_url}"
+        )
     try:
-        response = requester.get(source_url, headers={"User-Agent": USER_AGENT}, timeout=15)
+        response = fetch_with_retry(requester, source_url, {"User-Agent": USER_AGENT}, host, sleep=sleep)
         response.raise_for_status()
     except Exception as exc:
+        if is_connection_error(exc):
+            raise EntryUnreachable(
+                f"入口ページに接続できませんでした（{exc}）。取得元が止まっているか、"
+                f"例規集の置き場所が変わった可能性があります: {source_url}"
+            ) from exc
         print(f"[WARN] entry page fetch failed: {exc}", flush=True)
         return ""
     return response_text_auto(response)
@@ -283,6 +307,19 @@ def _forget_download_failure(url: str) -> None:
         DOWNLOAD_MISSING.remove(url)
 
 
+def download_already_accounted(url: str) -> bool:
+    """取得の段階で、すでに別の列に数えた URL か。
+
+    本文が取れなかった例規は source が無いので、変換も必ず失敗する。
+    それを「変換できなかった」と数え直すと、取得元が消した 404 まで
+    完了を阻む失敗になる。石狩市は「20 件が取得元にありません。失敗に
+    数えません」と出した直後に「20 件を変換できませんでした」で失敗し、
+    同じ形で 6 自治体が毎日やり直していた。
+    """
+    text = str(url)
+    return text in DOWNLOAD_FAILURES or text in DOWNLOAD_MISSING or text in SKIPPED_BY_HOST_BLOCK
+
+
 def _gone_status_code(error: Exception) -> int:
     """取得元が「もう無い」と答えたなら、その状態コードを返す。"""
     response = getattr(error, "response", None)
@@ -430,6 +467,9 @@ def download_file(
             "",
             {
                 "download_failed": True,
+                # 返すパスは手元の古い控えのことがある。消えたのか取り損ねたのかを
+                # 呼ぶ側が見分けられるよう、「もう無い」の答えを添える。
+                "gone_status": gone_status,
                 "status_code": "",
                 "not_modified": False,
                 "conditional": False,
@@ -563,8 +603,12 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None
     if not declared_menus:
         print("[WARN] 入口ページに目次リンクがありません。決め打ちの名前で辿ります。")
     optional_missing: set[str] = set()
-    for name in list(to_scan):
-        download_file(base_url + name, data_dir / name, force=force, check_updates=check_updates)
+    # 更新確認では、入口の目次だけでなく**枝まで取り直す**。以前は手元に控えが
+    # あれば枝を二度と取りに行かなかったので、目録は初回に取った日のまま
+    # 固まっていた。石狩市は 4 月の控えを歩き続け、取得元が消した 20 件を
+    # 毎回 404 で取りに行き、7 月に増えた 24 件は一度も見つけていなかった
+    # （島原市・江別市・京都市・留寿都村・古平町も同じ形）。
+    refresh = bool(force or check_updates)
 
     scanned = set()
 
@@ -576,8 +620,14 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None
 
         file_path = data_dir / current
         stored_path = reiki_io.existing_path(file_path)
-        if stored_path is None:
-            _, stored_path, _, _ = download_file(base_url + current, file_path, check_updates=check_updates)
+        if stored_path is None or refresh:
+            _, fetched_path, _, fetched = download_file(
+                base_url + current, file_path, force=force, check_updates=check_updates
+            )
+            # 取得元が「もう無い」と答えたページは、手元の古い控えを読まない。
+            # 読むと、消えた枝に載っていた例規を本文 404 のまま数え続ける。
+            # 通信の失敗なら控えを使う（失敗は DOWNLOAD_FAILURES で数えている）。
+            stored_path = None if fetched.get("gone_status") else fetched_path
         if stored_path is None or not stored_path.exists():
             if current in optional_menus:
                 # 決め打ちの名前が無かっただけ。個票の失敗にも数えない。
@@ -977,10 +1027,11 @@ def main():
     print(f"Target directory: {source_dir}")
     source_dir.mkdir(parents=True, exist_ok=True)
 
-    catalog_version = fetch_catalog_version(str(target["source_url"]))
     # 入口ページが目次を指している。決め打ちの `mokuji_index_index.html` は
     # 古い Reiki-Base のもので、牛久市・福岡市では 404 になる。
+    # 接続できない取得元はここで止めるので、ほかの問い合わせより先に開く。
     entry_html = fetch_entry_html(str(target["source_url"]))
+    catalog_version = fetch_catalog_version(str(target["source_url"]))
     opensearch_session: requests.Session | None = None
     hno_list: list[str] = []
     opensearch_entries: list[dict[str, str]] = []
@@ -1122,10 +1173,9 @@ def main():
                 parsed_count += 1
                 if plan["parser_outdated"] and not downloaded:
                     reparsed_saved_count += 1
-            else:
-                if url not in DOWNLOAD_FAILURES:
-                    parse_failure_count += 1
-                    parse_failure_urls.append(url)
+            elif not download_already_accounted(url):
+                parse_failure_count += 1
+                parse_failure_urls.append(url)
 
         manifest_entries.append(
             {
@@ -1180,8 +1230,14 @@ def main():
     missing_share_exceeded = (
         total_regulations > 0 and missing_at_source * 5 >= total_regulations
     )
+    # 休止中のホストだったので取りに行かなかった分。取り損ねではないが、
+    # 確かめてもいない。数えないと、何も問い合わせていない実行が完了になる。
+    skipped_by_host_block = len(SKIPPED_BY_HOST_BLOCK)
     walk_complete = (
-        missed_pages == 0 and total_failures == 0 and not missing_share_exceeded
+        missed_pages == 0
+        and total_failures == 0
+        and not missing_share_exceeded
+        and skipped_by_host_block == 0
     )
     manifest_result = reiki_io.write_manifest_guarded(
         manifest_path,
@@ -1208,6 +1264,7 @@ def main():
             "missing_at_source": missing_at_source,
             "missing_at_source_examples": DOWNLOAD_MISSING[:10],
             "missing_share_exceeded": missing_share_exceeded,
+            "skipped_by_host_block": skipped_by_host_block,
             "collected": len(manifest_entries),
             "manifest_shrunk": not manifest_result["written"],
             "manifest_previous": manifest_result["previous"],
@@ -1223,6 +1280,12 @@ def main():
     if detail_failures:
         print(
             f"[WARN] 例規本体を {detail_failures} 件取得できませんでした。",
+            flush=True,
+        )
+    if skipped_by_host_block:
+        print(
+            f"[WARN] 取得を休止中のホストだったため、{skipped_by_host_block} 件を"
+            "確かめていません。完了にしていません。",
             flush=True,
         )
     if missing_at_source:

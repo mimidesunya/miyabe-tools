@@ -449,14 +449,17 @@ function cli_has_flag(array $options, array $argv, string $name): bool
     return false;
 }
 
-function crawl_taxonomy(string $entryUrl): array
+function crawl_taxonomy(string $entryUrl, ?callable $fetch = null): array
 {
+    $fetch ??= 'fetch_url';
     $queue = [$entryUrl];
     $visited = [];
     $pages = [];
     $records = [];
     // 開けなかった目次ページ。その先の例規はまるごと見えなくなる。
     $missed = [];
+    // リンクの書き方から、実体の名前が 2 通り考えられるページの控え。
+    $alternates = [];
 
     while ($queue !== []) {
         $url = array_shift($queue);
@@ -465,9 +468,18 @@ function crawl_taxonomy(string $entryUrl): array
         }
 
         $visited[$url] = true;
-        try {
-            $html = fetch_url($url);
-        } catch (RuntimeException $exception) {
+        $html = null;
+        $pageUrl = $url;
+        foreach (array_merge([$url], $alternates[$url] ?? []) as $candidate) {
+            try {
+                $html = $fetch($candidate);
+                $pageUrl = $candidate;
+                break;
+            } catch (RuntimeException $exception) {
+                continue;
+            }
+        }
+        if ($html === null) {
             // 目次の枝が 1 本開けないだけで自治体をまるごと落とさない。
             // 与那国町は空白入りのリンク 1 本で例規 0 件になっていた。
             // 数えておいて、最後に 0 件なら失敗として扱う。
@@ -476,23 +488,27 @@ function crawl_taxonomy(string $entryUrl): array
 ");
             continue;
         }
+        $visited[$pageUrl] = true;
         $dom = create_dom($html);
         $xpath = new DOMXPath($dom);
         $currentPath = extract_taxonomy_path($xpath);
 
-        $pages[$url] = [
-            'url' => $url,
+        $pages[$pageUrl] = [
+            'url' => $pageUrl,
             'path' => $currentPath,
             'catalog_content_current' => extract_catalog_version($html),
         ];
 
-        foreach (extract_taxonomy_links($xpath, $url) as $taxonomyUrl) {
+        foreach (extract_taxonomy_links($xpath, $pageUrl) as $taxonomyUrl => $others) {
             if (!isset($visited[$taxonomyUrl])) {
                 $queue[] = $taxonomyUrl;
+                if ($others !== []) {
+                    $alternates[$taxonomyUrl] = $others;
+                }
             }
         }
 
-        foreach (extract_ordinance_rows($xpath, $url, $currentPath) as $record) {
+        foreach (extract_ordinance_rows($xpath, $pageUrl, $currentPath) as $record) {
             $detailUrl = (string)$record['detail_url'];
             if (!isset($records[$detailUrl])) {
                 $records[$detailUrl] = $record;
@@ -541,6 +557,25 @@ function strip_href_whitespace(string $href): string
     return (string)preg_replace('/\s+/u', '', trim($href));
 }
 
+// 空白入りのリンクが指す実体の名前の候補。先頭が本命で、残りは開けなかった
+// ときに試す綴り。阿久根市は与那国町と同じ `r_taikei_07_01_05_ 1.html` という
+// 書き方で、**実体の名前にも空白がある**（`%201` で 200、空白を落とすと 404）。
+// どちらなのかは開いてみるまで分からないので、両方を持っておく。
+function taxonomy_link_candidates(string $href, string $pageUrl): array
+{
+    $raw = trim($href);
+    $stripped = strip_href_whitespace($raw);
+    $candidates = [resolve_url($pageUrl, $stripped)];
+    if ($stripped !== $raw) {
+        $literal = resolve_url($pageUrl, $raw);
+        if ($literal !== $candidates[0]) {
+            $candidates[] = $literal;
+        }
+    }
+    return $candidates;
+}
+
+// 目次の枝を、本命の URL => 開けなかったときに試す綴り の形で返す。
 function extract_taxonomy_links(DOMXPath $xpath, string $pageUrl): array
 {
     $links = [];
@@ -555,12 +590,14 @@ function extract_taxonomy_links(DOMXPath $xpath, string $pageUrl): array
             continue;
         }
 
-        $href = strip_href_whitespace($node->getAttribute('href'));
+        $rawHref = $node->getAttribute('href');
+        $href = strip_href_whitespace($rawHref);
         if ($href === '' || str_starts_with($href, 'javascript:')) {
             continue;
         }
 
-        $absolute = resolve_url($pageUrl, $href);
+        $others = taxonomy_link_candidates($rawHref, $pageUrl);
+        $absolute = (string)array_shift($others);
         // 登録されている入口が五十音順目次のことがある（矢祭町・廿日市市）。
         // 体系目次の枝しか辿らないと、そこから 1 歩も進めず 0 件で終わる。
         // どちらの目次からも辿れるようにする。
@@ -572,10 +609,10 @@ function extract_taxonomy_links(DOMXPath $xpath, string $pageUrl): array
             continue;
         }
 
-        $links[$absolute] = true;
+        $links[$absolute] = array_values(array_unique(array_merge($links[$absolute] ?? [], $others)));
     }
 
-    return array_keys($links);
+    return $links;
 }
 
 function extract_ordinance_rows(DOMXPath $xpath, string $pageUrl, string $currentPath): array

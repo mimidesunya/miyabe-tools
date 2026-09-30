@@ -249,7 +249,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 03366	https://en3-jg.d1-law.com/nishiwaga/d1w_reiki/reiki.html	d1-law	enabled		
 03381	https://www1.g-reiki.net/town.kanegasaki.iwate/reiki_menu.html	g-reiki	enabled		
 03402	https://www.town.hiraizumi.iwate.jp/reiki/reiki_menu.html	taikei	enabled		
-03441	https://en3-jg.d1-law.com/sumita/d1w_reiki/reiki.html	d1-law	enabled		
+03441	https://www1.g-reiki.net/town.sumita.iwate/reiki_menu.html	g-reiki	enabled		
 03461	https://www.town.otsuchi.iwate.jp/gyosei/reiki_old/reiki_menu.html	taikei	enabled		
 03482	https://krc146.legal-square.com/HAS-Shohin/page/SJSrbLogin.jsf	legal-square	enabled		
 03483	https://www1.g-reiki.net/town.iwaizumi/reiki_menu.html	g-reiki	enabled		
@@ -873,7 +873,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 20217	https://en3-jg.d1-law.com/saku/d1w_reiki/reiki.html	d1-law	enabled		
 20218	https://www1.g-reiki.net/chikuma/reiki_menu.html	g-reiki	enabled		
 20219	https://www1.g-reiki.net/tomi/reiki_menu.html	g-reiki	enabled		
-20220	https://www.city.azumino.nagano.jp/soshiki/7/reiki.html	d1-law	enabled		
+20220	https://www.city.azumino.nagano.jp/reiki/d1w_reiki/reiki.html	d1-law	enabled		
 20303	https://www1.g-reiki.net/koumi-town/reiki_kana/r_50_ro.html	g-reiki	enabled		
 20304	https://en3-jg.d1-law.com/kawakami/d1w_reiki/reiki.html	d1-law	enabled		
 20305	https://www.minamimakimura.jp/reiki_int/reiki_menu.html	taikei	enabled		
@@ -1186,7 +1186,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 27366	https://www.town.misaki.osaka.jp/reiki_int/reiki_menu.html	taikei	enabled		
 27381	https://www.town.taishi.osaka.jp/section/d1w_reiki/reiki.html	d1-law	enabled		
 27382	https://en3-jg.d1-law.com/kanan/d1w_reiki/reiki.html	d1-law	enabled		
-27383	https://www.vill.chihayaakasaka.osaka.jp/section/d1w_reiki/reiki.html	d1-law	enabled		
+27383	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A85C1007F	d1-law	enabled		
 28000	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A85CFF43A	d1-law	enabled		
 28100	https://www1.g-reiki.net/city.kobe/reiki_taikei/taikei_default.html	g-reiki	enabled		
 28201	https://krl500.legal-square.com/HAS-Shohin/page/SJSrbLogin.jsf	legal-square	enabled		
@@ -1596,7 +1596,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 42000	https://krq301.legal-square.com/HAS-Shohin/page/SJSrbLogin.jsf	legal-square	enabled		
 42201	https://www1.g-reiki.net/nagasaki/reiki_kana/r_50_ti.html	g-reiki	enabled		
 42202	https://en3-jg.d1-law.com/sasebo/d1w_reiki/reiki.html	d1-law	enabled		
-42203	https://www.city.shimabara.lg.jp/reiki/reiki.html	reiki.html	enabled		
+42203	https://www.city.shimabara.lg.jp/reiki/reiki.htm	reiki.html	enabled		
 42204	https://www1.g-reiki.net/city.isahaya.nagasaki/reiki_menu.html	g-reiki	enabled		
 42205	https://www1.g-reiki.net/omura/reiki_menu.html	g-reiki	enabled		
 42207	https://krq308.legal-square.com/HAS-Shohin/page/SJSrbLogin.jsf	legal-square	enabled		
