@@ -156,6 +156,140 @@ class RecentOnlyListLinksTest(unittest.TestCase):
         self.assertFalse(dbsr.list_links_cover_recent_years_only(items))
 
 
+class KeywordListUrlTest(unittest.TestCase):
+    def test_plain_phrase_is_a_keyword_list(self) -> None:
+        self.assertTrue(
+            dbsr.is_keyword_list_url(
+                "https://example.dbsr.jp/index.php/1?Template=list&Phrase=%E8%A6%B3%E5%85%89&QueryType=New"
+            )
+        )
+
+    def test_bracketed_phrase_is_a_keyword_list(self) -> None:
+        # 荒尾市は Phrase[]= で渡す。正規化すると Phrase%5B%5D= になり、
+        # 「phrase=」の文字列照合をすり抜けて検索語ごとに会議が複製されていた。
+        url = dbsr.canonicalize_template_url(
+            "https://www.city.arao.kumamoto.dbsr.jp/index.php/5260491"
+            "?QueryType=New&Template=list&Phrase[]=%E4%B8%8B%E6%B0%B4%E9%81%93"
+        )
+        self.assertIn("Phrase%5B%5D=", url)
+        self.assertTrue(dbsr.is_keyword_list_url(url))
+
+    def test_session_list_is_not_a_keyword_list(self) -> None:
+        self.assertFalse(
+            dbsr.is_keyword_list_url(
+                "https://example.dbsr.jp/index.php/1?Template=list&Cabinet=1&TermStart=2026-06-04&TermEnd=2026-06-23"
+            )
+        )
+
+
+class FakeListPage:
+    def __init__(self) -> None:
+        self.visited: list[str] = []
+
+    def goto(self, url: str, **_kwargs) -> None:
+        self.visited.append(url)
+
+    def wait_for_load_state(self, *_args, **_kwargs) -> None:
+        return None
+
+
+class RecentOrWidenedTest(unittest.TestCase):
+    SOURCE_URL = "https://www.city.example.dbsr.jp/index.php/"
+
+    def setUp(self) -> None:
+        self.original_extract = dbsr.extract_document_rows_from_page
+
+    def tearDown(self) -> None:
+        dbsr.extract_document_rows_from_page = self.original_extract
+
+    def _items(self, urls):
+        return {
+            url: dbsr.ListPage(title="", year_label="", url=url, meeting_group="", auxiliary_docs=[])
+            for url in urls
+        }
+
+    def _source_starts(self, held_on: str | None) -> None:
+        rows = [] if held_on is None else [dbsr.DocumentRow(title="平成18年第１回臨時会 本文", url="u", held_on=held_on)]
+        dbsr.extract_document_rows_from_page = lambda _page: rows
+
+    def _session_links(self, years):
+        return self._items(
+            [
+                f"https://www.city.example.dbsr.jp/index.php/1?Template=list&Cabinet=1&TermStart={year}-06-01&TermEnd={year}-06-20"
+                for year in years
+            ]
+        )
+
+    def test_recent_window_spanning_five_calendar_years_is_widened(self) -> None:
+        # 宮若市の入口は 2022〜2026 年の会期だけを並べる。年の幅では直近分と
+        # 判断できないが、取得元の全期間一覧は 2006 年から始まる。
+        self._source_starts("2006-03-29")
+        page = FakeListPage()
+
+        pages, source = dbsr.recent_or_widened(
+            self._session_links(range(2022, 2027)), page, self.SOURCE_URL, 1_000
+        )
+
+        self.assertEqual(source, dbsr.DISCOVERY_SOURCE_FULL_PERIOD)
+        self.assertEqual(len(pages), 1)
+        self.assertEqual(pages[0].url, page.visited[0])
+        self.assertIn("TermStart=1970-01-01", pages[0].url)
+        self.assertIn("ListOrder=Asc", pages[0].url)
+
+    def test_links_reaching_the_oldest_document_are_the_whole_library(self) -> None:
+        # 生駒市の入口は 2006〜2026 年を並べ、取得元の最古も 2006 年。
+        # 全部取れているのに「直近分しか出していない」と出していた。
+        self._source_starts("2006-02-23")
+        items = self._session_links(range(2006, 2027))
+
+        pages, source = dbsr.recent_or_widened(items, FakeListPage(), self.SOURCE_URL, 1_000)
+
+        self.assertEqual(source, dbsr.DISCOVERY_SOURCE_LIBRARY)
+        self.assertEqual([page.url for page in pages], list(items))
+
+    def test_year_links_mixed_with_whole_period_links_are_the_whole_library(self) -> None:
+        # 千代田区は会議種別ごとの全期間リンクと、1974 年からの年別リンクを並べる。
+        self._source_starts("1974-02-20")
+        items = self._items(
+            [
+                "https://www.city.example.dbsr.jp/index.php/100000?Template=list&Cabinet=1&ListOrder=asc&QueryType=new",
+                "https://www.city.example.dbsr.jp/index.php/100000?Template=list&Cabinet=1&ListOrder=asc&QueryType=new&TermEndYear=1974&TermStartYear=1974",
+                "https://www.city.example.dbsr.jp/index.php/100000?Template=list&Cabinet=1&ListOrder=asc&QueryType=new&TermEndYear=2026&TermStartYear=2026",
+            ]
+        )
+
+        _pages, source = dbsr.recent_or_widened(items, FakeListPage(), self.SOURCE_URL, 1_000)
+
+        self.assertEqual(source, dbsr.DISCOVERY_SOURCE_LIBRARY)
+
+    def test_unreadable_full_period_list_stays_recent(self) -> None:
+        # 取得元の最古が確かめられないなら、従来どおり直近分として扱う。
+        self._source_starts(None)
+        items = self._session_links(range(2022, 2027))
+
+        pages, source = dbsr.recent_or_widened(items, FakeListPage(), self.SOURCE_URL, 1_000)
+
+        self.assertEqual(source, dbsr.DISCOVERY_SOURCE_RECENT)
+        self.assertEqual([page.url for page in pages], list(items))
+
+    def test_without_page_behaves_as_before(self) -> None:
+        items = self._session_links(range(2022, 2027))
+
+        _pages, source = dbsr.recent_or_widened(items)
+
+        self.assertEqual(source, dbsr.DISCOVERY_SOURCE_RECENT)
+
+    def test_narrow_links_are_widened_without_probing(self) -> None:
+        # 荒尾市（キーワード一覧を除くと 2025〜2026 年の会期だけ）。
+        page = FakeListPage()
+
+        pages, source = dbsr.recent_or_widened(self._session_links([2025, 2026]), page, self.SOURCE_URL, 1_000)
+
+        self.assertEqual(source, dbsr.DISCOVERY_SOURCE_FULL_PERIOD)
+        self.assertEqual(page.visited, [])
+        self.assertTrue(all("TermStart=1970-01-01" in list_page.url for list_page in pages))
+
+
 class WidenedPeriodListPagesTest(unittest.TestCase):
     def _items(self, urls):
         return {

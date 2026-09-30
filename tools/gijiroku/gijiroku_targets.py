@@ -33,6 +33,7 @@ SYSTEM_FAMILY_ALIASES = {
     "kensakusystem": {"kensakusystem"},
     "amivoice": {"amivoice"},
     "voicetechno": {"voicetechno"},
+    "iwate-kengikai": {"iwate-kengikai"},
     "msearch": {"msearch"},
     "kami-city-pdf": {"kami-city-pdf"},
     "site-gikai-pdf": {"site-gikai-pdf"},

@@ -35,6 +35,11 @@ import gijiroku_targets
 
 
 DEFAULT_WAIT_MS = 10_000
+# 本文 API（minutes/get_minute）は発言ごとに関連発言へのリンク（minute_link）まで
+# 返すので、長い会議では応答が 10MB を超え、返るまでに 15 秒以上かかる（柏市
+# 平成22年第4回定例会 08号は 13MB・16 秒）。既定の 10 秒で切ると、毎回同じ会議が
+# 同じところで落ちて「エラー停止」から抜けられない。本文 API だけ待ち時間を延ばす。
+MINUTE_API_MIN_TIMEOUT_MS = 60_000
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
@@ -468,7 +473,16 @@ def fetch_schedule_minutes(page, api_root: str, item: MeetingItem, timeout_ms: i
         return 0, ""
 
     if "目次" in item.title:
-        index_text = fetch_council_index_text(page, api_root, item, timeout_ms)
+        # 索引 API（minutes/get_index）は、取得元によって特定の会議だけ毎回
+        # HTTP 500 を返す（四街道市 council_id=172・日田市 139・綾町 104、
+        # 2026-10 確認）。同じ目次は本文 API に目次の schedule_id を渡しても
+        # 返る（日田市 council_id=190 で両者の本文が一致）。索引 API が失敗
+        # したら本文 API で取り直し、目次 1 件のために自治体ごと止めない。
+        try:
+            index_text = fetch_council_index_text(page, api_root, item, timeout_ms)
+        except RuntimeError as exc:
+            print(f"[WARN] 目次を本文 API で取り直します: {exc}", flush=True)
+            index_text = ""
         if index_text:
             return 1, index_text
 
@@ -482,7 +496,7 @@ def fetch_schedule_minutes(page, api_root: str, item: MeetingItem, timeout_ms: i
             "council_id": item.council_id,
             "schedule_id": item.schedule_id,
         },
-        timeout_ms,
+        max(timeout_ms, MINUTE_API_MIN_TIMEOUT_MS),
         referer=item.url,
     )
     tenant_minutes = minute_data.get("tenant_minutes", [])

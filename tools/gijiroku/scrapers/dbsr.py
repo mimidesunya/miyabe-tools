@@ -437,6 +437,17 @@ def detect_meeting_group(text: str, title_text: str) -> str:
     return normalize_space(page_title) or "会議録"
 
 
+def is_keyword_list_url(list_url: str) -> bool:
+    """キーワード検索の結果一覧（Phrase=）か。会議の一覧ではない。
+
+    拾うと同じ会議が検索語の数だけ複製され、年ラベルに検索語が入る
+    （桑名市・日南市など 10 自治体で 22,848 件）。荒尾市は検索語を
+    `Phrase[]=` で渡すので、正規化した URL では `Phrase%5B%5D=` になり、
+    `phrase=` の文字列照合をすり抜けていた。クエリのキー名で見る。
+    """
+    return any(key.lower().startswith("phrase") for key, _ in cleaned_query_pairs(list_url))
+
+
 def collect_list_page_entries(page, entries, year_label: str, items: dict[str, ListPage]) -> None:
     for entry_index in range(entries.count()):
         entry = entries.nth(entry_index)
@@ -455,6 +466,8 @@ def collect_list_page_entries(page, entries, year_label: str, items: dict[str, L
 
             href_lower = href.lower()
             if "template=list" in href_lower and list_url == "":
+                if is_keyword_list_url(absolute_url):
+                    continue
                 list_url = absolute_url
                 meeting_group = detect_meeting_group(text, page.title())
                 continue
@@ -504,10 +517,8 @@ def collect_template_list_links(
         if not href:
             continue
         list_url = canonicalize_template_url(urljoin(page_url, href))
-        # キーワード検索の結果一覧（Phrase=）は会議の一覧ではない。拾うと
-        # 同じ会議が検索語の数だけ複製され、年ラベルに検索語が入る。
-        # 桑名市・日南市など 10 自治体で 22,848 件がこの形だった。
-        if "phrase=" in list_url.lower():
+        # キーワード検索の結果一覧（Phrase=）は会議の一覧ではない。
+        if is_keyword_list_url(list_url):
             continue
         if list_url in items:
             continue
@@ -848,7 +859,52 @@ def widened_period_list_pages(
     ]
 
 
-def recent_or_widened(items: dict[str, ListPage]) -> tuple[list[ListPage], str]:
+def oldest_term_year(items: dict[str, ListPage]) -> int | None:
+    """一覧リンクが期間で指している、いちばん古い年。期間つきが無ければ None。"""
+    years = [
+        int(value)
+        for list_url in items
+        for value in re.findall(r"Term(?:Start|End)(?:Year)?=(\d{4})", list_url)
+    ]
+    return min(years) if years else None
+
+
+def oldest_source_document_year(
+    page, source_url: str, timeout_ms: int, deadline: float | None = None
+) -> tuple[int | None, str]:
+    """取得元の全期間の文書一覧を古い順に開き、いちばん古い文書の年を返す。
+
+    読めなければ年は None。開いた一覧の URL も返す（そのまま歩く一覧に使える）。
+    """
+    end_year = str(datetime.date.today().year)
+    url = full_period_list_url(source_url, WIDENED_PERIOD_START[:4], end_year)
+    ensure_discovery_time(deadline, "全期間一覧の最古年")
+    try:
+        page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+        try:
+            page.wait_for_load_state("networkidle", timeout=3_000)
+        except Exception:
+            pass
+        rows = extract_document_rows_from_page(page)
+    except DiscoveryTimeoutError:
+        raise
+    except Exception:
+        return None, url
+    years = [
+        int(row.held_on[:4])
+        for row in rows
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(row.held_on or ""))
+    ]
+    return (min(years) if years else None), url
+
+
+def recent_or_widened(
+    items: dict[str, ListPage],
+    page=None,
+    source_url: str = "",
+    timeout_ms: int = DEFAULT_WAIT_MS,
+    deadline: float | None = None,
+) -> tuple[list[ListPage], str]:
     """直近分しか無い一覧なら、期間を広げた一覧に差し替えて返す。"""
     if list_links_cover_recent_years_only(items):
         widened = widened_period_list_pages(items)
@@ -857,6 +913,42 @@ def recent_or_widened(items: dict[str, ListPage]) -> tuple[list[ListPage], str]:
             return widened, DISCOVERY_SOURCE_FULL_PERIOD
         print("[INFO] 直近分の会議一覧しか見つかりませんでした", flush=True)
         return list(items.values()), DISCOVERY_SOURCE_RECENT
+
+    # 年の幅だけでは直近分かどうか決められない。「直近４年分」の窓は暦年で
+    # 5 年にまたがり（宮若市は 2022〜2026 年、取得元は 2006 年から）、全期間を
+    # 並べる入口もある（生駒市は 2006〜2026 年で取得元の最古と一致、千代田区は
+    # 1974 年から）。以前は判断できないものをすべて直近分扱いにしていたので、
+    # 全部取れている千代田区・生駒市も「取得元が直近分しか出していません」と
+    # 出ていた。取得元の全期間一覧でいちばん古い文書の年と突き合わせる。
+    oldest_link_year = oldest_term_year(items)
+    if page is not None and oldest_link_year is not None:
+        oldest_source_year, full_url = oldest_source_document_year(
+            page, source_url, timeout_ms, deadline
+        )
+        if oldest_source_year is not None:
+            if oldest_source_year >= oldest_link_year:
+                print(
+                    f"[INFO] 一覧リンクが取得元の最古の会議（{oldest_source_year}年）まで届いています",
+                    flush=True,
+                )
+                return list(items.values()), DISCOVERY_SOURCE_LIBRARY
+            print(
+                f"[INFO] 一覧リンクは {oldest_link_year}年から、取得元の文書は "
+                f"{oldest_source_year}年からあります。全期間の文書一覧を使います",
+                flush=True,
+            )
+            return (
+                [
+                    ListPage(
+                        title=f"{oldest_source_year}年〜",
+                        year_label=WIDENED_PERIOD_LABEL,
+                        url=full_url,
+                        meeting_group="",
+                        auxiliary_docs=[],
+                    )
+                ],
+                DISCOVERY_SOURCE_FULL_PERIOD,
+            )
     return list(items.values()), DISCOVERY_SOURCE_RECENT
 
 
@@ -1261,7 +1353,8 @@ def discover_list_pages(
             pass
 
     # 全期間一覧が使えないときだけ、入口ページの「最近の会議録」を拾う。
-    # ここで取れるのは直近分だけなので、収録範囲は complete とみなさない。
+    # ここで取れるのは直近分だけのことが多いので、取得元の最古の文書まで
+    # 届いていると確かめられない限り、収録範囲は complete とみなさない。
     groups = page.locator("ul.recent__links")
     for group_index in range(groups.count()):
         ensure_discovery_time(deadline, f"入口ページ一覧 {group_index + 1}/{groups.count()}")
@@ -1271,13 +1364,14 @@ def discover_list_pages(
         ) or "不明"
         collect_list_page_entries(page, group.locator("li"), year_label, items)
 
+    source_url = str(target["source_url"])
     if items:
-        return recent_or_widened(items)
+        return recent_or_widened(items, page, source_url, timeout_ms, deadline)
 
     # 入口ページに会議一覧へのリンクが直接並ぶ取得元がある（宇佐市・多摩市）。
     # search-library 側に一覧が無いだけなので、入口ページのリンクを拾う。
     if collect_template_list_links(page, items, deadline, "入口ページのリンク"):
-        return recent_or_widened(items)
+        return recent_or_widened(items, page, source_url, timeout_ms, deadline)
 
     # 入口ページにも一覧が無く、閲覧メニューや会議名検索の先にしか
     # 一覧を置かない取得元がある（碧南市・福岡市など）。

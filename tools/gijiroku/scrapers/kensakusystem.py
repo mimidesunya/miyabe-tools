@@ -64,6 +64,20 @@ NON_DOCUMENT_FILE_RE = re.compile(
     r"(?:FUGI|FUTA|GIAN|GIIN|IINK|IKEN|KAIK|KETS|MEIB|MOKU|QUES|SAKU|SANP|SEIG|SING|TUKO)(?:\.html?)?$",
     flags=re.I,
 )
+# 取得元が文書ファイルを失っているときの応答。HTTP 200 のまま、フレームの代わりに
+# 「ERROR:ファイルの読込みに失敗しました。<BR>H240223B23」だけを返す（伊丹市の
+# 中心市街地活性化等対策特別委員会 平成24年2月23日・平成25年3月22日、2026-10 確認）。
+# 一覧にはリンクが残っているので、何度取りに行っても同じ応答になる。
+SOURCE_FILE_MISSING_RE = re.compile(r"ERROR\s*[:：]\s*ファイルの読込みに失敗しました")
+
+
+class SourceDocumentMissing(RuntimeError):
+    """取得元が文書ファイルを読めないと答えた。こちらの取り損ねではない。"""
+
+
+def raise_if_source_file_missing(page_html: str, url: str) -> None:
+    if SOURCE_FILE_MISSING_RE.search(page_html or ""):
+        raise SourceDocumentMissing(f"取得元が文書ファイルを読めないと応答しました: {url}")
 
 
 @dataclass
@@ -463,6 +477,7 @@ def fetch_meeting_text(opener, item: MeetingItem, timeout_ms: int) -> tuple[int,
     result_frame_html, result_frame_url = request_text(opener, item.url, timeout_ms, referer=item.url)
     text_frame_src = first_frame_src(result_frame_html, "r_TextFrame.exe")
     if not text_frame_src:
+        raise_if_source_file_missing(result_frame_html, item.url)
         raise RuntimeError(f"ResultFrame から本文フレームを取得できませんでした: {item.url}")
 
     text_frame_url = urljoin(result_frame_url, text_frame_src)
@@ -476,9 +491,12 @@ def fetch_meeting_text(opener, item: MeetingItem, timeout_ms: int) -> tuple[int,
         # PRINT_ALL の切り替えは無く、1 枚で本文全体が返る。
         get_html_src = first_frame_src(text_frame_html, "GetHTML.exe")
         if not get_html_src:
+            raise_if_source_file_missing(text_frame_html, text_frame_url)
             raise RuntimeError(f"r_TextFrame から GetText3 / GetHTML を取得できませんでした: {text_frame_url}")
         full_text_url = urljoin(resolved_text_frame_url, get_html_src.split("#", 1)[0])
     full_html, _ = request_text(opener, full_text_url, timeout_ms, referer=resolved_text_frame_url)
+    # 本文の段で同じ応答が返ると、エラー文を会議録として保存してしまう。
+    raise_if_source_file_missing(full_html, full_text_url)
     body_text = extract_document_body(full_html)
     if not body_text:
         raise RuntimeError(f"本文テキストを抽出できませんでした: {item.url}")
@@ -704,6 +722,11 @@ def main() -> int:
                 output_path = str(dest)
                 status = "saved_text"
                 saved_count += 1
+            except SourceDocumentMissing as exc:
+                # 取得元が失った文書。取得エラーに数えると、この 1 件のために
+                # 自治体ごと「エラー停止」のまま動かなくなる。
+                status = "source_missing"
+                error_msg = str(exc)
             except Exception as exc:
                 status = "error"
                 error_msg = str(exc)
@@ -747,6 +770,32 @@ def main() -> int:
             emit_progress(saved_count, len(meeting_items), state_path, state)
             if args.delay_seconds > 0 and idx < len(work_items):
                 time.sleep(args.delay_seconds)
+
+    # 取れた数・取得元の欠落・失敗の内訳を残す。保存ファイルを数えるだけだと、
+    # 取得元が失った文書まで「未取得」になり、自治体ごと完了にならない。
+    # 数えるのは計画の全件。再開実行で処理しなかった既存本文も取れた分に入れる。
+    downloaded_count = 0
+    status_counts: dict[str, int] = {}
+    for plan in planned_items:
+        if gijiroku_storage.existing_output(plan["dest_base"]) is not None:
+            downloaded_count += 1
+            continue
+        item_state = state.get("items", {}).get(plan["resume_key"], {})
+        status = str(item_state.get("status") or "").strip() or "not_found"
+        status_counts[status] = status_counts.get(status, 0) + 1
+    validation = gijiroku_storage.apply_classified_scrape_validation(
+        state_path,
+        state,
+        discovered_count=len(meeting_items),
+        downloaded_count=downloaded_count,
+        status_counts=status_counts,
+    )
+    emit_progress(
+        int(validation["progress_current"]),
+        int(validation["progress_total"]),
+        state_path,
+        state,
+    )
 
     print(f"[DONE] Saved index: {index_json}")
     print(f"[DONE] Result log : {result_csv}")

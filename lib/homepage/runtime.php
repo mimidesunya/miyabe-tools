@@ -543,6 +543,7 @@ function homepage_gijiroku_acquisition_status(
         'shizuoka-notes', 'chuo-kugikai', 'nakano-kugikai',
         'echizen-search', 'yoshinogawa-asp',
         'izumi-cake', 'oumu-dbpocket', 'kin-jsp', 'voicetechno',
+        'iwate-kengikai',
     ];
     if (!in_array($systemType, $recordsWalk, true)) {
         // 系統名に日本語（独自）が混じるので、小文字化前の値でも見る。
@@ -1868,6 +1869,26 @@ function homepage_display_with_search_coverage(array $display, ?array $searchCov
     return $display;
 }
 
+// 表示の警告行に、ほかの表示の警告行を足す。
+// データが無い間は反映の表示をそのまま出すが、「警告あり」の判定は取得の表示の
+// 警告も見ている。載せないと、初山別村（PDF 29 件がすべて文字情報なし）のように
+// 理由の書かれていない「警告あり」だけが出る。
+function homepage_task_display_merge_warning_lines(array $display, array $sources): array
+{
+    $lines = homepage_task_display_warning_lines($display);
+    foreach ($sources as $source) {
+        foreach (homepage_task_display_warning_lines(is_array($source) ? $source : null) as $line) {
+            if (!in_array($line, $lines, true)) {
+                $lines[] = $line;
+            }
+        }
+    }
+    if ($lines !== []) {
+        $display['warning_lines'] = $lines;
+    }
+    return $display;
+}
+
 function homepage_feature_card_display(
     string $featureKey,
     array $feature,
@@ -1891,7 +1912,9 @@ function homepage_feature_card_display(
     }
 
     if (!is_array($fallbackDisplay)) {
-        return is_array($statusDisplay) ? $statusDisplay : null;
+        return is_array($statusDisplay)
+            ? homepage_task_display_merge_warning_lines($statusDisplay, [$primaryDisplay])
+            : null;
     }
     if (!is_array($statusDisplay)) {
         return $fallbackDisplay;
@@ -1922,7 +1945,8 @@ function homepage_feature_card_display(
     }
 
     $warningLines = [];
-    foreach ([$statusDisplay, $publishDisplay, $fallbackDisplay] as $warningDisplay) {
+    // 取得の表示の警告も載せる（homepage_task_display_merge_warning_lines と同じ理由）。
+    foreach ([$statusDisplay, $primaryDisplay, $publishDisplay, $fallbackDisplay] as $warningDisplay) {
         foreach (homepage_task_display_warning_lines(is_array($warningDisplay) ? $warningDisplay : null) as $line) {
             if (!in_array($line, $warningLines, true)) {
                 $warningLines[] = $line;
@@ -2150,6 +2174,7 @@ function homepage_feature_supported_system_types(string $featureKey): array
             'oumu-dbpocket',
             'kin-jsp',
             'voicetechno',
+            'iwate-kengikai',
         ], true),
         // tools/reiki/scrape_all_reiki.py の SUPPORTED_SYSTEMS と同期する。
         'reiki' => array_fill_keys([
@@ -2215,21 +2240,24 @@ function homepage_feature_registry_state(string $featureKey, string $municipalit
     $crawlStatus = strtolower(trim((string)($entry['crawl_status'] ?? '')));
     $detail = trim((string)($entry['exclusion_detail'] ?? ''));
 
-    if ($sourceUrl === '' || $crawlStatus === 'unresolved') {
-        return [
-            'registered' => true,
-            'state' => 'source_unresolved',
-            'label' => '取得元未特定',
-            'detail' => $detail !== '' ? $detail : '取得元URLをまだ特定できていません。',
-            'system_type' => $systemType,
-        ];
-    }
+    // 「公開していない」と確かめて対象外にした行は、URL が空でも対象外と出す。
+    // URL の有無を先に見ると「取得元未特定」になり、まだ探しているように見える
+    // （2026-10-01 の例規で 7 件: 北方領土 5・大任町・諸塚村）。
     if (in_array($crawlStatus, ['excluded', 'disabled'], true)) {
         return [
             'registered' => true,
             'state' => 'excluded',
             'label' => '取得対象外',
             'detail' => $detail !== '' ? $detail : '取得方針により自動取得の対象外です。',
+            'system_type' => $systemType,
+        ];
+    }
+    if ($sourceUrl === '' || $crawlStatus === 'unresolved') {
+        return [
+            'registered' => true,
+            'state' => 'source_unresolved',
+            'label' => '取得元未特定',
+            'detail' => $detail !== '' ? $detail : '取得元URLをまだ特定できていません。',
             'system_type' => $systemType,
         ];
     }
@@ -3324,12 +3352,16 @@ function homepage_collect_visible_features(
                 $availabilityState = 'runtime_error';
             }
             $mode = 'disabled';
-        } elseif ($hasWarning) {
+        } elseif ($hasWarning && !homepage_registry_state_overrides_error($registryState)) {
+            // 台帳で取得しないと決めた取得元（取得対象外・取得元未特定など）に
+            // 残った警告や完了表示は、エラーと同じく過去の実行の名残である。
+            // これを先に出していたので、直島町・御宿町・留寿都村・長沼町は台帳の
+            // 判断が見えず、中身の無い「警告あり」になっていた。
             $statusLabel = '警告あり';
             $statusClass = 'status-warning';
             $availabilityState = 'warning';
             $mode = 'disabled';
-        } elseif ($needsPublish) {
+        } elseif ($needsPublish && !homepage_registry_state_overrides_error($registryState)) {
             $statusLabel = '要反映';
             $statusClass = 'status-needs-build';
             $availabilityState = 'publish_pending';

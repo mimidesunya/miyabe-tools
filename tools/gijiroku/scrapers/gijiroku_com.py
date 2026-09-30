@@ -226,6 +226,37 @@ def with_all_speeches(url: str) -> str:
     return re.sub(r"HATSUGENMODE=\d+", "HATSUGENMODE=1", url)
 
 
+# 本文の容れ物（ACT=200）や本文（ACT=203）が発言を返せなかったときの応答。
+# 「該当する発言がありませんでした。キーワードの見直しをして…」だけが返る。
+NO_SPEECH_MARKER = "該当する発言がありませんでした"
+
+
+def act203_url_from_act200(act200_url: str) -> str:
+    """容れ物（ACT=200）を経ずに、本文（ACT=203）の URL を組み立てる。
+
+    大田区の平成22年5月25日 総務財政委員会は同じ日に 2 回開かれ（FINO=1108・1109）、
+    題名も同じ「05月25日-01号」になる。この 2 件だけ ACT=200 が「該当する発言が
+    ありませんでした」を返して本文の枠を持たず、毎回 saved_html（本文なし）で
+    止まっていた。同じ FINO と HUID を ACT=203 に渡すと本文が返る（2026-10 確認）。
+    本文 URL と同じく Shift_JIS のまま百分率符号化されているので、組み立て直さず
+    項目を差し替えるだけにする。
+    """
+    parts = urlsplit(act200_url)
+    dropped = ("ACT=", "KGNO=", "UNID=", "HATSUGENMODE=", "HYOUJIMODE=", "STYLE=")
+    kept = [item for item in parts.query.split("&") if item and not item.startswith(dropped)]
+    query = "&".join(["ACT=203", *kept, "HATSUGENMODE=1", "HYOUJIMODE=0", "STYLE=0"])
+    return parts._replace(query=query, fragment="").geturl()
+
+
+def act203_url_from_act200_page(act200_url: str, act200_html: str) -> str:
+    for src in re.findall(r"<FRAME[^>]+SRC=\"([^\"]+)\"", act200_html, flags=re.I):
+        if "ACT=203" in src:
+            return with_all_speeches(urljoin(act200_url, src))
+    if NO_SPEECH_MARKER in act200_html:
+        return act203_url_from_act200(act200_url)
+    return ""
+
+
 def resolve_act203_url(request_context, act100_url: str, timeout_ms: int) -> str:
     # 一覧の会議リンクは `ACT=100`（枝）と `ACT=200`（本文の容れ物）に分かれる。
     # `ACT=200` はフレームの外枠でしかなく、本文は `ACT=203` にある。
@@ -235,10 +266,7 @@ def resolve_act203_url(request_context, act100_url: str, timeout_ms: int) -> str
         act200_html, _ = fetch_response_text(request_context, act100_url, timeout_ms)
         if not act200_html:
             return ""
-        for src in re.findall(r"<FRAME[^>]+SRC=\"([^\"]+)\"", act200_html, flags=re.I):
-            if "ACT=203" in src:
-                return with_all_speeches(urljoin(act100_url, src))
-        return ""
+        return act203_url_from_act200_page(act100_url, act200_html)
 
     act100_html, _ = fetch_response_text(request_context, act100_url, timeout_ms)
     if not act100_html:
@@ -270,12 +298,7 @@ def resolve_act203_url(request_context, act100_url: str, timeout_ms: int) -> str
     act200_html, _ = fetch_response_text(request_context, act200_url, timeout_ms)
     if not act200_html:
         return ""
-
-    frame_srcs = re.findall(r"<FRAME[^>]+SRC=\"([^\"]+)\"", act200_html, flags=re.I)
-    for src in frame_srcs:
-        if "ACT=203" in src:
-            return with_all_speeches(urljoin(act200_url, src))
-    return ""
+    return act203_url_from_act200_page(act200_url, act200_html)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -479,6 +502,7 @@ def discover_legacy_voices_meeting_items(
     declared_totals: list[int] = []
     # 開けなかった一覧。その先の会議はまるごと見えなくなるので、数えて残す。
     missed_pages: list[str] = []
+    limit_reached = False
 
     while pending_urls:
         page_url = pending_urls.pop(0)
@@ -515,6 +539,7 @@ def discover_legacy_voices_meeting_items(
                 flush=True,
             )
         if max_meetings > 0 and len(meetings) >= max_meetings:
+            limit_reached = True
             break
         for candidate_url in page_urls:
             if candidate_url not in visited_pages and candidate_url not in pending_urls:
@@ -525,15 +550,49 @@ def discover_legacy_voices_meeting_items(
     uniq: dict[tuple[str, str], MeetingItem] = {}
     for item in meetings:
         uniq[(item.title, item.url)] = item
-    if coverage is not None and missed_pages:
+    if missed_pages:
+        print(f"[WARN] 一覧 {len(missed_pages)} 件を開けませんでした。", flush=True)
+    if coverage is not None:
+        # 走査記録は前回の記録に今回の値を重ねて保存される。開けなかった一覧が
+        # 無いときも 0 を書かないと、とうに開けるようになった一覧が「開けな
+        # かった」まま残る。各務原市は 1,620 件を見つけた回にも、最初の一覧を
+        # 開けなかった昔の記録を持ち続けていた。最初の一覧は唯一の起点なので、
+        # 本当に開けなければ 1 件も見つからない。
         coverage["missed_pages"] = len(missed_pages)
         coverage["missed_examples"] = missed_pages[:10]
-        print(f"[WARN] 一覧 {len(missed_pages)} 件を開けませんでした。", flush=True)
-    if coverage is not None and declared_totals:
+        coverage["visited_pages"] = len(visited_pages)
+        coverage["limit_reached"] = limit_reached
         # 旧経路でも取得元の申告母数を残す。富士市はここで 14 件しか拾えず、
         # 一覧は 1,761 件と申告していた。比べる相手を捨てていた。
-        coverage["declared_total"] = max(declared_totals)
+        coverage["declared_total"] = max(declared_totals) if declared_totals else 0
     return list(uniq.values())
+
+
+def legacy_voices_walk_state(walk: dict, discovered: int) -> str:
+    """古い voices 型の一覧を歩き切れたかを決める。
+
+    この型は年度ページを歩かないので walked_years が 0 のままになる。以前は
+    一律に unknown と書いていたので、一覧を最後まで歩けた調布市（3,362 件）・
+    伊東市（943 件）などの 14 自治体も「取得範囲未判定」のまま、キューからは
+    永久に未完了と見なされていた。
+
+    歩き切れたと言えるのは、起点から辿れた一覧（年の絞り込み・ページ送り）を
+    すべて開けて、辿るものが尽きたとき。一覧の「N件の日程がヒットしました」は
+    最初の一覧を開いた時点で出る取得元の数え（各務原市 1,620 件）で、こちらが
+    見つけた件数を映したものではない。ただし完了の根拠にはせず、見つけた件数が
+    それより少ないとき（歩き残しがある）の検出にだけ使う。
+    """
+    if int(walk.get("missed_pages") or 0) > 0:
+        return "partial_error"
+    if walk.get("limit_reached"):
+        return "partial_limit"
+    if discovered <= 0:
+        # 起点の一覧は開けたのに 1 件も無い。歩き切ったとは言えない。
+        return "unknown"
+    declared = int(walk.get("declared_total") or 0)
+    if declared > 0 and discovered < declared:
+        return "partial_error"
+    return "complete"
 
 
 def discover_meeting_items(
@@ -673,6 +732,12 @@ def discover_meeting_items(
                 # 取得元の申告母数。年度で絞らない一覧が出す全体の件数と
                 # 同じ値が各年度ページにも出るので、最大値を取る。
                 "declared_total": max(declared_totals) if declared_totals else 0,
+                # 走査記録は前回の記録に重ねて保存される。旧経路の値を消して
+                # おかないと、年度ページで歩けた回にも旧経路の「開けなかった
+                # 一覧」や経路名が残る。
+                "discovery_source": "year_pages",
+                "missed_pages": 0,
+                "missed_examples": [],
             }
         )
     uniq: dict[tuple[str, str], MeetingItem] = {}
@@ -755,7 +820,8 @@ def try_download_from_detail(page, item: MeetingItem, output_dir: Path, timeout_
         act203_url = resolve_act203_url(page.context.request, item.url, timeout_ms)
         if act203_url:
             full_html, _ = fetch_response_text(page.context.request, act203_url, timeout_ms)
-            if full_html:
+            # 「該当する発言がありませんでした」を会議録として保存しない。
+            if full_html and NO_SPEECH_MARKER not in full_html:
                 text = html_to_text(full_html)
                 dest = gijiroku_storage.write_text(
                     output_dir / (stem + ".txt"),
@@ -875,12 +941,14 @@ def main() -> int:
         # 「発見はしたが全部歩けたかは不明」のまま永久に区別が付かない。
         if args.max_meetings > 0:
             walk_state = "partial_limit"
+        elif walk.get("discovery_source") == "legacy_voices":
+            # 古い voices 型は年度を歩く形ではない。一覧を開き切れたかで決める。
+            walk_state = legacy_voices_walk_state(walk, len(meeting_items))
         elif walk.get("skipped_years"):
             walk_state = "partial_error"
         elif walk.get("walked_years"):
             walk_state = "complete"
         else:
-            # 古い voices 型は年度を歩く形ではないので、完了とは言えない。
             walk_state = "unknown"
         state["source_coverage"] = {
             **previous_coverage,

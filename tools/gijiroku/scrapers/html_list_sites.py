@@ -19,6 +19,7 @@
 | nakano-kugikai | 中野区議会 | `search.html` の年チェック | `view.html?gijiroku_id=` |
 | echizen-search | 越前市議会（poseidon） | `Record/?treedepth=年` | `Document4/index.exe` |
 | yoshinogawa-asp | 吉野川市議会（ASP） | `index.asp` の年見出し | 日ごとの枠の発言ページを連結 |
+| iwate-kengikai | 岩手県議会（県の会議録システム） | `Zenbun/` のツリー（年 → 定例会 → 種別） | 目次の日の範囲 `page/<id>/<開始>/<終了>` |
 
 使い方:
     python3 tools/gijiroku/scrapers/html_list_sites.py --slug 13102-chuo-ku --ack-robots --max-meetings 3
@@ -828,11 +829,107 @@ class Voicetechno(Adapter):
         return text.strip()
 
 
+class IwateKengikai(Adapter):
+    """岩手県議会の会議録（県の会議録システム `www3.pref.iwate.jp/gikai/user/www/Zenbun/`）。
+
+    県議会サイト（iwatekengikai.gijiroku.com）の voices は廃止され、`voices/CGI/`
+    は 404 を返す。県議会トップの「本会議会議録」「予算・決算特別委員会会議記録」
+    はこちらを指している（平成7年から、2026-10 時点で目次 234 件）。
+
+    入口のツリーに 年 → 定例会 → 会議種別（本会議・予算特別委員会…）が並び、
+    種別ごとの目次（`mokuji/<id>`）に日（「第１号（２月13日）」）と発言者ごとの
+    範囲（`page/<id>/<開始>/<終了>`）が並ぶ。範囲は日の頭から次の日の頭の手前まで
+    まとめて指定しても 1 枚で返るので、日ごとに 1 件の会議にする。
+    """
+
+    system_type = "iwate-kengikai"
+    # ツリーの枝（年・定例会）と、目次へのリンク（会議種別）を文書の順に拾う。
+    TREE_RE = re.compile(
+        r"clickTree\(&#39;([^&]+)&#39;\)"
+        r"|href=[\"']([^\"']*/Zenbun/mokuji/\d+)[\"'][^>]*>\s*<span>([^<]+)</span>"
+    )
+    RANGE_RE = re.compile(
+        r"<a\b[^>]*href=[\"']([^\"']*/Zenbun/page/(\d+)/(\d+)/(\d+))[\"'][^>]*>(.*?)</a>",
+        re.S,
+    )
+    DAY_RE = re.compile(r"^第\s*[0-9０-９]+\s*号")
+    # 本文は前後の「前へ／次へ」の表に挟まれた 1 つの div にある。
+    BODY_START = '<div style="width:600px'
+
+    @classmethod
+    def day_ranges(cls, mokuji_html: str, mokuji_url: str) -> list[tuple[str, str]]:
+        """目次から (日の見出し, その日全体を指す URL) を返す。
+
+        日の見出しの後ろに発言者ごとの範囲が続くので、次の日の見出しまでを
+        その日の範囲に含める。
+        """
+        days: list[list] = []
+        for path, doc_id, start, end, body in cls.RANGE_RE.findall(mokuji_html):
+            # 委員会の目次は「第１号<br>３月４日（水）」と改行を挟む。題名は 1 行にする。
+            text = normalize_space(re.sub(r"\s+", " ", html_to_text(body)))
+            if cls.DAY_RE.match(text) or not days:
+                days.append([text, path.rsplit("/", 3)[0], doc_id, int(start), int(end)])
+            elif doc_id == days[-1][2]:
+                days[-1][4] = max(days[-1][4], int(end))
+        return [
+            (text, urljoin(mokuji_url, f"{prefix}/{doc_id}/{start}/{end}"))
+            for text, prefix, doc_id, start, end in days
+        ]
+
+    def discover(self, session, source_url, timeout_ms, walk):
+        index_html = fetch(session, source_url, timeout_ms=timeout_ms)
+        items: list[MeetingItem] = []
+        missed: list[str] = []
+        year = ""
+        meeting = ""
+        opened = 0
+        for match in self.TREE_RE.finditer(index_html):
+            branch, mokuji_path, kind = match.groups()
+            if branch:
+                branch = normalize_space(html.unescape(branch))
+                if ERA_YEAR_RE.fullmatch(branch):
+                    year = year_label_from(branch)
+                else:
+                    meeting = branch
+                continue
+            kind = normalize_space(html.unescape(kind or ""))
+            mokuji_url = urljoin(source_url, mokuji_path)
+            opened += 1
+            if opened % 20 == 0:
+                # 目次は 200 件を超える。黙って歩くと見張りに止まったと見なされる。
+                print(f"[INFO] 目次 {opened} 件目（{meeting} {kind}）/ 会議 {len(items)} 件", flush=True)
+            try:
+                mokuji_html = fetch(session, mokuji_url, timeout_ms=timeout_ms, referer=source_url)
+            except Exception as exc:
+                missed.append(f"{mokuji_url}: {exc}")
+                continue
+            days = self.day_ranges(mokuji_html, mokuji_url)
+            if not days:
+                missed.append(f"{mokuji_url}: 日の範囲が見つかりません")
+            for day_title, url in days:
+                items.append(
+                    MeetingItem(
+                        title=normalize_space(f"{meeting} {kind} {day_title}"),
+                        url=url,
+                        year_label=year_label_from(meeting) or year or "不明",
+                        meeting_group=kind or None,
+                    )
+                )
+            time.sleep(0.5)
+        walk["missed_pages"] = len(missed)
+        walk["missed_examples"] = missed[:10]
+        return items
+
+    def fetch_text(self, session, item, timeout_ms):
+        page_html = fetch(session, item.url, timeout_ms=timeout_ms)
+        return html_to_text(slice_between(page_html, [self.BODY_START], ["</div>"]))
+
+
 ADAPTERS: dict[str, Adapter] = {
     adapter.system_type: adapter
     for adapter in (
         ShizuokaNotes(), ChuoKugikai(), NakanoKugikai(), EchizenSearch(), YoshinogawaAsp(),
-        IzumiCake(), OumuDbpocket(), KinJsp(), Voicetechno(),
+        IzumiCake(), OumuDbpocket(), KinJsp(), Voicetechno(), IwateKengikai(),
     )
 }
 

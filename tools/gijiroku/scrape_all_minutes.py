@@ -56,6 +56,7 @@ SUPPORTED_SYSTEMS = {
     "oumu-dbpocket": "scrapers/html_list_sites.py",
     "kin-jsp": "scrapers/html_list_sites.py",
     "voicetechno": "scrapers/html_list_sites.py",
+    "iwate-kengikai": "scrapers/html_list_sites.py",
 }
 SUPPORTED_INPUT_SYSTEMS = set(SUPPORTED_SYSTEMS.keys()) | {"voices", "db-search", "kaigiroku-indexphp"}
 SAVE_HTML_SYSTEMS = {
