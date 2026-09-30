@@ -182,6 +182,70 @@ def _latest_finished_item(task_name: str, slug: str) -> dict[str, Any]:
     return best
 
 
+# 「前回の実行で進んだか」を、同じ物差しで比べるための控え。
+#
+# 以前は、いまの進捗（実行中 state・成功 snapshot・一覧ファイルの件数のうち
+# 最大のもの）と、前回の実行記録の進捗（本文を取れた件数）を比べていた。
+# 物差しが違うので、何も進んでいないのに毎回「進んだ」と判定され、同じ
+# 自治体を 1 時間おきにやり直していた（2026-09-30 の本番で 14 自治体。
+# 松崎町は 6 月の snapshot の 1,633 件と前回の 931 件を比べ、1 時間ごとに
+# 1,634 件の PDF を取りに行っていた。各務原市は一覧の 3,228 件と本文の
+# 1,620 件を比べていた）。
+#
+# 実行が終わったあと最初に判断したときの件数を控え、次の実行が終わったら
+# その件数と比べる。どちらも同じ関数で数えた値なので、物差しは揃う。
+INCOMPLETE_BASIS_SUFFIX = "_incomplete_basis"
+
+
+def _incomplete_basis_path(task_name: str) -> Path:
+    return batch_status.status_path(f"{task_name}{INCOMPLETE_BASIS_SUFFIX}")
+
+
+def _load_incomplete_basis(task_name: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(_incomplete_basis_path(task_name).read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _save_incomplete_basis(task_name: str, payload: dict[str, Any]) -> None:
+    path = _incomplete_basis_path(task_name)
+    temp_path = path.with_suffix(".json.tmp")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        temp_path.replace(path)
+    except Exception:
+        # 控えが書けなくても、判断は従来の比べ方に戻るだけで止まりはしない。
+        try:
+            temp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
+def _progressed_since_previous_run(
+    task_name: str, slug: str, finished_at: str, current_count: int
+) -> bool | None:
+    """直近の実行で件数が増えたか。前の控えが無ければ None。"""
+    basis = _load_incomplete_basis(task_name)
+    entry = basis.get(slug)
+    if isinstance(entry, dict) and str(entry.get("finished_at") or "") == finished_at:
+        # この実行については判断済み。同じ実行を自分自身と比べ直さない。
+        verdict = entry.get("progressed")
+        return verdict if isinstance(verdict, bool) else None
+    previous_count = None
+    if isinstance(entry, dict):
+        try:
+            previous_count = int(entry.get("count"))
+        except (TypeError, ValueError):
+            previous_count = None
+    verdict = None if previous_count is None else int(current_count) > previous_count
+    basis[slug] = {"finished_at": finished_at, "count": int(current_count), "progressed": verdict}
+    _save_incomplete_basis(task_name, basis)
+    return verdict
+
+
 def incomplete_wait_reason(task_name: str, slug: str, current_count: int) -> str:
     """取り切れていないが、いまやり直しても進まないなら、その理由を返す。"""
     item = _latest_finished_item(task_name, slug)
@@ -202,11 +266,15 @@ def incomplete_wait_reason(task_name: str, slug: str, current_count: int) -> str
     age = freshness_metadata.now_tokyo() - finished
     if age >= timedelta(seconds=INCOMPLETE_RETRY_SECONDS):
         return ""
-    try:
-        previous = int(item.get("progress_current") or 0)
-    except (TypeError, ValueError):
-        previous = 0
-    if int(current_count) > previous:
+    progressed = _progressed_since_previous_run(task_name, slug, finished_at, current_count)
+    if progressed is None:
+        # 控えが無い（初めて見る実行）。従来の比べ方で判断する。
+        try:
+            previous = int(item.get("progress_current") or 0)
+        except (TypeError, ValueError):
+            previous = 0
+        progressed = int(current_count) > previous
+    if progressed:
         # 前回より取れている。続きがあるのだから続ける。
         return ""
     return f"前回（{finished_at}）から進んでいないため待機"
@@ -465,6 +533,7 @@ def scrape_state_progress(target: dict[str, Any]) -> tuple[int, int]:
         "oumu-dbpocket",
         "kin-jsp",
         "voicetechno",
+        "iwate-kengikai",
     }
     if system_family in RECORDS_WALK and not has_explicit_coverage:
         # 走査の記録を書く系統なのに complete が無いなら、まだ歩き切れていない。

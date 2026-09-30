@@ -36,6 +36,8 @@ from kami_city_pdf import (
     clean_pdf_label,
     emit_progress,
     extract_year_info,
+    fetch_status_code,
+    normalize_href,
     normalize_pdf_text,
     normalize_space,
     normalize_year_dir,
@@ -296,6 +298,8 @@ def discover_items(
     seen_pages: set[str] = set()
     items_by_url: dict[str, StaticMinutesItem] = {}
     missed: list[str] = []
+    # 取得元でリンクが切れていたページ（入口以外の 404・410）。
+    dead: list[str] = []
     dropped_by_url: dict[str, str] = {}
     limit_reached = False
 
@@ -308,10 +312,17 @@ def discover_items(
             limit_reached = True
             break
         seen_pages.add(page_url)
+        if len(seen_pages) % 50 == 0:
+            # 子の出力が長く止まると、親が固まったとみて打ち切る。
+            print(f"[INFO] {len(seen_pages)} ページ見ました（候補 {len(items_by_url)} 件）", flush=True)
 
         try:
             page_html = request_text(session, page_url, timeout_ms)
         except Exception as exc:
+            # 入口以外で 404・410 なら、取得元のリンク切れとして分ける。
+            if len(seen_pages) > 1 and fetch_status_code(exc) in (404, 410):
+                dead.append(page_url)
+                continue
             print(f"[WARN] HTML取得失敗: {page_url} ({exc})", flush=True)
             missed.append(page_url)
             continue
@@ -379,8 +390,8 @@ def discover_items(
             if node_name != "a" or not node.has_attr("href"):
                 continue
 
-            href = str(node.get("href", "")).strip()
-            if not href or href.startswith(("mailto:", "tel:", "javascript:")):
+            href = normalize_href(node.get("href", ""))
+            if not href:
                 continue
             absolute = normalized_url(urljoin(page_url, href))
             label = clean_label(node.get_text(" ", strip=True), Path(urlsplit(absolute).path).stem or title or "会議録")
@@ -426,6 +437,8 @@ def discover_items(
             {
                 "missed_pages": len(missed),
                 "missed_examples": missed[:10],
+                "dead_pages": len(dead),
+                "dead_examples": dead[:10],
                 "limit_reached": limit_reached,
                 "visited_pages": len(seen_pages),
                 "dropped_non_minutes": len(dropped_by_url),
@@ -485,12 +498,15 @@ def main() -> int:
     print(f"[INFO] Source URL: {target['source_url']}")
     print("[INFO] 静的ディレクトリを巡回中...")
     catalog_walk: dict = {}
+    page_limit = gijiroku_storage.adaptive_page_limit(work_dir, args.max_pages)
+    if page_limit != args.max_pages:
+        print(f"[INFO] 前回はページ数の上限に当たったので、今回は {page_limit} ページまで辿ります", flush=True)
     meeting_items = discover_items(
         session,
         str(target["source_url"]),
         args.timeout_ms,
         pages_dir,
-        max_pages=args.max_pages,
+        max_pages=page_limit,
         include_html_documents=not args.no_html_documents,
         walk=catalog_walk,
     )
@@ -506,10 +522,14 @@ def main() -> int:
         missed_pages=int(catalog_walk.get("missed_pages") or 0),
         limit_reached=bool(catalog_walk.get("limit_reached")) or args.max_meetings > 0,
     )
+    state = gijiroku_storage.load_state(state_path)
+    # 縮みは「本文を取れていた会議録を見失ったか」で判断する（gikai_pdf と同じ）。
+    accepted_urls = gijiroku_storage.accepted_item_urls(state)
     plan_shrank = gijiroku_storage.meetings_index_would_shrink(
         index_json,
         [asdict(item) for item in meeting_items],
         explained_drop_count=explained_drops,
+        accepted_urls=accepted_urls,
     )
     gijiroku_storage.record_catalog_walk(
         work_dir,
@@ -520,6 +540,7 @@ def main() -> int:
         limit_reached=bool(catalog_walk.get("limit_reached")) or args.max_meetings > 0,
         extra={
             "visited_pages": int(catalog_walk.get("visited_pages") or 0),
+            "page_limit": page_limit,
             "dropped_non_minutes": crawl_dropped,
             "dropped_non_minutes_reasons": catalog_walk.get("dropped_non_minutes_reasons") or {},
         },
@@ -530,9 +551,9 @@ def main() -> int:
         index_json,
         [asdict(item) for item in meeting_items],
         explained_drop_count=explained_drops,
+        accepted_urls=accepted_urls,
     )
 
-    state = gijiroku_storage.load_state(state_path)
     emit_progress(0, len(meeting_items), state_path, state)
 
     with result_csv.open("w", encoding="utf-8", newline="") as handle:
@@ -702,6 +723,7 @@ def main() -> int:
                 index_json,
                 [asdict(item) for item in accepted_items],
                 explained_drop_count=extra_explained,
+                accepted_urls=accepted_urls,
             )
         gijiroku_storage.merge_dropped_non_minutes(work_dir, body_drop_reasons)
 

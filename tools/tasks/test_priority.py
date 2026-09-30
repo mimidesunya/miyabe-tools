@@ -231,6 +231,19 @@ class IncompleteWaitTest(unittest.TestCase):
     同じだった。進んだなら続ける。進まなかったなら 1 日置く。
     """
 
+    def setUp(self) -> None:
+        # 判断の控えはファイルに置く。テストでは手元の dict に置き換える。
+        self.basis: dict = {}
+        patches = [
+            mock.patch.object(priority, "_load_incomplete_basis", side_effect=lambda _task: dict(self.basis)),
+            mock.patch.object(
+                priority, "_save_incomplete_basis", side_effect=lambda _task, payload: self.basis.update(payload)
+            ),
+        ]
+        for patcher in patches:
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
     def _now_text(self, delta: timedelta) -> str:
         return (priority.freshness_metadata.now_tokyo() + delta).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -285,6 +298,41 @@ class IncompleteWaitTest(unittest.TestCase):
     def test_no_previous_run_does_not_wait(self) -> None:
         with mock.patch.object(priority, "task_item", return_value={}):
             self.assertEqual(priority.incomplete_wait_reason("reiki", "new-town", 0), "")
+
+    def test_different_yardsticks_do_not_loop_every_hour(self) -> None:
+        # 松崎町: いまの進捗は 6 月の snapshot の 1,633 件、前回の実行記録は
+        # 本文の 931 件。物差しが違うので毎回「進んだ」になっていた。
+        # 1 回目は控えが無いので従来どおり走らせてよいが、同じ件数のまま
+        # 次の実行が終わったら待つ。
+        first = {
+            "status": "failed",
+            "returncode": -1,
+            "finished_at": self._now_text(timedelta(hours=-2)),
+            "progress_current": 931,
+            "progress_total": 932,
+        }
+        with mock.patch.object(priority, "task_item", return_value=first):
+            self.assertEqual(priority.incomplete_wait_reason("gijiroku", "22305-matsuzaki-cho", 1633), "")
+            # 同じ実行について何度判断しても、答えは変わらない。
+            self.assertEqual(priority.incomplete_wait_reason("gijiroku", "22305-matsuzaki-cho", 1633), "")
+        second = dict(first, finished_at=self._now_text(timedelta(minutes=-10)))
+        with mock.patch.object(priority, "task_item", return_value=second):
+            self.assertTrue(priority.incomplete_wait_reason("gijiroku", "22305-matsuzaki-cho", 1633))
+
+    def test_growing_walk_keeps_going(self) -> None:
+        # 仙台市のように一覧を何回かに分けて歩く取得元は、実行ごとに件数が増える。
+        first = {
+            "status": "failed",
+            "returncode": -1,
+            "finished_at": self._now_text(timedelta(hours=-2)),
+            "progress_current": 176,
+            "progress_total": 177,
+        }
+        with mock.patch.object(priority, "task_item", return_value=first):
+            self.assertEqual(priority.incomplete_wait_reason("gijiroku", "04100-sendai-shi", 1169), "")
+        second = dict(first, finished_at=self._now_text(timedelta(minutes=-10)))
+        with mock.patch.object(priority, "task_item", return_value=second):
+            self.assertEqual(priority.incomplete_wait_reason("gijiroku", "04100-sendai-shi", 1400), "")
 
 
 if __name__ == "__main__":

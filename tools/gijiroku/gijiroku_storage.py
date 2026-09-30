@@ -24,9 +24,15 @@ TEXT_ENCODINGS = ("utf-8", "cp932", "shift_jis", "euc_jp")
 ARCHIVE_MARKER = "_archive"
 SCRAPE_VALIDATION_MODE = "classified_scrape_result"
 SCRAPE_EXCLUDED_STATUSES = frozenset(
-    {"empty_text", "empty_pdf_text", "skipped_not_minutes"}
+    {"empty_text", "empty_pdf_text", "skipped_not_minutes", "source_missing", "external_unavailable"}
 )
 SCRAPE_FAILED_STATUSES = frozenset({"error", "timeout", "not_found"})
+# 取得元の事情で取れない候補。こちらが取り損ねたのではないので失敗に数えない。
+# source_missing は取得元でリンクが切れている（404・410）、external_unavailable は
+# 自治体が張った外部の保存先に断られる（robots.txt で禁じている WARP など）。
+SCRAPE_SOURCE_SIDE_STATUSES = frozenset({"source_missing", "external_unavailable"})
+# 本文を取れた（今回取った・前回までに取ってあった）候補。
+SCRAPE_ACCEPTED_STATUSES = frozenset({"saved_text", "skipped_existing"})
 # 検索投入が読めない形式を完了扱いすると、ディスクには有るのに索引へは
 # 永久に載らない。Word の download は捨て、scraper の HTML fallback を使う。
 MINUTES_NAMED_OUTPUT_SUFFIXES = frozenset({".txt", ".html", ".htm"})
@@ -470,6 +476,33 @@ def load_source_coverage(work_dir: Path, state: dict[str, Any] | None = None) ->
     return payload
 
 
+# 一覧を辿るスクレイパのページ数の上限は、取得元によっては毎回当たる。
+# 当たったまま次回も同じ上限で走らせると「取得上限に達した部分データ」の
+# まま永久に終わらない（2026-10-01 の本番で 23 自治体。栗山町は 44 回、
+# 高浜市は 64 回、同じ 120 ページで止まっていた）。当たったら次の実行で
+# 倍にし、覚えた上限は走査記録の page_limit に残して下げない。
+PAGE_LIMIT_HARD_CAP = 2400
+
+
+def adaptive_page_limit(work_dir: Path, default: int) -> int:
+    """前回の走査記録から、今回のページ数の上限を決める。0 は上限なし。"""
+    if int(default) <= 0:
+        return int(default)
+    previous = load_source_coverage(work_dir)
+    try:
+        learned = int(previous.get("page_limit") or 0)
+    except (TypeError, ValueError):
+        learned = 0
+    try:
+        visited = int(previous.get("visited_pages") or 0)
+    except (TypeError, ValueError):
+        visited = 0
+    limit = max(int(default), learned)
+    if previous.get("limit_reached"):
+        limit = max(limit, visited) * 2
+    return min(limit, max(int(default), PAGE_LIMIT_HARD_CAP))
+
+
 def mark_walk_started(work_dir: Path, previous: dict[str, Any], when: str) -> None:
     """これから取得元を歩き直す、という印を残す。
 
@@ -773,11 +806,47 @@ def _demote_coverage_for_shrink(work_dir: Path, current: int, previous: int) -> 
         print(f"[WARN] 走査記録を直せませんでした: {error}", flush=True)
 
 
+def accepted_item_urls(state: dict[str, Any] | None) -> set[str]:
+    """これまでに本文を取れた候補の URL。"""
+    items = (state or {}).get("items")
+    if not isinstance(items, dict):
+        return set()
+    urls: set[str] = set()
+    for item in items.values():
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("status") or "") not in SCRAPE_ACCEPTED_STATUSES:
+            continue
+        url = str(item.get("url") or "").strip()
+        if url:
+            urls.add(url)
+    return urls
+
+
+def _payload_urls(payload: list[Any]) -> set[str]:
+    urls: set[str] = set()
+    for row in payload:
+        if isinstance(row, dict):
+            url = str(row.get("url") or "").strip()
+            if url:
+                urls.add(url)
+    return urls
+
+
+def lost_accepted_urls(payload: list[Any], accepted_urls: set[str] | None) -> list[str]:
+    """本文を取れていたのに、今回の一覧に出てこなかった候補。"""
+    if not accepted_urls:
+        return []
+    current = _payload_urls(payload)
+    return sorted(url for url in accepted_urls if url not in current)
+
+
 def meetings_index_would_shrink(
     path: Path,
     payload: list[Any],
     *,
     explained_drop_count: int = 0,
+    accepted_urls: set[str] | None = None,
 ) -> bool:
     """この一覧で保存すると、前回より大きく減って拒否されるか。
 
@@ -786,6 +855,13 @@ def meetings_index_would_shrink(
 
     取り切れた走査で、会議録でないと判定して落とした分は縮小の理由が
     分かっている。その件数は `explained_drop_count` で渡し、ガードは外さない。
+
+    `accepted_urls`（これまでに本文を取れた候補）を渡されたら、件数ではなく
+    「取れていた会議録を今回も見つけられたか」で判断する。件数で比べると、
+    前の版の巡回が一覧に入れた議会だより・政務活動費の報告書などの分だけ
+    毎回「大きく減った」になり、置き換えが永久に拒まれる。2026-10-01 の本番で
+    58 自治体がこの形で「エラー停止」のまま止まっていたが、本文を取れていた
+    会議録は 1 件も見失っていなかった。
     """
     try:
         existing = json.loads(path.read_text(encoding="utf-8"))
@@ -793,6 +869,9 @@ def meetings_index_would_shrink(
         return False
     if not isinstance(existing, list) or not existing:
         return False
+    if accepted_urls:
+        lost = lost_accepted_urls(payload, accepted_urls)
+        return len(lost) > len(accepted_urls) * (1.0 - PLAN_SHRINK_ALLOWANCE)
     current = len(payload)
     previous = len(existing)
     if current >= previous * PLAN_SHRINK_ALLOWANCE:
@@ -808,6 +887,7 @@ def save_meetings_index(
     payload: list[Any],
     *,
     explained_drop_count: int = 0,
+    accepted_urls: set[str] | None = None,
 ) -> None:
     """会議候補の一覧を保存する。空では上書きしない。
 
@@ -835,14 +915,26 @@ def save_meetings_index(
         # ただし取り切れた走査で会議録でないと判定して落とした分は、
         # 縮小の理由が分かっているので置き換えてよい。
         if meetings_index_would_shrink(
-            path, payload, explained_drop_count=explained_drop_count
+            path,
+            payload,
+            explained_drop_count=explained_drop_count,
+            accepted_urls=accepted_urls,
         ):
-            print(
-                f"[WARN] 今回見つけた会議候補は {len(payload)}件で、"
-                f"前回の {len(existing)}件より大きく減っています。"
-                f"前回の分を残します: {path}",
-                flush=True,
-            )
+            if accepted_urls:
+                lost = lost_accepted_urls(payload, accepted_urls)
+                print(
+                    f"[WARN] 本文を取れていた会議録 {len(accepted_urls)}件のうち "
+                    f"{len(lost)}件が、今回の一覧に出てきません。"
+                    f"前回の分を残します: {path} 例: {', '.join(lost[:3])}",
+                    flush=True,
+                )
+            else:
+                print(
+                    f"[WARN] 今回見つけた会議候補は {len(payload)}件で、"
+                    f"前回の {len(existing)}件より大きく減っています。"
+                    f"前回の分を残します: {path}",
+                    flush=True,
+                )
             # 置き換えを拒んだのに走査記録が complete のままだと、
             # 正本は前回の件数・記録は「今回の件数を取り切った」という
             # 食い違いになる。ここで降格させる。呼ぶ側に覚えさせない。
@@ -865,6 +957,15 @@ def classified_scrape_summary(
     downloaded = max(0, int(downloaded_count))
     excluded = count_statuses(counts, SCRAPE_EXCLUDED_STATUSES)
     failed = count_statuses(counts, SCRAPE_FAILED_STATUSES)
+    source_missing = int(counts.get("source_missing", 0))
+    external_unavailable = int(counts.get("external_unavailable", 0))
+    # 1 件も取れず、見つけたリンクが取得元で切れているだけなら、それは取得元の
+    # 事情ではなく登録した入口が古くなった合図である。除外にすると 0/0 で
+    # 完了に見えるので、この場合だけ失敗に数える。
+    if downloaded == 0 and source_missing > 0:
+        excluded -= source_missing
+        failed += source_missing
+        source_missing = 0
 
     # discovered は最初に見つかった候補数なので、目次・一覧・空 PDF が混ざることがある。
     # ただし「成功でも除外でも失敗でもない候補」は取りこぼしなので、明示的に失敗扱いへ回す。
@@ -876,7 +977,7 @@ def classified_scrape_summary(
     # 本文が取り出せなかった PDF は、目次や名簿を除いたのとは事情が違う。
     # 会議録そのものなのに紙を画像で貼った PDF で、待っても本文にならない。
     empty_pdf = int(counts.get("empty_pdf_text", 0))
-    other_excluded = excluded - empty_pdf
+    other_excluded = excluded - empty_pdf - source_missing - external_unavailable
     if empty_pdf > 0:
         if downloaded == 0 and other_excluded == 0:
             warning_lines.append(
@@ -886,6 +987,10 @@ def classified_scrape_summary(
             warning_lines.append(f"文字情報のない PDF を除外 {empty_pdf}件")
     if other_excluded > 0:
         warning_lines.append(f"会議録本体ではない候補を除外 {other_excluded}件")
+    if source_missing > 0:
+        warning_lines.append(f"取得元でリンクが切れている候補 {source_missing}件")
+    if external_unavailable > 0:
+        warning_lines.append(f"外部の保存先に取得を断られた候補 {external_unavailable}件")
     if failed > 0:
         warning_lines.append(f"取得エラー {failed}件")
     if unknown_missing > 0:

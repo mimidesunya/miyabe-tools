@@ -52,10 +52,13 @@ from kami_city_pdf import (  # noqa: E402
     clean_pdf_label,
     emit_progress,
     extract_year_info,
+    fetch_status_code,
     looks_like_attachment_pdf,
     looks_like_generic_minutes_page,
+    normalize_href,
     YEAR_ONLY_ANCHOR_RE,
     now_ts,
+    page_base_url,
     page_title,
     process_pdf_meeting_plan,
     request_text,
@@ -71,6 +74,8 @@ ASSET_SUFFIXES = (
     ".xls", ".xlsx", ".ppt", ".pptx", ".css", ".js", ".ico", ".mp4", ".mp3",
 )
 # リンク文字列末尾の「[PDF｜297.3KB]」「（PDF：1.2MB）」等のファイル種別/サイズ注記。
+# 括弧の外に出した「PDF(26KB)」（湧別町）は残る。ここを変えると題名が変わり、
+# 題名から作る保存名も変わって、取得済みの会議録を別名でもう一度保存してしまう。
 PDF_ANNOTATION_RE = re.compile(
     r"\s*[\[\(（［]\s*PDF\s*[^\]\)）］]*[\]\)）］]\s*$",
     re.IGNORECASE,
@@ -146,6 +151,9 @@ def crawl_pdf_items(
     queue: deque[tuple[str, int]] = deque([(start_url, 0)])
     items: dict[str, PdfMeetingItem] = {}
     missed: list[str] = []
+    # 取得元でリンクが切れていたページ。取得元の書き損じ（`23478html`）や
+    # 消えたページで、こちらが開き損ねたのではない。
+    dead: list[str] = []
     dropped_by_url: dict[str, str] = {}
     # 深さの上限で辿るのをやめたリンク。その先の会議録は見えていない。
     depth_capped = 0
@@ -155,26 +163,37 @@ def crawl_pdf_items(
         if url in visited:
             continue
         visited.add(url)
+        if len(visited) % 50 == 0:
+            # 子の出力が長く止まると、親が固まったとみて打ち切る。
+            print(f"[INFO] 一覧を {len(visited)} ページ見ました（PDF候補 {len(items)} 件）", flush=True)
         try:
             html = request_text(session, url, timeout_ms)
             # PDF などを掴んだ場合、パーサが AssertionError を投げて
             # プロセスごと落ちる。解析も同じ try で守る。
             soup = BeautifulSoup(html, "html.parser")
-        except Exception:
+        except Exception as exc:
+            # 入口より下で 404・410 なら、取得元のリンク切れとして分ける。
+            # 入口が死んでいるのは登録が古くなった合図なので、取りこぼしに数える。
+            if depth > 0 and fetch_status_code(exc) in (404, 410):
+                dead.append(url)
+                continue
             # 開けないページの先は、まるごと見えなくなる。数えておく。
             missed.append(url)
             continue
         title = page_title(soup)
         page_year_label, page_source_year = extract_year_info(title)
+        # `<base href>` を見ないと、ページの階層を前置して 404 になる
+        # （kami_city_pdf では直していたが、こちらは見ていなかった）。
+        base_url = page_base_url(soup, url)
 
         # フレームで組まれた会議録ページ（桜川市など）は、入口ページに
         # リンクが 1 本も無く中身が frame の中にある。frame は本文の一部
         # なので、リンク文字列の判定を通さずそのまま辿る。
         for frame in soup.find_all(["frame", "iframe"]):
-            src = str(frame.get("src", "")).strip()
+            src = normalize_href(frame.get("src", ""))
             if not src:
                 continue
-            absolute = urljoin(url, src).split("#", 1)[0]
+            absolute = urljoin(base_url, src).split("#", 1)[0]
             if (
                 depth < max_depth
                 and absolute not in visited
@@ -184,10 +203,10 @@ def crawl_pdf_items(
                 queue.appendleft((absolute, depth + 1))
 
         for anchor in soup.find_all("a", href=True):
-            href = str(anchor.get("href", "")).strip()
-            if not href or href.lower().startswith(("javascript:", "mailto:", "tel:")):
+            href = normalize_href(anchor.get("href", ""))
+            if not href:
                 continue
-            absolute = urljoin(url, href).split("#", 1)[0]
+            absolute = urljoin(base_url, href).split("#", 1)[0]
             text = anchor.get_text(" ", strip=True)
             if (
                 urlsplit(absolute).path.lower().endswith(".pdf")
@@ -241,6 +260,8 @@ def crawl_pdf_items(
             {
                 "missed_pages": len(missed),
                 "missed_examples": missed[:10],
+                "dead_pages": len(dead),
+                "dead_examples": dead[:10],
                 # 上限に当たって止まったなら、まだ辿る先が残っている。
                 # 深さ上限は毎回同じ深さで止まるので、これを未完了にすると
                 # 永久に再投入し続ける。数えて見せるだけにする。
@@ -278,11 +299,14 @@ def main() -> int:
     print(f"[INFO] Source URL: {target['source_url']}")
     print("[INFO] 会議録PDFを収集中（汎用クロール）...")
     catalog_walk: dict = {}
+    page_limit = gijiroku_storage.adaptive_page_limit(work_dir, args.max_pages)
+    if page_limit != args.max_pages:
+        print(f"[INFO] 前回はページ数の上限に当たったので、今回は {page_limit} ページまで辿ります", flush=True)
     meeting_items = crawl_pdf_items(
         session,
         str(target["source_url"]),
         timeout_ms=args.timeout_ms,
-        max_pages=args.max_pages,
+        max_pages=page_limit,
         max_depth=args.max_depth,
         walk=catalog_walk,
     )
@@ -298,11 +322,23 @@ def main() -> int:
         missed_pages=int(catalog_walk.get("missed_pages") or 0),
         limit_reached=bool(catalog_walk.get("limit_reached")) or args.max_meetings > 0,
     )
+    state = gijiroku_storage.load_state(state_path)
+    # 縮みは「本文を取れていた会議録を見失ったか」で判断する。件数で比べると、
+    # 前の版が一覧に入れた会議録でない文書の分だけ毎回縮んで見える。
+    accepted_urls = gijiroku_storage.accepted_item_urls(state)
     plan_shrank = gijiroku_storage.meetings_index_would_shrink(
         index_json,
         [asdict(item) for item in meeting_items],
         explained_drop_count=explained_drops,
+        accepted_urls=accepted_urls,
     )
+    dead_pages = int(catalog_walk.get("dead_pages") or 0)
+    if dead_pages > 0:
+        print(
+            f"[WARN] 一覧のページ {dead_pages} 件が取得元でリンク切れでした"
+            f"（404・410）。例: {', '.join((catalog_walk.get('dead_examples') or [])[:3])}",
+            flush=True,
+        )
     gijiroku_storage.record_catalog_walk(
         work_dir,
         discovered=len(meeting_items),
@@ -312,6 +348,12 @@ def main() -> int:
         limit_reached=bool(catalog_walk.get("limit_reached")) or args.max_meetings > 0,
         extra={
             "visited_pages": int(catalog_walk.get("visited_pages") or 0),
+            "page_limit": page_limit,
+            # 深さの上限で辿らなかった会議録らしいリンク。多い自治体は、
+            # 深さを上げれば取れる会議録が残っている見込みがある。
+            "depth_capped_links": int(catalog_walk.get("depth_capped_links") or 0),
+            "dead_pages": dead_pages,
+            "dead_examples": (catalog_walk.get("dead_examples") or [])[:10],
             "dropped_non_minutes": crawl_dropped,
             "dropped_non_minutes_reasons": catalog_walk.get("dropped_non_minutes_reasons") or {},
         },
@@ -322,9 +364,9 @@ def main() -> int:
         index_json,
         [asdict(item) for item in meeting_items],
         explained_drop_count=explained_drops,
+        accepted_urls=accepted_urls,
     )
 
-    state = gijiroku_storage.load_state(state_path)
     emit_progress(0, len(meeting_items), state_path, state)
 
     saved_count = 0
@@ -403,6 +445,7 @@ def main() -> int:
                 index_json,
                 [asdict(item) for item in accepted_items],
                 explained_drop_count=extra_explained,
+                accepted_urls=accepted_urls,
             )
         gijiroku_storage.merge_dropped_non_minutes(work_dir, body_drop_reasons)
 

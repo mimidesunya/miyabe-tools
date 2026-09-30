@@ -63,6 +63,8 @@ MINUTES_PAGE_KEYWORDS = (
     # 「会議記録」と書く取得元がある（浦幌町）。「会議録」を含まないので
     # 別の語として並べないと、年別一覧へ降りられず 1 件も見つからない。
     "会議記録",
+    # 「会議の記録」も同じ（八丈町）。
+    "会議の記録",
     "議事録",
     "kaigiroku",
     "gijiroku",
@@ -113,7 +115,10 @@ def query_names_a_pdf(url: str) -> bool:
 # 拡張子を付けずディレクトリの形で配る取得元もある
 # （仁淀川町の /download/?t=LD&id=3119&fid=21124）。この形は問い合わせが
 # 付いているときだけ配信口とみなす。付いていなければただのページである。
-DOWNLOAD_ENDPOINT_RE = re.compile(r"/(?:dl|download|file|files|fileoutput|attach(?:ment)?)\.(?:php|aspx?|cgi|do|jsp)\b", re.I)
+# 小国町（熊本）は /resource.php?e=<暗号化した識別子> で配る。
+DOWNLOAD_ENDPOINT_RE = re.compile(
+    r"/(?:dl|download|file|files|fileoutput|attach(?:ment)?|resource)\.(?:php|aspx?|cgi|do|jsp)\b", re.I
+)
 DOWNLOAD_DIRECTORY_RE = re.compile(r"/(?:dl|download|file|files|fileoutput|attach(?:ment)?)/?$", re.I)
 # リンク文字列に添えられたファイル種別の注記。「（PDF：399KB）」「[PDFファイル／1.2MB]」
 # 「PDF(1192KB)」「(PDF形式：1.58MB)」など、取得元ごとに書き方が違う。
@@ -289,21 +294,47 @@ def looks_like_html_response(content_type: str, raw: bytes) -> bool:
     return b"\x00" not in head
 
 
-# 接続を切られたページをもう一度だけ試す。取得元が時々切ることがあり
-# （出水市は 6 回中 2 回 RemoteDisconnected）、1 回で諦めるとその先の
-# 会議録がまるごと見えなくなる。HTML でない応答など、やり直しても
-# 結果が変わらない失敗は繰り返さない。
-FETCH_RETRY_COUNT = 1
-FETCH_RETRY_WAIT_SECONDS = 2.0
+# 接続を切られたページをやり直す。取得元が時々切ることがあり
+# （出水市は 6 回中 2 回 RemoteDisconnected、江差町は 1 周で切断 7 件・
+# 時間切れ 5 件）、1 回で諦めるとその先の会議録がまるごと見えなくなる。
+# 404 や HTML でない応答など、やり直しても結果が変わらない失敗は繰り返さない。
+FETCH_RETRY_WAITS_SECONDS = (2.0, 8.0)
+# PDF は数 MB あり、小さな町のサーバは最初の応答までに 10 秒以上かかる
+# ことがある（八幡浜市は時間切れ 7 件）。ページより長く待つ。
+PDF_MIN_TIMEOUT_SECONDS = 30.0
+
+
+def is_transient_fetch_error(exc: BaseException) -> bool:
+    """やり直せば通る見込みのある失敗か。"""
+    if isinstance(exc, requests.HTTPError):
+        response = exc.response
+        status = response.status_code if response is not None else 0
+        return status == 429 or status >= 500
+    return isinstance(
+        exc,
+        (requests.ConnectionError, requests.Timeout, requests.exceptions.ChunkedEncodingError),
+    )
+
+
+def fetch_status_code(exc: BaseException) -> int:
+    if isinstance(exc, requests.HTTPError) and exc.response is not None:
+        return int(exc.response.status_code)
+    return 0
+
+
+def _with_transient_retry(fetch):
+    for wait in FETCH_RETRY_WAITS_SECONDS:
+        try:
+            return fetch()
+        except Exception as exc:
+            if not is_transient_fetch_error(exc):
+                raise
+            time.sleep(wait)
+    return fetch()
 
 
 def request_text(session: requests.Session, url: str, timeout_ms: int) -> str:
-    for attempt in range(FETCH_RETRY_COUNT):
-        try:
-            return _request_text_once(session, url, timeout_ms)
-        except requests.RequestException:
-            time.sleep(FETCH_RETRY_WAIT_SECONDS)
-    return _request_text_once(session, url, timeout_ms)
+    return _with_transient_retry(lambda: _request_text_once(session, url, timeout_ms))
 
 
 def _request_text_once(session: requests.Session, url: str, timeout_ms: int) -> str:
@@ -347,7 +378,11 @@ def looks_like_pdf_response(content_type: str, content_disposition: str, raw: by
 
 def request_pdf_bytes(session: requests.Session, url: str, timeout_ms: int) -> bytes:
     """PDF を取る。PDF でない応答は、本文として扱わずに断る。"""
-    response = session.get(url, timeout=max(timeout_ms / 1000.0, 1.0))
+    return _with_transient_retry(lambda: _request_pdf_bytes_once(session, url, timeout_ms))
+
+
+def _request_pdf_bytes_once(session: requests.Session, url: str, timeout_ms: int) -> bytes:
+    response = session.get(url, timeout=max(timeout_ms / 1000.0, PDF_MIN_TIMEOUT_SECONDS))
     response.raise_for_status()
     raw = response.content
     if not looks_like_pdf_response(
@@ -417,7 +452,10 @@ YEAR_ONLY_ANCHOR_RE = re.compile(
     r"(?:令和|平成|昭和|大正)\s*(?:\d{1,2}|元)"
     r"|(?:[RHSTrhst])\s*\.?\s*(?:\d{1,2}|元)"
     r"|(?:19|20)\d{2}"
-    r")\s*年(?:度)?(?:[（(][^）)]*[）)])?\s*$"
+    r")\s*年(?:度)?"
+    # 「令和8年1月～」のように、その年の始まりの月を添える取得元がある（吉富町）。
+    r"(?:\s*\d{1,2}\s*月\s*(?:[～~〜ー－\-]\s*(?:\d{1,2}\s*月)?)?)?"
+    r"(?:[（(][^）)]*[）)])?\s*$"
 )
 
 
@@ -500,6 +538,54 @@ def load_supported_target(slug: str) -> dict:
 # ページの階層をそのまま前置してしまい 404 になる。御宿町・南種子町・一宮町は
 # 3 件とも `<base href="https://…/">` を持っていて、候補は見つかるのに
 # ダウンロードが全部 404 だった（候補 21 件に対して保存 0 件）。
+# 属性の引用符を閉じ損ねた `href="a.pdf""` は、値の末尾に `"` が残る。
+# そのまま辿ると `.pdf"` になって PDF と分からず、ページとして開いて
+# 失敗する（睦沢町は一覧 51 ページがこれで「開けなかった」扱いだった）。
+HREF_STRAY_QUOTES = "\"'“”‘’"
+
+
+def normalize_href(value) -> str:
+    """リンク先の書き損じを直す。辿れないリンクは空で返す。"""
+    href = str(value or "").strip().strip(HREF_STRAY_QUOTES).strip()
+    lowered = href.lower()
+    # `javascript:void(0)?id=4` のように先頭以外に出ることもある（榛東村）。
+    if not href or "javascript:" in lowered or lowered.startswith(("mailto:", "tel:")):
+        return ""
+    return href
+
+
+# 自治体が古い資料の置き場として張っている外部の保存先のうち、robots.txt で
+# 保存物の取得を禁じているもの。国立国会図書館 WARP は `/20…`（保存物）を
+# Disallow にしており、`info:ndljp/pid/…` はそこへ転送される。取りに行かない。
+CRAWL_DISALLOWED_ARCHIVE_HOSTS = frozenset({"warp.ndl.go.jp"})
+
+
+def is_crawl_disallowed_archive(url: str) -> bool:
+    return urlsplit(url).netloc.lower() in CRAWL_DISALLOWED_ARCHIVE_HOSTS
+
+
+def classify_fetch_failure(exc: BaseException, url: str, page_url: str = "") -> str:
+    """会議録の取得に失敗した理由を、取得の失敗と取得元の事情に分ける。
+
+    取得元でリンクが切れている（404・410）文書は、何度取りに行っても取れない。
+    自治体が外部の保存先（国立国会図書館 WARP など）へ張ったリンクが断られる
+    のも同じで、WARP は robots.txt で保存物の取得を禁じている（飯塚市 225 件）。
+    これらを取得エラーに数えると、自治体ごと「エラー停止」のまま動かない。
+    """
+    status = fetch_status_code(exc)
+    if status in (404, 410):
+        return "source_missing"
+    host = urlsplit(url).netloc.lower()
+    page_host = urlsplit(page_url).netloc.lower() if page_url else ""
+    if page_host and host and host != page_host:
+        refused = status in (401, 403) or (
+            isinstance(exc, ValueError) and "PDF ではない応答" in str(exc)
+        )
+        if refused:
+            return "external_unavailable"
+    return "error"
+
+
 def page_base_url(soup, page_url: str) -> str:
     base = soup.find("base", href=True)
     if base is None:
@@ -537,7 +623,7 @@ def discover_minutes_pages(
             page_title(soup), current_url
         )
         for anchor in soup.select(selectors):
-            href = str(anchor.get("href", "")).strip()
+            href = normalize_href(anchor.get("href", ""))
             if not href:
                 continue
             page_url = should_follow_minutes_page(
@@ -582,13 +668,21 @@ def discover_pdf_items(
     """`walk` を渡すと、解析できなかった一覧ページの数を控える。"""
     items_by_url: dict[str, PdfMeetingItem] = {}
     missed: list[str] = []
+    # 取得元でリンクが切れていた一覧ページ（入口以外の 404・410）。
+    dead: list[str] = []
     dropped_by_url: dict[str, str] = {}
 
-    for page_url in page_urls:
+    for page_index, page_url in enumerate(page_urls):
+        if page_index and page_index % 50 == 0:
+            # 子の出力が長く止まると、親が固まったとみて打ち切る。
+            print(f"[INFO] 一覧を {page_index}/{len(page_urls)} ページ見ました", flush=True)
         try:
             page_html = request_text(session, page_url, timeout_ms)
             soup = BeautifulSoup(page_html, "html.parser")
         except Exception as exc:
+            if page_index > 0 and fetch_status_code(exc) in (404, 410):
+                dead.append(page_url)
+                continue
             # 1 ページの取得・解析失敗で自治体全体を落とさない。
             print(f"[WARN] 一覧ページを解析できません: {page_url} ({exc})", file=sys.stderr)
             missed.append(page_url)
@@ -624,7 +718,10 @@ def discover_pdf_items(
 
             if node_name != "a" or not node.has_attr("href"):
                 continue
-            pdf_url = urljoin(base_url, str(node.get("href", "")).strip())
+            href = normalize_href(node.get("href", ""))
+            if not href:
+                continue
+            pdf_url = urljoin(base_url, href)
             if not urlsplit(pdf_url).path.lower().endswith(".pdf"):
                 continue
             if require_site_attachment and not is_site_attachment_pdf(pdf_url, page_url):
@@ -663,6 +760,8 @@ def discover_pdf_items(
             {
                 "missed_pages": len(missed),
                 "missed_examples": missed[:10],
+                "dead_pages": len(dead),
+                "dead_examples": dead[:10],
                 "visited_pages": len(page_urls),
                 "dropped_non_minutes": len(dropped_by_url),
                 "dropped_non_minutes_reasons": dropped_reasons,
@@ -733,6 +832,20 @@ def ocr_pdf_when_enabled(pdf_path: Path) -> tuple[str, str]:
     return "", reason
 
 
+# 手元の PDF の写しを使い回してよい期間。これより古ければ取得元から取り直す。
+LOCAL_PDF_REUSE_DAYS = 30
+
+
+def local_pdf_is_fresh(pdf_path: Path, *, max_age_days: int = LOCAL_PDF_REUSE_DAYS) -> bool:
+    try:
+        stat = Path(pdf_path).stat()
+    except OSError:
+        return False
+    if stat.st_size <= 0:
+        return False
+    return (time.time() - stat.st_mtime) < max_age_days * 24 * 60 * 60
+
+
 def process_pdf_meeting_plan(
     session,
     plan: dict,
@@ -793,12 +906,33 @@ def process_pdf_meeting_plan(
                     extracted = extract_pdf_text(gijiroku_storage.read_bytes(pdf_path))
                 except Exception:
                     extracted = ""
+    # 本文として保存しなかった候補（会議録でない・文字情報のない PDF）は、
+    # 保存した本文が無いので毎周回「未取得」に戻る。取った PDF は手元に
+    # 残っているのに、そのたびに取得元から取り直していた（松崎町は会議録で
+    # ない 1,063 件を、1 時間ごとの実行のたびに取りに行っていた）。新しい
+    # 写しがあればそれで判定し、取得元の差し替えは写しが古くなってから拾う。
+    reused_local_pdf = False
+    if not extracted and existing_output is None and not no_resume and local_pdf_is_fresh(pdf_path):
+        try:
+            extracted = extract_pdf_text(gijiroku_storage.read_bytes(pdf_path))
+            reused_local_pdf = True
+        except Exception:
+            extracted = ""
+    if not extracted and not reused_local_pdf and is_crawl_disallowed_archive(item.url):
+        return {
+            "status": "external_unavailable",
+            "output_path": "",
+            "item": item,
+            "reason": None,
+            "downloaded": False,
+            "error": "外部の保存先が robots.txt で取得を禁じているため取りに行きません",
+        }
     try:
-        if not extracted:
+        if not extracted and not reused_local_pdf:
             extracted = fetch_pdf_text()
     except Exception as exc:
         return {
-            "status": "error",
+            "status": classify_fetch_failure(exc, item.url, getattr(item, "page_url", "") or ""),
             "output_path": "",
             "item": item,
             "reason": None,
@@ -880,13 +1014,16 @@ def main() -> int:
     print(f"[INFO] Source URL: {target['source_url']}")
     print("[INFO] 会議録ページを収集中...")
     strict_kami = str(target["system_type"]) == "kami-city-pdf"
+    page_limit = gijiroku_storage.adaptive_page_limit(work_dir, args.max_pages)
+    if page_limit != args.max_pages:
+        print(f"[INFO] 前回は一覧ページ数の上限に当たったので、今回は {page_limit} ページまで辿ります", flush=True)
     page_urls = discover_minutes_pages(
         session,
         str(target["source_url"]),
         args.timeout_ms,
         pages_dir,
         strict_kami=strict_kami,
-        max_pages=args.max_pages,
+        max_pages=page_limit,
     )
     print(f"[INFO] 会議録ページ {len(page_urls)} 件")
     catalog_walk: dict = {}
@@ -921,10 +1058,14 @@ def main() -> int:
         missed_pages=int(catalog_walk.get("missed_pages") or 0),
         limit_reached=bool(LIST_PAGE_LIMIT_HIT) or args.max_meetings > 0,
     )
+    state = gijiroku_storage.load_state(state_path)
+    # 縮みは「本文を取れていた会議録を見失ったか」で判断する（gikai_pdf と同じ）。
+    accepted_urls = gijiroku_storage.accepted_item_urls(state)
     plan_shrank = gijiroku_storage.meetings_index_would_shrink(
         index_json,
         [asdict(item) for item in meeting_items],
         explained_drop_count=explained_drops,
+        accepted_urls=accepted_urls,
     )
     gijiroku_storage.record_catalog_walk(
         work_dir,
@@ -935,6 +1076,7 @@ def main() -> int:
         limit_reached=bool(LIST_PAGE_LIMIT_HIT) or args.max_meetings > 0,
         extra={
             "visited_pages": int(catalog_walk.get("visited_pages") or 0),
+            "page_limit": page_limit,
             "dropped_non_minutes": crawl_dropped,
             "dropped_non_minutes_reasons": catalog_walk.get("dropped_non_minutes_reasons") or {},
         },
@@ -945,9 +1087,9 @@ def main() -> int:
         index_json,
         [asdict(item) for item in meeting_items],
         explained_drop_count=explained_drops,
+        accepted_urls=accepted_urls,
     )
 
-    state = gijiroku_storage.load_state(state_path)
     emit_progress(0, len(meeting_items), state_path, state)
 
     with result_csv.open("w", encoding="utf-8", newline="") as handle:
@@ -1053,6 +1195,7 @@ def main() -> int:
                 index_json,
                 [asdict(item) for item in accepted_items],
                 explained_drop_count=extra_explained,
+                accepted_urls=accepted_urls,
             )
         gijiroku_storage.merge_dropped_non_minutes(work_dir, body_drop_reasons)
 
