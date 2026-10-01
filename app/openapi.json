@@ -150,6 +150,26 @@
               "maximum": 100,
               "default": 20
             }
+          },
+          {
+            "name": "include_facets",
+            "in": "query",
+            "required": false,
+            "description": "trueの場合、文書種別・都道府県・自治体ごとの件数（aggregations）も返します。",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "include_body_highlight",
+            "in": "query",
+            "required": false,
+            "description": "falseの場合、本文中の該当箇所を探さず、excerpt は件名などの抜粋になります。応答は速くなります。",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
           }
         ],
         "responses": {

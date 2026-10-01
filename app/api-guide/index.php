@@ -323,6 +323,10 @@ OpenAPI YAML: https://tools.miya.be/openapi.yaml</code></pre>
                 </dd>
                 <dt><code>page</code> / <code>per_page</code></dt>
                 <dd>ページ番号と1ページあたりの件数。<code>per_page</code> は最大100件です。</dd>
+                <dt><code>include_facets</code></dt>
+                <dd><code>true</code> にすると、文書種別・都道府県・自治体ごとの件数を <code>aggregations</code> に返します。</dd>
+                <dt><code>include_body_highlight</code></dt>
+                <dd><code>false</code> にすると本文中の該当箇所を探さず、<code>excerpt</code> は件名などの抜粋になります。件数だけ知りたいときに速くなります。</dd>
             </dl>
             <p>
                 検索結果の <code>api_document_url</code> を呼ぶと全文をJSONで取得できます。
