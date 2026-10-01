@@ -6,6 +6,7 @@ digest 計算をここへまとめ、source system が違っても保存の振�
 
 from __future__ import annotations
 
+import csv
 import gzip
 import hashlib
 import json
@@ -821,6 +822,43 @@ def accepted_item_urls(state: dict[str, Any] | None) -> set[str]:
         if url:
             urls.add(url)
     return urls
+
+
+def previous_accepted_urls(
+    work_dir: Path,
+    state: dict[str, Any] | None = None,
+    *,
+    max_runs: int = 20,
+) -> set[str]:
+    """前回までに本文を取れていた候補の URL。
+
+    batch は実行の前に scrape_state.json を消す（tools/tasks/batch.py の
+    remove_stale_scrape_state）。state だけを見ると毎回空になり、縮みの判定が
+    件数の比較に落ちていた（2026-10-01 の本番で 42 自治体が「エラー停止」のまま）。
+    実行ごとに残る run_result_*.csv を新しい順に読み、URL ごとに最後に決着した
+    状態を採る。取れなかった（error など）回は飛ばし、その前を見る。会議録で
+    ないと分かった・取得元から消えた回は、本文を持っていない側に数える。
+    """
+    accepted = set(accepted_item_urls(state))
+    decided: set[str] = set()
+    runs = sorted(Path(work_dir).glob("run_result_*.csv"), reverse=True)[: max(0, int(max_runs))]
+    for path in runs:
+        try:
+            with path.open(encoding="utf-8", errors="replace", newline="") as handle:
+                rows = list(csv.DictReader(handle))
+        except (OSError, csv.Error):
+            continue
+        for row in rows:
+            url = str(row.get("url") or "").strip()
+            status = str(row.get("status") or "").strip()
+            if not url or url in decided:
+                continue
+            if status in SCRAPE_ACCEPTED_STATUSES:
+                accepted.add(url)
+                decided.add(url)
+            elif status in SCRAPE_EXCLUDED_STATUSES:
+                decided.add(url)
+    return accepted
 
 
 def _payload_urls(payload: list[Any]) -> set[str]:

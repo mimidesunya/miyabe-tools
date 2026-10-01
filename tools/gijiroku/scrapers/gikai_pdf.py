@@ -54,6 +54,7 @@ from kami_city_pdf import (  # noqa: E402
     fetch_status_code,
     looks_like_attachment_pdf,
     looks_like_generic_minutes_page,
+    NonHtmlResponse,
     normalize_href,
     YEAR_ONLY_ANCHOR_RE,
     now_ts,
@@ -157,6 +158,33 @@ def crawl_pdf_items(
     dropped_by_url: dict[str, str] = {}
     # 深さの上限で辿るのをやめたリンク。その先の会議録は見えていない。
     depth_capped = 0
+    # ページとして辿ったリンクの文字列と、見つけたページ。開いたら PDF だったときに使う。
+    link_context: dict[str, tuple[str, str, str, str, int | None]] = {}
+
+    def add_pdf_item(
+        absolute: str, text: str, page_url: str, title: str, page_year_label: str, page_source_year: int | None
+    ) -> None:
+        label = clean_label(text) or title
+        skip_reason = minutes_kind.non_minutes_reason(label, "")
+        if skip_reason:
+            dropped_by_url.setdefault(absolute, skip_reason)
+            return
+        year_label, source_year = extract_year_info(label, title)
+        if year_label == "不明":
+            year_label, source_year = page_year_label, page_source_year
+        items.setdefault(
+            absolute,
+            PdfMeetingItem(
+                title=label,
+                url=absolute,
+                year_label=year_label,
+                source_year=source_year,
+                source_fino=attachment_id(absolute),
+                page_url=page_url,
+                page_title=title,
+                meeting_group=None,
+            ),
+        )
 
     while queue and len(visited) < max_pages:
         url, depth = queue.popleft()
@@ -172,6 +200,12 @@ def crawl_pdf_items(
             # プロセスごと落ちる。解析も同じ try で守る。
             soup = BeautifulSoup(html, "html.parser")
         except Exception as exc:
+            # 拡張子の無い配信口の PDF（野辺地町の /download_file/view/…、榛東村の
+            # /manage/contents/upload/…）は、ページとして開くと HTML でないので落ちる。
+            # 開けなかったページではなく、会議録の候補として拾う。
+            if isinstance(exc, NonHtmlResponse) and exc.is_pdf and url in link_context:
+                add_pdf_item(url, *link_context[url])
+                continue
             # 入口より下で 404・410 なら、取得元のリンク切れとして分ける。
             # 入口が死んでいるのは登録が古くなった合図なので、取りこぼしに数える。
             if depth > 0 and fetch_status_code(exc) in (404, 410):
@@ -212,27 +246,7 @@ def crawl_pdf_items(
                 urlsplit(absolute).path.lower().endswith(".pdf")
                 or looks_like_attachment_pdf(absolute, text)
             ):
-                label = clean_label(text) or title
-                skip_reason = minutes_kind.non_minutes_reason(label, "")
-                if skip_reason:
-                    dropped_by_url.setdefault(absolute, skip_reason)
-                    continue
-                year_label, source_year = extract_year_info(label, title)
-                if year_label == "不明":
-                    year_label, source_year = page_year_label, page_source_year
-                items.setdefault(
-                    absolute,
-                    PdfMeetingItem(
-                        title=label,
-                        url=absolute,
-                        year_label=year_label,
-                        source_year=source_year,
-                        source_fino=attachment_id(absolute),
-                        page_url=url,
-                        page_title=title,
-                        meeting_group=None,
-                    ),
-                )
+                add_pdf_item(absolute, text, url, title, page_year_label, page_source_year)
             elif (
                 depth >= max_depth
                 and absolute not in visited
@@ -251,6 +265,7 @@ def crawl_pdf_items(
                 )
             ):
                 queue.append((absolute, depth + 1))
+                link_context.setdefault(absolute, (text, url, title, page_year_label, page_source_year))
 
     dropped_reasons: dict[str, int] = {}
     for reason in dropped_by_url.values():
@@ -269,6 +284,8 @@ def crawl_pdf_items(
                 "depth_capped_links": depth_capped,
                 "visited_pages": len(visited),
                 "dropped_non_minutes": len(dropped_by_url),
+                # 縮みの判定で、見失ったのではなく会議録でないと分かった分を外す。
+                "dropped_urls": sorted(dropped_by_url),
                 "dropped_non_minutes_reasons": dropped_reasons,
             }
         )
@@ -321,7 +338,10 @@ def main() -> int:
     state = gijiroku_storage.load_state(state_path)
     # 縮みは「本文を取れていた会議録を見失ったか」で判断する。件数で比べると、
     # 前の版が一覧に入れた会議録でない文書の分だけ毎回縮んで見える。
-    accepted_urls = gijiroku_storage.accepted_item_urls(state)
+    # 今回の巡回が会議録でないと判定して落とした分は、見失ったのではない。
+    accepted_urls = gijiroku_storage.previous_accepted_urls(work_dir, state) - set(
+        catalog_walk.get("dropped_urls") or []
+    )
     plan_shrank = gijiroku_storage.meetings_index_would_shrink(
         index_json,
         [asdict(item) for item in meeting_items],

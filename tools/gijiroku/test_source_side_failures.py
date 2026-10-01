@@ -298,6 +298,59 @@ class AcceptedShrinkTest(unittest.TestCase):
         )
 
 
+class PreviousAcceptedUrlsTest(unittest.TestCase):
+    """batch は実行の前に scrape_state.json を消すので、実行ごとに残る CSV から引く。"""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.work_dir = Path(self._tmp.name)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _run(self, stamp: str, rows: list[tuple[str, str]]) -> None:
+        lines = ["title,year,url,status,output,pdf,error"]
+        lines += [f"t,y,{url},{status},,," for url, status in rows]
+        (self.work_dir / f"run_result_{stamp}.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def test_without_state_the_runs_are_read(self) -> None:
+        self._run("20260901_000000", [("https://a.pdf", "saved_text"), ("https://b.pdf", "saved_text")])
+        self._run("20260915_000000", [("https://a.pdf", "skipped_existing")])
+        # b は最近の実行に出てこないが、本文は取れていた。見失った側に数える材料になる。
+        self.assertEqual(
+            gijiroku_storage.previous_accepted_urls(self.work_dir, {"items": {}}),
+            {"https://a.pdf", "https://b.pdf"},
+        )
+
+    def test_the_latest_settled_status_wins(self) -> None:
+        self._run("20260901_000000", [("https://a.pdf", "saved_text"), ("https://c.pdf", "saved_text")])
+        # 会議録でないと分かった・取得元から消えた回は、本文を持っていない側。
+        self._run("20260910_000000", [("https://a.pdf", "skipped_not_minutes"), ("https://c.pdf", "source_missing")])
+        self.assertEqual(gijiroku_storage.previous_accepted_urls(self.work_dir), set())
+
+    def test_a_failed_fetch_does_not_hide_an_earlier_text(self) -> None:
+        self._run("20260901_000000", [("https://a.pdf", "saved_text")])
+        self._run("20260910_000000", [("https://a.pdf", "error")])
+        self.assertEqual(gijiroku_storage.previous_accepted_urls(self.work_dir), {"https://a.pdf"})
+
+    def test_state_still_counts(self) -> None:
+        state = {"items": {"x": {"url": "https://s.pdf", "status": "saved_text"}}}
+        self.assertEqual(gijiroku_storage.previous_accepted_urls(self.work_dir, state), {"https://s.pdf"})
+
+    def test_a_shrunk_list_that_lost_nothing_is_saved(self) -> None:
+        # 前回の一覧には会議録でない文書が混ざっていた（1,080 件）。本文を取れていた
+        # 69 件は今回も全部見つかったので、置き換えてよい（松前町の形）。
+        index = self.work_dir / "meetings_index.json"
+        index.write_text(
+            json.dumps([{"url": f"https://old/{i}.pdf"} for i in range(1080)]), encoding="utf-8"
+        )
+        found = [f"https://new/{i}.pdf" for i in range(69)]
+        self._run("20260926_000000", [(url, "skipped_existing") for url in found])
+        accepted = gijiroku_storage.previous_accepted_urls(self.work_dir, {"items": {}})
+        current = [{"url": url} for url in found]
+        self.assertFalse(gijiroku_storage.meetings_index_would_shrink(index, current, accepted_urls=accepted))
+
+
 class AdaptivePageLimitTest(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()

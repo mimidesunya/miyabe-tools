@@ -999,7 +999,11 @@ def main() -> int:
     if args.max_meetings > 0 and len(meeting_items) > args.max_meetings:
         meeting_items = meeting_items[: args.max_meetings]
         limit_reached = True
-    plan_shrank = gijiroku_storage.meetings_index_would_shrink(index_json, [asdict(item) for item in meeting_items])
+    # 縮みは「本文を取れていた会議録を見失ったか」で判断する（gikai_pdf と同じ）。
+    accepted_urls = gijiroku_storage.previous_accepted_urls(work_dir, state)
+    plan_shrank = gijiroku_storage.meetings_index_would_shrink(
+        index_json, [asdict(item) for item in meeting_items], accepted_urls=accepted_urls
+    )
     gijiroku_storage.record_catalog_walk(
         work_dir,
         discovered=len(meeting_items),
@@ -1014,7 +1018,9 @@ def main() -> int:
         raise RuntimeError("会議候補が 0 件でした。一覧の形が変わったか、取得元が応えていません。")
 
     index_json.parent.mkdir(parents=True, exist_ok=True)
-    gijiroku_storage.save_meetings_index(index_json, [asdict(item) for item in meeting_items])
+    gijiroku_storage.save_meetings_index(
+        index_json, [asdict(item) for item in meeting_items], accepted_urls=accepted_urls
+    )
     emit_progress(0, len(meeting_items), state_path, state)
 
     with result_csv.open("w", encoding="utf-8", newline="") as handle:

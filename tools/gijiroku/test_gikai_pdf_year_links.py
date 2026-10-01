@@ -93,3 +93,42 @@ class YearOnlyLinkTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExtensionlessPdfTest(unittest.TestCase):
+    """拡張子の無い配信口の PDF を、開けなかったページではなく会議録として拾う。
+
+    野辺地町（/download_file/view/6249/2834）・榛東村（/manage/contents/upload/…）は、
+    会議録らしいリンクをページとして辿ると PDF が返り、「一覧を開けなかった」に
+    数えられて「エラー停止」のままだった。
+    """
+
+    ENTRY = (
+        "<html><head><title>会議録 | 例町</title></head><body>"
+        "<a href='/download_file/view/6249/2834'>令和7年第3回定例会 会議録</a>"
+        "<a href='/download_file/view/1/1'>令和7年度予算書</a>"
+        "<a href='broken.html'>令和6年 会議録</a>"
+        "</body></html>"
+    )
+
+    def fake(self, session, url, timeout_ms, *args, **kwargs):
+        if url == BASE + "index.html":
+            return self.ENTRY
+        if "/download_file/view/" in url:
+            raise gikai_pdf.NonHtmlResponse("not html", content_type="application/pdf", head=b"%PDF-1.7")
+        raise RuntimeError("connection reset " + url)
+
+    def test_a_pdf_behind_a_page_link_becomes_a_meeting(self) -> None:
+        walk: dict = {}
+        with mock.patch.object(gikai_pdf, "request_text", self.fake):
+            items = gikai_pdf.crawl_pdf_items(
+                object(), BASE + "index.html", timeout_ms=1000, max_pages=10, max_depth=3, walk=walk
+            )
+        self.assertEqual([item.url for item in items], ["https://www.town.example.lg.jp/download_file/view/6249/2834"])
+        self.assertEqual(items[0].year_label, "令和7年")
+        # 本当に開けなかったページだけが残る。
+        self.assertEqual(walk["missed_pages"], 1)
+
+    def test_a_non_html_response_that_is_not_a_pdf_is_still_missed(self) -> None:
+        error = gikai_pdf.NonHtmlResponse("not html", content_type="application/zip", head=b"PK")
+        self.assertFalse(error.is_pdf)

@@ -441,6 +441,8 @@ def discover_items(
                 "limit_reached": limit_reached,
                 "visited_pages": len(seen_pages),
                 "dropped_non_minutes": len(dropped_by_url),
+                # 縮みの判定で、見失ったのではなく会議録でないと分かった分を外す。
+                "dropped_urls": sorted(dropped_by_url),
                 "dropped_non_minutes_reasons": dropped_reasons,
             }
         )
@@ -519,7 +521,10 @@ def main() -> int:
     )
     state = gijiroku_storage.load_state(state_path)
     # 縮みは「本文を取れていた会議録を見失ったか」で判断する（gikai_pdf と同じ）。
-    accepted_urls = gijiroku_storage.accepted_item_urls(state)
+    # 今回の巡回が会議録でないと判定して落とした分は、見失ったのではない。
+    accepted_urls = gijiroku_storage.previous_accepted_urls(work_dir, state) - set(
+        catalog_walk.get("dropped_urls") or []
+    )
     plan_shrank = gijiroku_storage.meetings_index_would_shrink(
         index_json,
         [asdict(item) for item in meeting_items],

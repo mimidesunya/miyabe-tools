@@ -337,13 +337,30 @@ def request_text(session: requests.Session, url: str, timeout_ms: int) -> str:
     return _with_transient_retry(lambda: _request_text_once(session, url, timeout_ms))
 
 
+class NonHtmlResponse(ValueError):
+    """HTML ではない応答。拡張子の無い PDF を見分けられるよう、手がかりを持たせる。"""
+
+    def __init__(self, message: str, *, content_type: str = "", content_disposition: str = "", head: bytes = b"") -> None:
+        super().__init__(message)
+        self.content_type = content_type
+        self.content_disposition = content_disposition
+        self.head = head
+
+    @property
+    def is_pdf(self) -> bool:
+        return looks_like_pdf_response(self.content_type, self.content_disposition, self.head)
+
+
 def _request_text_once(session: requests.Session, url: str, timeout_ms: int) -> str:
     response = session.get(url, timeout=max(timeout_ms / 1000.0, 1.0))
     response.raise_for_status()
     raw = response.content
     if not looks_like_html_response(response.headers.get("Content-Type", ""), raw):
-        raise ValueError(
-            f"HTML ではない応答のため解析を中止します: {response.headers.get('Content-Type', '')!r} {url}"
+        raise NonHtmlResponse(
+            f"HTML ではない応答のため解析を中止します: {response.headers.get('Content-Type', '')!r} {url}",
+            content_type=response.headers.get("Content-Type", ""),
+            content_disposition=response.headers.get("Content-Disposition", ""),
+            head=raw[:8],
         )
     for encoding in ("utf-8", response.apparent_encoding, response.encoding, "cp932"):
         if not encoding:
@@ -758,6 +775,8 @@ def discover_pdf_items(
                 "dead_examples": dead[:10],
                 "visited_pages": len(page_urls),
                 "dropped_non_minutes": len(dropped_by_url),
+                # 縮みの判定で、見失ったのではなく会議録でないと分かった分を外す。
+                "dropped_urls": sorted(dropped_by_url),
                 "dropped_non_minutes_reasons": dropped_reasons,
             }
         )
@@ -1050,7 +1069,10 @@ def main() -> int:
     )
     state = gijiroku_storage.load_state(state_path)
     # 縮みは「本文を取れていた会議録を見失ったか」で判断する（gikai_pdf と同じ）。
-    accepted_urls = gijiroku_storage.accepted_item_urls(state)
+    # 今回の巡回が会議録でないと判定して落とした分は、見失ったのではない。
+    accepted_urls = gijiroku_storage.previous_accepted_urls(work_dir, state) - set(
+        catalog_walk.get("dropped_urls") or []
+    )
     plan_shrank = gijiroku_storage.meetings_index_would_shrink(
         index_json,
         [asdict(item) for item in meeting_items],
