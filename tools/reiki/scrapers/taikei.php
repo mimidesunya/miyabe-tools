@@ -30,6 +30,12 @@ const TAIKEI_RATE_LIMIT_MEMORY_SECONDS = 86400;
 // 自動探索の記録の版。tools/discovered_sources.py の DISCOVERER_VERSIONS['reiki'] と同じ。
 const TAIKEI_DISCOVERER_VERSION = 2;
 
+// 取得元が個票に空の本文を返した。消えたとは断定できないので、保存済みの本文は
+// 上書きしない。
+final class TaikeiEmptySourceException extends RuntimeException
+{
+}
+
 // 読み込んだだけで走り出さないようにする。テストから関数だけを使いたい。
 if (PHP_SAPI === 'cli' && isset($argv[0]) && realpath($argv[0]) === realpath(__FILE__)) {
     main($argv);
@@ -187,6 +193,7 @@ function main(array $argv): void
     $reused = 0;
     $parserGenerationRefreshed = 0;
     $failed = 0;
+    $sourceMissing = [];
     $manifests = [];
     $processedWork = 0;
 
@@ -222,13 +229,31 @@ function main(array $argv): void
                     $validationResponse = fetch_url_response((string)$record['detail_url'], $requestHeaders);
                     $validatedAt = gmdate('c');
                 } catch (RuntimeException $exception) {
-                    $failed++;
-                    fwrite(STDERR, sprintf(
-                        "Warning: skipping %s: %s\n",
-                        (string)$record['detail_url'],
-                        $exception->getMessage()
-                    ));
                     throttled_sleep();
+                    if (!taikei_source_side_missing($exception)) {
+                        $failed++;
+                        fwrite(STDERR, sprintf(
+                            "Warning: skipping %s: %s\n",
+                            (string)$record['detail_url'],
+                            $exception->getMessage()
+                        ));
+                        continue;
+                    }
+                    $sourceMissing[] = (string)$record['detail_url'];
+                    $keptEntry = taikei_keep_previous_entry(
+                        $exception,
+                        $record,
+                        $previousManifest,
+                        $existingSourcePath,
+                        $sourceFileName,
+                        $catalogVersion,
+                        $checkUpdates
+                    );
+                    if ($keptEntry !== null) {
+                        $manifests[] = $keptEntry;
+                        $processedWork++;
+                        emit_progress($progressBase + $processedWork, $total, $statePath);
+                    }
                     continue;
                 }
 
@@ -249,13 +274,31 @@ function main(array $argv): void
                     try {
                         $changedByHash = taikei_source_changed($sourceHash, $fetchedHtml, $force);
                     } catch (RuntimeException $exception) {
-                        $failed++;
-                        fwrite(STDERR, sprintf(
-                            "Warning: skipping %s: %s\n",
-                            (string)$record['detail_url'],
-                            $exception->getMessage()
-                        ));
                         throttled_sleep();
+                        if (!taikei_source_side_missing($exception)) {
+                            $failed++;
+                            fwrite(STDERR, sprintf(
+                                "Warning: skipping %s: %s\n",
+                                (string)$record['detail_url'],
+                                $exception->getMessage()
+                            ));
+                            continue;
+                        }
+                        $sourceMissing[] = (string)$record['detail_url'];
+                        $keptEntry = taikei_keep_previous_entry(
+                            $exception,
+                            $record,
+                            $previousManifest,
+                            $existingSourcePath,
+                            $sourceFileName,
+                            $catalogVersion,
+                            $checkUpdates
+                        );
+                        if ($keptEntry !== null) {
+                            $manifests[] = $keptEntry;
+                            $processedWork++;
+                            emit_progress($progressBase + $processedWork, $total, $statePath);
+                        }
                         continue;
                     }
                     $fetchedHash = sha256_string($fetchedHtml);
@@ -361,8 +404,21 @@ function main(array $argv): void
     // 一斉に孤児になる。
     $largeDrop = $previousManifestCount > 0
         && count($manifests) < $previousManifestCount * 0.8;
+    // 目録の版（内容現在）が前回より大きく古いなら、古い複製を辿っている。
+    // 与那国町はメニューの相対リンクが令和3年の複製を指していて、令和6年の版で
+    // 取れていた 77 件が目録から消えた扱いになった。
+    $catalogRegressed = taikei_catalog_regressed($catalogVersion, $previousCatalogVersion);
     $manifestWritten = true;
-    if ($previousManifestCount > count($manifests) && (!$walkComplete || $largeDrop)) {
+    if ($catalogRegressed) {
+        $manifestWritten = false;
+        write_json_file($workRoot . DIRECTORY_SEPARATOR . 'source_manifest.shrunk.json.gz', $manifests, true);
+        fwrite(STDERR, sprintf(
+            'Warning: 目録の版（%s）が前回（%s）より古いため上書きしません。'
+            . '入口が古い複製を指していないか確かめてください。' . PHP_EOL,
+            $catalogVersion,
+            $previousCatalogVersion
+        ));
+    } elseif ($previousManifestCount > count($manifests) && (!$walkComplete || $largeDrop)) {
         $manifestWritten = false;
         write_json_file($workRoot . DIRECTORY_SEPARATOR . 'source_manifest.shrunk.json.gz', $manifests, true);
         fwrite(STDERR, sprintf(
@@ -376,6 +432,17 @@ function main(array $argv): void
     }
     @unlink($partialManifestPath);
 
+    // 取り切れた走査で manifest を置き換えたときだけ、目録から消えた例規のファイルを
+    // 外す。取得元が URL の形式を変えると（g-reiki の H… から …RG… へ、2026-08）、
+    // 旧形式のファイルが残り、索引が同じ例規を新旧 2 件ずつ載せていた（新潟市・奄美市・
+    // 流山市・垂水市で約 4,355 件。旧形式は古い版の本文）。消さずに _archive へ移す。
+    if ($walkComplete && $manifestWritten) {
+        $archivedOrphans = archive_orphan_files($manifests, [$sourceDir, $htmlDir, $markdownDir]);
+        if ($archivedOrphans > 0) {
+            echo "[INFO] archived {$archivedOrphans} files no longer listed in the catalog\n";
+        }
+    }
+
     // 失敗した分は取れていない。n/n で終えるとキューが完了と読む。
     emit_progress(max(0, $total - $failed), $total, $statePath);
     write_json_file($coveragePath, [
@@ -387,8 +454,13 @@ function main(array $argv): void
         'limited' => $limit > 0,
         'collected' => max(0, $total - $failed),
         'failed' => $failed,
+        // 目録に載っているのに、取得元が本文を返さない（404・410・空の応答）。
+        // 取り損ねではないので failed に数えない。前回取れた本文があれば残す。
+        'source_missing' => count($sourceMissing),
+        'source_missing_urls' => array_slice($sourceMissing, 0, 50),
         'manifest_shrunk' => !$manifestWritten,
         'manifest_previous' => $previousManifestCount,
+        'catalog_regressed' => $catalogRegressed,
         'complete' => $walkComplete && $manifestWritten,
     ], false);
     echo "\nFinished {$target['name']} scrape.\n";
@@ -403,6 +475,7 @@ function main(array $argv): void
     echo "  Parser generation refreshed: {$parserGenerationRefreshed}\n";
     echo "  Reused manifest: {$reused}\n";
     echo "  Failed: {$failed}\n";
+    echo '  Missing at source: ' . count($sourceMissing) . "\n";
     if ($parserGenerationRefreshed > 0) {
         echo "[ACTION] Saved sources were regenerated; enqueue the OpenSearch index update.\n";
     }
@@ -907,7 +980,10 @@ function fetch_url_response(string $url, array $requestHeaders = []): array
             wait_for_fetch_retry($url, $attempt, $status, $error);
         }
 
-        throw new RuntimeException("Failed to fetch {$url}: " . format_fetch_failure($lastStatus, $lastError));
+        throw new RuntimeException(
+            "Failed to fetch {$url}: " . format_fetch_failure($lastStatus, $lastError),
+            (int)($lastStatus ?? 0)
+        );
     }
 
     $verifySsl = true;
@@ -935,7 +1011,10 @@ function fetch_url_response(string $url, array $requestHeaders = []): array
         wait_for_fetch_retry($url, $attempt, $status, $error);
     }
 
-    throw new RuntimeException("Failed to fetch {$url}: " . format_fetch_failure($lastStatus, $lastError));
+    throw new RuntimeException(
+        "Failed to fetch {$url}: " . format_fetch_failure($lastStatus, $lastError),
+        (int)($lastStatus ?? 0)
+    );
 }
 
 function normalize_http_request_headers(array $headers): array
@@ -1897,7 +1976,7 @@ function read_text_file_auto(string $path): string
     return ensure_utf8(read_file_bytes_auto($path));
 }
 
-function archive_existing_file(string $path, string $reason = 'replace'): ?string
+function archive_existing_file(string $path, string $reason = 'replace', ?string $stamp = null): ?string
 {
     $resolved = realpath($path);
     if (!is_string($resolved) || !is_file($resolved)) {
@@ -1916,8 +1995,10 @@ function archive_existing_file(string $path, string $reason = 'replace'): ?strin
         $relative = basename($normalized);
     }
 
-    $micro = microtime(true);
-    $stamp = date('Ymd_His', (int)$micro) . sprintf('_%06d', (int)(($micro - floor($micro)) * 1000000));
+    if ($stamp === null) {
+        $micro = microtime(true);
+        $stamp = date('Ymd_His', (int)$micro) . sprintf('_%06d', (int)(($micro - floor($micro)) * 1000000));
+    }
     $safeReason = preg_replace('/[^A-Za-z0-9_-]+/', '_', $reason) ?: 'replace';
     $destination = $base . '/_archive/' . $stamp . '_' . $safeReason . '/' . $relative;
     ensure_dir(dirname($destination));
@@ -1927,6 +2008,53 @@ function archive_existing_file(string $path, string $reason = 'replace'): ?strin
     }
     @touch($destination, (int)filemtime($resolved));
     return $destination;
+}
+
+/**
+ * manifest に載っていないファイルを _archive へ移し、移した数を返す。
+ *
+ * source/ と html/ は source_file と同じ名前、markdown/ は .html を .md にした名前で
+ * 置いているので、.gz と拡張子を外した名前で比べる。1 回の実行で移した分は
+ * 同じ時刻の 1 フォルダにまとめる。
+ */
+function archive_orphan_files(array $manifests, array $dirs): int
+{
+    $keep = [];
+    foreach ($manifests as $entry) {
+        $name = (string)($entry['source_file'] ?? '');
+        if ($name !== '') {
+            $keep[orphan_file_stem($name)] = true;
+        }
+    }
+    if ($keep === []) {
+        return 0;
+    }
+    $stamp = date('Ymd_His');
+    $archived = 0;
+    foreach ($dirs as $dir) {
+        if (!is_dir($dir)) {
+            continue;
+        }
+        foreach (scandir($dir) ?: [] as $name) {
+            $path = $dir . DIRECTORY_SEPARATOR . $name;
+            if ($name === '.' || $name === '..' || !is_file($path) || isset($keep[orphan_file_stem($name)])) {
+                continue;
+            }
+            if (archive_existing_file($path, 'orphan', $stamp) === null) {
+                fwrite(STDERR, "[WARN] could not archive a file missing from the catalog; left in place: {$path}\n");
+                continue;
+            }
+            @unlink($path);
+            $archived++;
+        }
+    }
+    return $archived;
+}
+
+function orphan_file_stem(string $name): string
+{
+    $stem = preg_replace('/\.gz$/i', '', $name) ?? $name;
+    return preg_replace('/\.(?:html?|md)$/i', '', $stem) ?? $stem;
 }
 
 function write_text_file(string $path, string $content, bool $compress = false): string
@@ -1984,12 +2112,76 @@ function sha256_string(string $content): string
     return hash('sha256', $content);
 }
 
+/**
+ * 目録に載っている個票を、取得元が持っていない（404・410・空の応答）か。
+ *
+ * 取り損ねではないので失敗に数えない。数えると、取得元が直すまで毎回
+ * 「直近の取得に失敗」と出続ける（松茂町・生駒市の 404、上富田町の空の応答）。
+ */
+function taikei_source_side_missing(Throwable $exception): bool
+{
+    if ($exception instanceof TaikeiEmptySourceException) {
+        return true;
+    }
+    return in_array($exception->getCode(), [404, 410], true);
+}
+
+/**
+ * 取得元が本文を返さなかった個票について、前回取れた本文の manifest を残す。
+ *
+ * 目録には載っているので、手元の本文は消さない。前回の記録か保存済みの本文が
+ * 無ければ null（その個票は収録しない）。
+ */
+function taikei_keep_previous_entry(
+    Throwable $exception,
+    array $record,
+    ?array $previousManifest,
+    ?string $existingSourcePath,
+    string $sourceFileName,
+    string $catalogVersion,
+    bool $checkUpdates
+): ?array {
+    fwrite(STDERR, sprintf(
+        "Notice: the source returned no body for %s: %s%s\n",
+        (string)($record['detail_url'] ?? ''),
+        $exception->getMessage(),
+        ($previousManifest !== null && $existingSourcePath !== null) ? ' (keeping the saved text)' : ''
+    ));
+    if ($previousManifest === null || $existingSourcePath === null) {
+        return null;
+    }
+    $entry = merge_manifest_record($previousManifest, $record, $sourceFileName);
+    $entry['source_file'] = $sourceFileName;
+    $entry['stored_source_file'] = basename($existingSourcePath);
+    $entry['source_missing_at'] = gmdate('c');
+    $entry['catalog_content_current'] = $catalogVersion;
+    $entry['checked_updates'] = $checkUpdates;
+    $entry['updated_at'] = gmdate('c');
+    return $entry;
+}
+
+/**
+ * 目録の版（内容現在）が、前回より半年を超えて古くなったか。
+ *
+ * 更新の遅れや日付の打ち直しは数週間の範囲に収まる。それより古い版が出てきたら、
+ * 入口が古い複製を指していると見る。どちらかの日付が読めなければ判断しない。
+ */
+function taikei_catalog_regressed(string $current, string $previous): bool
+{
+    $currentDate = wareki_to_seireki($current);
+    $previousDate = wareki_to_seireki($previous);
+    if ($currentDate === '' || $previousDate === '') {
+        return false;
+    }
+    return strtotime($currentDate . ' +180 days') < strtotime($previousDate);
+}
+
 function taikei_source_changed(string $sourceHash, string $fetchedHtml, bool $force = false): bool
 {
     // 空の 200 応答は「本文が削除された」と断定できない。既存 source を
     // 上書きすると次の周期でも壊れた成果物を正本として使うため、失敗に戻す。
     if (trim($fetchedHtml) === '') {
-        throw new RuntimeException('Received an empty ordinance response.');
+        throw new TaikeiEmptySourceException('Received an empty ordinance response.');
     }
     if ($force || $sourceHash === '') {
         return true;
