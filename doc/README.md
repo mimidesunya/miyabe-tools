@@ -6,7 +6,6 @@
 - [gijiroku.md](gijiroku.md) — 会議録ツール。スクレイプ成果物から OpenSearch index を作る流れと画面・API
 - [reiki.md](reiki.md) — 例規集ツール。保存済み HTML / Markdown / JSON からの index 作成と画面・API
 - [mcp.md](mcp.md) — MCP 連携。`/mcp` エンドポイント、ツール定義、設定項目
-- [tatsuhiko-map.md](tatsuhiko-map.md) — 宮部たつひこマップ。現在地の公開ページと本人用管理ページ（GPS 提供の ON/OFF）
 
 ## 設計・運用
 
