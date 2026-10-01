@@ -1,7 +1,6 @@
 User-agent: *
 Disallow: /api/
 Disallow: /boards/
-Disallow: /tools/
 Disallow: /tatsuhiko-map/admin.php
 Disallow: /tatsuhiko-map/api.php
 # 画面内の検索結果は語の組み合わせだけ URL が増える。中身は同じなので辿らせない。

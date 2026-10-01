@@ -26,12 +26,7 @@ expect_value(
 );
 expect_value(str_contains($feature['title'], '選挙ポスター掲示場'), 'domain title is ambiguous');
 
-require_once $root . '/lib/session.php';
+require_once dirname(__DIR__) . '/php/runtime.php';
 expect_value(function_exists('poster_boards_current_user'), 'domain auth API is missing');
-expect_value(function_exists('current_user'), 'legacy session adapter is missing');
-expect_value(
-    current_user() === poster_boards_current_user(),
-    'legacy session adapter diverged from domain runtime'
-);
 
 echo "election poster boards domain boundary: OK\n";
