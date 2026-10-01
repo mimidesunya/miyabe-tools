@@ -11,6 +11,7 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent))
@@ -115,9 +116,12 @@ class ManifestGuardTest(unittest.TestCase):
             self.assertFalse(result["written"])
 
     def test_a_complete_walk_confirms_after_repeated_observations(self) -> None:
-        stamps = ["2026-09-01 10:00:00", "2026-09-02 10:00:00", "2026-09-03 10:00:00"]
+        # 3 回目は書き込み側が今の時刻で観測するので、前の 2 回も今から数える。
+        # 日付を決め打ちすると、30 日の期限を過ぎた日から落ちる（2026-10-01 に落ちた）。
+        now = datetime.now(shrink_confirmation.JST)
+        stamps = [(now - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S") for days in (2, 1)]
         signature = shrink_confirmation.manifest_signature(self.small)
-        for stamp in stamps[:2]:
+        for stamp in stamps:
             shrink_confirmation.observe(self.path, signature, now=stamp)
         # 3 回目の観測で確定し、正本が置き換わる。
         result = self.write(self.small, walk_complete=True)
