@@ -326,7 +326,7 @@ OpenAPI YAML: https://tools.miya.be/openapi.yaml</code></pre>
                 <dt><code>include_facets</code></dt>
                 <dd><code>true</code> にすると、文書種別・都道府県・自治体ごとの件数を <code>aggregations</code> に返します。</dd>
                 <dt><code>include_body_highlight</code></dt>
-                <dd><code>false</code> にすると本文中の該当箇所を探さず、<code>excerpt</code> は件名などの抜粋になります。件数だけ知りたいときに速くなります。</dd>
+                <dd><code>false</code> にすると本文中の該当箇所を探しません。<code>excerpt</code> には件名・会議名に当たった箇所だけが入り、無ければ空です。件数だけ知りたいときに速くなります。</dd>
             </dl>
             <p>
                 検索結果の <code>api_document_url</code> を呼ぶと全文をJSONで取得できます。

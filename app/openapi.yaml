@@ -120,7 +120,7 @@ paths:
         - name: include_body_highlight
           in: query
           required: false
-          description: falseの場合、本文中の該当箇所を探さず、excerpt は件名などの抜粋になります。応答は速くなります。
+          description: falseの場合、本文中の該当箇所を探しません。excerpt には件名・会議名に当たった箇所だけが入り、無ければ空です。応答は速くなります。
           schema:
             type: boolean
             default: true
