@@ -76,15 +76,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="assembly_minutes_system_urls.tsv の対応済み system_type をまとめてスクレイピングします。"
     )
-    parser.add_argument(
-        "--ack-robots",
-        action="store_true",
-        help="TSVのcrawl_statusに基づく実行判断を確認して開始する",
-    )
+    # 旧版の取得 worker は --ack-robots を付けて起動してくる。worker を作り直すまでは
+    # 受け取って捨てる（robots.txt の判定は 2026-10-01 に削除した）。
+    parser.add_argument("--ack-robots", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--list-excluded",
         action="store_true",
-        help="robots.txt等の取得ポリシーにより自動取得対象外となった対象を表示して終了する",
+        help="台帳で取得対象外（除外・要確認など）とした対象を表示して終了する",
     )
     parser.add_argument(
         "--systems",
@@ -181,7 +179,6 @@ def build_child_command(args: argparse.Namespace, target: dict) -> list[str]:
             child_script_path(system_type),
             "--slug",
             slug,
-            "--ack-robots",
             "--delay-seconds",
             str(args.delay_seconds),
             "--timeout-ms",
@@ -374,9 +371,6 @@ def list_excluded_targets(targets: list[dict]) -> None:
 # 会議録一括スクレイピングの入口。対象選定までを行い、実行ループは共通実装に任せる。
 def main() -> int:
     args = build_parser().parse_args()
-    if not args.ack_robots and not args.list_targets and not args.list_excluded:
-        print("[ERROR] TSVの取得判断を確認し、--ack-robots を指定してください。", flush=True)
-        return 2
     error = scraping_batch.validate_common_args(args)
     if error:
         print(f"[ERROR] {error}", flush=True)
@@ -420,7 +414,7 @@ def main() -> int:
         )
         print(
             f"[INFO] 取得ポリシーにより {len(excluded_targets)}件を実行対象から除外しました "
-            f"(robots等の明示除外={excluded_count}, 要確認={review_count})。"
+            f"(台帳の除外={excluded_count}, 要確認={review_count})。"
             "詳細は --list-excluded で確認できます。",
             flush=True,
         )

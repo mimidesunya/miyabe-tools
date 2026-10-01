@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 import re
 import sys
 import time
@@ -296,7 +295,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--delay-seconds", type=float, default=1.5)
     parser.add_argument("--max-meetings", type=int, default=0)
     parser.add_argument("--timeout-ms", type=int, default=30_000)
-    parser.add_argument("--ack-robots", action="store_true")
+    # 旧版の worker は --ack-robots を付けて起動してくる。作り直すまでは受け取って捨てる。
+    parser.add_argument("--ack-robots", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--headful", action="store_true", help="HTTP取得方式では互換性のため受け付けるだけです。")
     parser.add_argument("--save-html", action="store_true")
     parser.add_argument("--no-resume", action="store_true")
@@ -306,11 +306,6 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
     target = gijiroku_targets.load_gijiroku_target(args.slug, expected_system="amivoice")
-    if not args.ack_robots:
-        print("[ERROR] robots.txt / 利用規約確認のため --ack-robots を指定してください。")
-        print(f"        robots.txt: {target['robots_txt_url']}")
-        return 2
-
     work_dir = (args.output_dir or Path(target["work_dir"])).resolve()
     downloads_dir = work_dir / "downloads" if args.output_dir is not None else Path(target["downloads_dir"])
     index_json = work_dir / "meetings_index.json" if args.output_dir is not None else Path(target["index_json_path"])

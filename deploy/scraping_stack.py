@@ -122,10 +122,7 @@ def build_scraping_compose(
                 "depends_on": ["scraper-redis"],
                 "environment": {
                     **common_environment,
-                    "SCRAPER_GIJIROKU_ACK_ROBOTS": "1",
                     "SCRAPER_GIJIROKU_AUTO_AUDIT": "1",
-                    "SCRAPER_GIJIROKU_AUDIT_WORKERS": "4",
-                    "SCRAPER_GIJIROKU_AUDIT_TIMEOUT": "12",
                     "SCRAPER_GIJIROKU_PARALLEL": "3",
                     "SCRAPER_GIJIROKU_INDEX_PARALLEL": "1",
                     "SCRAPER_GIJIROKU_PER_HOST_PARALLEL": "1",

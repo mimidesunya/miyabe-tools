@@ -14,11 +14,9 @@ from deploy.scraper_runtime.celery import index_enqueue
 
 TASK_CHOICES = {
     "gijiroku-cycle": ("deploy.scraper_runtime.celery.tasks.run_gijiroku_cycle", "gijiroku"),
-    "gijiroku-backfill": ("deploy.scraper_runtime.celery.tasks.run_gijiroku_backfill", "gijiroku"),
     "gijiroku-rebuild": ("deploy.scraper_runtime.celery.tasks.run_gijiroku_rebuild", "gijiroku"),
     "gijiroku-index": ("deploy.scraper_runtime.celery.tasks.run_gijiroku_index_update", GIJIROKU_INDEX_QUEUE),
     "reiki-cycle": ("deploy.scraper_runtime.celery.tasks.run_reiki_cycle", "reiki"),
-    "reiki-backfill": ("deploy.scraper_runtime.celery.tasks.run_reiki_backfill", "reiki"),
     "reiki-rebuild": ("deploy.scraper_runtime.celery.tasks.run_reiki_rebuild", "reiki"),
     "reiki-index": ("deploy.scraper_runtime.celery.tasks.run_reiki_index_update", REIKI_INDEX_QUEUE),
 }
@@ -38,7 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--filter",
         default="",
-        help="gijiroku-cycle / reiki-cycle の自治体絞り込み、または旧 rebuild 互換オプション",
+        help="gijiroku-cycle / reiki-cycle の自治体絞り込み",
     )
     parser.add_argument(
         "--slug",
@@ -57,8 +55,6 @@ def main() -> int:
     args = build_parser().parse_args()
     task_name, queue_name = TASK_CHOICES[args.task]
     kwargs = {}
-    if args.task.endswith("-rebuild"):
-        kwargs["name_filter"] = args.filter.strip()
     if args.task in CYCLE_TASKS and args.filter.strip():
         kwargs["name_filter"] = args.filter.strip()
     if args.retry_failed:

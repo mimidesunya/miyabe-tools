@@ -10,9 +10,10 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 
 POLICY_VERSION = 1
 
-# robots.txt を取得可否の根拠にしない。議会の会議録と例規は誰でも検証できる
+# robots.txt は取得可否の根拠にしない。議会の会議録と例規は誰でも検証できる
 # べき公的記録で、robots.txt は法的な制限ではなく検索エンジン向けの慣行に
-# すぎない、という運営判断による（2026-08-28。2026-09-06 に再確認）。
+# すぎない、という運営判断による（2026-08-28。2026-09-06 に再確認。
+# robots.txt を読んで判定するコードは 2026-10-01 に削除した）。
 # 議事録と法令は国民の財産であり、公開されている以上は取得する。
 #
 # 個別の自治体で robots.txt が拒否していても、この方針は変えない。
@@ -20,9 +21,8 @@ POLICY_VERSION = 1
 # （/assets/images/ と *.pdf）を拒否していたが、取得する判断とした。
 #
 # 相手側への配慮は robots ではなく、レート制限と正直な User-Agent で行う。
-# video_only（本文が存在しない）や login_required（認証が必要）の除外は
-# robots とは別の理由なので、この設定では解除されない。
-ENFORCE_ROBOTS = False
+# 取得しないのは、運用者が台帳に除外の理由を書いた行（video_only＝本文が
+# 存在しない、login_required＝認証が必要、など）だけ。
 
 
 def canonical_system_type(system_type: str) -> str:
@@ -37,10 +37,6 @@ def canonical_system_type(system_type: str) -> str:
 def origin_url(url: str, path: str) -> str:
     parts = urlsplit(url)
     return urlunsplit((parts.scheme or "https", parts.netloc, path, "", ""))
-
-
-def robots_txt_url(url: str) -> str:
-    return origin_url(url, "/robots.txt")
 
 
 def directory_base_url(url: str) -> str:

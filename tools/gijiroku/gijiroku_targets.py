@@ -58,12 +58,6 @@ CRAWL_STATUS_ENABLED = "enabled"
 CRAWL_STATUS_EXCLUDED = "excluded"
 CRAWL_STATUS_UNRESOLVED = "unresolved"
 CRAWL_STATUS_REVIEW_REQUIRED = "review_required"
-VALID_CRAWL_STATUSES = {
-    CRAWL_STATUS_ENABLED,
-    CRAWL_STATUS_EXCLUDED,
-    CRAWL_STATUS_UNRESOLVED,
-    CRAWL_STATUS_REVIEW_REQUIRED,
-}
 
 
 class CrawlPolicyBlockedError(ValueError):
@@ -144,9 +138,6 @@ def effective_crawl_policy(row: dict[str, str]) -> dict[str, str]:
     """保存済み判断を読み、enabled は運用者の明示許可として優先する。"""
     source_url = str(row.get("url", "")).strip()
     crawl_status = str(row.get("crawl_status", "")).strip()
-    if crawl_status not in VALID_CRAWL_STATUSES:
-        # 旧3列TSVとの後方互換。
-        crawl_status = CRAWL_STATUS_ENABLED if source_url else CRAWL_STATUS_UNRESOLVED
 
     stored_fingerprint = str(row.get("policy_fingerprint", "")).strip()
     if crawl_status == CRAWL_STATUS_ENABLED:
@@ -161,7 +152,7 @@ def effective_crawl_policy(row: dict[str, str]) -> dict[str, str]:
         return {
             "crawl_status": CRAWL_STATUS_REVIEW_REQUIRED,
             "exclusion_reason": "registry_changed",
-            "exclusion_detail": "URLまたはsystem_type変更後のrobots監査待ち",
+            "exclusion_detail": "URLまたはsystem_type変更後の台帳監査待ち",
             "policy_checked_at": "",
             "policy_fingerprint": stored_fingerprint,
         }
@@ -292,7 +283,6 @@ def build_target_entry(
         "system_family": canonical_minutes_system_type(system_type),
         "source_url": source_url,
         "base_url": derive_base_url(source_url),
-        "robots_txt_url": derive_robots_txt_url(source_url),
         "crawl_status": crawl_status,
         "crawl_enabled": crawl_status == CRAWL_STATUS_ENABLED,
         "exclusion_reason": exclusion_reason,
@@ -313,7 +303,7 @@ def iter_gijiroku_targets(
 ) -> list[dict]:
     """URL登録済み対象を返す。
 
-    検索・既存データ整理から登録情報が消えないよう、既定ではrobots除外も含める。
+    検索・既存データ整理から登録情報が消えないよう、既定では除外した対象も含める。
     新規取得に使う呼び出し元は iter_scrapeable_gijiroku_targets() を使う。
     """
     url_index = load_local_minutes_url_index()
@@ -361,7 +351,7 @@ def iter_gijiroku_targets(
 
 
 def iter_scrapeable_gijiroku_targets(expected_system: str | None = None) -> list[dict]:
-    """robots監査で明示的に enabled となった対象だけを返す。"""
+    """台帳で enabled（取得してよい）とした対象だけを返す。"""
     return iter_gijiroku_targets(expected_system=expected_system, include_inactive=False)
 
 
@@ -433,8 +423,3 @@ def derive_base_url(source_url: str) -> str:
     else:
         base_path = path.rsplit("/", 1)[0] + "/"
     return urlunsplit((parts.scheme or "https", parts.netloc, base_path, "", ""))
-
-
-def derive_robots_txt_url(source_url: str) -> str:
-    parts = urlsplit(source_url)
-    return urlunsplit((parts.scheme or "https", parts.netloc, "/robots.txt", "", ""))

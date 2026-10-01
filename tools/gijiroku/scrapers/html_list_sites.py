@@ -22,7 +22,7 @@
 | iwate-kengikai | 岩手県議会（県の会議録システム） | `Zenbun/` のツリー（年 → 定例会 → 種別） | 目次の日の範囲 `page/<id>/<開始>/<終了>` |
 
 使い方:
-    python3 tools/gijiroku/scrapers/html_list_sites.py --slug 13102-chuo-ku --ack-robots --max-meetings 3
+    python3 tools/gijiroku/scrapers/html_list_sites.py --slug 13102-chuo-ku --max-meetings 3
 """
 
 from __future__ import annotations
@@ -962,7 +962,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--delay-seconds", type=float, default=1.0)
     parser.add_argument("--max-meetings", type=int, default=0)
     parser.add_argument("--timeout-ms", type=int, default=30_000)
-    parser.add_argument("--ack-robots", action="store_true")
+    # 旧版の worker は --ack-robots を付けて起動してくる。作り直すまでは受け取って捨てる。
+    parser.add_argument("--ack-robots", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--save-html", action="store_true", help="互換用（未使用）")
     parser.add_argument("--headful", action="store_true", help="互換用（未使用）")
     parser.add_argument("--no-resume", action="store_true")
@@ -977,10 +978,6 @@ def main() -> int:
     if adapter is None:
         print(f"[ERROR] この取得元の形は扱えません: {system_type}（対応: {', '.join(ADAPTERS)}）")
         return 2
-    if not args.ack_robots:
-        print("[ERROR] robots.txt / 利用規約確認のため --ack-robots を指定してください。")
-        return 2
-
     output_dir: Path = (args.output_dir or target["work_dir"]).resolve()
     work_dir = output_dir
     downloads_dir = (output_dir / "downloads").resolve() if args.output_dir is not None else Path(target["downloads_dir"]).resolve()

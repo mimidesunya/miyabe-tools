@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""会議録対象の変更を検出し、robots.txt取得可否をTSVへ記録する。"""
+"""会議録台帳の URL・system_type の変更を検出し、取得判断と変更検出値を TSV へ記録する。
+
+robots.txt は取得可否の根拠にしない（crawl_policy.py の方針）。取得しないのは、
+運用者が台帳に除外の理由を書いた行だけで、ここではその判断を保ったまま、
+確認日と変更検出値（policy_fingerprint）を更新する。
+"""
 
 from __future__ import annotations
 
 import argparse
-import concurrent.futures as cf
 import csv
 import hashlib
 import json
@@ -16,25 +20,19 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-import requests
-
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from tools.gijiroku.crawl_policy import (  # noqa: E402
-    ENFORCE_ROBOTS,
     policy_fingerprint,
     policy_fingerprint_is_current,
     required_crawl_urls,
-    robots_txt_url,
 )
-from tools.gijiroku.robots_rules import robots_can_fetch  # noqa: E402
 
 
 DEFAULT_TSV = ROOT / "data" / "municipalities" / "assembly_minutes_system_urls.tsv"
 DEFAULT_POLICY_CACHE = ROOT / "work" / "gijiroku" / "registry_policy_cache.json"
-USER_AGENT = "MiyabeToolsCrawler/1.0"
 FIELDNAMES = [
     "jis_code",
     "url",
@@ -56,36 +54,14 @@ VALID_CACHE_STATUSES = {"enabled", "excluded", "review_required", "unresolved"}
 
 
 @dataclass(frozen=True)
-class RobotsResult:
-    url: str
-    status_code: int | None
-    body: str
-    error: str = ""
-
-
-@dataclass(frozen=True)
 class AuditSummary:
     rows: int
     selected_rows: int
-    robots_hosts: int
     changed_rows: int
     enabled_targets_changed: bool
     statuses: dict[str, int]
     reasons: dict[str, int]
     wrote: bool
-
-
-def fetch_robots(url: str, *, timeout: float) -> RobotsResult:
-    try:
-        response = requests.get(
-            url,
-            headers={"User-Agent": USER_AGENT, "Accept": "text/plain,*/*;q=0.1"},
-            timeout=timeout,
-            allow_redirects=True,
-        )
-        return RobotsResult(url=url, status_code=response.status_code, body=response.text)
-    except Exception as exc:
-        return RobotsResult(url=url, status_code=None, body="", error=f"{type(exc).__name__}: {exc}")
 
 
 def normalized_row(row: dict[str, str]) -> dict[str, str]:
@@ -95,25 +71,19 @@ def normalized_row(row: dict[str, str]) -> dict[str, str]:
 def kept_detail(row: dict[str, str]) -> str:
     """enabled に戻すとき、残してよい説明を返す。
 
-    除外の理由が書かれていれば、説明はその理由のもの（robots の拒否経路など）
-    なので消す。理由が空のまま説明だけがある行は、運用者の覚書
-    （兵庫県「旧型 CGI で kensakusystem スクレイパが扱えない」など）なので残す。
+    除外の理由が書かれていれば、説明はその理由のものなので消す。理由が空の
+    まま説明だけがある行は、運用者の覚書（兵庫県「旧型 CGI で kensakusystem
+    スクレイパが扱えない」など）なので残す。
     """
     if str(row.get("exclusion_reason", "")).strip():
         return ""
     return str(row.get("exclusion_detail", "")).strip()
 
 
-def classify_row(
-    row: dict[str, str],
-    result: RobotsResult | None,
-    *,
-    checked_at: str,
-) -> dict[str, str]:
+def classify_row(row: dict[str, str], *, checked_at: str) -> dict[str, str]:
     updated = normalized_row(row)
     current_fingerprint = policy_fingerprint(row)
-    required_urls = required_crawl_urls(row)
-    if not required_urls:
+    if not required_crawl_urls(row):
         updated.update(
             {
                 "crawl_status": "unresolved",
@@ -125,98 +95,26 @@ def classify_row(
         )
         return updated
 
-    if not ENFORCE_ROBOTS:
-        # robots.txt を根拠に取得を止めない方針のため、取得可否は判定しない。
-        # 解除するのは **robots 由来の除外だけ**。動画しか公開していない
-        # （video_only）、ログインが要る（login_required）といった除外は、
-        # robots とは関係が無い。ここで一律 enabled に戻すと、取れないものを
-        # 取りに行き続けることになる。実際に video_only が 7 自治体ある。
-        previous_reason = str(row.get("exclusion_reason", "")).strip()
-        if previous_reason and not previous_reason.startswith("robots_"):
-            updated.update(
-                {
-                    "policy_checked_at": checked_at,
-                    "policy_fingerprint": current_fingerprint,
-                }
-            )
-            return updated
+    # 除外の理由が書かれた行は運用者の判断なので残す。動画しか公開していない
+    # （video_only）、公開が無い（not_published）などを一律 enabled に戻すと、
+    # 取れないものを取りに行き続けることになる。
+    if str(row.get("exclusion_reason", "")).strip():
         updated.update(
             {
-                "crawl_status": "enabled",
-                "exclusion_reason": "",
-                "exclusion_detail": kept_detail(row),
                 "policy_checked_at": checked_at,
                 "policy_fingerprint": current_fingerprint,
             }
         )
         return updated
-
-    robots_url = robots_txt_url(required_urls[0])
-    if result is None or result.status_code is None:
-        detail = result.error if result is not None else "robots.txt result missing"
-        # 同じURLについて確認済みなら、一時障害だけで既存の判断を解除しない。
-        if (
-            policy_fingerprint_is_current(row)
-            and str(row.get("crawl_status", "")) in {"enabled", "excluded"}
-            and str(row.get("policy_checked_at", ""))
-        ):
-            return updated
-        updated.update(
-            {
-                "crawl_status": "review_required",
-                "exclusion_reason": "robots_unreachable",
-                "exclusion_detail": f"{robots_url} / {detail}",
-                "policy_checked_at": checked_at,
-                "policy_fingerprint": current_fingerprint,
-            }
-        )
-        return updated
-
-    if result.status_code in {404, 410}:
-        updated.update(
-            {
-                "crawl_status": "enabled",
-                "exclusion_reason": "",
-                "exclusion_detail": kept_detail(row),
-                "policy_checked_at": checked_at,
-                "policy_fingerprint": current_fingerprint,
-            }
-        )
-        return updated
-
-    if not 200 <= result.status_code < 300:
-        updated.update(
-            {
-                "crawl_status": "review_required",
-                "exclusion_reason": "robots_unreachable",
-                "exclusion_detail": f"{robots_url} / HTTP {result.status_code}",
-                "policy_checked_at": checked_at,
-                "policy_fingerprint": current_fingerprint,
-            }
-        )
-        return updated
-
-    disallowed = [url for url in required_urls if not robots_can_fetch(result.body, USER_AGENT, url)]
-    if disallowed:
-        updated.update(
-            {
-                "crawl_status": "excluded",
-                "exclusion_reason": "robots_disallowed",
-                "exclusion_detail": f"{robots_url} / 拒否経路: {' | '.join(disallowed)}",
-                "policy_checked_at": checked_at,
-                "policy_fingerprint": current_fingerprint,
-            }
-        )
-    else:
-        updated.update(
-            {
-                "crawl_status": "enabled",
-                "exclusion_reason": "",
-                "exclusion_detail": kept_detail(row),
-                "policy_checked_at": checked_at,
-                "policy_fingerprint": current_fingerprint,
-            }
-        )
+    updated.update(
+        {
+            "crawl_status": "enabled",
+            "exclusion_reason": "",
+            "exclusion_detail": kept_detail(row),
+            "policy_checked_at": checked_at,
+            "policy_fingerprint": current_fingerprint,
+        }
+    )
     return updated
 
 
@@ -257,7 +155,7 @@ def apply_cached_policies(
         cached = cache.get(code, {})
         current_fingerprint = policy_fingerprint(row)
         if updated["crawl_status"] == "enabled":
-            # enabled は運用者の明示許可。過去のrobots判定を復元せず、
+            # enabled は運用者の明示許可。キャッシュの判定を復元せず、
             # URL/system_type の現在値だけを記録して監査対象から外す。
             if updated["policy_fingerprint"] != current_fingerprint or updated["exclusion_reason"]:
                 updated["policy_checked_at"] = ""
@@ -266,7 +164,7 @@ def apply_cached_policies(
             updated["policy_fingerprint"] = current_fingerprint
             restored.append(updated)
             continue
-        if updated["crawl_status"] == "excluded" and not updated["exclusion_reason"].startswith("robots_"):
+        if updated["crawl_status"] == "excluded":
             # 録画のみ・公開なしなどの除外も運用者が台帳に書いた判断。キャッシュに
             # 残る除外前の enabled で戻してはいけない（指紋は URL と system_type
             # だけなので、除外しても一致する）。2026-09-18 にこれで 27 件が
@@ -303,7 +201,7 @@ def write_policy_cache(path: Path, cache: dict[str, dict[str, str]]) -> None:
 def write_rows(path: Path, rows: list[dict[str, str]], *, expected_digest: str | None = None) -> None:
     # 監査中に別のデプロイで正本が変わった場合、その新しい内容を上書きしない。
     if expected_digest is not None and file_digest(path) != expected_digest:
-        raise RuntimeError(f"registry changed while robots audit was running: {path}")
+        raise RuntimeError(f"registry changed while registry audit was running: {path}")
 
     fd, temp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)
     try:
@@ -330,11 +228,8 @@ def audit_registry(
     codes: set[str] | None = None,
     stale_only: bool = False,
     stamp_fingerprints: bool = False,
-    workers: int = 16,
-    timeout: float = 12.0,
     checked_at: str | None = None,
     cache_path: Path | None = None,
-    include_enabled: bool = False,
 ) -> AuditSummary:
     source_digest = file_digest(path)
     source_rows = read_rows(path)
@@ -361,33 +256,13 @@ def audit_registry(
     def is_selected(row: dict[str, str]) -> bool:
         if selected_codes and str(row.get("jis_code", "")).strip() not in selected_codes:
             return False
-        if (
-            not stamp_fingerprints
-            and not include_enabled
-            and str(row.get("crawl_status", "")).strip() == "enabled"
-        ):
+        if not stamp_fingerprints and str(row.get("crawl_status", "")).strip() == "enabled":
             return False
         if stale_only and policy_fingerprint_is_current(row):
             return False
         return True
 
     selected_indexes = {index for index, row in enumerate(rows) if is_selected(row)}
-    robots_urls: list[str] = []
-    results: dict[str, RobotsResult] = {}
-    if not stamp_fingerprints and ENFORCE_ROBOTS:
-        robots_urls = sorted(
-            {
-                robots_txt_url(str(rows[index].get("url", "")).strip())
-                for index in selected_indexes
-                if str(rows[index].get("url", "")).strip()
-            }
-        )
-        with cf.ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
-            futures = {executor.submit(fetch_robots, url, timeout=max(1.0, timeout)): url for url in robots_urls}
-            for future in cf.as_completed(futures):
-                url = futures[future]
-                results[url] = future.result()
-
     audit_date = checked_at or date.today().isoformat()
     audited: list[dict[str, str]] = []
     enabled_targets_changed = operator_enabled_changed
@@ -399,9 +274,7 @@ def audit_registry(
             updated = before
             updated["policy_fingerprint"] = policy_fingerprint(row)
         else:
-            source_url = str(row.get("url", "")).strip()
-            result = results.get(robots_txt_url(source_url)) if source_url else None
-            updated = classify_row(row, result, checked_at=audit_date)
+            updated = classify_row(row, checked_at=audit_date)
             if updated["crawl_status"] == "enabled" and (
                 not policy_fingerprint_is_current(row) or before["crawl_status"] != "enabled"
             ):
@@ -434,7 +307,6 @@ def audit_registry(
     return AuditSummary(
         rows=len(audited),
         selected_rows=len(selected_indexes),
-        robots_hosts=len(robots_urls),
         changed_rows=changed_rows,
         enabled_targets_changed=enabled_targets_changed,
         statuses=dict(counts),
@@ -444,23 +316,16 @@ def audit_registry(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="会議録対象の変更を検出してrobots.txt取得可否を監査する")
+    parser = argparse.ArgumentParser(description="会議録台帳の URL・system_type の変更を検出して取得判断を記録する")
     parser.add_argument("--tsv", type=Path, default=DEFAULT_TSV)
     parser.add_argument("--write", action="store_true", help="監査結果をTSVへ保存する")
     parser.add_argument("--codes", default="", help="監査する自治体コードのカンマ区切り（空なら全件）")
     parser.add_argument("--stale-only", action="store_true", help="URLかsystem_typeが変わった行だけ監査する")
     parser.add_argument(
-        "--include-enabled",
-        action="store_true",
-        help="明示許可されたenabled行もrobots監査する",
-    )
-    parser.add_argument(
         "--stamp-fingerprints",
         action="store_true",
         help="既存の監査結果を保ったまま変更検出値だけ設定する（移行用）",
     )
-    parser.add_argument("--workers", type=int, default=16)
-    parser.add_argument("--timeout", type=float, default=12.0)
     parser.add_argument(
         "--cache",
         type=Path,
@@ -476,15 +341,9 @@ def main() -> int:
         codes=selected_codes,
         stale_only=args.stale_only,
         stamp_fingerprints=args.stamp_fingerprints,
-        workers=args.workers,
-        timeout=args.timeout,
         cache_path=args.cache,
-        include_enabled=args.include_enabled,
     )
-    print(
-        f"rows={summary.rows} selected={summary.selected_rows} "
-        f"robots_hosts={summary.robots_hosts} changed={summary.changed_rows}"
-    )
+    print(f"rows={summary.rows} selected={summary.selected_rows} changed={summary.changed_rows}")
     print("statuses " + " ".join(f"{key}={value}" for key, value in sorted(summary.statuses.items())))
     print("reasons " + " ".join(f"{key}={value}" for key, value in sorted(summary.reasons.items())))
     if summary.wrote:

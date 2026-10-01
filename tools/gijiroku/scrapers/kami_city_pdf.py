@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import csv
 import html
-import json
 import re
 import sys
 import time
@@ -265,7 +264,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="自治体公式サイトの site/gikai 型会議録PDF一覧を巡回し、PDF本文をテキスト保存します。"
     )
     parser.add_argument("--slug", default="39212-kami-shi", help="対象自治体 slug")
-    parser.add_argument("--ack-robots", action="store_true", help="robots.txt・利用規約・許諾確認済みとして実行する")
+    # 旧版の worker は --ack-robots を付けて起動してくる。作り直すまでは受け取って捨てる。
+    parser.add_argument("--ack-robots", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--max-meetings", type=int, default=0, help="処理するPDF件数上限（0 は無制限）")
     parser.add_argument("--max-pages", type=int, default=120, help="一覧・詳細ページの探索上限（0 は無制限）")
     parser.add_argument("--delay-seconds", type=float, default=1.5, help="PDFアクセス間の待機秒数")
@@ -353,12 +353,6 @@ def _request_text_once(session: requests.Session, url: str, timeout_ms: int) -> 
         except UnicodeDecodeError:
             continue
     return raw.decode("utf-8", errors="replace")
-
-
-def request_bytes(session: requests.Session, url: str, timeout_ms: int) -> bytes:
-    response = session.get(url, timeout=max(timeout_ms / 1000.0, 1.0))
-    response.raise_for_status()
-    return response.content
 
 
 def looks_like_pdf_response(content_type: str, content_disposition: str, raw: bytes) -> bool:
@@ -774,7 +768,7 @@ def extract_pdf_text(pdf_bytes: bytes) -> str:
     try:
         from pypdf import PdfReader
     except ImportError as exc:
-        raise RuntimeError("PDF本文抽出には pypdf が必要です。dev/requirements/gijiroku.txt をインストールしてください。") from exc
+        raise RuntimeError("PDF本文抽出には pypdf が必要です。docker/scraper/requirements.txt をインストールしてください。") from exc
 
     reader = PdfReader(BytesIO(pdf_bytes))
     parts: list[str] = []
@@ -982,10 +976,6 @@ def normalize_year_dir(year_label: str) -> str:
 
 def main() -> int:
     args = build_parser().parse_args()
-    if not args.ack_robots:
-        print("ERROR: --ack-robots を指定してください。robots.txt・利用規約・許諾確認後に実行してください。", file=sys.stderr)
-        return 2
-
     target = load_supported_target(args.slug)
     slug = str(target["slug"])
     work_dir = Path(target["work_dir"])

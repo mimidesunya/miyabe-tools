@@ -14,7 +14,6 @@ import argparse
 import csv
 import datetime
 import html
-import json
 import re
 import sys
 import time
@@ -2282,11 +2281,6 @@ def fetch_meeting_text(request_context, item: MeetingItem, timeout_ms: int) -> t
     return fragment_count, "\n".join(header_lines).strip() + "\n"
 
 
-def save_debug_html(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-
-
 def build_parser() -> argparse.ArgumentParser:
     default_slug = gijiroku_targets.default_slug_for_system("dbsr")
     parser = argparse.ArgumentParser(
@@ -2332,11 +2326,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_DISCOVERY_TIMEOUT_SECONDS,
         help="会議一覧収集の最大秒数（0 は無制限）",
     )
-    parser.add_argument(
-        "--ack-robots",
-        action="store_true",
-        help="robots.txt・利用規約・許諾確認済みとして実行する",
-    )
+    # 旧版の worker は --ack-robots を付けて起動してくる。作り直すまでは受け取って捨てる。
+    parser.add_argument("--ack-robots", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--save-html",
         action="store_true",
@@ -2353,11 +2344,6 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
     target = gijiroku_targets.load_gijiroku_target(args.slug, expected_system="dbsr")
-
-    if not args.ack_robots:
-        print("[ERROR] robots.txt / 利用規約確認のため --ack-robots を指定してください。")
-        print(f"        robots.txt: {target['robots_txt_url']}")
-        return 2
 
     output_dir: Path = (args.output_dir or target["work_dir"]).resolve()
     work_dir: Path = (args.output_dir or target["work_dir"]).resolve()

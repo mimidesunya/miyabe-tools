@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 import re
 import sys
 import time
@@ -101,7 +100,8 @@ DEFAULT_MAX_PAGES = 600
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="汎用 自治体サイト PDF 会議録スクレイパ")
     parser.add_argument("--slug", required=True, help="対象自治体 slug")
-    parser.add_argument("--ack-robots", action="store_true", help="robots.txt・利用規約・許諾確認済みとして実行する")
+    # 旧版の worker は --ack-robots を付けて起動してくる。作り直すまでは受け取って捨てる。
+    parser.add_argument("--ack-robots", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--max-meetings", type=int, default=0, help="処理するPDF件数上限（0 は無制限）")
     parser.add_argument("--max-pages", type=int, default=DEFAULT_MAX_PAGES, help="クロールするページ数上限")
     parser.add_argument("--max-depth", type=int, default=3, help="入口からのリンク追跡の深さ上限")
@@ -277,10 +277,6 @@ def crawl_pdf_items(
 
 def main() -> int:
     args = build_parser().parse_args()
-    if not args.ack_robots:
-        print("ERROR: --ack-robots を指定してください。robots.txt・利用規約・許諾確認後に実行してください。", file=sys.stderr)
-        return 2
-
     target = gijiroku_targets.load_gijiroku_target(args.slug, expected_system="独自")
     slug = str(target["slug"])
     work_dir = Path(target["work_dir"])

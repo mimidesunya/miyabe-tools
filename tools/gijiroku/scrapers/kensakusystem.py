@@ -12,7 +12,6 @@ from __future__ import annotations
 import argparse
 import csv
 import html
-import json
 import re
 import sys
 import time
@@ -559,11 +558,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_WAIT_MS,
         help="HTTP 操作タイムアウト（ミリ秒）",
     )
-    parser.add_argument(
-        "--ack-robots",
-        action="store_true",
-        help="robots.txt・利用規約・許諾確認済みとして実行する",
-    )
+    # 旧版の worker は --ack-robots を付けて起動してくる。作り直すまでは受け取って捨てる。
+    parser.add_argument("--ack-robots", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--save-html",
         action="store_true",
@@ -580,11 +576,6 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
     target = gijiroku_targets.load_gijiroku_target(args.slug, expected_system="kensakusystem")
-
-    if not args.ack_robots:
-        print("[ERROR] robots.txt / 利用規約確認のため --ack-robots を指定してください。")
-        print(f"        robots.txt: {target['robots_txt_url']}")
-        return 2
 
     output_dir: Path = (args.output_dir or target["work_dir"]).resolve()
     work_dir: Path = (args.output_dir or target["work_dir"]).resolve()

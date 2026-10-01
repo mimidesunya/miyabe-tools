@@ -123,7 +123,6 @@ def child_command(target: dict) -> list[str]:
         sys.executable,
         str(WORKSPACE_ROOT / "tools" / "gijiroku" / relative),
         "--slug", str(target.get("slug") or ""),
-        "--ack-robots",
     ]
 
 

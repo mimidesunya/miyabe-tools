@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 import re
 import sys
 import time
@@ -40,7 +39,6 @@ from kami_city_pdf import (
     normalize_href,
     normalize_pdf_text,
     normalize_space,
-    normalize_year_dir,
     now_ts,
     page_title,
     process_pdf_meeting_plan,
@@ -111,7 +109,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="静的な kaigiroku/gijiroku ディレクトリ配下を巡回し、会議録PDF/HTML本文を保存します。"
     )
     parser.add_argument("--slug", required=True, help="対象自治体 slug")
-    parser.add_argument("--ack-robots", action="store_true", help="robots.txt・利用規約・許諾確認済みとして実行する")
+    # 旧版の worker は --ack-robots を付けて起動してくる。作り直すまでは受け取って捨てる。
+    parser.add_argument("--ack-robots", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--max-meetings", type=int, default=0, help="処理する文書件数上限（0 は無制限）")
     parser.add_argument("--max-pages", type=int, default=250, help="巡回するHTMLページ上限（0 は無制限）")
     parser.add_argument("--delay-seconds", type=float, default=1.5, help="文書アクセス間の待機秒数")
@@ -466,10 +465,6 @@ def extract_html_document_text(session: requests.Session, url: str, timeout_ms: 
 
 def main() -> int:
     args = build_parser().parse_args()
-    if not args.ack_robots:
-        print("ERROR: --ack-robots を指定してください。robots.txt・利用規約・許諾確認後に実行してください。", file=sys.stderr)
-        return 2
-
     target = load_target(args.slug)
     slug = str(target["slug"])
     work_dir = Path(target["work_dir"])

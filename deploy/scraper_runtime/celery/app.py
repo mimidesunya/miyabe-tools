@@ -14,16 +14,6 @@ DISPATCH_INTERVAL_SECONDS = celery_runtime.env_int(
     60,
     minimum=15,
 )
-GIJIROKU_SCHEDULE_SECONDS = celery_runtime.env_int(
-    "CELERY_GIJIROKU_SCHEDULE_SECONDS",
-    6 * 60 * 60,
-    minimum=60,
-)
-REIKI_SCHEDULE_SECONDS = celery_runtime.env_int(
-    "CELERY_REIKI_SCHEDULE_SECONDS",
-    6 * 60 * 60,
-    minimum=60,
-)
 INDEX_OUTBOX_SWEEP_SECONDS = celery_runtime.env_int(
     "CELERY_INDEX_OUTBOX_SWEEP_SECONDS",
     10 * 60,
@@ -221,12 +211,10 @@ app.conf.update(
         # 判定は maintenance（索引 worker）で動かす。取得は run_*_cycle として
         # 取得キューへ送られるので、取得そのものは今までどおり取得 worker が担う。
         "deploy.scraper_runtime.celery.tasks.dispatch_gijiroku_cycle": {"queue": "maintenance"},
-        "deploy.scraper_runtime.celery.tasks.run_gijiroku_backfill": {"queue": GIJIROKU_QUEUE},
         "deploy.scraper_runtime.celery.tasks.run_gijiroku_cycle": {"queue": GIJIROKU_QUEUE},
         "deploy.scraper_runtime.celery.tasks.run_gijiroku_rebuild": {"queue": GIJIROKU_QUEUE},
         "deploy.scraper_runtime.celery.tasks.run_gijiroku_index_update": {"queue": GIJIROKU_INDEX_QUEUE},
         "deploy.scraper_runtime.celery.tasks.dispatch_reiki_cycle": {"queue": "maintenance"},
-        "deploy.scraper_runtime.celery.tasks.run_reiki_backfill": {"queue": REIKI_QUEUE},
         "deploy.scraper_runtime.celery.tasks.run_reiki_cycle": {"queue": REIKI_QUEUE},
         "deploy.scraper_runtime.celery.tasks.run_reiki_rebuild": {"queue": REIKI_QUEUE},
         "deploy.scraper_runtime.celery.tasks.run_reiki_index_update": {"queue": REIKI_INDEX_QUEUE},

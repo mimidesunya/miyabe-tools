@@ -16,7 +16,7 @@ from tools.tasks import status as batch_status
 from tools.tasks import generation_sweep_state
 from tools.tasks import index_outbox
 from tools.gijiroku import gijiroku_targets
-from tools.gijiroku import audit_minutes_robots
+from tools.gijiroku import audit_minutes_registry
 from tools.reiki import reiki_targets
 
 
@@ -92,17 +92,6 @@ def _scraper_build_search_index() -> bool:
     return celery_runtime.env_bool("SCRAPER_BUILD_SEARCH_INDEX", False)
 
 
-# 会議録 index を全再構築するコマンドを作る。
-def _gijiroku_backfill_command() -> list[str]:
-    return _python_command() + [
-        "tools/search/build_opensearch_index.py",
-        "--mode",
-        "rebuild",
-        "--doc-type",
-        "minutes",
-    ]
-
-
 # 会議録一括スクレイパを remote 用オプション付きで起動するコマンドを作る。
 def _gijiroku_scrape_command(
     *, retry_failed: bool = False, name_filter: str = "", force: bool = False
@@ -112,8 +101,6 @@ def _gijiroku_scrape_command(
         # 保存済みファイルが壊れているときに使う。resume のままだと
         # 「もう取ってある」で読み飛ばし、直した取得処理が走らない。
         command.append("--no-resume")
-    if celery_runtime.env_bool("SCRAPER_GIJIROKU_ACK_ROBOTS", True):
-        command.append("--ack-robots")
     command.extend(
         [
             "--parallel",
@@ -154,17 +141,6 @@ def _gijiroku_scrape_command(
     if name_filter.strip():
         command.extend(["--filter", name_filter.strip()])
     return command
-
-
-# 例規集 index を全再構築するコマンドを作る。
-def _reiki_backfill_command() -> list[str]:
-    return _python_command() + [
-        "tools/search/build_opensearch_index.py",
-        "--mode",
-        "rebuild",
-        "--doc-type",
-        "reiki",
-    ]
 
 
 # stale な background_tasks メタ情報を実データから復旧するコマンドを作る。
@@ -215,7 +191,7 @@ def _reiki_scrape_command(*, retry_failed: bool = False, name_filter: str = "") 
 
 
 # 手動再構築タスク用に、doc_type を切り替えた index rebuild コマンドを作る。
-def _rebuild_command(kind: str, name_filter: str) -> list[str]:
+def _rebuild_command(kind: str) -> list[str]:
     doc_type = "minutes" if kind == "minutes" else "reiki"
     command = _python_command() + [
         "tools/search/build_opensearch_index.py",
@@ -224,8 +200,6 @@ def _rebuild_command(kind: str, name_filter: str) -> list[str]:
         "--doc-type",
         doc_type,
     ]
-    if name_filter.strip() != "":
-        print("[CELERY] name_filter is ignored by OpenSearch rebuild", flush=True)
     return command
 
 
@@ -471,11 +445,6 @@ def _run_index_update_impl(kind: str, slug: str) -> None:
         batch_status.invalidate_runtime_caches(include_homepage_payload=True)
 
 
-# 会議録 backfill タスクの実処理を起動する。
-def _run_gijiroku_backfill_impl() -> None:
-    _run_command("gijiroku backfill", _gijiroku_backfill_command())
-
-
 # 会議録 scrape cycle の実処理を起動する。
 def _run_gijiroku_scrape_impl(
     *, retry_failed: bool = False, name_filter: str = "", force: bool = False
@@ -488,17 +457,15 @@ def _run_gijiroku_scrape_impl(
     )
 
 
-# TSV の URL/system_type 差分だけ robots.txt を再監査する。
+# TSV の URL/system_type が変わった行だけ取得判断を記録し直す。
 def _audit_gijiroku_registry_changes() -> bool:
     if not celery_runtime.env_bool("SCRAPER_GIJIROKU_AUTO_AUDIT", True):
         return False
     try:
-        summary = audit_minutes_robots.audit_registry(
+        summary = audit_minutes_registry.audit_registry(
             write=True,
             stale_only=True,
-            workers=celery_runtime.env_int("SCRAPER_GIJIROKU_AUDIT_WORKERS", 4, minimum=1),
-            timeout=celery_runtime.env_float("SCRAPER_GIJIROKU_AUDIT_TIMEOUT", 12.0, minimum=1.0),
-            cache_path=audit_minutes_robots.DEFAULT_POLICY_CACHE,
+            cache_path=audit_minutes_registry.DEFAULT_POLICY_CACHE,
         )
     except Exception as exc:
         # 変更行は loader 側でも review_required になるため取得されない。
@@ -513,11 +480,6 @@ def _audit_gijiroku_registry_changes() -> bool:
             flush=True,
         )
     return summary.enabled_targets_changed
-
-
-# 例規集 backfill タスクの実処理を起動する。
-def _run_reiki_backfill_impl() -> None:
-    _run_command("reiki backfill", _reiki_backfill_command())
 
 
 # 例規集 scrape cycle の実処理を起動する。
@@ -563,13 +525,6 @@ def dispatch_reiki_cycle() -> dict[str, object]:
     return {"enqueued": True, "task": "reiki", "task_id": result.id}
 
 
-@app.task(name="deploy.scraper_runtime.celery.tasks.run_gijiroku_backfill")
-# 手動/管理用の会議録 index 全再構築タスク。
-def run_gijiroku_backfill() -> dict[str, object]:
-    _run_gijiroku_backfill_impl()
-    return {"ok": True, "task": "gijiroku_backfill"}
-
-
 @app.task(bind=True, name="deploy.scraper_runtime.celery.tasks.run_gijiroku_cycle", max_retries=None)
 # 会議録 scrape cycle を実行し、失敗時は Celery retry と retry marker を設定する。
 def run_gijiroku_cycle(
@@ -596,9 +551,9 @@ def run_gijiroku_cycle(
 
 @app.task(name="deploy.scraper_runtime.celery.tasks.run_gijiroku_rebuild")
 # 会議録 index rebuild を Celery から起動する手動タスク。
-def run_gijiroku_rebuild(name_filter: str = "") -> dict[str, object]:
-    _run_command("gijiroku rebuild", _rebuild_command("minutes", name_filter))
-    return {"ok": True, "task": "gijiroku_rebuild", "filter": name_filter}
+def run_gijiroku_rebuild() -> dict[str, object]:
+    _run_command("gijiroku rebuild", _rebuild_command("minutes"))
+    return {"ok": True, "task": "gijiroku_rebuild"}
 
 
 @app.task(
@@ -612,13 +567,6 @@ def run_gijiroku_rebuild(name_filter: str = "") -> dict[str, object]:
 def run_gijiroku_index_update(self, slug: str) -> dict[str, object]:
     _run_index_update_task(self, "gijiroku", slug)
     return {"ok": True, "task": "gijiroku_index_update", "slug": slug}
-
-
-@app.task(name="deploy.scraper_runtime.celery.tasks.run_reiki_backfill")
-# 手動/管理用の例規集 index 全再構築タスク。
-def run_reiki_backfill() -> dict[str, object]:
-    _run_reiki_backfill_impl()
-    return {"ok": True, "task": "reiki_backfill"}
 
 
 @app.task(bind=True, name="deploy.scraper_runtime.celery.tasks.run_reiki_cycle", max_retries=None)
@@ -641,9 +589,9 @@ def run_reiki_cycle(self, retry_failed: bool = False, name_filter: str = "") -> 
 
 @app.task(name="deploy.scraper_runtime.celery.tasks.run_reiki_rebuild")
 # 例規集 index rebuild を Celery から起動する手動タスク。
-def run_reiki_rebuild(name_filter: str = "") -> dict[str, object]:
-    _run_command("reiki rebuild", _rebuild_command("reiki", name_filter))
-    return {"ok": True, "task": "reiki_rebuild", "filter": name_filter}
+def run_reiki_rebuild() -> dict[str, object]:
+    _run_command("reiki rebuild", _rebuild_command("reiki"))
+    return {"ok": True, "task": "reiki_rebuild"}
 
 
 @app.task(

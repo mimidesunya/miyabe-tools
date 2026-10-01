@@ -15,7 +15,7 @@
   代表 URL 候補として低信頼で記録し、`system_type` は空（人手で 独自 / site-gikai-pdf /
   static-kaigiroku-dir を判断）にする。
 - 反映は運用者が doc/assembly-minutes-url-survey.md の手順で確認してから行う。
-  新規 URL は robots 差分監査が済むまで自動取得されない（enabled にしない限り）。
+  取得の対象にするには、台帳の crawl_status を enabled にする。
 
 使い方:
     python tools/gijiroku/discover_minutes_urls.py --limit 15
@@ -32,7 +32,7 @@ import re
 import sys
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
@@ -123,20 +123,6 @@ MINUTES_NEG_RE = re.compile(
     r"名簿|報酬|政務活動|請願|陳情|意見書|選挙|中継|ライブ|録画",
     re.I,
 )
-
-
-def looks_like_minutes_pdf(url: str, text: str) -> bool:
-    if not url.lower().split("?", 1)[0].endswith(".pdf"):
-        return False
-    blob = f"{text} {url}"
-    if MINUTES_NEG_RE.search(blob):
-        return False
-    if MINUTES_TEXT_RE.search(blob):
-        return True
-    # gikai/kaigiroku 配下の PDF で、年度らしさがあれば会議録とみなす。
-    if MINUTES_PATH_RE.search(url) and ERA_YEAR_RE.search(blob):
-        return True
-    return False
 
 
 def looks_like_dated_minutes_html(url: str, text: str) -> bool:
@@ -1019,7 +1005,7 @@ def main() -> int:
     print(f"\n完了: {len(results)}件  高信頼={high} 低信頼={low} 不明={none}")
     print(f"候補CSV: {out_path}")
     print("※ 反映は doc/assembly-minutes-url-survey.md の手順で確認してから。"
-          "新規URLは robots 監査が済むまで自動取得されない。")
+          "取得の対象にするには台帳の crawl_status を enabled にする。")
     return 0
 
 

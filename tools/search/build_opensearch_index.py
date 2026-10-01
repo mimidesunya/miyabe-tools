@@ -14,7 +14,6 @@ import json
 import os
 import re
 import sys
-import time
 from collections import Counter, deque
 from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -544,13 +543,6 @@ def looks_like_error_page(title: str, content_text: str) -> bool:
 
 def clean_text(value: Any) -> str:
     return str(value or "").strip()
-
-
-def first_date(value: Any) -> str | None:
-    text = clean_text(value)
-    if len(text) >= 10:
-        return normalize_date(text[:10])
-    return None
 
 
 def preferred_reiki_sidecar(files: dict[str, Path], key: str) -> Path | None:
@@ -1134,18 +1126,14 @@ def _count_reiki_target(target: dict[str, Any]) -> int:
 def indexable_minutes_targets() -> list[dict]:
     """会議録として索引してよい対象。
 
-    robots で除外した対象は本物の会議録なので残す。録画のみ・公開なしなど、
-    それ以外の理由で除外した対象は、取得元に会議録が無いと確かめたもの。
+    台帳で除外した対象（録画のみ・公開なしなど）は、取得元に会議録が無いと確かめたもの。
     除外前に落とした議会だよりや議案が残っていても、会議録として載せない
     （2026-09-19 に大鹿村 22 件・坂祝町 34 件が載っていた）。
     """
     return [
         target
         for target in gijiroku_targets.iter_gijiroku_targets()
-        if not (
-            str(target.get("crawl_status") or "") == "excluded"
-            and not str(target.get("exclusion_reason") or "").startswith("robots_")
-        )
+        if str(target.get("crawl_status") or "") != "excluded"
     ]
 
 
