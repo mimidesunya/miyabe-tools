@@ -1792,4 +1792,4 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 47362	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A91CB4634	d1-law	enabled		
 47375	https://www1.g-reiki.net/tarama/reiki_menu.html	g-reiki	enabled		
 47381	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A91CB46FD	d1-law	enabled		
-47382	https://www.town.yonaguni.okinawa.jp/reiki_int/reiki_menu.html	taikei	enabled		
+47382	https://www.town.yonaguni.okinawa.jp/reiki_int/reiki_taikei/taikei_default.html	taikei	enabled		
