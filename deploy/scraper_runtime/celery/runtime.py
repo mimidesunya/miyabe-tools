@@ -15,31 +15,18 @@ ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_TIMEZONE = "Asia/Tokyo"
 DEFAULT_STALE_SECONDS = 15 * 60
 STATUS_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
-GIJIROKU_SUPPORTED_SYSTEMS = {
-    "gijiroku.com",
-    "voices",
-    "kaigiroku.net",
-    "dbsr",
-    "db-search",
-    "kaigiroku-indexphp",
-    "kensakusystem",
-    "kami-city-pdf",
-    "site-gikai-pdf",
-    "static-kaigiroku-dir",
-    "shizuoka-notes",
-    "chuo-kugikai",
-    "nakano-kugikai",
-    "echizen-search",
-    "yoshinogawa-asp",
-    "izumi-cake",
-    "oumu-dbpocket",
-    "kin-jsp",
-    "voicetechno",
-}
 # 例規のスクレイパを足すたびにここを書き直すと、必ず忘れる（bk2reiki / wp-reiki /
 # reiki-pdf を足した 2026-09-19 時点で、この一覧は d1-law・taikei・g-reiki の
 # 3 つのままだった）。対応表は scrape_all_reiki.py にあるので、そちらを読む。
 REIKI_FALLBACK_SUPPORTED_SYSTEMS = {"d1-law", "taikei", "g-reiki"}
+
+
+# 会議録も同じく、対応表は scrape_all_minutes.py を読む。手書きの一覧は 2026-10-01
+# 時点で 独自・amivoice・msearch・iwate-kengikai が抜けていて、残作業の判定から外れていた。
+def gijiroku_supported_systems() -> set[str]:
+    from tools.gijiroku import scrape_all_minutes
+
+    return {str(name).strip() for name in scrape_all_minutes.SUPPORTED_INPUT_SYSTEMS}
 
 
 def reiki_supported_systems() -> set[str]:
@@ -251,11 +238,12 @@ def _iter_supported_target_slugs(task_name: str) -> list[str]:
         if task_name == "gijiroku":
             from tools.gijiroku import gijiroku_targets
 
+            supported = gijiroku_supported_systems()
             slugs: list[str] = []
             for target in gijiroku_targets.iter_scrapeable_gijiroku_targets():
                 system_type = str(target.get("system_type") or "").strip()
                 system_family = gijiroku_targets.canonical_minutes_system_type(system_type)
-                if system_type in GIJIROKU_SUPPORTED_SYSTEMS or system_family in GIJIROKU_SUPPORTED_SYSTEMS:
+                if system_type in supported or system_family in supported:
                     slug = str(target.get("slug") or "").strip()
                     if slug:
                         slugs.append(slug)
