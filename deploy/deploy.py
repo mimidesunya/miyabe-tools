@@ -24,12 +24,6 @@ from scraping_stack import (
 # Store temp key paths for cleanup
 _temp_key_paths = []
 _cleanup_registered = False
-_RUNTIME_MUNICIPALITY_FILES = (
-    'municipality_master.tsv',
-    'assembly_minutes_system_urls.tsv',
-    'reiki_system_urls.tsv',
-    'municipality_homepages.csv',
-)
 DEFAULT_SCRAPER_IMAGE_NAME = "miyabe-tools-scraper"
 DEFAULT_GIJIROKU_LOOP_SECONDS = 86400
 DEFAULT_REIKI_LOOP_SECONDS = 86400
@@ -212,17 +206,6 @@ def cleanup_temp_keys():
         if os.path.exists(temp_path):
             os.remove(temp_path)
             print(f"Cleaned up temp SSH key: {temp_path}")
-
-def prepare_runtime_municipality_data():
-    """Publishes municipality metadata for the web runtime under data/municipalities."""
-    # 自治体マスタは data/municipalities を git 管理された正本として扱う。
-    source_dir = os.path.join('data', 'municipalities')
-    os.makedirs(source_dir, exist_ok=True)
-    available = 0
-    for filename in _RUNTIME_MUNICIPALITY_FILES:
-        if os.path.exists(os.path.join(source_dir, filename)):
-            available += 1
-    print(f"Using tracked runtime municipality data: {available} files")
 
 def load_config(config_path):
     with open(config_path, 'r') as f:
@@ -627,23 +610,9 @@ chgrp {web_group} {dest_dir}/data {dest_dir}/data/boards
 chmod 2775 {dest_dir}/data {dest_dir}/data/boards
 if [ -d {dest_dir}/data/boards ]; then find {dest_dir}/data/boards -type d -exec chgrp {web_group} {{}} + -exec chmod 2775 {{}} +; fi
 if [ -f {dest_dir}/data/boards/users.sqlite ]; then chgrp {web_group} {dest_dir}/data/boards/users.sqlite && chmod 664 {dest_dir}/data/boards/users.sqlite; fi
-if [ -f {dest_dir}/data/users.sqlite ]; then chgrp {web_group} {dest_dir}/data/users.sqlite && chmod 664 {dest_dir}/data/users.sqlite; fi
 if [ -f {dest_dir}/data/config.json ]; then chgrp {web_group} {dest_dir}/data/config.json && chmod 664 {dest_dir}/data/config.json; fi
 """
     ssh_exec(config, permission_cmd)
-
-def migrate_remote_data_layout(config, dest_dir, shared_data_dir):
-    """Copies existing remote non-boards data to the shared data directory once."""
-    print("=== Migrating Existing Remote Data Layout ===")
-    migration_cmd = f"""
-mkdir -p {dest_dir}/data {dest_dir}/data/boards {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery
-if [ -f {shared_data_dir}/config.json ] && [ ! -f {dest_dir}/data/config.json ]; then cp -a {shared_data_dir}/config.json {dest_dir}/data/config.json; fi
-if [ -f {shared_data_dir}/users.sqlite ] && [ ! -f {dest_dir}/data/users.sqlite ]; then cp -a {shared_data_dir}/users.sqlite {dest_dir}/data/users.sqlite; fi
-if [ -f {dest_dir}/data/users.sqlite ] && [ ! -f {dest_dir}/data/boards/users.sqlite ]; then cp -a {dest_dir}/data/users.sqlite {dest_dir}/data/boards/users.sqlite; fi
-if [ -d {dest_dir}/data/reiki ]; then rsync -a --ignore-existing {dest_dir}/data/reiki/ {shared_data_dir}/reiki/; fi
-if [ -d {dest_dir}/data/gijiroku ]; then rsync -a --ignore-existing {dest_dir}/data/gijiroku/ {shared_data_dir}/gijiroku/; fi
-"""
-    ssh_exec(config, migration_cmd)
 
 def normalize_remote_municipality_storage(config, dest_dir, shared_data_dir):
     """Normalizes remote municipality storage names and rebuilds task snapshots."""
@@ -653,9 +622,7 @@ def normalize_remote_municipality_storage(config, dest_dir, shared_data_dir):
     normalization_cmd = f"""
 set -eu
 echo '[deploy] prepare municipality storage'
-mkdir -p {dest_dir}/tools {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {shared_data_dir}/municipalities {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery
-echo '[deploy] sync municipality metadata to shared data'
-rsync -a {dest_dir}/data/municipalities/ {shared_data_dir}/municipalities/
+mkdir -p {dest_dir}/tools {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery
 if [ -f {dest_dir}/docker-compose.scraping.yml ]; then
   running_scrapers="$(docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml ps --status running --services | grep -E '^(scraper-gijiroku|scraper-reiki|scraper-gijiroku-index|scraper-reiki-index|scraper-beat)$' || true)"
   restore_scrapers() {{
@@ -778,12 +745,11 @@ def sync_single_file(config, ssh_base, local_path, remote_path, dry_run=False, r
 def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
     """Syncs app/runtime files to remote, but leaves scraped shared data in place."""
     print("=== Syncing Code and Config Files ===")
-    prepare_runtime_municipality_data()
     
     # Ensure remote directories exist
     ssh_exec(
         config,
-        f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/domains {dest_dir}/src {dest_dir}/nginx {dest_dir}/docker/php {dest_dir}/deploy/scraper_runtime {dest_dir}/tools {dest_dir}/data {dest_dir}/data/boards {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {dest_dir}/work {dest_dir}/work/celery {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery"
+        f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/domains {dest_dir}/nginx {dest_dir}/docker/php {dest_dir}/deploy/scraper_runtime {dest_dir}/tools {dest_dir}/data {dest_dir}/data/boards {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {dest_dir}/work {dest_dir}/work/celery {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery"
     )
 
     # Use rsync for better handling of large number of files
@@ -840,15 +806,6 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
     # Sync root data files separately (rsync only handles directories above)
     sync_single_file(config, ssh_base, "data/config.json", f"{dest_dir}/data/config.json", dry_run=dry_run, required=True)
     sync_single_file(config, ssh_base, ".dockerignore", f"{dest_dir}/.dockerignore", dry_run=dry_run, required=False)
-    sync_single_file(
-        config,
-        ssh_base,
-        "data/users.sqlite",
-        f"{dest_dir}/data/boards/users.sqlite",
-        dry_run=dry_run,
-        required=False,
-        ignore_existing_remote=True,
-    )
     for local_path, remote_path in dirs_to_sync:
         print(f"Syncing {local_path}...")
         # -a: archive mode (preserves permissions, times, etc.)
@@ -874,29 +831,6 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
     
     print("Sync complete.")
 
-
-def cleanup_legacy_search_artifacts(config, dest_dir, shared_data_dir):
-    quoted_dest = shlex.quote(dest_dir)
-    quoted_shared_gijiroku = shlex.quote(f"{shared_data_dir}/gijiroku")
-    quoted_shared_reiki = shlex.quote(f"{shared_data_dir}/reiki")
-    script = f"""
-set -eu
-dest_dir={quoted_dest}
-shared_gijiroku={quoted_shared_gijiroku}
-shared_reiki={quoted_shared_reiki}
-case "$dest_dir" in
-  "~") dest_dir="$HOME" ;;
-  "~/"*) dest_dir="$HOME/${{dest_dir#~/}}" ;;
-esac
-rm -rf "$dest_dir/src"
-rm -f "$dest_dir"/data/gijiroku/*/minutes.sqlite*
-rm -f "$dest_dir"/data/reiki/*/ordinances.sqlite*
-rm -f "$dest_dir"/work/gijiroku/*/minutes.sqlite*
-rm -f "$dest_dir"/work/reiki/*/ordinances.sqlite*
-rm -f "$shared_gijiroku"/*/minutes.sqlite*
-rm -f "$shared_reiki"/*/ordinances.sqlite*
-"""
-    ssh_exec(config, script)
 
 def main():
     parser = argparse.ArgumentParser(description='Deploy script.')
@@ -1079,15 +1013,12 @@ fi
     else:
         ensure_remote_shared_data_permissions(config, shared_data_dir)
         ensure_remote_service_data_permissions(config, dest_dir)
-        migrate_remote_data_layout(config, dest_dir, shared_data_dir)
     
     # Always sync code now, to support volume mounts
     sync_files(config, dest_dir, shared_data_dir, dry_run=args.dry_run)
     if args.dry_run:
         print("=== Dry-run complete; skipping docker-compose update and service restart ===")
         return
-
-    cleanup_legacy_search_artifacts(config, dest_dir, shared_data_dir)
 
     if args.skip_normalize:
         print("=== Skipping Remote Municipality Storage Normalization ===")
@@ -1161,7 +1092,6 @@ services:
       OPENSEARCH_USER: ${{OPENSEARCH_USER:-}}
       OPENSEARCH_PASSWORD: ${{OPENSEARCH_PASSWORD:-}}
       OPENSEARCH_INSECURE_DEV: ${{OPENSEARCH_INSECURE_DEV:-true}}
-      MIYABE_SEARCH_ALIAS: ${{MIYABE_SEARCH_ALIAS:-miyabe-documents-current}}
       MIYABE_MINUTES_ALIAS: ${{MIYABE_MINUTES_ALIAS:-miyabe-minutes-current}}
       MIYABE_REIKI_ALIAS: ${{MIYABE_REIKI_ALIAS:-miyabe-reiki-current}}
       MANAGEMENT_DATABASE_URL: ${{MANAGEMENT_DATABASE_URL:-pgsql://miyabe:miyabe@postgres:5432/miyabe_management}}

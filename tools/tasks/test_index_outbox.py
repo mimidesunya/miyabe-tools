@@ -126,7 +126,7 @@ class IndexOutboxTest(unittest.TestCase):
         index_outbox.record_pending("reiki", "40000-fukuoka-ken")
         later = time.time() + index_outbox.DEFAULT_MIN_RETRY_SECONDS + 1
         self.assertEqual(index_outbox.due_slugs("reiki", now=later), ["40000-fukuoka-ken"])
-        index_outbox.mark_attempted("reiki", "40000-fukuoka-ken")
+        index_outbox.mark_enqueued("reiki", "40000-fukuoka-ken")
         self.assertEqual(index_outbox.due_slugs("reiki", now=later), [])
 
     def test_broken_file_does_not_stop_collection(self) -> None:

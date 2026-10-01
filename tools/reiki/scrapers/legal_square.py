@@ -444,12 +444,6 @@ def title_split_candidates(words: tuple[tuple[str, bool], ...]) -> list[str]:
     return [word for word in TITLE_SPLIT_WORDS if word not in used]
 
 
-def next_title_split_word(words: tuple[tuple[str, bool], ...]) -> str:
-    """まだ使っていない分割語を返す。使い切ったら空文字。"""
-    candidates = title_split_candidates(words)
-    return candidates[0] if candidates else ""
-
-
 def words_label(words: tuple[tuple[str, bool], ...]) -> str:
     if not words:
         return ""

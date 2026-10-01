@@ -11,7 +11,6 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import requests
 from google import genai
 from google.genai import types
 from openai import OpenAI
@@ -417,30 +416,6 @@ def load_ai_input_text(html_path: Path, markdown_dir: Path) -> Optional[Dict[str
     return None
 
 
-def build_generate_request(prompt: str) -> Dict[str, Any]:
-    return {
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0,
-            "responseMimeType": "application/json",
-        },
-    }
-
-
-def extract_response_text(data: Dict[str, Any]) -> str:
-    candidates = data.get("candidates", [])
-    if not candidates:
-        raise ValueError("Geminiレスポンスにcandidatesがありません")
-    content = candidates[0].get("content", {})
-    parts = content.get("parts", [])
-    if not parts:
-        raise ValueError("Geminiレスポンスにpartsがありません")
-    text = parts[0].get("text", "")
-    if not text:
-        raise ValueError("Geminiレスポンス本文が空です")
-    return text
-
-
 def parse_json_text(text: str) -> Dict[str, Any]:
     stripped = text.strip()
     if stripped.startswith("```"):
@@ -710,13 +685,6 @@ def write_per_file_outputs(rows: List[Dict[str, Any]], output_dir: Path, input_d
         logical_relative_path = reiki_io.logical_path(relative_path)
         target_path = (output_dir / logical_relative_path).with_suffix(".json")
         reiki_io.write_json(target_path, output_row, compress=True)
-
-
-def build_sync_generate_endpoint(base_url: str, model: str, api_key: str) -> str:
-    endpoint = base_url.strip().rstrip("/")
-    endpoint = f"{endpoint}/models/{model}:generateContent"
-    delimiter = "&" if "?" in endpoint else "?"
-    return f"{endpoint}{delimiter}key={api_key}"
 
 
 def call_gemini_single(cfg: GeminiConfig, prompt: str) -> Dict[str, Any]:

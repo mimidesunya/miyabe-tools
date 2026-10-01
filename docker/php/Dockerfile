@@ -8,7 +8,6 @@ RUN apt-get update \
         python3 \
         python3-pip \
         python3-venv \
-        ffmpeg \
     && docker-php-ext-install pdo_pgsql \
     && rm -rf /var/lib/apt/lists/*
 

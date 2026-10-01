@@ -11,7 +11,7 @@ import json
 import os
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, quote, unquote, urlparse, urlunparse
+from urllib.parse import parse_qs, quote, urlparse, urlunparse
 
 
 _AVAILABLE: bool | None = None

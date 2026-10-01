@@ -49,7 +49,7 @@ def find_source(configured: str) -> Path | None:
 
 
 def rsync_path_text(path: Path) -> str:
-    """rsync（cygwin 版）へ渡せる形にする。
+    r"""rsync（cygwin 版）へ渡せる形にする。
 
     Windows の `F:\dev\...` をそのまま渡すとホスト指定と誤読される。
     deploy.py が鍵のパスでやっているのと同じ変換を、同期元にも当てる。

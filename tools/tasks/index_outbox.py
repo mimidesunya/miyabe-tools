@@ -177,9 +177,6 @@ def mark_enqueued(kind: str, slug: str) -> None:
     _write(kind, entries)
 
 
-# 旧名。呼び出し側が残っていても壊れないようにする。
-mark_attempted = mark_enqueued
-
 
 def retry_delay_seconds(
     attempts: int,

@@ -315,44 +315,6 @@ def extract_worker_progress_from_log(stdout_path: Path, progress_re: re.Pattern[
     return None
 
 
-# stdout/stderr をファイルへ流しながら子プロセスを監視実行する。
-def run_logged_subprocess(
-    command: list[str],
-    *,
-    cwd: str,
-    stdout_path: Path,
-    stderr_path: Path,
-    heartbeat_callback=None,
-    should_stop=None,
-    poll_seconds: float = 5.0,
-) -> subprocess.CompletedProcess:
-    with stdout_path.open("w", encoding="utf-8", newline="") as stdout_handle, stderr_path.open(
-        "w", encoding="utf-8", newline=""
-    ) as stderr_handle:
-        process = subprocess.Popen(
-            command,
-            cwd=cwd,
-            stdout=stdout_handle,
-            stderr=stderr_handle,
-            **process_group_popen_kwargs(),
-        )
-
-        try:
-            while True:
-                returncode = process.poll()
-                if returncode is not None:
-                    return subprocess.CompletedProcess(command, int(returncode))
-                if should_stop is not None and should_stop():
-                    returncode = terminate_process_group(process)
-                    return subprocess.CompletedProcess(command, int(returncode if returncode is not None else -15))
-                if heartbeat_callback is not None:
-                    heartbeat_callback()
-                time.sleep(max(0.5, poll_seconds))
-        except BaseException:
-            terminate_process_group(process)
-            raise
-
-
 # worker 辞書に保持したログファイルハンドルを閉じる。
 def close_worker_streams(worker: dict) -> None:
     for key in ("stdout_handle", "stderr_handle"):

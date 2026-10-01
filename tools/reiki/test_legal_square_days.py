@@ -73,7 +73,6 @@ class TitleSplitWordTest(unittest.TestCase):
         # 詳細検索の件名欄は 5 つしかない。それ以上は AND でつなげない。
         words = tuple((word, False) for word in legal_square.TITLE_SPLIT_WORDS[:5])
         self.assertEqual(legal_square.title_split_candidates(words), [])
-        self.assertEqual(legal_square.next_title_split_word(words), "")
 
     def test_kind_words_are_not_candidates(self) -> None:
         # 種別で既に絞っているので、同じ語で割っても分かれない。

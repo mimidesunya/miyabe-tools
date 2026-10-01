@@ -29,7 +29,6 @@ from deploy import (
     ssh_copy_content,
     ssh_exec,
     verify_scraping_services_running,
-    cleanup_legacy_search_artifacts,
 )
 
 
@@ -75,8 +74,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="リモートスクレイピング用の tools/data/work を同期します。")
     parser.add_argument("config_file", nargs="?", default="deploy.json", help="デプロイ設定 JSON")
     parser.add_argument("--dry-run", action="store_true", help="実際には転送せず内容だけ確認する")
-    parser.add_argument("--sync-gijiroku-work", action="store_true", help="work/gijiroku も追加同期する")
-    parser.add_argument("--sync-reiki-work", action="store_true", help="work/reiki も追加同期する")
     parser.add_argument("--build-image", action="store_true", help="同期後にリモートでスクレイパ用イメージをビルドする")
     parser.add_argument(
         "--no-restart-services",
@@ -163,7 +160,7 @@ def main() -> int:
             f"{dest_dir}/data/municipalities "
             f"{dest_dir}/work/gijiroku {dest_dir}/work/reiki {dest_dir}/work/celery "
             f"{shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery "
-            f"{dest_dir}/docker/scraper {dest_dir}/logs/scraping"
+            f"{dest_dir}/docker/scraper"
         ),
     )
 
@@ -183,13 +180,7 @@ def main() -> int:
     )
     rsync_dir(config, ssh_base, "docker/scraper/", f"{dest_dir}/docker/scraper/", dry_run=args.dry_run, delete=True)
 
-    if args.sync_gijiroku_work:
-        rsync_dir(config, ssh_base, "work/gijiroku/", f"{shared_data_dir}/work/gijiroku/", dry_run=args.dry_run, delete=False)
-    if args.sync_reiki_work:
-        rsync_dir(config, ssh_base, "work/reiki/", f"{shared_data_dir}/work/reiki/", dry_run=args.dry_run, delete=False)
-
     if not args.dry_run:
-        cleanup_legacy_search_artifacts(config, dest_dir, shared_data_dir)
         uid, gid = remote_user_ids(config)
         compose_text = build_scraping_compose(
             image_name=args.image_name,

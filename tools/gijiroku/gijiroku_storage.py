@@ -23,14 +23,14 @@ from typing import Any, Callable
 TEXT_ENCODINGS = ("utf-8", "cp932", "shift_jis", "euc_jp")
 ARCHIVE_MARKER = "_archive"
 SCRAPE_VALIDATION_MODE = "classified_scrape_result"
-SCRAPE_EXCLUDED_STATUSES = frozenset(
-    {"empty_text", "empty_pdf_text", "skipped_not_minutes", "source_missing", "external_unavailable"}
-)
-SCRAPE_FAILED_STATUSES = frozenset({"error", "timeout", "not_found"})
 # 取得元の事情で取れない候補。こちらが取り損ねたのではないので失敗に数えない。
 # source_missing は取得元でリンクが切れている（404・410）、external_unavailable は
 # 自治体が張った外部の保存先に断られる（robots.txt で禁じている WARP など）。
 SCRAPE_SOURCE_SIDE_STATUSES = frozenset({"source_missing", "external_unavailable"})
+SCRAPE_EXCLUDED_STATUSES = (
+    frozenset({"empty_text", "empty_pdf_text", "skipped_not_minutes"}) | SCRAPE_SOURCE_SIDE_STATUSES
+)
+SCRAPE_FAILED_STATUSES = frozenset({"error", "timeout", "not_found"})
 # 本文を取れた（今回取った・前回までに取ってあった）候補。
 SCRAPE_ACCEPTED_STATUSES = frozenset({"saved_text", "skipped_existing"})
 # 検索投入が読めない形式を完了扱いすると、ディスクには有るのに索引へは

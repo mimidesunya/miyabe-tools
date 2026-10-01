@@ -53,7 +53,6 @@ services:
       OPENSEARCH_USER: ${OPENSEARCH_USER:-}
       OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD:-}
       OPENSEARCH_INSECURE_DEV: ${OPENSEARCH_INSECURE_DEV:-true}
-      MIYABE_SEARCH_ALIAS: ${MIYABE_SEARCH_ALIAS:-miyabe-documents-current}
       MIYABE_MINUTES_ALIAS: ${MIYABE_MINUTES_ALIAS:-miyabe-minutes-current}
       MIYABE_REIKI_ALIAS: ${MIYABE_REIKI_ALIAS:-miyabe-reiki-current}
       MANAGEMENT_DATABASE_URL: ${MANAGEMENT_DATABASE_URL:-pgsql://miyabe:miyabe@postgres:5432/miyabe_management}

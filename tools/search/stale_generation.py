@@ -10,7 +10,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from typing import Any
 
 # 1 回の掃き取りで積み直す自治体の数。全国を一度に積むと index キューが
