@@ -199,7 +199,11 @@ $selectedClassification = null;
 if ($selectedRecord !== null) {
     $cleanHtmlPath = $cleanHtmlDir . DIRECTORY_SEPARATOR . $selectedRecord['name'];
     if (is_file($cleanHtmlPath)) {
-        $selectedContentHtml = sanitize_law_html(read_text_auto($cleanHtmlPath), $reikiImageUrl);
+        $rawLawHtml = read_text_auto($cleanHtmlPath);
+        $sourceDocumentUrl = law_html_has_external_relative_images($rawLawHtml)
+            ? reiki_source_document_url((string)($reikiFeature['work_dir'] ?? ''), (string)$selectedRecord['name'])
+            : '';
+        $selectedContentHtml = sanitize_law_html($rawLawHtml, $reikiImageUrl, $sourceDocumentUrl);
         if (preg_match('/<div class="law-title">([^<]+)<\/div>/', $selectedContentHtml, $m)) {
             $selectedTitle = decode_html_text($m[1]);
         }

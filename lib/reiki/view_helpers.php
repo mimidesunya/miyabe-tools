@@ -270,7 +270,11 @@ function reiki_load_title_index(string $slug, array $records, array &$titleCache
 }
 
 // 配信前に危険な属性を落とし、画像パスだけ自治体ごとの公開 URL へ寄せる。
-function sanitize_law_html(string $html, string $imageBaseUrl = '/data/reiki/images'): string
+//
+// 手元に画像を持たない取得元（taikei・g-reiki は `word/…` を本文から相対で指す）は、
+// $sourceDocumentUrl（取得元の個票の URL）があれば、取得元の画像を直接指す。
+// 相対のまま返すと /reiki/word/… になり、6 時間で 278 件 404 になっていた。
+function sanitize_law_html(string $html, string $imageBaseUrl = '/data/reiki/images', string $sourceDocumentUrl = ''): string
 {
     $dom = new DOMDocument();
     libxml_use_internal_errors(true);
@@ -323,11 +327,107 @@ function sanitize_law_html(string $html, string $imageBaseUrl = '/data/reiki/ima
 
             if ($shouldRewrite) {
                 $img->setAttribute('src', rtrim($imageBaseUrl, '/') . '/' . $filename);
+            } elseif ($sourceDocumentUrl !== '' && !str_starts_with($src, '/')) {
+                $absolute = resolve_relative_url($sourceDocumentUrl, $src);
+                if ($absolute !== '') {
+                    $img->setAttribute('src', $absolute);
+                    // 取得元へこのページの URL を送らない。
+                    $img->setAttribute('referrerpolicy', 'no-referrer');
+                    $img->setAttribute('loading', 'lazy');
+                }
             }
         }
     }
 
     return $dom->saveHTML() ?: '';
+}
+
+// 相対 URL を、基準の URL（http/https の絶対 URL）に対して解く。解けなければ空。
+function resolve_relative_url(string $base, string $relative): string
+{
+    $parts = parse_url($base);
+    if (!is_array($parts) || !in_array(strtolower((string)($parts['scheme'] ?? '')), ['http', 'https'], true)
+        || (string)($parts['host'] ?? '') === '') {
+        return '';
+    }
+    $origin = strtolower((string)$parts['scheme']) . '://' . $parts['host']
+        . (isset($parts['port']) ? ':' . $parts['port'] : '');
+    $relative = trim($relative);
+    if ($relative === '' || preg_match('#^[a-z][a-z0-9+.-]*:#i', $relative) === 1) {
+        return '';
+    }
+    $query = '';
+    if (preg_match('/^([^?#]*)([?#].*)?$/', $relative, $m) === 1) {
+        $relative = $m[1];
+        $query = $m[2] ?? '';
+    }
+    $basePath = (string)($parts['path'] ?? '/');
+    $directory = str_starts_with($relative, '/') ? '' : substr($basePath, 0, (int)strrpos($basePath, '/') + 1);
+    $segments = [];
+    foreach (explode('/', $directory . $relative) as $index => $segment) {
+        if ($segment === '..') {
+            array_pop($segments);
+        } elseif ($segment !== '.' && ($segment !== '' || $index === 0)) {
+            $segments[] = $segment;
+        }
+    }
+    $path = implode('/', $segments);
+    if (!str_starts_with($path, '/')) {
+        $path = '/' . $path;
+    }
+    return $origin . $path . $query;
+}
+
+// 収録一覧（source_manifest.json.gz）から、保存ファイル名に対応する取得元の個票 URL を引く。
+// 本文に相対の画像があるときだけ呼ぶ（一覧は数百 KB あるので、毎回は読まない）。
+function reiki_source_document_url(string $workDir, string $fileName): string
+{
+    $path = rtrim($workDir, '/\\') . DIRECTORY_SEPARATOR . 'source_manifest.json.gz';
+    if ($workDir === '' || !is_file($path)) {
+        return '';
+    }
+    $raw = @file_get_contents($path);
+    if (!is_string($raw) || $raw === '') {
+        return '';
+    }
+    $decoded = @gzdecode($raw);
+    $records = json_decode(is_string($decoded) ? $decoded : $raw, true);
+    if (!is_array($records)) {
+        return '';
+    }
+    $stem = preg_replace('/\.(?:html?)(?:\.gz)?$/i', '', basename($fileName)) ?? $fileName;
+    foreach ($records as $record) {
+        if (!is_array($record)) {
+            continue;
+        }
+        $source = preg_replace('/\.(?:html?)(?:\.gz)?$/i', '', (string)($record['source_file'] ?? '')) ?? '';
+        if ($source !== '' && $source === $stem) {
+            $url = trim((string)($record['detail_url'] ?? ''));
+            return preg_match('#^https?://#i', $url) === 1 ? $url : '';
+        }
+    }
+    return '';
+}
+
+// 本文に、手元の画像置き場へ寄せられない相対の画像があるか。
+function law_html_has_external_relative_images(string $html): bool
+{
+    if (preg_match_all('/<img\b[^>]*\ssrc\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))/i', $html, $matches, PREG_SET_ORDER) < 1) {
+        return false;
+    }
+    foreach ($matches as $match) {
+        $src = str_replace('\\', '/', trim(($match[1] ?? '') . ($match[2] ?? '') . ($match[3] ?? '')));
+        if ($src === '' || str_starts_with($src, '/') || preg_match('#^(?:[a-z][a-z0-9+.-]*:|//)#i', $src) === 1) {
+            continue;
+        }
+        // sanitize_law_html が手元の画像置き場へ寄せる形と、表示しない既定画像。
+        if (!str_contains($src, '/') || preg_match('#^(?:\.\./)?(?:[a-z0-9_-]+_images|images)/#i', $src) === 1
+            || strtolower(basename($src)) === 'download_default.gif') {
+            continue;
+        }
+        return true;
+    }
+    return false;
 }
 
 function load_classification_for_record(array $record, string $htmlDir, string $classificationDir): ?array
