@@ -5,17 +5,18 @@ JavaScript 前提サイト向けに `Playwright` を利用します。`kensakusy
 
 ## 重要
 
-- `crawl_status=enabled` は運用者による明示許可であり、robots監査を行わず取得します。
-- 実運用上の取得判断は `assembly_minutes_system_urls.tsv` に記録してください。
-- 本ツールは既存の実行確認フラグ `--ack-robots` がないと実行しません。
+- 取得するかどうかは `assembly_minutes_system_urls.tsv` の `crawl_status` で決まります。`enabled` は運用者の明示許可です。取得しない理由（録画のみ・公開なしなど）は同じ行に書きます。
+- robots.txt は取得可否の根拠にしません（方針は `crawl_policy.py` の冒頭）。相手への配慮はレート制限と正直な User-Agent で行います。
 - 連続アクセス負荷を下げるため、`--delay-seconds` を小さくしすぎないでください。
 
 ## セットアップ
 
 ```bash
-pip install -r dev/requirements/gijiroku.txt
+pip install -r docker/scraper/requirements.txt
 playwright install chromium
 ```
+
+本番の scraper image と同じ依存です。OCR（NDLOCR-Lite）用の重い依存も入ります。
 
 公開検索は OpenSearch に集約しています。スクレイパは本文とメタ情報を保存し、検索 index は `tools/search/build_opensearch_index.py` がスクレイピング済みファイルから作ります。
 
@@ -26,7 +27,6 @@ playwright install chromium
 ```bash
 python tools/gijiroku/scrapers/gijiroku_com.py \
   --slug 14130-kawasaki-shi \
-  --ack-robots \
   --max-meetings 20 \
   --save-html
 ```
@@ -34,7 +34,6 @@ python tools/gijiroku/scrapers/gijiroku_com.py \
 ```bash
 python tools/gijiroku/scrapers/kaigiroku_net.py \
   --slug 01202-hakodate-shi \
-  --ack-robots \
   --max-years 1 \
   --max-meetings 10
 ```
@@ -42,14 +41,12 @@ python tools/gijiroku/scrapers/kaigiroku_net.py \
 ```bash
 python tools/gijiroku/scrapers/dbsr.py \
   --slug 13212-hino-shi \
-  --ack-robots \
   --max-meetings 10
 ```
 
 ```bash
 python tools/gijiroku/scrapers/kensakusystem.py \
   --slug 02202-hirosaki-shi \
-  --ack-robots \
   --max-meetings 10
 ```
 
@@ -58,7 +55,6 @@ AmiVoice 系:
 ```bash
 python tools/gijiroku/scrapers/amivoice.py \
   --slug 08217-toride-shi \
-  --ack-robots \
   --max-meetings 10
 ```
 
@@ -67,7 +63,6 @@ msearch 静的会議録系:
 ```bash
 python tools/gijiroku/scrapers/msearch.py \
   --slug 06211-higashine-shi \
-  --ack-robots \
   --max-meetings 10
 ```
 
@@ -76,7 +71,6 @@ python tools/gijiroku/scrapers/msearch.py \
 ```bash
 python tools/gijiroku/scrapers/kami_city_pdf.py \
   --slug 39212-kami-shi \
-  --ack-robots \
   --max-meetings 3
 ```
 
@@ -85,7 +79,6 @@ python tools/gijiroku/scrapers/kami_city_pdf.py \
 ```bash
 python tools/gijiroku/scrapers/site_gikai_pdf.py \
   --slug 23425-kanie-cho \
-  --ack-robots \
   --max-meetings 3
 ```
 
@@ -94,7 +87,6 @@ python tools/gijiroku/scrapers/site_gikai_pdf.py \
 ```bash
 python tools/gijiroku/scrapers/static_kaigiroku_dir.py \
   --slug 01226-sunagawa-shi \
-  --ack-robots \
   --max-meetings 3
 ```
 
@@ -103,32 +95,31 @@ python tools/gijiroku/scrapers/static_kaigiroku_dir.py \
 ```bash
 python tools/gijiroku/scrapers/gikai_pdf.py \
   --slug 01333-shiriuchi-cho \
-  --ack-robots \
   --max-meetings 3
 ```
 
 `gijiroku.com` を全件取得（時間がかかります）:
 
 ```bash
-python tools/gijiroku/scrapers/gijiroku_com.py --slug 14130-kawasaki-shi --ack-robots
+python tools/gijiroku/scrapers/gijiroku_com.py --slug 14130-kawasaki-shi
 ```
 
 全国の `gijiroku.com` / `voices` 対象を既定設定（6 並列・同一ホスト起動間隔 2 秒）で取得する場合:
 
 ```bash
-python tools/gijiroku/scrape_all_minutes.py --ack-robots --systems gijiroku.com --parallel 6 --per-host-start-interval 2
+python tools/gijiroku/scrape_all_minutes.py --systems gijiroku.com --parallel 6 --per-host-start-interval 2
 ```
 
 まず 5 自治体だけを対象にして、進捗を親プロセス側で見る場合:
 
 ```bash
-python tools/gijiroku/scrape_all_minutes.py --ack-robots --systems gijiroku.com --max-targets 5 --parallel 5 --per-host-start-interval 2
+python tools/gijiroku/scrape_all_minutes.py --systems gijiroku.com --max-targets 5 --parallel 5 --per-host-start-interval 2
 ```
 
-実装済みの `gijiroku.com` / `voices` / `kaigiroku.net` / `dbsr` / `db-search` / `kaigiroku-indexphp` / `kensakusystem` / `amivoice` / `msearch` / `kami-city-pdf` / `site-gikai-pdf` / `static-kaigiroku-dir` / `独自`(汎用PDF) をまとめて回す場合:
+対応済みの系統（`scrape_all_minutes.py` の `SUPPORTED_SYSTEMS`）をまとめて回す場合:
 
 ```bash
-python tools/gijiroku/scrape_all_minutes.py --ack-robots --parallel 8 --per-host-parallel 1 --per-host-start-interval 2
+python tools/gijiroku/scrape_all_minutes.py --parallel 8 --per-host-parallel 1 --per-host-start-interval 2
 ```
 
 `--parallel` はスクレイプ並列です。検索 index の更新は、スクレイプ完了自治体ごとに OpenSearch builder の `--mode update --slug ...` を実行します。更新を止めたい場合だけ `--no-build-index` を付けます。
@@ -159,7 +150,7 @@ Web画面:
 - `work/gijiroku/14130-kawasaki-shi/meetings_index.json`  
   発見した会議候補一覧（タイトル・URL・年ラベル）
 - `work/gijiroku/14130-kawasaki-shi/run_result_YYYYMMDD_HHMMSS.csv`  
-  実行結果ログ（各会議のステータス）
+  実行結果ログ（各会議のステータスと失敗理由）。読むコードは無く、調査用
 - `work/gijiroku/14130-kawasaki-shi/downloads/`  
   年別・会議別サブディレクトリ配下にダウンロード成功ファイル
   例: `downloads/令和7年/健康福祉委員会/*.txt.gz`
@@ -170,12 +161,6 @@ Web画面:
 - `work/gijiroku/01202-hakodate-shi/pages/`（`--save-debug-json` 指定時）  
   `kaigiroku.net` API エラー調査用 JSON
 
-既存データの整理:
-
-```bash
-php dev/gijiroku/organize_minutes_data.php --slug 14130-kawasaki-shi
-```
-
 ## オプション
 
 - `--slug` 自治体slug。全国マスタから出力先を解決する
@@ -185,7 +170,6 @@ php dev/gijiroku/organize_minutes_data.php --slug 14130-kawasaki-shi
 - `--max-meetings` 処理件数上限（`0` は無制限）
 - `--timeout-ms` 操作タイムアウト（ミリ秒）
 - `--parallel` 自治体スクレイパの同時実行数
-- `--ack-robots` TSVの取得判断を確認する実行フラグ（必須）
 - `--save-html` ダウンロード失敗時に会議詳細HTMLを保存
 - `--max-years` `kaigiroku.net` 系で取得対象年数を制限
 - `--save-debug-json` `kaigiroku.net` 系で調査用 JSON を保存
@@ -258,5 +242,15 @@ python tools/gijiroku/discover_minutes_urls.py --codes 01202 02202
 - `confidence=none`: 会議録システムを特定できず。個別調査へ回す。
 
 反映は `doc/assembly-minutes-url-survey.md` の手順に従い、内容を確認してから TSV を更新する。
-新規 URL は robots 差分監査が済むまで自動取得されない（`enabled` にしない限り）。連続アクセスを
-避けるため `--page-delay` / `--muni-delay` を小さくしすぎないこと。
+取得の対象にするには `crawl_status` を `enabled` にする。連続アクセスを避けるため
+`--page-delay` / `--muni-delay` を小さくしすぎないこと。
+
+## 取りこぼしの診断（audit_minutes_search_coverage.py）
+
+保存済みの会議録、取得元の走査記録（`source_coverage.json`）、実行状態、公開検索の件数を
+自治体ごとに突き合わせる。定期の見回り（celery の `write-coverage-ledger`・`sweep-index-gap`）と
+同じ観点を、手元で 1 自治体ずつ確かめたいときに使う。
+
+```bash
+python tools/gijiroku/audit_minutes_search_coverage.py --slug 14130-kawasaki-shi --only-issues
+```

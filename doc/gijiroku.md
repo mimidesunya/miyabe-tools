@@ -26,12 +26,12 @@ curl "http://localhost/api/search?q=補正予算&doc_type=minutes&slug=14130-kaw
 ## スクレイピング
 
 ```bash
-python tools/gijiroku/scrape_all_minutes.py --ack-robots --parallel 8 --per-host-parallel 1 --per-host-start-interval 2
+python tools/gijiroku/scrape_all_minutes.py --parallel 8 --per-host-parallel 1 --per-host-start-interval 2
 ```
 
-`assembly_minutes_system_urls.tsv` で `crawl_status=enabled` の自治体だけを実行します。`enabled` は運用者による明示許可であり、robots監査を行いません。`--ack-robots` はこの実行判断を確認する既存のCLIゲートとして残しますが、`excluded` や `review_required` を上書きしません。取得対象外とその根拠は次で確認できます。
+`assembly_minutes_system_urls.tsv` で `crawl_status=enabled` の自治体だけを実行します。`enabled` は運用者による明示許可です。robots.txt は取得可否の根拠にしません（`tools/gijiroku/crawl_policy.py` の冒頭）。取得対象外とその根拠は次で確認できます。
 
-`crawl_status=enabled` の行は、TSVの `url` または `system_type` が変わってもrobots監査を省略して取得対象になります。それ以外の行は、フィンガープリント不一致をリモートのCelery dispatcherが検出して再監査します。
+`crawl_status=enabled` の行は、TSVの `url` または `system_type` が変わっても取得対象のままです。それ以外の行は、フィンガープリント不一致をリモートの取得 worker が検出して、確認日と変更検出値を記録し直します（`tools/gijiroku/audit_minutes_registry.py`）。
 
 ```bash
 python tools/gijiroku/scrape_all_minutes.py --list-excluded
@@ -136,4 +136,4 @@ OpenSearch がない環境では検索 API は 503 を返し、SQLite へフォ�
 
 - `minutes.sqlite` は不要です。削除されていても、保存済み会議録ファイルから再インデックスできます。
 - 旧 `/api/gijiroku/*`、横断検索ページ、自治体別 SQLite 検索は廃止しました。
-- `enabled` の明示許可、ack-robots、アクセス間隔、ホスト単位の同時実行制御を維持します。
+- `enabled` の明示許可、アクセス間隔、ホスト単位の同時実行制御を維持します。

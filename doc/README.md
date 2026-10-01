@@ -26,5 +26,6 @@
 - [assembly-minutes-url-survey.md](assembly-minutes-url-survey.md) — 地方議会会議録システム URL 一覧 `assembly_minutes_system_urls.tsv` の調査手順
 - [reiki-url-survey.md](reiki-url-survey.md) — 自治体例規集システム URL 一覧 `reiki_system_urls.tsv` の調査手順
 - [hyoka-url-survey.md](hyoka-url-survey.md) — 事務事業評価の公開先 `hyoka_system_urls.tsv` の調査手順と全国調査の結果
-- [collection-gap-survey.md](collection-gap-survey.md) — 会議録・例規集の収集取りこぼしの全国調査と対応計画（未完了の作業あり）
+- [collection-gap-survey.md](collection-gap-survey.md) — 会議録・例規集の収集取りこぼしの現況。取りこぼしの型、直したもの、残っている課題、調査の再現手順
+- [collection-gap-survey-history.md](collection-gap-survey-history.md) — 収集取りこぼしの調査と修正の記録。第71ラウンドまでを時系列で残したもの
 - [collection-design-issues.md](collection-design-issues.md) — 収集の不具合が繰り返し出る原因の分類と、直す順序

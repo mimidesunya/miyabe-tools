@@ -20,7 +20,7 @@
 - `app/` — 公開 Web 入口と API（PHP）。`app/boards/`・`app/line/` はURL互換アダプター、`app/api/` は会議録・例規集の公開 API
 - `lib/` — PHP 共通ライブラリ（自治体レジストリ、OpenSearch 検索、実行状態管理など）。`lib/python/` は PHP から呼ぶ補助 Python
 - `tools/` — 本番系 Python パイプライン。`tools/gijiroku/`・`tools/reiki/` がスクレイパ、`tools/search/` が OpenSearch index 構築、`tools/tasks/` がバッチ実行基盤。直下の `municipality_slugs.py` などは各パイプライン共通のモジュール
-- `dev/` — 開発・単発作業用スクリプト。`dev/boards/` のコマンドは掲示場ドメインへの互換入口と元データ置場
+- `dev/` — 開発・単発作業用スクリプト。`dev/boards/data/` は掲示場の入力TSV
 - `deploy/` — デプロイとリモートスクレイピング環境の構築。`deploy/scraper_runtime/` は Celery ランタイム
 - `docker/` — 各サービスの Dockerfile（php / nginx / mcp / scraper）
 - `nginx/` — 公開側 nginx 設定
@@ -50,8 +50,7 @@
 自治体ごとの会議録スクレイピング結果を閲覧し、検索は OpenSearch の統合検索 API に集約します。  
 OpenSearch の index はスクレイピング済みファイルから再構築できます。
 
-- 画面: `/gijiroku/?slug={slug}`
-- 統合検索: `/search/?doc_type=minutes`
+- 画面: `/search/?doc_type=minutes`（`/gijiroku/?slug={slug}` は自治体を絞った検索画面へ転送します）
 - 川崎市向け詳細: [tools/gijiroku/README.md](tools/gijiroku/README.md)
 
 ## 公開中のWeb画面
@@ -60,7 +59,7 @@ OpenSearch の index はスクレイピング済みファイルから再構築�
 - 川崎市ポスター掲示場: https://tools.miya.be/boards/14130-kawasaki-shi/
 - 川崎市例規集 AI評価ビューア: https://tools.miya.be/reiki/?slug=14130-kawasaki-shi
 - 会議録・例規集 統合検索: https://tools.miya.be/search/
-- 川崎市議会 会議録 全文検索: https://tools.miya.be/gijiroku/?slug=14130-kawasaki-shi
+- 川崎市議会 会議録 全文検索: https://tools.miya.be/search/?doc_type=minutes&slug=14130-kawasaki-shi
 
 ## トップページ
 
@@ -111,7 +110,6 @@ python tools/search/build_opensearch_index.py --mode update --doc-type minutes -
 
 ## リモート配置
 
-本番デプロイではサービスディレクトリ配下の `data` をそのまま `/var/www/data` にマウントし、掲示場データと共有LINEユーザーDBは `data/boards/`、設定は `data/config.json` に置きます。旧 `data/users.sqlite` はデプロイ時に `data/boards/users.sqlite` へ非破壊コピーされ、移行期間中は読み取り互換も維持します。
+本番デプロイではサービスディレクトリ配下の `data` をそのまま `/var/www/data` にマウントし、掲示場データと共有LINEユーザーDBは `data/boards/`、設定は `data/config.json` に置きます。
 容量の大きい `data/reiki` と `data/gijiroku` だけを `/mnt/big/miyabe-tools/reiki` と `/mnt/big/miyabe-tools/gijiroku` から重ねて見せます。  
 これらはリモート側でスクレイパが生成する前提で、`deploy.sh` ではローカル開発環境から同期しません。
-次回デプロイ時には旧 `src` と旧検索用 SQLite ファイルをリモート側でも削除します。

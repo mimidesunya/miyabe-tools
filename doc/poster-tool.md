@@ -30,7 +30,6 @@
 
 `boards.sqlite` と `users.sqlite` も WAL / SHM を含めてデプロイ対象外です。`boards.sqlite` は初回のみ手動で配置してください。
 本番でも `data/boards` はサービスディレクトリ配下に置いたまま運用します。
-旧 `data/users.sqlite` は移行期間中だけ読み取り互換を持ち、デプロイ時に新配置へ非破壊コピーします。
 
 ## 設定
 
@@ -49,8 +48,7 @@ python domains/election_poster_boards/tools/init_db.py 14130-kawasaki-shi
 python domains/election_poster_boards/tools/init_users_db.py
 ```
 
-`init_db.py` と `init_users_db.py` は対象SQLiteを再作成します。既存データを保持する運用では実行せず、
-ユーザーDBの配置変更には下記の非破壊移行コマンドを使います。
+`init_db.py` と `init_users_db.py` は対象SQLiteを再作成します。既存データを保持する運用では実行しません。
 
 TSV だけ更新したい場合:
 
@@ -58,16 +56,19 @@ TSV だけ更新したい場合:
 python domains/election_poster_boards/tools/import_tsv.py 14130-kawasaki-shi
 ```
 
-旧 `dev/boards/*.py` は同じ処理を呼ぶ互換コマンドとして残しています。
+住所から緯度経度を付けるには `geocode_boards.py` を使います（`data/config.json` に `GOOGLE_MAPS_API_KEY` が要ります）。
 
-既存ユーザーDBのローカル移行は、最初に確認モードで実行します。
+## 入力TSV
 
-```bash
-python domains/election_poster_boards/tools/migrate_legacy_users_db.py
-python domains/election_poster_boards/tools/migrate_legacy_users_db.py --apply
-```
+`dev/boards/data/{slug}/data.tsv` はヘッダー行の無いタブ区切りで、列は次の順です。
 
-移行はコピーとSQLiteスキーマ検証だけを行い、旧DBを削除しません。
+1. `id`: 掲示場番号（必須）
+2. `address`: 住所（必須）
+3. `latitude`: 緯度
+4. `longitude`: 経度
+5. `memo`: メモ
+
+ツールは引数の slug をそのままディレクトリ名に使います。いま `dev/boards/data/` にあるディレクトリは `kawasaki-shi` のようにコードの無い名前なので、`14130-kawasaki-shi` で使うにはディレクトリ名を合わせてください（2026-10-01 時点で未整理）。
 
 ## メモ
 

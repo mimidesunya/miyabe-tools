@@ -10,35 +10,21 @@
 python deploy/prepare_remote_scraping.py deploy.json --build-image
 ```
 
-既存の途中状態も持っていきたい場合:
-
-```bash
-python deploy/prepare_remote_scraping.py deploy.json --sync-gijiroku-work --sync-reiki-work --build-image
-```
-
 このコマンドは既定で `docker-compose.scraping.yml` をリモートに配置し、Redis・Celery beat・会議録 worker・例規集 worker を `up -d --force-recreate` します。`tools/` と `lib/python/` もまとめて同期するので、fresh remote でも Celery task から必要な補助モジュールまで揃います。コードだけ同期して自動再起動したくない場合は `--no-restart-services` を付けます。
 
 既定では、スクレイパ image が未作成か、`docker/scraper/Dockerfile` / `docker/scraper/requirements.txt` の内容が前回 build 時から変わっている場合だけ自動で rebuild します。`--build-image` を付けると差分有無に関係なく強制 rebuild します。
 
 ## 実行状態の保存先
 
-スクレイパの実行状態は PostgreSQL の `management_task_statuses` と `processing_task_items` に保存します。旧 `data/background_tasks/*.json` は移行期間の控えとして残しますが、公開画面の正本ではありません。
-
-既存環境を PostgreSQL 管理へ移すときは、スクレイパを止めてから Web 側 compose を更新し、PHP コンテナ内で次を実行します。
-
-```bash
-php /var/www/lib/migrate_runtime_state_to_postgres.php
-```
-
-この移行は旧 JSON の状態を DB に取り込み、トップページ用の派生カードも再生成します。移行後はスクレイパイメージを `psycopg` 入りで再ビルドし、通常サイクルで DB が更新されることを確認します。
+スクレイパの実行状態は PostgreSQL の `management_task_statuses` と `processing_task_items` に保存します。スクレイパは同じ内容を `data/background_tasks/*.json` にも書いています（詳しくは `doc/status-architecture.md`）。
 
 ## リモートでの議事録取得
 
-`assembly_minutes_system_urls.tsv` のうち、`crawl_status=enabled` かつ実装済みの system_type を対象にします。URLが登録済みでも `excluded`（robots.txtによる必須経路拒否）または `review_required`（確認不能・再監査待ち）の行はCelery巡回へ投入しません。
+`assembly_minutes_system_urls.tsv` のうち、`crawl_status=enabled` かつ実装済みの system_type を対象にします。URLが登録済みでも `excluded`（録画のみ・公開なしなど、運用者が理由を書いた除外）や `review_required`（URL・系統の変更後で確認待ち）の行はCelery巡回へ投入しません。robots.txt は取得可否の根拠にしません（`tools/gijiroku/crawl_policy.py` の冒頭）。
 
-TSVをデプロイすると、会議録 dispatcher は `crawl_status=enabled` を運用者による明示許可として最優先します。この行はrobots監査を行わず、状態やURLの変更を検出した場合は通常の6時間周期を待たずに会議録サイクルを投入します。`enabled` 以外の変更行だけrobots.txtを監査し、拒否された場合は `excluded` と拒否経路をTSVへ記録します。状態は `work/gijiroku/registry_policy_cache.json` にも保持します。この自動処理は `SCRAPER_GIJIROKU_AUTO_AUDIT=1`（既定）で有効です。
+TSVをデプロイすると、会議録 worker は URL・system_type が変わった行を検出し（`tools/gijiroku/audit_minutes_registry.py`）、確認日と変更検出値を TSV に記録し直します。除外の理由が書かれた行はそのまま残し、理由の無い行は `enabled` にします。新しく取得してよくなった対象があれば、通常の6時間周期を待たずに会議録サイクルを投入します。状態は `work/gijiroku/registry_policy_cache.json` にも保持します。この自動処理は `SCRAPER_GIJIROKU_AUTO_AUDIT=1`（既定）で有効です。
 
-自動差分監査のコードを初めて本番へ反映する際だけは `deploy.sh --restart-scraping` を使うか、既定でworkerを再作成する `prepare_remote_scraping.py` を使います。以後のTSVだけの更新では、稼働中workerがマウント済みTSVを読み直すため再起動は不要です。
+この検出は取得 worker（`scraper-gijiroku`）の中で動くので、コードを直したら取得 worker を作り直すまで古いまま動きます。TSVだけの更新なら、稼働中の worker がマウント済みの TSV を読み直すので再起動は要りません。
 
 同一ホストには既定で 1 自治体ずつしか当てません。
 
@@ -80,7 +66,7 @@ docker compose -f docker-compose.scraping.yml restart scraper-gijiroku scraper-b
 python3 deploy/remote_exec.py deploy.json -- "cd ~/services/miyabe-tools && docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml ps"
 ```
 
-`scraper-beat` は 1 分ごとに dispatcher task を投げます。会議録 worker は最初にTSVの差分監査を行い、新たに許可された対象があれば即時に、それ以外は前回の完了から既定 6 時間以上経過したときに `run_gijiroku_cycle` を queue へ積みます。`run_gijiroku_cycle` は各自治体のスクレイプ完了後に `tools/search/build_opensearch_index.py --mode update --doc-type minutes --slug ...` を実行し、その自治体分だけ OpenSearch alias 上で差し替えます。
+`scraper-beat` は 1 分ごとに dispatcher task を投げます。会議録 worker は最初にTSVの変更検出を行い、新たに許可された対象があれば即時に、それ以外は前回の完了から既定 6 時間以上経過したときに `run_gijiroku_cycle` を queue へ積みます。`run_gijiroku_cycle` は各自治体のスクレイプ完了後に `tools/search/build_opensearch_index.py --mode update --doc-type minutes --slug ...` を実行し、その自治体分だけ OpenSearch alias 上で差し替えます。
 
 即時に 1 サイクル走らせたい場合:
 
@@ -114,7 +100,7 @@ python3 tools/gijiroku/scrape_all_minutes.py --list-targets --max-targets 20
 
 ## リモートでの例規取得
 
-`reiki_system_urls.tsv` のうち、実装済みの `d1-law` / `taikei` を対象にします。  
+`reiki_system_urls.tsv` のうち、実装済みの system_type（`tools/reiki/scrape_all_reiki.py` の `SUPPORTED_SYSTEMS`）を対象にします。  
 `--check-updates` を付けると既存条例も再取得して更新確認します。  
 各サイクルでは自治体のスクレイプ完了後に `tools/search/build_opensearch_index.py --mode update --doc-type reiki --slug ...` を実行し、保存済み HTML / Markdown / JSON からその自治体分だけ OpenSearch alias 上で差し替えます。
 
@@ -176,7 +162,7 @@ python3 deploy/scraper_runtime/celery/enqueue.py reiki-cycle --filter reiki-pdf
 
 ## 索引 worker の数
 
-会議録の索引 worker（`scraper-gijiroku-index`）は既定で 3 replica 動きます（`deploy/scraping_stack.py` の `DEFAULT_GIJIROKU_INDEX_REPLICAS`、`prepare_remote_scraping.py --gijiroku-index-replicas N` で変更）。1 自治体の再索引に 13〜28 分かかり、世代の追いつきや取り直しで 1,000 自治体単位の待ち行列ができるためです。同じ自治体が同時に走らないことは、broker の Redis に置く印（`deploy/scraper_runtime/celery/index_enqueue.py`）が保証します。印は「積んだか実行中」を意味し、終わると消えます。
+会議録の索引 worker（`scraper-gijiroku-index`）は既定で 5 replica 動きます（`deploy/scraping_stack.py` の `DEFAULT_GIJIROKU_INDEX_REPLICAS`、`prepare_remote_scraping.py --gijiroku-index-replicas N` で変更）。1 自治体の再索引に 13〜28 分かかり、世代の追いつきや取り直しで 1,000 自治体単位の待ち行列ができるためです。同じ自治体が同時に走らないことは、broker の Redis に置く印（`deploy/scraper_runtime/celery/index_enqueue.py`）が保証します。印は「積んだか実行中」を意味し、終わると消えます。
 
 索引 worker だけを入れ替えたい場合（取得中の worker を止めない）:
 
@@ -189,7 +175,6 @@ python3 deploy/remote_exec.py deploy.json -- "cd ~/services/miyabe-tools && dock
 
 - スクレイパ本体は `miyabe-tools-scraper` イメージ内で動かします。
 - 公開データの書き込み先は `SHARED_DATA_DIR`（既定: `/mnt/big/miyabe-tools`）を `data/reiki` / `data/gijiroku` に重ねて、`boards` と分離したまま共有領域へ保存します。
-- デプロイ時の正規化では、旧 `name-only` ディレクトリも `自治体コード-ローマ字名称` へ移動します。移行期間中の背景タスク JSON の slug も同じ正規形に揃えます。
+- `--full` のデプロイ時の正規化（`tools/normalize_municipality_storage.py`）では、旧 `name-only` ディレクトリも `自治体コード-ローマ字名称` へ移動し、背景タスク JSON の slug も同じ正規形に揃えます。
 - 会議録・例規とも、ホスト単位の同時実行数と起動間隔で負荷を抑えます。
 - サービスは `unless-stopped` で起動し、Celery beat の dispatcher が既定 6 時間ごとに次の巡回を queue へ積みます。
-- `work/gijiroku` / `work/reiki` を同期した場合は、既存のレジューム状態をそのまま利用できます。

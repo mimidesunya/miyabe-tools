@@ -11,8 +11,9 @@
 - 長野県川上村 20304 と 奈良県川上村 29452 に同じ URL。別の村なのに、
   奈良県川上村として長野県川上村の例規 621 件が公開されていた
 
-collection-gap-survey.md の型 F（1 自治体 = 1 URL）とは逆の形で、
-**1 URL = 複数自治体**になっている。
+collection-design-issues.md の型 F（1 自治体 = 1 URL）とは逆の形で、
+**1 URL = 複数自治体**になっている。見つけた経緯は collection-gap-survey-history.md の
+「別の自治体の例規が、その自治体のものとして公開されていた」にある。
 """
 
 from __future__ import annotations

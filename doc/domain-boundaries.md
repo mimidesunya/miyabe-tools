@@ -25,7 +25,7 @@ Miyabe Tools は、同じ自治体識別子を使う二つの独立領域を同�
 - 公開URLアダプター: `app/boards/`, `app/line/`
 - 静的公開アセット: `app/boards/assets/`
 - 実行時データ: `data/boards/`
-- 入力TSVと旧CLI: `dev/boards/`
+- 入力TSV: `dev/boards/data/`
 
 ## 共有してよいもの
 
@@ -47,7 +47,4 @@ Miyabe Tools は、同じ自治体識別子を使う二つの独立領域を同�
 ## 互換性
 
 - `/boards/*` と `/line/*` は維持する
-- `lib/session.php` は旧関数名の互換アダプターとして維持する
-- `dev/boards/*.py` は新しいドメインCLIへの互換入口として維持する
-- `data/users.sqlite` は `data/boards/users.sqlite` への移行期間中だけ読み取る
 - `/api/search` と `/api/document` の契約は変更しない

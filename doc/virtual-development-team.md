@@ -75,7 +75,7 @@ Miyabe Tools は、独立した選挙ポスター掲示場支援と、会議録�
 - `app/boards/` と `app/line/` は既存公開URLの互換アダプターに限定する。
 - 実行時データは `data/boards/` に閉じ、会議録・例規集の保存先やOpenSearchへ投入しない。
 - 共有してよいのは自治体コード、名称、canonical slug、共通サイトアセットだけとする。
-- `boards.sqlite`、`tasks.sqlite`、`users.sqlite` のデプロイ保護と移行手順を壊さない。
+- `boards.sqlite`、`tasks.sqlite`、`users.sqlite` のデプロイ保護を壊さない。
 - 「掲示板」ではなく「選挙ポスター掲示場」と表記し、一般の掲示板機能と誤認させない。
 
 ## Crawler Agent
@@ -90,7 +90,7 @@ Miyabe Tools は、独立した選挙ポスター掲示場支援と、会議録�
 
 ルール:
 
-- robots、アクセス間隔、ホスト単位同時実行を守る。
+- アクセス間隔、ホスト単位同時実行、正直な User-Agent で相手の負荷を抑える。robots.txt は取得可否の根拠にしない（`tools/gijiroku/crawl_policy.py` の冒頭）。
 - 取得元 URL、取得時刻、source system、レジューム状態を残す。
 - 途中失敗から再実行できるようにする。
 - 取得済み成果物を無意味に消さない。

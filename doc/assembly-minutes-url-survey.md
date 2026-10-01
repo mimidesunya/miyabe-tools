@@ -7,7 +7,8 @@
 **robots.txt を取得可否の根拠にしません。** 議事録と法令は国民の財産であり、
 公開されている以上は取得します。robots.txt は法的な制限ではなく検索エンジン
 向けの慣行にすぎない、という運営判断です（2026-08-28 決定、2026-09-06 再確認）。
-実装は `tools/gijiroku/crawl_policy.py` の `ENFORCE_ROBOTS = False` です。
+方針は `tools/gijiroku/crawl_policy.py` の冒頭に書いてあります。robots.txt を読んで
+判定するコードは 2026-10-01 に削除しました。
 
 個別の自治体で robots.txt が拒否していても方針は変えません。2026-09-06 の
 点検では浦幌町の robots.txt が会議録 PDF の置き場所を拒否していましたが、
@@ -18,9 +19,8 @@ User-Agent** で行います。
 
 `excluded` は robots とは別の理由にだけ使います。本文が存在しない
 （`not_published` / `video_only`）、認証が要る（`login_required`）などです。
-`robots_disallowed` と `robots_unreachable` は当面使いません。監査
-（`audit_minutes_robots.py`）は robots 由来の除外だけを解除し、それ以外の
-除外理由には触れません。
+台帳の変更検出（`tools/gijiroku/audit_minutes_registry.py`）は、除外の理由が
+書かれた行に触れません。
 
 ## ソース
 
@@ -51,7 +51,7 @@ User-Agent** で行います。
 - `url`
 - `system_type`
 - `crawl_status`: `enabled` / `excluded` / `review_required` / `unresolved`
-- `exclusion_reason`: `not_published`、`video_only`、`login_required`、`source_url_unresolved` などの機械可読な理由。`robots_disallowed` と `robots_unreachable` は当面使いません
+- `exclusion_reason`: `not_published`、`video_only`、`login_required`、`source_url_unresolved` などの機械可読な理由
 - `exclusion_detail`: 何が無いのか、なぜ取れないのかを日本語で書きます
 - `policy_checked_at`: 取得可否を確認した日（ISO日付）
 - `policy_fingerprint`: URL・`system_type`・必須取得経路の変更検出値（システム管理。手編集しない）
@@ -75,7 +75,7 @@ User-Agent** で行います。
 
 本文が無い・認証が要ると分かった自治体は、`crawl_status` を `excluded` にし、
 `exclusion_reason` と `exclusion_detail` に理由を書きます。毎周回で失敗させ
-続けると、直せる失敗がその中に埋もれます。監査コマンドは次のとおりです。
+続けると、直せる失敗がその中に埋もれます。
 
 ## `system_type` の値
 
@@ -94,6 +94,7 @@ User-Agent** で行います。
 - `site-gikai-pdf`
 - `static-kaigiroku-dir`
 - `独自`
+- `shizuoka-notes`、`chuo-kugikai`、`nakano-kugikai`、`echizen-search`、`yoshinogawa-asp`、`izumi-cake`、`oumu-dbpocket`、`kin-jsp`、`iwate-kengikai`（年別一覧 → 文書ページだけの独自サイト）
 
 ## スクレイパ系統との対応
 
@@ -106,7 +107,10 @@ User-Agent** で行います。
 - msearch 静的会議録系: `msearch`
 - PDF・静的ページ系: `kami-city-pdf`, `site-gikai-pdf`, `static-kaigiroku-dir`
 - `独自`: 汎用 PDF クロールへ送る。ただし会議録以外の PDF を拾う可能性があるため個別 QA が必要
-- 未対応: `discussvision`, `voicetechno`
+- 年別一覧 → 文書ページだけの独自サイト: `shizuoka-notes`, `chuo-kugikai`, `nakano-kugikai`, `echizen-search`, `yoshinogawa-asp`, `izumi-cake`, `oumu-dbpocket`, `kin-jsp`, `voicetechno`, `iwate-kengikai`（`tools/gijiroku/scrapers/html_list_sites.py` のアダプタ）
+- 未対応: `discussvision`（録画のみ）
+
+正確な対応表は `tools/gijiroku/scrape_all_minutes.py` の `SUPPORTED_SYSTEMS` です。
 
 ## 公式導線の個別確認
 
@@ -130,42 +134,36 @@ User-Agent** で行います。
 
 揖斐川町は会議録の代表URLを特定できておらず `unresolved` です（robots とは関係ありません）。
 
-## 再生成
+## 台帳の変更検出（手動）
+
+デプロイ後は取得 worker が自動で行います（`doc/remote-scraping.md`）。手元で確かめる場合はドライランから始めます。
 
 ```powershell
-pwsh -File dev/municipalities/build_assembly_minutes_system_urls_tsv.ps1
+python tools/gijiroku/audit_minutes_registry.py
+python tools/gijiroku/audit_minutes_registry.py --stale-only --write
 ```
 
-再生成直後のURL行は `review_required` です。必ず必須取得経路を監査して状態を確定します。
+特定自治体だけを見る場合は `--codes 01361,05346` のように指定します。`enabled` の行は監査しません（運用者の明示許可なので）。
+
+## 空欄自治体の再探索
+
+`tools/gijiroku/discover_minutes_urls.py` で公式ホームページから候補を出します（使い方は `tools/gijiroku/README.md`）。Celery の `sweep-gijiroku-source-discovery` も URL が空の行を定期的に探索し、見つけた取得元を `work/gijiroku/discovered_sources.json` に控えて台帳に重ねます。
+
+## 再生成（App Mints から作り直す）
 
 ```powershell
-python tools/gijiroku/audit_minutes_robots.py
-python tools/gijiroku/audit_minutes_robots.py --write
+pwsh -File dev/municipalities/build_assembly_minutes_system_urls_tsv.ps1 `
+  -SeedTsv data/municipalities/assembly_minutes_system_urls.tsv `
+  -OutFile work/assembly_minutes_system_urls.regenerated.tsv
 ```
 
-監査はドライランを先に実行します。`enabled` 行は既定で監査しません。特定自治体だけを再確認する場合は `--codes 01361,05346` のように指定し、`enabled` も再監査する場合だけ `--include-enabled` を追加します。
-
-変更行だけをローカルで処理する場合:
-
-```powershell
-python tools/gijiroku/audit_minutes_robots.py --stale-only --write
-```
-
-空欄自治体を公式ホームページから再探索する場合も、まずドライランで候補を確認します。探索は 1 自治体あたりのページ数と間隔で相手の負荷を抑えます。
-
-```powershell
-python dev/municipalities/discover_blank_minutes_urls.py
-python dev/municipalities/discover_blank_minutes_urls.py --write
-python tools/gijiroku/audit_minutes_robots.py --write
-```
-
-必要に応じて `-HomepageCsv data/municipalities/municipality_homepages.csv` を明示できます。
+既定の出力先は正本の TSV そのものです。`-SeedTsv` を付けずに回すと、手で足した系統（`html_list_sites.py` のアダプタや `iwate-kengikai`）と除外の理由が消えます。出力は別ファイルにして、差分を確かめてから取り込みます。取り込んだ後は、上の変更検出で状態を記録し直します。
 
 既存一覧のうち `独自` 行だけを再検証して、案内ページの先にある共通会議録システムを拾い直す場合:
 
 ```powershell
 pwsh -File dev/municipalities/build_assembly_minutes_system_urls_tsv.ps1 `
   -SeedTsv data/municipalities/assembly_minutes_system_urls.tsv `
-  -OutFile data/municipalities/assembly_minutes_system_urls.tsv `
+  -OutFile work/assembly_minutes_system_urls.regenerated.tsv `
   -RefineCustomOnly
 ```

@@ -110,6 +110,7 @@ position がほぼ文字位置で、slop はそのまま文字数として読め
 
 `fts_query` は `(("ふるさと" OR "古里") AND "納税") AND "返礼品"` と正しいのに
 `highlight_terms` だけ `["ふるさと納税", "返礼品"]` になっていたのが手がかりだった。
+（`fts_query` は SQLite FTS 時代の名残で、検索には使っていなかった。2026-10-01 に削った）
 
 読み戻すときに `highlight_terms` を `surface_terms` の名前へ戻すよう直し、古いキャッシュを
 捨てるためスキーマを `phrase-v6` から `phrase-v7` へ上げた。`tests/query_cache_test.php` で

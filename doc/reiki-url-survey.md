@@ -96,10 +96,6 @@ python dev/municipalities/resolve_h_chosonkai_urls.py --only-dead
 自動復旧が働いたときは `[WARN] ... 引き直しました` がログに出るので、
 **TSV も直してください**。上書きに頼り続けると、登録簿が実態から離れます。
 
-## 再生成
+## 台帳の直し方
 
-```powershell
-pwsh -File dev/municipalities/build_reiki_system_urls_tsv.ps1
-```
-
-必要に応じて `-HomepageCsv data/municipalities/municipality_homepages.csv` を明示できます。
+台帳は手で直します（全体を作り直すスクリプトは、3 列しか書かず `crawl_status` や除外の理由、手で足した系統を消してしまうので 2026-10-01 に削除しました）。URL が空の行は、Celery の `sweep-reiki-source-discovery` が定期的に探索して `work/reiki/discovered_sources.json` に控え、台帳に重ねます。

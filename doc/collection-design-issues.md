@@ -5,7 +5,8 @@
 個別の実装ミスというより、**同じ形の間違いが何度も出ている**。
 
 この文書は、その形を並べて直す順序を決めるためのものである。
-個々の不具合は [collection-gap-survey.md](collection-gap-survey.md) にある。
+個々の不具合の記録は [collection-gap-survey-history.md](collection-gap-survey-history.md)、
+いま残っている課題は [collection-gap-survey.md](collection-gap-survey.md) にある。
 
 > **この分類は「排他的な原因分類」ではない。**
 > 当初「14 件が 5 つの型に収束する」と書いたが、これは言い過ぎだった。
