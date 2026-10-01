@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """掲示場ドメインの共有LINEユーザーDBを初期化します。
 
-data/boards/users.sqlite を作成します。既存環境の data/users.sqlite は
-migrate_legacy_users_db.py で非破壊コピーしてから切り替えます。
+data/boards/users.sqlite を作成します。既存の DB は作り直すので、運用中の環境では実行しません。
 """
 from __future__ import annotations
 

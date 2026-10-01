@@ -63,13 +63,7 @@ function poster_boards_open_pdo(string $path): PDO
 
 function poster_boards_users_db_path(): string
 {
-    $domainPath = data_path('boards/users.sqlite');
-    if (is_file($domainPath)) {
-        return $domainPath;
-    }
-
-    // Compatibility for deployments created before the domain split.
-    return data_path('users.sqlite');
+    return data_path('boards/users.sqlite');
 }
 
 function poster_boards_open_users_pdo(): PDO
