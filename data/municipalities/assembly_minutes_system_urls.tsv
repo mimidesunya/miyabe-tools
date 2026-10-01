@@ -1617,7 +1617,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 42411	https://official.shinkamigoto.net/goto_chosei.php?wcid=l00002x4	独自	enabled				2530de82509ebf525e7616c2f19be5560a09a12242ae74c066912be9abca7f0d
 43000	https://ssp.kaigiroku.net/tenant/prefkumamoto/MinuteSearch.html	kaigiroku.net	enabled				2d49f32a9f83e3df0a6955f8154b57a791644aa6e5addc16b8350a243af5f30d
 43100	https://kumamoto.gijiroku.com/voices/g08v_search.asp	gijiroku.com	enabled			2026-08-02	15710abe5c5a79f6c4d9d22f90aeb25ed0381a5609aecb89cfa0b520a68813b2
-43202	https://www.city.yatsushiro.kumamoto.jp/VOICES/	voices	enabled			2026-08-02	9c77c99d2d3106dcfaf82d1839a3e586fc42ad361c27304ced89007e3342f3b5
+43202	https://yatsushiro.gijiroku.com/voices/g07v_search.asp	gijiroku.com	enabled			2026-10-01	2ab25f8191487a949f0d44e457dce2f359661ef588cc3bac4fc77a3bcdc5492c
 43203	https://www.kensakusystem.jp/hitoyoshi/index.html	kensakusystem	enabled				6653d864b7f5c3efa43294180b9b5006b198e4a7b2b79e9397e5bf021fd6389e
 43204	https://www.city.arao.kumamoto.dbsr.jp/index.php/	dbsr	enabled				d9d924c275e5a9a2b8ae160d7fd74a1c9485d5bf30732f3749d6042e6fc9d92d
 43205	http://www.kensakusystem.jp/minamata/index.html	kensakusystem	enabled			2026-08-02	ce6eae441df2e0625965b8164ada6da7c39e1a6cd374690ca36951ee26e2e10d
