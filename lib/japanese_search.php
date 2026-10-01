@@ -184,31 +184,6 @@ function japanese_search_maybe_prune_query_cache(): void
     japanese_search_prune_query_cache();
 }
 
-function japanese_search_document_terms_map(array $fields): array
-{
-    $normalized = [];
-    foreach ($fields as $key => $value) {
-        if (!is_scalar($key)) {
-            continue;
-        }
-        $normalized[(string)$key] = is_scalar($value) ? (string)$value : '';
-    }
-
-    $payload = japanese_search_run_tokenizer(
-        'fields',
-        json_encode($normalized, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}'
-    );
-    if (!is_array($payload)) {
-        return array_fill_keys(array_keys($normalized), '');
-    }
-
-    $terms = [];
-    foreach ($normalized as $key => $_) {
-        $terms[$key] = is_scalar($payload[$key] ?? null) ? trim((string)$payload[$key]) : '';
-    }
-    return $terms;
-}
-
 function japanese_search_fallback_terms(string $query): array
 {
     $normalized = preg_replace('/["()]/u', ' ', $query);
@@ -329,72 +304,6 @@ function japanese_search_query_is_plain_and(string $query): bool
     return preg_match('/\b(?:AND|OR|NOT|NEAR(?:\/\d+)?)\b/iu', $query) !== 1;
 }
 
-function japanese_search_text_matches_exact_phrases(string $text, array $phrases): bool
-{
-    if ($phrases === []) {
-        return true;
-    }
-
-    $normalized = preg_replace('/[\s　]+/u', ' ', $text) ?? $text;
-    foreach ($phrases as $phrase) {
-        $needle = trim((string)$phrase);
-        if ($needle === '') {
-            continue;
-        }
-        if (mb_stripos($normalized, $needle, 0, 'UTF-8') === false) {
-            return false;
-        }
-    }
-    return true;
-}
-
-function japanese_search_sql_like_contains_pattern(string $text): string
-{
-    return '%' . strtr($text, [
-        '\\' => '\\\\',
-        '%' => '\\%',
-        '_' => '\\_',
-    ]) . '%';
-}
-
-function japanese_search_exact_phrase_like_clause(array $phrases, array $columns, string $paramPrefix = 'exact_phrase'): array
-{
-    $safePrefix = preg_replace('/[^A-Za-z0-9_]/', '_', $paramPrefix) ?: 'exact_phrase';
-    $usableColumns = [];
-    foreach ($columns as $column) {
-        $column = trim((string)$column);
-        if ($column !== '') {
-            $usableColumns[] = $column;
-        }
-    }
-    if ($usableColumns === []) {
-        return ['sql' => '', 'params' => []];
-    }
-
-    $conditions = [];
-    $params = [];
-    $index = 0;
-    foreach ($phrases as $phrase) {
-        $text = trim((string)$phrase);
-        if ($text === '') {
-            continue;
-        }
-
-        $param = ':' . $safePrefix . $index++;
-        $columnConditions = [];
-        foreach ($usableColumns as $column) {
-            $columnConditions[] = $column . " LIKE {$param} ESCAPE '\\'";
-        }
-        $conditions[] = '(' . implode(' OR ', $columnConditions) . ')';
-        $params[$param] = japanese_search_sql_like_contains_pattern($text);
-    }
-
-    return [
-        'sql' => $conditions === [] ? '' : implode(' AND ', $conditions),
-        'params' => $params,
-    ];
-}
-
 function japanese_search_prepare_query(string $query): array
 {
     static $cache = [];
@@ -430,7 +339,6 @@ function japanese_search_prepare_query(string $query): array
     if ($payload === null) {
         $payload = $normalized !== '' ? japanese_search_run_tokenizer('query', $normalized) : null;
     }
-    $ftsQuery = trim((string)($payload['fts_query'] ?? ''));
 
     $quotedPhrases = japanese_search_extract_quoted_phrases($normalized);
     $exactPhrases = [];
@@ -479,14 +387,8 @@ function japanese_search_prepare_query(string $query): array
         }
     }
 
-    if ($ftsQuery === '' && $normalized !== '') {
-        // Python が無い旧環境でも検索不能にはしない。image 更新後は SudachiPy 側へ寄る。
-        $ftsQuery = $normalized;
-    }
-
     $prepared = [
         'raw_query' => $normalized,
-        'fts_query' => $ftsQuery,
         'highlight_terms' => array_values($surfaceTerms),
         'exact_phrases' => array_values($exactPhrases),
         'query_cache_schema' => 'phrase-v7',
@@ -499,92 +401,4 @@ function japanese_search_prepare_query(string $query): array
     }
 
     return $cache[$normalized] = $prepared;
-}
-
-function japanese_search_ordered_terms(array $terms): array
-{
-    $items = array_values(array_filter(array_map(
-        static fn($value): string => trim((string)$value),
-        $terms
-    ), static fn(string $value): bool => $value !== ''));
-
-    usort($items, static fn(string $a, string $b): int => mb_strlen($b, 'UTF-8') <=> mb_strlen($a, 'UTF-8'));
-    return array_values(array_unique($items));
-}
-
-function japanese_search_highlight_excerpt(string $text, array $terms): string
-{
-    if ($text === '' || $terms === []) {
-        return $text;
-    }
-
-    $pattern = '/(' . implode('|', array_map(
-        static fn(string $term): string => preg_quote($term, '/'),
-        japanese_search_ordered_terms($terms)
-    )) . ')/iu';
-    $parts = preg_split($pattern, $text, -1, PREG_SPLIT_DELIM_CAPTURE);
-    if ($parts === false) {
-        return $text;
-    }
-
-    $termMap = [];
-    foreach ($terms as $term) {
-        $termMap[mb_strtolower((string)$term, 'UTF-8')] = true;
-    }
-
-    $rendered = '';
-    foreach ($parts as $part) {
-        if ($part === '') {
-            continue;
-        }
-        $matched = isset($termMap[mb_strtolower($part, 'UTF-8')]);
-        $rendered .= $matched ? ('[[[' . $part . ']]]') : $part;
-    }
-
-    return $rendered;
-}
-
-function japanese_search_build_excerpt(string $text, array $terms, int $radius = 90, int $maxLength = 220): string
-{
-    $normalized = trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
-    if ($normalized === '') {
-        return '';
-    }
-
-    $orderedTerms = japanese_search_ordered_terms($terms);
-    $firstPos = null;
-    $firstLength = 0;
-    foreach ($orderedTerms as $term) {
-        $pos = mb_stripos($normalized, $term, 0, 'UTF-8');
-        if ($pos === false) {
-            continue;
-        }
-        if ($firstPos === null || $pos < $firstPos) {
-            $firstPos = $pos;
-            $firstLength = mb_strlen($term, 'UTF-8');
-        }
-    }
-
-    if ($firstPos === null) {
-        $excerpt = mb_substr($normalized, 0, $maxLength, 'UTF-8');
-        if (mb_strlen($normalized, 'UTF-8') > $maxLength) {
-            $excerpt .= '…';
-        }
-        return $excerpt;
-    }
-
-    $start = max(0, $firstPos - $radius);
-    $end = min(
-        mb_strlen($normalized, 'UTF-8'),
-        max($firstPos + $firstLength + $radius, $start + $maxLength)
-    );
-    $excerpt = mb_substr($normalized, $start, $end - $start, 'UTF-8');
-    if ($start > 0) {
-        $excerpt = '…' . ltrim($excerpt);
-    }
-    if ($end < mb_strlen($normalized, 'UTF-8')) {
-        $excerpt = rtrim($excerpt) . '…';
-    }
-
-    return japanese_search_highlight_excerpt($excerpt, $orderedTerms);
 }

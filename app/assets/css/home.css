@@ -169,7 +169,6 @@ h1 {
 
 .stat-card,
 .coverage-dashboard,
-.operations-board,
 .municipality-results,
 .detail-panel,
 .operation-card,
@@ -193,19 +192,11 @@ h1 {
     min-height: auto;
 }
 
-.stat-label,
-.stat-note {
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 700;
-}
-
 .stat-card strong {
     font-size: 26px;
     line-height: 1.1;
 }
 
-.stat-bar,
 .task-mini-bar {
     display: block;
     height: 6px;
@@ -214,7 +205,6 @@ h1 {
     background: #e5ebe4;
 }
 
-.stat-bar span,
 .task-mini-bar span {
     display: block;
     height: 100%;
@@ -621,12 +611,6 @@ h1 {
     background: var(--amber);
 }
 
-.service-dot-pending {
-    color: #334155;
-    background: #e2e8f0;
-    border: 1px dashed #94a3b8;
-}
-
 .service-dot-state-unacquired,
 .service-dot-state-publish_pending,
 .service-dot-state-search_pending,
@@ -716,7 +700,6 @@ h1 {
 }
 
 .status-pending,
-.status-unpublished,
 .status-needs-build,
 .status-unacquired {
     color: #92400e;
@@ -739,8 +722,7 @@ h1 {
     background: rgba(202, 138, 4, 0.14);
 }
 
-.status-error,
-.status-stale {
+.status-error {
     color: var(--rose);
     background: rgba(190, 18, 60, 0.10);
 }
@@ -754,22 +736,6 @@ h1 {
     margin: 0;
     font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
     font-size: 11px !important;
-}
-
-.legend.status-legend {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    justify-content: stretch;
-    gap: 8px;
-}
-
-.legend.status-legend span {
-    align-items: flex-start;
-    padding: 8px 10px;
-    border: 1px solid var(--line);
-    background: rgba(255, 255, 255, 0.42);
-    font-size: 11px;
-    line-height: 1.5;
 }
 
 .feature-open {
@@ -800,18 +766,11 @@ h1 {
     font-weight: 900;
 }
 
-.operations-board,
 .municipality-results {
     display: grid;
     gap: 12px;
     padding: 14px;
     border-radius: 8px;
-}
-
-.operation-summary-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 10px;
 }
 
 .operation-card,
@@ -1340,7 +1299,6 @@ h1 em {
 
 .stat-card,
 .coverage-dashboard,
-.operations-board,
 .municipality-results,
 .detail-panel,
 .operation-card,
@@ -1370,12 +1328,6 @@ h1 em {
     font-size: 12px;
 }
 
-.stat-label {
-    align-self: end;
-    color: var(--muted);
-    font-size: 12px;
-}
-
 .stat-card strong {
     grid-column: 2;
     grid-row: 1 / 3;
@@ -1385,16 +1337,6 @@ h1 em {
     font-size: 25px;
     font-weight: 700;
     white-space: nowrap;
-}
-
-.stat-note {
-    color: var(--muted);
-    font-size: 9px;
-    font-weight: 500;
-}
-
-.stat-bar {
-    display: none;
 }
 
 .search-ribbon {
@@ -1919,7 +1861,6 @@ h1 em {
     background: var(--rose);
 }
 
-.operations-board,
 .municipality-results {
     gap: 24px;
     padding: 54px 34px 64px;
@@ -1942,7 +1883,6 @@ h1 em {
     text-align: right;
 }
 
-.operation-summary-list,
 .running-list {
     gap: 0;
     border-top: 2px solid var(--ink);
@@ -2276,7 +2216,6 @@ h1 em {
     }
 
     .coverage-dashboard,
-    .operations-board,
     .municipality-results {
         padding: 42px 18px 52px;
     }
@@ -2472,22 +2411,18 @@ body > .shell > .hero {
 }
 
 .running-board,
-.prefecture-filter,
-.legend,
-.municipality-grid {
+.legend {
     margin: 0;
     padding: 34px 30px;
     border-bottom: 1px solid var(--ink);
 }
 
-.running-board-head,
-.prefecture-filter {
+.running-board-head {
     display: grid;
     gap: 14px;
 }
 
-.running-board-title,
-.prefecture-filter-title {
+.running-board-title {
     font-family: var(--serif);
     font-size: 28px;
     font-weight: 700;
@@ -2508,45 +2443,6 @@ body > .shell > .hero {
     font-size: 10px;
 }
 
-.prefecture-filter {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
-}
-
-.prefecture-filter-copy p {
-    margin: 8px 0 0;
-    color: var(--muted);
-    font-size: 12px;
-}
-
-.prefecture-filter-controls {
-    display: flex;
-    gap: 12px;
-}
-
-.prefecture-filter-control {
-    display: grid;
-    gap: 5px;
-}
-
-.prefecture-filter-control span {
-    color: var(--muted);
-    font-size: 10px;
-    font-weight: 800;
-}
-
-.prefecture-filter-control select {
-    min-height: 42px;
-    padding: 0 12px;
-    border: 1px solid var(--ink);
-    border-radius: 0;
-    background: var(--panel);
-}
-
-.municipality-grid .pref-result {
-    margin-bottom: 24px;
-}
-
 @media (max-width: 860px) {
     body > .shell {
         width: 100%;
@@ -2562,19 +2458,8 @@ body > .shell > .hero {
 
     body > .shell > .hero,
     .running-board,
-    .prefecture-filter,
-    .legend,
-    .municipality-grid {
+    .legend {
         padding: 34px 20px;
-    }
-
-    .prefecture-filter {
-        grid-template-columns: 1fr;
-    }
-
-    .prefecture-filter-controls {
-        align-items: stretch;
-        flex-direction: column;
     }
 }
 

@@ -337,7 +337,6 @@ function homepage_gijiroku_availability_note(array $feature, int $storedCount, i
     return homepage_search_availability_note($storedCount, $indexedCount, HOMEPAGE_MINUTES_INDEX_EXCLUSION_REASON);
 }
 
-
 // 取得はできているのに検索に載る本文が 1 件も無い取得元がある。
 // 目次だけを公開している場合で、待っても検索できるようにはならない。
 function homepage_gijiroku_body_missing_status(array $feature): array
@@ -757,7 +756,6 @@ function homepage_gijiroku_acquisition_status(
     ];
 }
 
-
 // 取得したファイルには目次など本文以外も含まれ、検索に載るのは本文だけ。
 // したがって「保存件数 > 検索できる件数」はそれだけでは異常ではない。
 // 1 件も検索できないときだけ反映待ちとして扱う。
@@ -779,7 +777,6 @@ function homepage_indexed_shortfall_status(int $storedCount, int $indexedCount):
     return ['state' => '', 'label' => '', 'detail' => '', 'source_coverage' => null];
 }
 
-
 // 取得件数と検索できる件数の差を一文にする。差が出る理由が分かっている
 // 機能だけ $reason を渡す。
 function homepage_search_availability_note(int $storedCount, int $indexedCount, string $reason = ''): string
@@ -797,10 +794,8 @@ function homepage_search_availability_note(int $storedCount, int $indexedCount, 
     );
 }
 
-
 const HOMEPAGE_MINUTES_INDEX_EXCLUSION_REASON = '目次など本文以外は検索の対象外です';
 const HOMEPAGE_REIKI_INDEX_EXCLUSION_REASON = '本文として取り出せなかった資料は検索の対象外です';
-
 
 // 例規集は取得元の走査記録を持たない。取得した生ファイルのうち本文として
 // 整形できたものだけが検索に載るため、件数差はそれで説明がつく
@@ -998,48 +993,6 @@ function homepage_unique_logical_file_count(string $path, array $allowedSuffixes
 
     $cache[$cacheKey] = count($logicalKeys);
     return $cache[$cacheKey];
-}
-
-function homepage_directory_matching_file_count(string $path, array $patterns = []): int
-{
-    static $cache = [];
-    $cacheKey = $path . "\n" . implode("\n", $patterns);
-    if (array_key_exists($cacheKey, $cache)) {
-        return $cache[$cacheKey];
-    }
-    if (!is_dir($path)) {
-        $cache[$cacheKey] = 0;
-        return 0;
-    }
-
-    $count = 0;
-    try {
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS)
-        );
-        foreach ($iterator as $fileInfo) {
-            if (!$fileInfo instanceof SplFileInfo || !$fileInfo->isFile()) {
-                continue;
-            }
-            $pathname = $fileInfo->getPathname();
-            if ($patterns === []) {
-                $count += 1;
-                continue;
-            }
-            // ダウンロード済み HTML や gzipped JSON など、拡張子規則が機能ごとに違うため正規表現で数える。
-            foreach ($patterns as $pattern) {
-                if (@preg_match($pattern, $pathname) === 1) {
-                    $count += 1;
-                    break;
-                }
-            }
-        }
-    } catch (Throwable) {
-        $count = 0;
-    }
-
-    $cache[$cacheKey] = $count;
-    return $count;
 }
 
 function homepage_feature_fallback_display(string $featureKey, array $feature, ?array $snapshotDisplay = null): ?array
@@ -1606,7 +1559,6 @@ function homepage_task_display_found_nothing(?array $display): bool
         || str_contains($detail, '取得対象件数が0件です');
 }
 
-
 function homepage_task_display_has_warning(?array $display): bool
 {
     if (!is_array($display)) {
@@ -1619,11 +1571,6 @@ function homepage_task_display_has_warning(?array $display): bool
         return true;
     }
     return str_contains((string)($display['detail'] ?? ''), '警告あり');
-}
-
-function homepage_task_display_has_issue(?array $display): bool
-{
-    return homepage_task_display_has_error($display) || homepage_task_display_has_warning($display);
 }
 
 function homepage_search_index_cache_path(): string
@@ -2227,7 +2174,6 @@ function homepage_registry_state_overrides_error(array $registryState): bool
     );
 }
 
-
 function homepage_feature_registry_state(string $featureKey, string $municipalityCode): array
 {
     $entry = homepage_feature_registry_index($featureKey)[$municipalityCode] ?? null;
@@ -2585,30 +2531,6 @@ function homepage_task_summary_int(array $taskStatus, string $key): ?int
         return null;
     }
     return max(0, (int)$value);
-}
-
-function homepage_task_summary_start_text(array $taskStatus): string
-{
-    foreach (['last_started_at', 'started_at'] as $key) {
-        $value = trim((string)($taskStatus[$key] ?? ''));
-        if ($value !== '') {
-            return $value;
-        }
-    }
-    return '';
-}
-
-function homepage_task_summary_finish_text(array $taskStatus, ?array $fallbackStatus = null): string
-{
-    foreach ([$taskStatus, is_array($fallbackStatus) ? $fallbackStatus : []] as $status) {
-        foreach (['last_finished_at', 'finished_at'] as $key) {
-            $value = trim((string)($status[$key] ?? ''));
-            if ($value !== '') {
-                return $value;
-            }
-        }
-    }
-    return '';
 }
 
 function homepage_task_summary_append_run_time_stats(
@@ -3859,73 +3781,6 @@ function homepage_build_api_payload(bool $includeRegistryStates = false): array
     ];
 }
 
-function homepage_overlay_live_status(array $payload, bool $includeTaskStatusPayload = true): array
-{
-    $statuses = [
-        'gijiroku' => homepage_normalize_task_status_items(load_background_task_status_fast('gijiroku')),
-        'reiki' => homepage_normalize_task_status_items(load_background_task_status_fast('reiki')),
-    ];
-
-    if (is_array($payload['municipalities'] ?? null)) {
-        foreach ($payload['municipalities'] as $cardIndex => $card) {
-            if (!is_array($card)) {
-                continue;
-            }
-            $slug = resolve_municipality_slug((string)($card['slug'] ?? ''));
-            if ($slug === '' || !is_array($card['features'] ?? null)) {
-                continue;
-            }
-            foreach ($card['features'] as $featureIndex => $featureCard) {
-                if (!is_array($featureCard)) {
-                    continue;
-                }
-                $featureKey = trim((string)($featureCard['feature_key'] ?? ''));
-                if (!isset($statuses[$featureKey]) || !is_array($statuses[$featureKey])) {
-                    continue;
-                }
-                $statusDisplay = background_task_item_display($statuses[$featureKey], $slug);
-                if (!is_array($statusDisplay) || homepage_task_display_is_index_waiting($statusDisplay)) {
-                    continue;
-                }
-                $existingDisplay = is_array($featureCard['display'] ?? null) ? $featureCard['display'] : null;
-                $mergedDisplay = is_array($existingDisplay)
-                    ? homepage_merge_task_display($statusDisplay, $existingDisplay)
-                    : $statusDisplay;
-                if (is_array($mergedDisplay)) {
-                    $payload['municipalities'][$cardIndex]['features'][$featureIndex]['display'] =
-                        homepage_sanitize_home_card_display($mergedDisplay);
-                }
-            }
-        }
-    }
-
-    if (is_array($payload['municipalities'] ?? null)) {
-        foreach ($payload['municipalities'] as $cardIndex => $card) {
-            if (!is_array($card) || !is_array($card['features'] ?? null)) {
-                continue;
-            }
-            foreach ($card['features'] as $featureIndex => $featureCard) {
-                if (!is_array($featureCard) || !is_array($featureCard['display'] ?? null)) {
-                    continue;
-                }
-                $payload['municipalities'][$cardIndex]['features'][$featureIndex]['display'] =
-                    homepage_sanitize_home_card_display($featureCard['display']);
-            }
-        }
-    }
-
-    if ($includeTaskStatusPayload) {
-        $taskPayload = homepage_build_task_status_payload_cached();
-        if (is_array($taskPayload['task_state_summaries'] ?? null)) {
-            $payload['task_state_summaries'] = $taskPayload['task_state_summaries'];
-        }
-        if (is_array($taskPayload['running_tasks'] ?? null)) {
-            $payload['running_tasks'] = $taskPayload['running_tasks'];
-        }
-    }
-    return $payload;
-}
-
 function homepage_filter_document_catalog_payload(array $payload): array
 {
     $allowedFeatures = array_fill_keys(array_keys(homepage_document_feature_labels()), true);
@@ -4398,18 +4253,6 @@ function homepage_task_status_stat_value(array $summary, string $label): string
         }
     }
     return '';
-}
-
-function homepage_task_status_stat_complete_count(string $value): int
-{
-    $value = trim($value);
-    if ($value === '') {
-        return 0;
-    }
-    if (preg_match('/^(\d+)(?:\/\d+)?$/', $value, $matches) !== 1) {
-        return 0;
-    }
-    return (int)$matches[1];
 }
 
 function homepage_task_status_item_is_countable(array $item): bool
@@ -4929,59 +4772,6 @@ function homepage_schedule_api_payload_cache_refresh(): void
             @unlink($lockPath);
         }
     });
-}
-
-function homepage_cached_payload_needs_self_heal(array $payload): bool
-{
-    $cards = $payload['municipalities'] ?? null;
-    if (!is_array($cards)) {
-        return false;
-    }
-
-    foreach ($cards as $card) {
-        if (!is_array($card)) {
-            continue;
-        }
-        $slug = resolve_municipality_slug((string)($card['slug'] ?? ''));
-        if ($slug === '') {
-            continue;
-        }
-        $municipality = municipality_entry($slug);
-        if (!is_array($municipality)) {
-            continue;
-        }
-
-        $features = $card['features'] ?? null;
-        if (!is_array($features)) {
-            continue;
-        }
-        foreach ($features as $featureCard) {
-            if (!is_array($featureCard)) {
-                continue;
-            }
-            $featureKey = trim((string)($featureCard['feature_key'] ?? ''));
-            if ($featureKey === '') {
-                continue;
-            }
-            $feature = $municipality[$featureKey] ?? null;
-            if (!is_array($feature)) {
-                continue;
-            }
-            $display = is_array($featureCard['display'] ?? null) ? $featureCard['display'] : null;
-            if (!homepage_task_display_is_complete($display)) {
-                continue;
-            }
-            $statusLabel = trim((string)($featureCard['status_label'] ?? ''));
-            if (!in_array($statusLabel, ['要反映', '未公開'], true)) {
-                continue;
-            }
-            if (municipality_feature_live_has_data_with_cache_heal($slug, $featureKey, $feature)) {
-                return true;
-            }
-        }
-    }
-
-    return false;
 }
 
 function homepage_build_api_payload_cached(int $ttlSeconds = 15): array

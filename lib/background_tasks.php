@@ -69,41 +69,6 @@ function background_task_is_stale(array $taskStatus, int $staleSeconds = 900): b
     return (time() - $updatedAt) > $staleSeconds;
 }
 
-function background_task_item_running_heartbeat_detail(array $taskStatus, array $item): string
-{
-    if (!(bool)($taskStatus['running'] ?? false)) {
-        return '';
-    }
-
-    $status = trim((string)($item['status'] ?? ''));
-    if (!in_array($status, ['pending', 'running'], true)) {
-        return '';
-    }
-
-    $heartbeatAt = trim((string)($taskStatus['heartbeat_at'] ?? ''));
-    if ($heartbeatAt === '') {
-        return '';
-    }
-
-    $heartbeatUnix = app_parse_timestamp_tokyo_unix($heartbeatAt);
-    if ($heartbeatUnix === null) {
-        return '';
-    }
-
-    $progressUpdatedAt = trim((string)($item['progress_updated_at'] ?? ''));
-    $updatedAt = trim((string)($item['updated_at'] ?? ''));
-    $itemUpdatedUnix = app_parse_timestamp_tokyo_unix($progressUpdatedAt !== '' ? $progressUpdatedAt : $updatedAt);
-    if ($itemUpdatedUnix !== null && $heartbeatUnix <= $itemUpdatedUnix) {
-        return '';
-    }
-
-    if ($itemUpdatedUnix !== null && ($heartbeatUnix - $itemUpdatedUnix) < 30) {
-        return '';
-    }
-
-    return '応答 ' . $heartbeatAt;
-}
-
 function background_task_item_progress_numbers(array $item): array
 {
     $currentRaw = $item['progress_current'] ?? null;

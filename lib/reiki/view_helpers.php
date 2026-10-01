@@ -184,14 +184,6 @@ function get_score_html(string $key, float|int $val) {
     return "<span style=\"{$style}\">" . h((string)$val) . " <span style=\"font-size:0.9em; opacity:0.9;\">{$suffix}</span></span>";
 }
 
-function inner_html(DOMNode $node): string {
-    $html = '';
-    foreach ($node->childNodes as $child) {
-        $html .= $node->ownerDocument?->saveHTML($child) ?? '';
-    }
-    return $html;
-}
-
 // DB に題名が無い旧データでも、HTML から題名を拾って一覧表示を破綻させない。
 function resolve_record_title(array $record, array &$cache): string {
     $name = (string)($record['name'] ?? '');
@@ -336,29 +328,6 @@ function sanitize_law_html(string $html, string $imageBaseUrl = '/data/reiki/ima
     }
 
     return $dom->saveHTML() ?: '';
-}
-
-// ベンダーごとに HTML の外枠が違うため、本文相当だけを優先的に抜き出す。
-function extract_law_content_html(string $html, string $imageBaseUrl = '/data/reiki/images'): string
-{
-    $dom = new DOMDocument();
-    libxml_use_internal_errors(true);
-    $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
-    libxml_clear_errors();
-
-    $xpath = new DOMXPath($dom);
-    $nodes = $xpath->query("//div[contains(concat(' ', normalize-space(@class), ' '), ' USER-SET-STYLE ')]");
-    if ($nodes instanceof DOMNodeList && $nodes->length > 0) {
-        $raw = inner_html($nodes->item(0));
-        return sanitize_law_html($raw, $imageBaseUrl);
-    }
-
-    $body = $xpath->query('//body');
-    if ($body instanceof DOMNodeList && $body->length > 0) {
-        return sanitize_law_html(inner_html($body->item(0)), $imageBaseUrl);
-    }
-
-    return '';
 }
 
 function load_classification_for_record(array $record, string $htmlDir, string $classificationDir): ?array

@@ -38,12 +38,6 @@ function poster_boards_normalize_municipality_feature(
     ];
 }
 
-function poster_boards_feature_has_live_data(array $featureConfig): bool
-{
-    $dbPath = trim((string)($featureConfig['db_path'] ?? ''));
-    return $dbPath !== '' && is_file($dbPath);
-}
-
 function poster_boards_municipality_entry(string $slug): ?array
 {
     $municipality = municipality_entry($slug);

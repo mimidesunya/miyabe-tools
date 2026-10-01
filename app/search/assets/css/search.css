@@ -652,10 +652,6 @@ mark {
   margin: 0;
 }
 
-.docs-params-wide {
-  grid-template-columns: minmax(180px, max-content) minmax(0, 1fr);
-}
-
 .docs-note {
   padding: 12px 14px;
   border-left: 4px solid var(--accent);

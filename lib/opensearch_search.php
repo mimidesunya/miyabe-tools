@@ -223,11 +223,6 @@ function miyabe_search_sort_date_range_filter(
     return $range === [] ? null : ['range' => ['sort_date' => $range]];
 }
 
-function miyabe_search_year_range_filter(string $startYear, string $endYear): ?array
-{
-    return miyabe_search_sort_date_range_filter('', '', $startYear, $endYear);
-}
-
 function miyabe_search_build_query_clause(string $query): array
 {
     $prepared = japanese_search_prepare_query($query);

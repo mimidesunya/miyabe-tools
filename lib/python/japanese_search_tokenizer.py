@@ -165,10 +165,6 @@ def document_terms_text(text: str) -> str:
     return " ".join(terms)
 
 
-def document_terms_map(values: dict[str, str]) -> dict[str, str]:
-    return {key: document_terms_text(value) for key, value in values.items()}
-
-
 def searchable_morphemes(text: str):
     return [morpheme for morpheme in tokenize_text(text) if morpheme_is_searchable(morpheme)]
 
@@ -182,55 +178,6 @@ def surface_terms_from_morphemes(morphemes, *, unique: bool = True) -> list[str]
     return unique_preserve(items) if unique else items
 
 
-def surface_terms(text: str) -> list[str]:
-    return surface_terms_from_morphemes(searchable_morphemes(text))
-
-
-def fts_quote(value: str) -> str:
-    return '"' + value.replace('"', '""') + '"'
-
-
-def build_term_query_from_morphemes(token: str, morphemes) -> str:
-    if token == "":
-        return ""
-
-    clauses: list[str] = []
-    for morpheme in morphemes:
-        variants = morpheme_variants(morpheme)
-        if not variants:
-            continue
-        if len(variants) == 1:
-            clauses.append(fts_quote(variants[0]))
-        else:
-            clauses.append("(" + " OR ".join(fts_quote(value) for value in variants) + ")")
-
-    if not clauses:
-        return fts_quote(token)
-    if len(clauses) == 1:
-        return clauses[0]
-    return "(" + " AND ".join(clauses) + ")"
-
-
-def build_term_query(token: str) -> str:
-    token = normalize_fragment(token)
-    return build_term_query_from_morphemes(token, searchable_morphemes(token))
-
-
-def build_phrase_query_from_morphemes(token: str, morphemes) -> str:
-    if token == "":
-        return ""
-
-    surfaces = surface_terms_from_morphemes(morphemes, unique=False)
-    if not surfaces:
-        return fts_quote(token)
-    return fts_quote(" ".join(surfaces))
-
-
-def build_phrase_query(token: str) -> str:
-    token = normalize_fragment(token)
-    return build_phrase_query_from_morphemes(token, searchable_morphemes(token))
-
-
 def append_unique(items: list[str], values: list[str]) -> None:
     seen = set(items)
     for value in values:
@@ -240,46 +187,17 @@ def append_unique(items: list[str], values: list[str]) -> None:
         items.append(value)
 
 
-def fts_query_part_ends_operand(kind: str) -> bool:
-    return kind in {"term", "close"}
-
-
-def fts_query_part_starts_operand(kind: str) -> bool:
-    return kind in {"term", "open"}
-
-
-def join_fts_query_parts(parts: list[tuple[str, str]]) -> str:
-    query_parts: list[str] = []
-    previous_kind = ""
-    for kind, text in parts:
-        if text == "":
-            continue
-        if fts_query_part_ends_operand(previous_kind) and fts_query_part_starts_operand(kind):
-            query_parts.append("AND")
-        query_parts.append(text)
-        previous_kind = kind
-    return " ".join(query_parts)
-
-
 def build_query_payload(text: str) -> dict[str, object]:
-    parts: list[tuple[str, str]] = []
     highlight_terms: list[str] = []
     exact_phrases: list[str] = []
     exact_phrases_supported = True
     skip_highlight = False
     for token in QUERY_TOKEN_PATTERN.findall(text or ""):
-        if token == "":
+        if token in {"", "(", ")"}:
             continue
 
         upper = token.upper()
-        if token == "(":
-            parts.append(("open", token))
-            continue
-        if token == ")":
-            parts.append(("close", token))
-            continue
         if upper in {"AND", "OR", "NOT"} or upper.startswith("NEAR"):
-            parts.append(("operator", upper if upper != token else token))
             if upper == "OR" or upper.startswith("NEAR"):
                 exact_phrases_supported = False
             if upper == "NOT":
@@ -287,39 +205,28 @@ def build_query_payload(text: str) -> dict[str, object]:
             continue
 
         is_negated = skip_highlight
-        term = token[1:-1] if token.startswith('"') and token.endswith('"') and len(token) >= 2 else token
-        term = normalize_fragment(term)
-        morphemes = searchable_morphemes(term)
-        if token.startswith('"') and token.endswith('"') and len(token) >= 2:
-            # FTS 側は候補を広めに取る。terms カラムは表記ゆれ用トークンも含むため、
+        quoted = token.startswith('"') and token.endswith('"') and len(token) >= 2
+        term = normalize_fragment(token[1:-1] if quoted else token)
+        if quoted:
             # 厳密なフレーズ判定は PHP 側で本文そのものに対して行う。
-            clause = build_term_query_from_morphemes(term, morphemes)
             highlight_candidates = [term]
             if not is_negated:
                 append_unique(exact_phrases, [term])
         else:
-            clause = build_term_query_from_morphemes(term, morphemes)
-            highlight_candidates = surface_terms_from_morphemes(morphemes)
-        if clause:
-            parts.append(("term", clause))
+            highlight_candidates = surface_terms_from_morphemes(searchable_morphemes(term))
         if not is_negated:
             append_unique(highlight_terms, highlight_candidates)
         skip_highlight = False
 
     return {
-        "fts_query": join_fts_query_parts(parts),
         "surface_terms": highlight_terms,
         "exact_phrases": exact_phrases if exact_phrases_supported else [],
     }
 
 
-def build_query(text: str) -> str:
-    return str(build_query_payload(text)["fts_query"])
-
-
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="SudachiPy ベースの全文検索トークナイザ")
-    parser.add_argument("--mode", choices=["document", "query", "fields"], required=True)
+    parser = argparse.ArgumentParser(description="SudachiPy ベースの検索語トークナイザ")
+    parser.add_argument("--mode", choices=["query"], required=True)
     parser.add_argument("--text", default=None, help="未指定時は stdin から読み取る")
     parser.add_argument("--json", action="store_true", help="JSON で出力する")
     return parser.parse_args()
@@ -328,26 +235,11 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     text = args.text if args.text is not None else read_stdin_text()
-
-    if args.mode == "document":
-        payload = {
-            "terms_text": document_terms_text(text),
-            "surface_terms": surface_terms(text),
-        }
-    elif args.mode == "fields":
-        decoded = json.loads(text or "{}")
-        if not isinstance(decoded, dict):
-            raise ValueError("fields mode expects a JSON object")
-        payload = document_terms_map({str(key): str(value) for key, value in decoded.items()})
-    else:
-        payload = build_query_payload(text)
-
+    payload = build_query_payload(text)
     if args.json:
         print(json.dumps(payload, ensure_ascii=True))
-    elif args.mode == "document":
-        print(payload["terms_text"])
     else:
-        print(payload["fts_query"])
+        print(" ".join(payload["surface_terms"]))
     return 0
 
 

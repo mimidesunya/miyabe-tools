@@ -572,27 +572,6 @@
         writeQueryState();
     }
 
-    function statForFeature(key) {
-        const cards = allCards();
-        if (key === 'all') {
-            return {
-                label: '公開自治体',
-                ready: cards.filter((card) => cardReadyCount(card) > 0).length,
-                total: cards.length,
-            };
-        }
-        const scoped = cards.filter((card) => hasFeature(card, key));
-        const summary = Array.isArray(state.payload?.feature_summaries)
-            ? state.payload.feature_summaries.find((item) => String(item?.feature_key || '') === key)
-            : null;
-        return {
-            label: featureMeta[key].label,
-            ready: scoped.filter((card) => featureReady(card, key)).length,
-            total: scoped.length,
-            target: Number(summary?.target_count || 0),
-        };
-    }
-
     // 「分子/分母」では、どこで何件落ちているかが読めない。全国の自治体から
     // 検索できる状態までを段階で示し、届かない分は理由別に並べる。
     function funnelFor(key) {

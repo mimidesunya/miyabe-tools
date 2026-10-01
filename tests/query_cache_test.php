@@ -33,7 +33,6 @@ $path = japanese_search_query_cache_path($query);
 @mkdir(dirname($path), 0777, true);
 file_put_contents($path, json_encode([
     'raw_query' => $query,
-    'fts_query' => '(("ふるさと" OR "古里") AND "納税") AND "返礼品"',
     'highlight_terms' => $sudachiTerms,
     'exact_phrases' => [],
     'query_cache_schema' => 'phrase-v7',
@@ -44,14 +43,12 @@ $prepared = japanese_search_prepare_query($query);
 check('キャッシュから読んでも Sudachi の語が残る', $prepared['highlight_terms'] === $sudachiTerms);
 check('空白区切りへ落ちていない', !in_array('ふるさと納税', $prepared['highlight_terms'], true));
 check('tokenizer の印はキャッシュのものを引き継ぐ', $prepared['tokenizer'] === 'sudachi');
-check('fts_query もキャッシュのものを使う', str_contains((string)$prepared['fts_query'], '古里'));
 
 // fallback で作ったキャッシュは使わない（Sudachi が無い環境で作られた可能性がある）。
 $fallbackQuery = 'fallback 確認 ' . bin2hex(random_bytes(4));
 $fallbackPath = japanese_search_query_cache_path($fallbackQuery);
 file_put_contents($fallbackPath, json_encode([
     'raw_query' => $fallbackQuery,
-    'fts_query' => 'x',
     'highlight_terms' => ['捨てられるはず'],
     'exact_phrases' => [],
     'query_cache_schema' => 'phrase-v7',

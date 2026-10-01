@@ -9,7 +9,6 @@
     "gemini": {
         "apiKey": "YOUR_GEMINI_API_KEY",
         "textModel": "gemini-3-flash-preview",
-        "imageModel": "gemini-3-pro-image-preview",
         "maxRetries": 3
     },
     "claude": {
@@ -22,10 +21,7 @@
     "copper": {
         "serverUri": "ctip://cti.li/",
         "user": "user",
-        "password": "kappa",
-        "properties": {
-            "output.pdf.version": "1.4A-1"
-        }
+        "password": "kappa"
     },
     "LINE_CHANNEL_ID": "YOUR_CHANNEL_ID",
     "LINE_CHANNEL_SECRET": "YOUR_CHANNEL_SECRET",

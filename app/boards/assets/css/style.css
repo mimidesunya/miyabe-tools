@@ -106,15 +106,9 @@ body {
   color: #275ea3;
 }
 
-#list-btn:hover {
-  background: #f5f5f5;
-  border-color: #bbb;
-}
-
 @media (max-width:600px) {
 
-  #basemap-switch button,
-  #list-btn {
+  #basemap-switch button {
     font-size: 12px;
     padding: 4px 8px;
   }
@@ -435,14 +429,7 @@ body {
   color: #fff;
 }
 
-.task-actions button,
 .task-comment button {
   white-space: nowrap;
 }
 
-@media (max-width: 360px) {
-  .task-actions button {
-    font-size: 12px;
-    padding: 4px 8px;
-  }
-}

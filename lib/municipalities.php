@@ -51,12 +51,6 @@ function app_parse_timestamp_utc(?string $value): ?DateTimeImmutable
     }
 }
 
-function app_parse_timestamp_utc_unix(?string $value): ?int
-{
-    $parsed = app_parse_timestamp_utc($value);
-    return $parsed instanceof DateTimeImmutable ? $parsed->getTimestamp() : null;
-}
-
 function app_parse_timestamp_tokyo(?string $value): ?DateTimeImmutable
 {
     $value = trim((string)$value);
@@ -328,57 +322,6 @@ function municipality_prefecture_name_from_code(string $prefCode): string
     return (string)(municipality_prefecture_names()[$prefCode] ?? '');
 }
 
-function municipality_prefecture_options(array $municipalities): array
-{
-    $counts = [];
-    foreach ($municipalities as $municipality) {
-        if (!is_array($municipality)) {
-            continue;
-        }
-        $prefCode = trim((string)($municipality['pref_code'] ?? ''));
-        if ($prefCode === '') {
-            $prefCode = municipality_prefecture_code_from_code((string)($municipality['code'] ?? ''));
-        }
-        if ($prefCode === '') {
-            continue;
-        }
-        $counts[$prefCode] = ($counts[$prefCode] ?? 0) + 1;
-    }
-
-    ksort($counts, SORT_STRING);
-    $options = [];
-    foreach ($counts as $prefCode => $count) {
-        $name = municipality_prefecture_name_from_code((string)$prefCode);
-        if ($name === '') {
-            continue;
-        }
-        $options[] = [
-            'code' => (string)$prefCode,
-            'name' => $name,
-            'count' => (int)$count,
-        ];
-    }
-    return $options;
-}
-
-function municipality_normalize_prefecture_filter(?string $value, array $options): string
-{
-    $prefCode = trim((string)$value);
-    if (preg_match('/^\d{1,2}$/', $prefCode) === 1) {
-        $prefCode = str_pad($prefCode, 2, '0', STR_PAD_LEFT);
-    }
-    if (preg_match('/^\d{2}$/', $prefCode) !== 1) {
-        return '';
-    }
-
-    foreach ($options as $option) {
-        if ((string)($option['code'] ?? '') === $prefCode) {
-            return $prefCode;
-        }
-    }
-    return '';
-}
-
 function read_json_cache_file(string $path, int $ttlSeconds = 0): ?array
 {
     if (!is_file($path)) {
@@ -394,37 +337,6 @@ function read_json_cache_file(string $path, int $ttlSeconds = 0): ?array
 
     $decoded = json_decode((string)@file_get_contents($path), true);
     return is_array($decoded) ? $decoded : null;
-}
-
-function json_cache_file_is_fresh(string $path, int $ttlSeconds = 0, array $dependencyPaths = []): bool
-{
-    if (!is_file($path)) {
-        return false;
-    }
-
-    $cacheMtime = (int)@filemtime($path);
-    if ($cacheMtime <= 0) {
-        return false;
-    }
-
-    if ($ttlSeconds > 0) {
-        $ageSeconds = time() - $cacheMtime;
-        if ($ageSeconds < 0 || $ageSeconds > $ttlSeconds) {
-            return false;
-        }
-    }
-
-    foreach ($dependencyPaths as $dependencyPath) {
-        $dependencyPath = trim((string)$dependencyPath);
-        if ($dependencyPath === '' || !is_file($dependencyPath)) {
-            continue;
-        }
-        if ((int)@filemtime($dependencyPath) > $cacheMtime) {
-            return false;
-        }
-    }
-
-    return true;
 }
 
 function write_json_cache_file(string $path, array $payload): void
@@ -559,45 +471,6 @@ function json_array_has_items_auto(string $path): bool
     return false;
 }
 
-function sqlite_table_max_id(string $dbPath, string $table): int
-{
-    static $cache = [];
-    $cacheKey = $dbPath . '|' . $table;
-    if (array_key_exists($cacheKey, $cache)) {
-        return $cache[$cacheKey];
-    }
-
-    if (!is_file($dbPath) || !class_exists(PDO::class) || !in_array('sqlite', PDO::getAvailableDrivers(), true)) {
-        $cache[$cacheKey] = 0;
-        return 0;
-    }
-    if (!preg_match('/^[a-z_][a-z0-9_]*$/i', $table)) {
-        $cache[$cacheKey] = 0;
-        return 0;
-    }
-
-    try {
-        // 検索用インデックス DB は再構築前提で、id は密な連番として保てる。
-        // 公開判定や概算件数では COUNT(*) より軽い MAX(id) を優先して使う。
-        $pdo = new PDO('sqlite:' . $dbPath);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        $value = $pdo->query('SELECT COALESCE(MAX(id), 0) FROM ' . $table)->fetchColumn();
-        $cache[$cacheKey] = max(0, (int)$value);
-    } catch (Throwable) {
-        // 一時的な lock / open 失敗を 0 件として固定すると、
-        // 同一リクエスト内の self-heal まで潰してしまうため失敗結果は cache しない。
-        return 0;
-    }
-
-    return $cache[$cacheKey];
-}
-
-function sqlite_table_has_rows(string $dbPath, string $table): bool
-{
-    // 空の SQLite ファイルや schema だけの DB は「公開データあり」に含めない。
-    return sqlite_table_max_id($dbPath, $table) > 0;
-}
-
 function municipality_feature_metadata_has_data(string $task, string $slug): bool
 {
     static $itemsByTask = [];
@@ -673,24 +546,6 @@ function municipality_feature_live_has_data(string $feature, array $featureConfi
     return !empty($featureConfig['has_data']);
 }
 
-function municipality_feature_ready_cache_paths(string $feature): array
-{
-    return match ($feature) {
-        'gijiroku' => [data_path('background_tasks/gijiroku_ready_municipalities.json')],
-        'reiki' => [data_path('background_tasks/reiki_ready_municipalities.json')],
-        default => [],
-    };
-}
-
-function municipality_invalidate_feature_ready_caches(string $feature): void
-{
-    foreach (municipality_feature_ready_cache_paths($feature) as $path) {
-        if (is_file($path)) {
-            @unlink($path);
-        }
-    }
-}
-
 function municipality_cache_mark_feature_available(string $slug, string $feature): void
 {
     $slug = trim($slug);
@@ -738,8 +593,6 @@ function municipality_cache_mark_feature_available(string $slug, string $feature
 
     if ($changed) {
         write_json_cache_file($cachePath, $cached);
-        // ready 一覧は自治体 catalog の has_data を前提にするので、self-heal 後は作り直す。
-        municipality_invalidate_feature_ready_caches($feature);
     }
 }
 
