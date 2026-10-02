@@ -101,7 +101,7 @@ def build_scraping_compose(
         "services": {
             "scraper-redis": {
                 "image": "redis:7-alpine",
-                "restart": "no",
+                "restart": "unless-stopped",
                 "command": [
                     "redis-server",
                     "--save",
@@ -113,7 +113,7 @@ def build_scraping_compose(
             },
             "scraper-gijiroku": {
                 "image": image_name,
-                "restart": "no",
+                "restart": "unless-stopped",
                 "cpus": "1.5",
                 "init": True,
                 "stop_grace_period": "2m",
@@ -154,7 +154,7 @@ def build_scraping_compose(
             },
             "scraper-reiki": {
                 "image": image_name,
-                "restart": "no",
+                "restart": "unless-stopped",
                 "cpus": "1.5",
                 "init": True,
                 "stop_grace_period": "2m",
@@ -195,7 +195,7 @@ def build_scraping_compose(
             },
             "scraper-gijiroku-index": {
                 "image": image_name,
-                "restart": "no",
+                "restart": "unless-stopped",
                 # 文書生成は CPU で決まる（昭島市 1 億字で 768 秒）。0.5 では
                 # 半分の速さでしか回らない。
                 "cpus": "1.0",
@@ -231,7 +231,7 @@ def build_scraping_compose(
             },
             "scraper-reiki-index": {
                 "image": image_name,
-                "restart": "no",
+                "restart": "unless-stopped",
                 "cpus": "1.0",
                 "init": True,
                 "stop_grace_period": "2m",
@@ -264,7 +264,7 @@ def build_scraping_compose(
             },
             "scraper-beat": {
                 "image": image_name,
-                "restart": "no",
+                "restart": "unless-stopped",
                 "cpus": "0.25",
                 "init": True,
                 "stop_grace_period": "30s",
