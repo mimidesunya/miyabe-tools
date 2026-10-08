@@ -579,17 +579,26 @@ cleanup_reconcile
 """
     return ssh_exec(config, reconcile_cmd, stream=True, timeout_seconds=max(120, int(timeout_seconds) + 60))
 
-def ensure_remote_shared_data_permissions(config, shared_data_dir):
-    """Ensures shared non-boards directories support app writes."""
+def ensure_remote_shared_data_permissions(config, shared_data_dir, *, recursive=True):
+    """Ensures shared non-boards directories support app writes.
+
+    `recursive=False` は一番上の置き場だけを整える。共有データ全体をたどる find は
+    HDD 上で 10 分を超える（2026-10-08 に本番で測った）ので、full deploy では
+    正規化の前は一番上だけ、正規化のあとに 1 回だけ全体を整える。
+    """
     web_group = str(config.get('web_group', 'www-data')).strip() or 'www-data'
-    permission_cmd = f"""
+    top_cmd = f"""
 mkdir -p {shared_data_dir}
 mkdir -p {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery
 chgrp {web_group} {shared_data_dir}
 chgrp {web_group} {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery
 chmod 2775 {shared_data_dir}
 chmod 2775 {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery
-if [ -d {shared_data_dir}/reiki ]; then find {shared_data_dir}/reiki -type d -exec chgrp {web_group} {{}} + -exec chmod 2775 {{}} +; fi
+"""
+    if not recursive:
+        ssh_exec(config, top_cmd)
+        return
+    permission_cmd = top_cmd + f"""if [ -d {shared_data_dir}/reiki ]; then find {shared_data_dir}/reiki -type d -exec chgrp {web_group} {{}} + -exec chmod 2775 {{}} +; fi
 if [ -d {shared_data_dir}/gijiroku ]; then find {shared_data_dir}/gijiroku -type d -exec chgrp {web_group} {{}} + -exec chmod 2775 {{}} +; fi
 if [ -d {shared_data_dir}/work ]; then find {shared_data_dir}/work -type d -exec chgrp {web_group} {{}} + -exec chmod 2775 {{}} +; fi
 if [ -d {shared_data_dir}/reiki ]; then find {shared_data_dir}/reiki -type f -name '*.sqlite' -exec chgrp {web_group} {{}} + -exec chmod 664 {{}} +; fi
@@ -624,6 +633,17 @@ set -eu
 echo '[deploy] prepare municipality storage'
 mkdir -p {dest_dir}/tools {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery
 if [ -f {dest_dir}/docker-compose.scraping.yml ]; then
+  cd {dest_dir}
+  # 正規化のために全部の worker を止めると、福岡県のような長い取得（25 時間）も殺す。
+  # 先に止めずに下見し、動かすものが無ければ止めない（2026-10-08 の本番は 0 件だった）。
+  plan="$(docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml run --rm -T --no-deps -v {shared_data_dir}/reiki:/workspace/data/reiki --entrypoint sh scraper-gijiroku -lc 'python3 /workspace/tools/normalize_municipality_storage.py --dry-run --workspace-root /workspace --data-root /workspace/data --work-root /workspace/work --background-task-dir /workspace/data/background_tasks' 2>/dev/null | tail -n 1 || true)"
+  echo "[deploy] normalization plan: $plan"
+  case "$plan" in
+    *"directory_moves=0 task_files=0"*)
+      echo '[deploy] nothing to normalize; keep scraper workers running'
+      exit 0
+      ;;
+  esac
   running_scrapers="$(docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml ps --status running --services | grep -E '^(scraper-gijiroku|scraper-reiki|scraper-gijiroku-index|scraper-reiki-index|scraper-beat)$' || true)"
   restore_scrapers() {{
     if [ -n "$running_scrapers" ]; then
@@ -1011,7 +1031,8 @@ fi
     elif args.skip_data_maintenance:
         print("=== Skipping Remote Shared-Data Maintenance ===")
     else:
-        ensure_remote_shared_data_permissions(config, shared_data_dir)
+        # 全体をたどる整え直しは、正規化のあとの 1 回だけにする（下）。
+        ensure_remote_shared_data_permissions(config, shared_data_dir, recursive=False)
         ensure_remote_service_data_permissions(config, dest_dir)
     
     # Always sync code now, to support volume mounts
