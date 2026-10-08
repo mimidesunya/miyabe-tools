@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import csv
 import html
+import http.client
 import re
 import sys
 import time
@@ -20,6 +21,7 @@ from dataclasses import asdict, dataclass
 from http.cookiejar import CookieJar
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urljoin, urlsplit, urlunsplit
+from urllib.error import HTTPError, URLError
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 
 SCRAPER_DIR = Path(__file__).resolve().parent
@@ -39,6 +41,14 @@ except ModuleNotFoundError:  # pragma: no cover
 
 
 DEFAULT_WAIT_MS = 10_000
+# 時間切れ・接続断・5xx・429 のときだけ、この間隔を置いてやり直す。
+FETCH_RETRY_WAITS_SECONDS = (5.0, 20.0)
+# やり直しでは、最初の待ち時間（既定 10 秒）より長く待つ。
+FETCH_RETRY_MIN_TIMEOUT_MS = 30_000
+# やり直しても通らなかった取得がこの回数続いたら、取得元が落ちているとみて
+# やり直しをやめる。1 件でも通れば数え直す。
+FETCH_RETRY_GIVE_UP_AFTER = 3
+_consecutive_exhausted_fetches = 0
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
@@ -173,7 +183,52 @@ def build_http_client():
     return opener
 
 
+def is_transient_fetch_error(exc: BaseException) -> bool:
+    """やり直せば通る見込みのある失敗か。404 などは繰り返しても変わらない。"""
+    if isinstance(exc, HTTPError):
+        return exc.code == 429 or exc.code >= 500
+    if isinstance(exc, URLError):
+        return isinstance(exc.reason, (TimeoutError, OSError))
+    return isinstance(exc, (TimeoutError, ConnectionError, http.client.HTTPException))
+
+
+def retry_timeout_ms(timeout_ms: int) -> int:
+    return max(timeout_ms, FETCH_RETRY_MIN_TIMEOUT_MS)
+
+
 def request_text(opener, url: str, timeout_ms: int, *, data: dict[str, str] | None = None, referer: str | None = None) -> tuple[str, str]:
+    # 木の 1 枝が時間切れ 1 回で落ちると、その先の会議がまるごと見えなくなる。
+    # 目黒区・高槻市・寝屋川市・精華町・西脇市は、これで「エラー停止」のままだった。
+    # やり直すときは待ち時間も延ばす。
+    # ただし取得元が落ちているときに 1 件ごと 1 分以上待つと、巡回が何日も
+    # 終わらない。やり直しても通らない失敗が続いたら、やり直しをやめる。
+    global _consecutive_exhausted_fetches
+    waits = () if _consecutive_exhausted_fetches >= FETCH_RETRY_GIVE_UP_AFTER else FETCH_RETRY_WAITS_SECONDS
+    attempt_timeout_ms = timeout_ms
+    for wait in waits:
+        try:
+            result = _request_text_once(opener, url, attempt_timeout_ms, data=data, referer=referer)
+        except Exception as exc:
+            if not is_transient_fetch_error(exc):
+                raise
+            time.sleep(wait)
+            attempt_timeout_ms = retry_timeout_ms(timeout_ms)
+        else:
+            _consecutive_exhausted_fetches = 0
+            return result
+    try:
+        result = _request_text_once(opener, url, attempt_timeout_ms, data=data, referer=referer)
+    except Exception as exc:
+        if is_transient_fetch_error(exc):
+            _consecutive_exhausted_fetches += 1
+        raise
+    _consecutive_exhausted_fetches = 0
+    return result
+
+
+def _request_text_once(
+    opener, url: str, timeout_ms: int, *, data: dict[str, str] | None = None, referer: str | None = None
+) -> tuple[str, str]:
     payload = None
     headers: dict[str, str] = {}
     if referer:

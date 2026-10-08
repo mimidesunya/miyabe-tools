@@ -21,6 +21,7 @@ from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
@@ -37,6 +38,13 @@ import gijiroku_targets
 
 DEFAULT_WAIT_MS = 10_000
 DEFAULT_DISCOVERY_TIMEOUT_SECONDS = 900
+# 会議一覧のページを開けなかったとき、この間隔を置いてやり直す。
+LIST_GOTO_RETRY_WAITS_SECONDS = (5.0, 20.0)
+# やり直しでは、最初の待ち時間（既定 10 秒）より長く待つ。
+LIST_GOTO_RETRY_MIN_TIMEOUT_MS = 30_000
+# やり直しても開けなかったページがこの数続いたら、取得元が落ちているとみる。
+LIST_GOTO_RETRY_GIVE_UP_AFTER = 3
+_consecutive_exhausted_gotos = 0
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
@@ -1589,6 +1597,46 @@ def extract_document_rows_from_page(page) -> list[DocumentRow]:
     return rows
 
 
+def is_transient_goto_error(exc: BaseException) -> bool:
+    """やり直せば開ける見込みのある失敗か。時間切れと接続の切断だけ。"""
+    if isinstance(exc, PlaywrightTimeoutError):
+        return True
+    return isinstance(exc, PlaywrightError) and "net::ERR_" in str(exc)
+
+
+def goto_list_page(page, list_url: str, timeout_ms: int, *, deadline: float | None = None) -> None:
+    """会議一覧のページを開く。時間切れなら待ち時間を延ばしてやり直す。
+
+    1 ページが 10 秒の時間切れ 1 回で落ちると、その会議種別がまるごと見えなく
+    なり、自治体全体が「エラー停止」になる（島根県・橿原市・今治市）。
+    取得元が落ちているときに 1 ページごと 1 分以上待たないよう、やり直しても
+    開けなかったページが続いたらやり直しをやめる。
+    """
+    global _consecutive_exhausted_gotos
+    waits = () if _consecutive_exhausted_gotos >= LIST_GOTO_RETRY_GIVE_UP_AFTER else LIST_GOTO_RETRY_WAITS_SECONDS
+    attempt_timeout_ms = timeout_ms
+    for wait in waits:
+        try:
+            page.goto(list_url, wait_until="domcontentloaded", timeout=attempt_timeout_ms)
+        except Exception as exc:
+            if not is_transient_goto_error(exc):
+                raise
+            print(f"[INFO] 会議一覧を開き直します: {list_url} ({str(exc).splitlines()[0]})", flush=True)
+            time.sleep(wait)
+            ensure_discovery_time(deadline, list_url)
+            attempt_timeout_ms = max(timeout_ms, LIST_GOTO_RETRY_MIN_TIMEOUT_MS)
+        else:
+            _consecutive_exhausted_gotos = 0
+            return
+    try:
+        page.goto(list_url, wait_until="domcontentloaded", timeout=attempt_timeout_ms)
+    except Exception as exc:
+        if is_transient_goto_error(exc):
+            _consecutive_exhausted_gotos += 1
+        raise
+    _consecutive_exhausted_gotos = 0
+
+
 def collect_list_page_documents(
     page,
     list_url: str,
@@ -1599,7 +1647,7 @@ def collect_list_page_documents(
     deadline: float | None = None,
 ) -> list[DocumentRow]:
     ensure_discovery_time(deadline, list_url)
-    page.goto(list_url, wait_until="domcontentloaded", timeout=timeout_ms)
+    goto_list_page(page, list_url, timeout_ms, deadline=deadline)
     try:
         page.wait_for_load_state("networkidle", timeout=3_000)
     except Exception:

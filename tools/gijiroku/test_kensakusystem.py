@@ -1,4 +1,6 @@
 import unittest
+from unittest import mock
+from urllib.error import HTTPError, URLError
 
 from tools.gijiroku.scrapers import kensakusystem
 
@@ -73,6 +75,102 @@ class FetchMeetingTextTest(unittest.TestCase):
 
         with self.assertRaises(kensakusystem.SourceDocumentMissing):
             kensakusystem.fetch_meeting_text(None, meeting_item(), 1_000)
+
+
+class RequestRetryTest(unittest.TestCase):
+    """時間切れ 1 回で木の枝を諦めない（目黒区・高槻市などがエラー停止のままだった）。"""
+
+    def setUp(self) -> None:
+        kensakusystem._consecutive_exhausted_fetches = 0
+        self.sleep = mock.patch.object(kensakusystem.time, "sleep").start()
+        self.addCleanup(mock.patch.stopall)
+        self.addCleanup(setattr, kensakusystem, "_consecutive_exhausted_fetches", 0)
+
+    def serve(self, outcomes: list) -> list[int]:
+        timeouts: list[int] = []
+
+        def once(_opener, url, timeout_ms, **_kwargs):
+            timeouts.append(timeout_ms)
+            outcome = outcomes.pop(0)
+            if isinstance(outcome, BaseException):
+                raise outcome
+            return outcome, url
+
+        mock.patch.object(kensakusystem, "_request_text_once", once).start()
+        return timeouts
+
+    def test_timeout_is_retried_with_a_longer_wait(self) -> None:
+        timeouts = self.serve([TimeoutError("The read operation timed out"), "<html>ok</html>"])
+
+        body, _ = kensakusystem.request_text(None, "https://example.jp/See.exe", 10_000)
+
+        self.assertEqual(body, "<html>ok</html>")
+        self.assertEqual(timeouts, [10_000, kensakusystem.FETCH_RETRY_MIN_TIMEOUT_MS])
+
+    def test_connection_error_wrapped_in_urlerror_is_retried(self) -> None:
+        self.serve([URLError(TimeoutError("timed out")), URLError(ConnectionResetError()), "<html>ok</html>"])
+
+        body, _ = kensakusystem.request_text(None, "https://example.jp/See.exe", 10_000)
+
+        self.assertEqual(body, "<html>ok</html>")
+
+    def test_server_error_is_retried_but_not_found_is_not(self) -> None:
+        self.serve([HTTPError("u", 503, "busy", {}, None), "<html>ok</html>"])
+        self.assertEqual(kensakusystem.request_text(None, "u", 10_000)[0], "<html>ok</html>")
+
+        timeouts = self.serve([HTTPError("u", 404, "gone", {}, None)])
+        with self.assertRaises(HTTPError):
+            kensakusystem.request_text(None, "u", 10_000)
+        self.assertEqual(len(timeouts), 1)
+
+    def test_gives_up_after_retries(self) -> None:
+        timeouts = self.serve([TimeoutError("t")] * 3)
+
+        with self.assertRaises(TimeoutError):
+            kensakusystem.request_text(None, "u", 10_000)
+        self.assertEqual(len(timeouts), 1 + len(kensakusystem.FETCH_RETRY_WAITS_SECONDS))
+
+    def test_stops_retrying_while_the_source_is_down(self) -> None:
+        # 取得元が落ちているときに 1 件ごと 1 分以上待たない。
+        attempts_per_call = 1 + len(kensakusystem.FETCH_RETRY_WAITS_SECONDS)
+        give_up = kensakusystem.FETCH_RETRY_GIVE_UP_AFTER
+        timeouts = self.serve([TimeoutError("t")] * (attempts_per_call * give_up + 1) + ["<html>ok</html>"])
+
+        for _ in range(give_up + 1):
+            with self.assertRaises(TimeoutError):
+                kensakusystem.request_text(None, "u", 10_000)
+        self.assertEqual(len(timeouts), attempts_per_call * give_up + 1)
+
+        # 1 件でも通れば、次の失敗からまたやり直す。
+        kensakusystem.request_text(None, "u", 10_000)
+        self.assertEqual(kensakusystem._consecutive_exhausted_fetches, 0)
+
+
+class TreeWalkRetryTest(unittest.TestCase):
+    def test_slow_branch_is_not_counted_as_missed(self) -> None:
+        context = kensakusystem.SeeContext(
+            source_url="https://example.jp/",
+            see_url="https://example.jp/cgi-bin3/See.exe?Code=abc",
+            post_url="https://example.jp/cgi-bin3/r_ViewTree.exe",
+            code="abc",
+            root_html="<a class=\"js-tree-submit\" data-depth=\"平成29年 第5回定例会\"></a>",
+        )
+        outcomes: list = [TimeoutError("timed out"), "<html></html>"]
+
+        def once(_opener, url, timeout_ms, **_kwargs):
+            outcome = outcomes.pop(0)
+            if isinstance(outcome, BaseException):
+                raise outcome
+            return outcome, url
+
+        walk: dict = {}
+        with mock.patch.object(kensakusystem, "resolve_see_context", return_value=context), mock.patch.object(
+            kensakusystem, "_request_text_once", once
+        ), mock.patch.object(kensakusystem.time, "sleep"):
+            kensakusystem._consecutive_exhausted_fetches = 0
+            kensakusystem.discover_meeting_items(None, {"source_url": "https://example.jp/"}, 10_000, walk=walk)
+
+        self.assertEqual(walk["missed_pages"], 0)
 
 
 if __name__ == "__main__":

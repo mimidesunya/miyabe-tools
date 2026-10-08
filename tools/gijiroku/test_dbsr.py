@@ -1,4 +1,5 @@
 import unittest
+from unittest import mock
 
 from tools.gijiroku.scrapers import dbsr
 
@@ -432,6 +433,77 @@ class ExpandCabinetValuesTest(unittest.TestCase):
             {"key": "Cabinet", "value": "2", "text": "本会議(再掲)"},
         ]
         self.assertEqual(len(dbsr.expand_cabinet_values(options)), 2)
+
+
+class _FakePage:
+    def __init__(self, outcomes: list) -> None:
+        self.outcomes = outcomes
+        self.timeouts: list[int] = []
+
+    def goto(self, url, *, wait_until, timeout):
+        self.timeouts.append(timeout)
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return None
+
+
+class GotoListPageRetryTest(unittest.TestCase):
+    """10 秒の時間切れ 1 回で会議一覧を諦めない（島根県・橿原市・今治市がエラー停止のままだった）。"""
+
+    def setUp(self) -> None:
+        dbsr._consecutive_exhausted_gotos = 0
+        mock.patch.object(dbsr.time, "sleep").start()
+        self.addCleanup(mock.patch.stopall)
+        self.addCleanup(setattr, dbsr, "_consecutive_exhausted_gotos", 0)
+
+    def test_timeout_is_retried_with_a_longer_wait(self) -> None:
+        page = _FakePage([dbsr.PlaywrightTimeoutError("Page.goto: Timeout 10000ms exceeded."), None])
+
+        dbsr.goto_list_page(page, "https://example.dbsr.jp/index.php/1?Template=list", 10_000)
+
+        self.assertEqual(page.timeouts, [10_000, dbsr.LIST_GOTO_RETRY_MIN_TIMEOUT_MS])
+
+    def test_connection_reset_is_retried(self) -> None:
+        page = _FakePage([dbsr.PlaywrightError("net::ERR_CONNECTION_RESET at https://example.dbsr.jp/"), None])
+
+        dbsr.goto_list_page(page, "https://example.dbsr.jp/", 10_000)
+
+        self.assertEqual(len(page.timeouts), 2)
+
+    def test_other_errors_are_not_retried(self) -> None:
+        page = _FakePage([dbsr.PlaywrightError("Target page, context or browser has been closed")])
+
+        with self.assertRaises(dbsr.PlaywrightError):
+            dbsr.goto_list_page(page, "https://example.dbsr.jp/", 10_000)
+        self.assertEqual(len(page.timeouts), 1)
+
+    def test_gives_up_after_retries(self) -> None:
+        page = _FakePage([dbsr.PlaywrightTimeoutError("t")] * 3)
+
+        with self.assertRaises(dbsr.PlaywrightTimeoutError):
+            dbsr.goto_list_page(page, "https://example.dbsr.jp/", 10_000)
+        self.assertEqual(len(page.timeouts), 1 + len(dbsr.LIST_GOTO_RETRY_WAITS_SECONDS))
+
+    def test_stops_retrying_while_the_source_is_down(self) -> None:
+        attempts_per_call = 1 + len(dbsr.LIST_GOTO_RETRY_WAITS_SECONDS)
+        give_up = dbsr.LIST_GOTO_RETRY_GIVE_UP_AFTER
+        page = _FakePage([dbsr.PlaywrightTimeoutError("t")] * (attempts_per_call * give_up + 1) + [None])
+
+        for _ in range(give_up + 1):
+            with self.assertRaises(dbsr.PlaywrightTimeoutError):
+                dbsr.goto_list_page(page, "https://example.dbsr.jp/", 10_000)
+        self.assertEqual(len(page.timeouts), attempts_per_call * give_up + 1)
+
+        dbsr.goto_list_page(page, "https://example.dbsr.jp/", 10_000)
+        self.assertEqual(dbsr._consecutive_exhausted_gotos, 0)
+
+    def test_retry_does_not_run_past_the_discovery_deadline(self) -> None:
+        page = _FakePage([dbsr.PlaywrightTimeoutError("t"), None])
+
+        with self.assertRaises(dbsr.DiscoveryTimeoutError):
+            dbsr.goto_list_page(page, "https://example.dbsr.jp/", 10_000, deadline=0.0)
+        self.assertEqual(len(page.timeouts), 1)
 
 
 if __name__ == "__main__":
