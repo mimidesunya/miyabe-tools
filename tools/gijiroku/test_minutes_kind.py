@@ -419,5 +419,36 @@ class NonMinutesBodyTest(unittest.TestCase):
         )
 
 
+class AgendaTitledMeetingRecordTest(unittest.TestCase):
+    """<title> が冒頭の議事日程の見出しのままの、日ごとの会議録ページ（阿賀野市）。"""
+
+    TITLE = "令和８年第４回阿賀野市議会定例会議事日程（第１号）"
+    HEAD = (
+        "令和８年第４回阿賀野市議会定例会議事日程（第１号）\n"
+        "令和８年６月１日（月）午前１０時００分開会\n"
+        "日程第１　会議録署名議員の指名\n日程第２　会期の決定\n"
+        "〇出席議員（１８名）\n　１番　山田　太郎君\n〇欠席議員（なし）\n"
+    )
+
+    def test_a_long_meeting_record_is_kept(self) -> None:
+        speech = "〇議長（佐藤　一郎君）　これより本日の会議を開きます。日程第１、会議録署名議員の指名を行います。\n" * 60
+        adoption = minutes_kind.adopt_minutes_document(self.TITLE, self.HEAD + speech, year_label="令和8年")
+
+        self.assertTrue(adoption.accepted, adoption.reason)
+
+    def test_the_agenda_alone_is_still_dropped(self) -> None:
+        # 議事日程だけの頁は短い。題名どおり会議録ではない。
+        adoption = minutes_kind.adopt_minutes_document(self.TITLE, self.HEAD, year_label="令和8年")
+
+        self.assertFalse(adoption.accepted)
+
+    def test_other_labels_are_not_relaxed(self) -> None:
+        # 議事日程を名乗らない添え物（議決結果一覧など）は、本文が長くても題名で落とす。
+        speech = "〇議長（佐藤　一郎君）　これより本日の会議を開きます。\n" * 80
+        adoption = minutes_kind.adopt_minutes_document("議決結果一覧", self.HEAD + speech, year_label="令和8年")
+
+        self.assertFalse(adoption.accepted)
+
+
 if __name__ == "__main__":
     unittest.main()

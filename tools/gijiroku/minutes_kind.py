@@ -630,6 +630,32 @@ def body_has_speaker_lines(text: str) -> bool:
     return any(SPEAKER_LINE_RE.search(normalize_space(line)) for line in str(text or "").splitlines())
 
 
+# 題名が「…定例会議事日程（第１号）」でも、本文が会議の記録ならその日の会議録。
+# 阿賀野市の日ごとの会議録ページは <title> が冒頭の議事日程の見出しのままで、
+# 7 万字の会議録を題名だけで落とし、保存済みの本文まで退避していた（2026-10-08、
+# 保存 272 件が 3 件に）。「議事日程・本文」（勝浦市）と同じく本文で判定する。
+AGENDA_TITLE_RE = re.compile(r"議事日程")
+
+
+def body_is_meeting_record(text: str) -> bool:
+    """本文が会議の記録そのものか。
+
+    添え物の上限より長く、会議録にしか出ない欄（出席議員・会議録署名など）があり、
+    開会の時刻・議事の進行・発言者の行のどれかがあるものだけ。議事日程だけの頁
+    （藤沢市 P.55）は短いので当たらない。"""
+    body = _body_without_meta(text)
+    if len(normalize_space(body)) <= AGENDA_BODY_MAX_LENGTH:
+        return False
+    if not _has_minutes_only_markers(body):
+        return False
+    squeezed = _MARKER_SPACE_RE.sub("", body)
+    return bool(
+        MEETING_OPENED_RE.search(squeezed)
+        or MEETING_PROCEEDING_RE.search(squeezed)
+        or body_has_speaker_lines(body)
+    )
+
+
 def body_is_agenda_only(text: str) -> bool:
     """本文が日程表・議決結果・一般質問の通告一覧だけかを返す。
 
@@ -733,7 +759,7 @@ def non_minutes_reason(title: str, text: str = "", *, url: str = "") -> str | No
     """
     display = minutes_display_title(title, text, url=url)
     label_reason = _label_reason(display) or _label_reason(title)
-    if label_reason:
+    if label_reason and not (AGENDA_TITLE_RE.search(f"{display} {title}") and body_is_meeting_record(text)):
         return label_reason
     # 本文が案内文だけのときは、そこに「会議録」と書いてあっても会議の記録ではない。
     # 下の「名乗っているなら会議録」より先に見る。
