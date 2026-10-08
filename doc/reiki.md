@@ -24,6 +24,21 @@ curl "http://localhost/api/search?q=個人情報&doc_type=reiki&slug=14130-kawas
 - クロールマニフェスト: `work/reiki/{slug}/source_manifest.json.gz`
 - レジューム状態: `work/reiki/{slug}/scrape_state.json`
 
+## AI 評価（手動）
+
+`data/reiki/{slug}/json` の AI 評価は `dev/reiki/classify.py` が作ります。巡回には入っていない
+手動の道具で、例規ごとに Markdown を AI（Gemini・OpenAI・Claude から `--provider` で選ぶ）へ
+渡して JSON を書きます。既定は下見だけで、`--execute` を付けたときだけ API を呼びます。
+
+```bash
+python dev/reiki/classify.py --slug 14130-kawasaki-shi --limit 5            # 下見
+python dev/reiki/classify.py --slug 14130-kawasaki-shi --limit 5 --execute  # API を呼ぶ
+```
+
+- API キーとモデルは `data/config.json` の `openai`・`gemini`・`claude`（`data/config.example.json` に形）
+- `google-genai`・`openai`・`anthropic` は本番のイメージに入れていないので、手元で走らせる
+- 書いた JSON は例規ビューア（`/reiki/`）と検索の索引が読む
+
 ## スクレイピング
 
 ```bash
