@@ -122,18 +122,8 @@ python tools/tasks/ocr_backfill.py --limit 3     # 3 自治体だけ進める
 python tools/search/build_opensearch_index.py --mode update --doc-type minutes --slug 14130-kawasaki-shi
 ```
 
-通常のスクレイピング後は、その自治体 slug だけを current alias 上で delete+bulk して差し替えます。alias がまだない初回は、その slug 分の index を作って公開し、以後の自治体が徐々に追加されます。
-
-全量再構築が必要な場合だけ、versioned index を作成して投入完了後に alias を切り替えます。
-
-```bash
-python tools/search/build_opensearch_index.py --mode rebuild --doc-type minutes
-```
-
-OpenSearch がない環境では検索 API は 503 を返し、SQLite へフォールバックしません。
+通常のスクレイピング後は自治体 slug だけを current alias 上で差し替え、全量再構築（`--mode rebuild`）のときだけ versioned index を作って alias を切り替えます。仕組みはリポジトリ直下の [README.md](../README.md)「検索基盤」にまとめています。OpenSearch がない環境では検索 API は 503 を返し、SQLite へフォールバックしません。
 
 ## メモ
 
-- `minutes.sqlite` は不要です。削除されていても、保存済み会議録ファイルから再インデックスできます。
-- 旧 `/api/gijiroku/*`、横断検索ページ、自治体別 SQLite 検索は廃止しました。
 - `enabled` の明示許可、アクセス間隔、ホスト単位の同時実行制御を維持します。

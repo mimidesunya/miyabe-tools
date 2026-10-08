@@ -10,16 +10,12 @@
 
 一覧と各文書の概要は [doc/README.md](doc/README.md) を参照してください。
 
-- ツール別: [ポスター支援ツール](doc/poster-tool.md) / [例規集ツール](doc/reiki.md) / [会議録ツール](doc/gijiroku.md) / [MCP連携](doc/mcp.md)
-- 設計・運用: [ドメイン境界](doc/domain-boundaries.md) / [複数自治体対応](doc/multi-municipality.md) / [トップページ](doc/home-page.md) / [実行状態管理の設計](doc/status-architecture.md) / [リモートスクレイピング](doc/remote-scraping.md) / [仮想開発チーム](doc/virtual-development-team.md)
-- 自治体マスタ・URL調査: [自治体マスタ](doc/municipality-master.md) / [公式ホームページ一覧](doc/local-government-homepages.md) / [会議録URL調査](doc/assembly-minutes-url-survey.md) / [例規集URL調査](doc/reiki-url-survey.md)
-
 ## ディレクトリ構成
 
 - `domains/` — 独立した業務領域。`election_poster_boards/` が選挙ポスター掲示場のHTTP実装、認証、SQLite、保守ツールを所有
 - `app/` — 公開 Web 入口と API（PHP）。`app/boards/`・`app/line/` はURL互換アダプター、`app/api/` は会議録・例規集の公開 API
 - `lib/` — PHP 共通ライブラリ（自治体レジストリ、OpenSearch 検索、実行状態管理など）。`lib/python/` は PHP から呼ぶ補助 Python
-- `tools/` — 本番系 Python パイプライン。`tools/gijiroku/`・`tools/reiki/` がスクレイパ、`tools/search/` が OpenSearch index 構築、`tools/tasks/` がバッチ実行基盤。直下の `municipality_slugs.py` などは各パイプライン共通のモジュール
+- `tools/` — 本番系 Python パイプライン。`tools/gijiroku/`・`tools/reiki/` がスクレイパ、`tools/hyoka/` が事務事業評価、`tools/kansa/` が包括外部監査の報告書の調査と取得、`tools/search/` が OpenSearch index 構築、`tools/tasks/` がバッチ実行基盤。直下の `municipality_slugs.py` などは各パイプライン共通のモジュール
 - `dev/` — 開発・単発作業用スクリプト。`dev/boards/data/` は掲示場の入力TSV
 - `deploy/` — デプロイとリモートスクレイピング環境の構築。`deploy/scraper_runtime/` は Celery ランタイム
 - `docker/` — 各サービスの Dockerfile（php / nginx / mcp / scraper）
@@ -51,7 +47,7 @@
 OpenSearch の index はスクレイピング済みファイルから再構築できます。
 
 - 画面: `/search/?doc_type=minutes`（`/gijiroku/?slug={slug}` は自治体を絞った検索画面へ転送します）
-- 川崎市向け詳細: [tools/gijiroku/README.md](tools/gijiroku/README.md)
+- スクレイパの詳細: [tools/gijiroku/README.md](tools/gijiroku/README.md)
 
 ## 公開中のWeb画面
 
@@ -101,6 +97,20 @@ python tools/search/build_opensearch_index.py --mode update --doc-type minutes -
 - `miyabe-minutes-current`
 - `miyabe-reiki-current`
 - `miyabe-documents-current`
+
+## テスト
+
+```bash
+python dev/run_tests.py            # pytest・php -l・PHP のテスト・MCP の型検査をまとめて
+python dev/run_tests.py --only pytest
+```
+
+- pytest の対象は `pytest.ini` の `tools` と `domains`。リポジトリ直下の `conftest.py` が、
+  テストのたびに実行状態と探索記録の置き場を一時ディレクトリへ向け、OpenSearch と管理 DB には
+  繋がらないようにする。本物の `data/background_tasks/*.json` などが書き換わったら失敗にする
+- PHP のテストは `tools/**/test_*.php`・`tests/*_test.php`・`domains/**/tests/*_test.php`。
+  1 本ずつ `php <file>` でも走り、失敗すると終了コードが 0 以外になる
+- 本番の取得コンテナには pytest が無いので、そこでは `python -m unittest tools.gijiroku.test_xxx` の形で走らせる
 
 ## slug の正規化
 

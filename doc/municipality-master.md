@@ -42,4 +42,4 @@ pwsh -File dev/municipalities/build_municipality_master_tsv.ps1
 python dev/municipalities/enrich_municipality_master_tsv.py
 ```
 
-`name_kana` は `localgovjp` / `prefjp` のかな列から補完し、`name_romaji` は `municipality_homepages.csv` と既存 `config.json` の slug を使って補完します。
+`name_kana` は `localgovjp` / `prefjp` のかな列から補完し、`name_romaji` は `municipality_homepages.csv` のホームページ URL と既存の値（`tools/municipality_slugs.py` の上書き表を含む）から補完します。

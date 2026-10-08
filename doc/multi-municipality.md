@@ -16,7 +16,7 @@
 
 - 掲示場: `/boards/{slug}/`
 - 例規集: `/reiki/?slug={slug}`
-- 会議録: `/gijiroku/?slug={slug}`
+- 会議録: `/search/?doc_type=minutes&slug={slug}`（旧 `/gijiroku/?slug={slug}` は転送）
 - `slug` に自治体コードだけ、自治体名ローマ字だけ、自治体名そのものを渡した場合も、サーバー側で `自治体コード-ローマ字名称` に解決し、GET 画面は正規 URL へリダイレクトする
 
 ## 設定例
@@ -33,7 +33,7 @@
 ## 追加手順
 
 1. まず `data/municipalities/*.tsv|csv` に自治体コード・URL・`name_romaji` が載っていることを確認する
-2. 例規集や会議録は対応する初期化スクリプトを `--slug` 付きで実行する
+2. 例規集や会議録は台帳 TSV に URL と `system_type` を登録し、`crawl_status=enabled` にする（[assembly-minutes-url-survey.md](assembly-minutes-url-survey.md) / [reiki-url-survey.md](reiki-url-survey.md)）。取得と検索への反映は巡回が行う
 3. CLI では旧 `name-only` slug も alias として受け付けるが、保存先と公開 URL は `自治体コード-ローマ字名称` に統一される
 
 `name_kana` がある自治体は、例規一覧のかな順ソート用接頭辞も自動生成します。

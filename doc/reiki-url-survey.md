@@ -24,6 +24,10 @@
 - `jis_code`
 - `url`
 - `system_type`
+- `crawl_status` — `enabled`・`excluded`・`unresolved` など。取得するかどうか
+- `exclusion_reason` / `exclusion_detail` — 取得しない理由と確認内容
+
+`crawl_status` と除外の理由の書き方は会議録と同じです（[assembly-minutes-url-survey.md](assembly-minutes-url-survey.md)）。
 
 ## `system_type` の値
 

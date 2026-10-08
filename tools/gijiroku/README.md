@@ -126,17 +126,7 @@ python tools/gijiroku/scrape_all_minutes.py --parallel 8 --per-host-parallel 1 -
 
 ## OpenSearch index 作成
 
-通常は自治体単位で current alias を更新します。
-
-```bash
-python tools/search/build_opensearch_index.py --mode update --doc-type minutes --slug 14130-kawasaki-shi
-```
-
-全量再構築が必要な場合だけ、スクレイピング済みファイルから OpenSearch の versioned index を作成して alias を切り替えます。
-
-```bash
-python tools/search/build_opensearch_index.py --mode rebuild --doc-type minutes
-```
+自治体単位の差し替えと全量再構築の手順は [doc/gijiroku.md](../../doc/gijiroku.md)「OpenSearch 反映」と、リポジトリ直下の [README.md](../../README.md)「検索基盤」にあります。
 
 Web画面:
 

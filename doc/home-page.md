@@ -1,6 +1,6 @@
 # トップページ（自治体マップ）
 
-トップページは自治体対応状況の地図です。実行状態管理の正本と移行手順は
+トップページは自治体対応状況の地図です。実行状態管理の正本は
 [status-architecture.md](status-architecture.md) を、自治体単位の共通設計は
 [multi-municipality.md](multi-municipality.md) を参照してください。
 
@@ -33,10 +33,10 @@
 - 実行状態の正本は PostgreSQL の管理テーブルです
 - `/api/home.php` は PostgreSQL の自治体カードを読み、会議録・例規集の live 状態を重ねて返します
 - 自治体カタログや公開件数の重い再計算結果は派生ビューとして PostgreSQL に保存します
-- 旧 `data/background_tasks/*.json` は移行期間の取り込み元・監査用であり、表示の正本ではありません
+- `data/background_tasks/*.json` はスクレイパが PostgreSQL と同時に書く控えで、表示の正本ではありません（[status-architecture.md](status-architecture.md)）
 
 ## 表示ルール
 
-- 実行中タスクの時刻は `開始`、待機中タスクの時刻は `最終完了` として表示します
+- 実行中タスクの時刻は `開始`、待機中タスクの時刻は `完了` として表示します
 - 会議録・例規集の公開検索への反映は、通常はスクレイプ完了自治体だけを OpenSearch alias 上で差し替えます
 - 全量再構築が必要なときは versioned index を作って alias を切り替える方式です

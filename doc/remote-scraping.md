@@ -10,7 +10,7 @@
 python deploy/prepare_remote_scraping.py deploy.json --build-image
 ```
 
-このコマンドは既定で `docker-compose.scraping.yml` をリモートに配置し、Redis・Celery beat・会議録 worker・例規集 worker を `up -d --force-recreate` します。`tools/` と `lib/python/` もまとめて同期するので、fresh remote でも Celery task から必要な補助モジュールまで揃います。コードだけ同期して自動再起動したくない場合は `--no-restart-services` を付けます。
+このコマンドは既定で `docker-compose.scraping.yml` をリモートに配置し、Redis・Celery beat・会議録 worker・例規集 worker・索引 worker（`scraper-gijiroku-index` / `scraper-reiki-index`）を `up -d --force-recreate` します。`tools/` と `lib/python/` もまとめて同期するので、fresh remote でも Celery task から必要な補助モジュールまで揃います。コードだけ同期して自動再起動したくない場合は `--no-restart-services` を付けます。
 
 既定では、スクレイパ image が未作成か、`docker/scraper/Dockerfile` / `docker/scraper/requirements.txt` の内容が前回 build 時から変わっている場合だけ自動で rebuild します。`--build-image` を付けると差分有無に関係なく強制 rebuild します。
 
@@ -174,7 +174,7 @@ python3 deploy/remote_exec.py deploy.json -- "cd ~/services/miyabe-tools && dock
 ## 補足
 
 - スクレイパ本体は `miyabe-tools-scraper` イメージ内で動かします。
-- 公開データの書き込み先は `SHARED_DATA_DIR`（既定: `/mnt/big/miyabe-tools`）を `data/reiki` / `data/gijiroku` に重ねて、`boards` と分離したまま共有領域へ保存します。
+- 公開データの書き込み先は `deploy.json` の `shared_data_dir`（既定: `/mnt/big/miyabe-tools`）を `data/reiki` / `data/gijiroku` に重ねて、`boards` と分離したまま共有領域へ保存します。
 - `--full` のデプロイ時の正規化（`tools/normalize_municipality_storage.py`）では、旧 `name-only` ディレクトリも `自治体コード-ローマ字名称` へ移動し、背景タスク JSON の slug も同じ正規形に揃えます。
 - 会議録・例規とも、ホスト単位の同時実行数と起動間隔で負荷を抑えます。
 - サービスは `unless-stopped` で起動し、Celery beat の dispatcher が既定 6 時間ごとに次の巡回を queue へ積みます。

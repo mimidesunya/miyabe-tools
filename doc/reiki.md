@@ -33,7 +33,7 @@ python tools/reiki/scrape_all_reiki.py --parallel 8 --per-host-parallel 1 --per-
 単独実行例:
 
 ```bash
-php tools/reiki/scrapers/taikei.php --slug kyoto-fu --check-updates
+php tools/reiki/scrapers/taikei.php --slug 26000-kyoto-fu --check-updates
 python tools/reiki/scrapers/d1_law.py --slug 14130-kawasaki-shi --check-updates
 ```
 
@@ -62,18 +62,8 @@ legal-square は 1 回の検索が上限（多くは 100 件）で打ち切ら�
 python tools/search/build_opensearch_index.py --mode update --doc-type reiki --slug 14130-kawasaki-shi
 ```
 
-通常のスクレイピング後は、その自治体 slug だけを current alias 上で delete+bulk して差し替えます。alias がまだない初回は、その slug 分の index を作って公開し、以後の自治体が徐々に追加されます。
-
-全量再構築が必要な場合だけ、versioned index を作成して投入完了後に alias を切り替えます。
-
-```bash
-python tools/search/build_opensearch_index.py --mode rebuild --doc-type reiki
-```
-
-OpenSearch がない環境では検索 API は 503 を返し、SQLite へフォールバックしません。
+通常のスクレイピング後は自治体 slug だけを current alias 上で差し替え、全量再構築（`--mode rebuild`）のときだけ versioned index を作って alias を切り替えます。仕組みはリポジトリ直下の [README.md](../README.md)「検索基盤」にまとめています。OpenSearch がない環境では検索 API は 503 を返し、SQLite へフォールバックしません。
 
 ## メモ
 
-- `ordinances.sqlite` は不要です。削除されていても、保存済み HTML / Markdown / JSON から再インデックスできます。
-- 旧横断検索ページと SQLite 検索 API は廃止しました。
 - gzip 済みの既存成果物とレジューム状態はそのまま利用できます。

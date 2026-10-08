@@ -70,6 +70,12 @@ python domains/election_poster_boards/tools/import_tsv.py 14130-kawasaki-shi
 
 ツールは引数の slug をそのままディレクトリ名に使います。いま `dev/boards/data/` にあるディレクトリは `kawasaki-shi` のようにコードの無い名前なので、`14130-kawasaki-shi` で使うにはディレクトリ名を合わせてください（2026-10-01 時点で未整理）。
 
+KMZ（地図アプリから書き出した掲示場の位置）から作るときは、`kmzs/` に置いて
+`python domains/election_poster_boards/tools/convert_kmz.py` を実行すると
+`dev/boards/data/<自治体>/data.tsv` を書き出します。座標の無い地点の緯度経度を住所から
+埋めるときは `--geocode` を付けます（Google Maps Geocoding API。キーは `data/config.json`）。
+`kmzs/` は git 管理外です。
+
 ## メモ
 
 - 公開 URL は `自治体コード-ローマ字名称` に統一します。
