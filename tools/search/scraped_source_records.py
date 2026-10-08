@@ -129,16 +129,6 @@ def logical_suffix(path: Path) -> str:
     return suffixes[-1] if suffixes else ""
 
 
-def existing_path(path: Path) -> Path | None:
-    candidates = [path]
-    if path.suffix.lower() != ".gz":
-        candidates.insert(0, path.with_name(path.name + ".gz"))
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
-
-
 def normalize_space(value: str) -> str:
     return SPACE_PATTERN.sub(" ", value).strip()
 

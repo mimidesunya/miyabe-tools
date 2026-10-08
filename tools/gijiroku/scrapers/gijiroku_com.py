@@ -79,17 +79,6 @@ def unique_preserve_order(values: Iterable[str]) -> list[str]:
     return result
 
 
-def sanitize_filename(text: str, fallback: str) -> str:
-    return gijiroku_planning.sanitize_filename(text, fallback)
-
-
-def normalize_year_dir(year_label: str) -> str:
-    label = sanitize_filename((year_label or "unknown").strip(), "unknown")
-    if not label:
-        return "unknown"
-    return label
-
-
 def normalize_space(value: str) -> str:
     return re.sub(r"[ \t\u3000]+", " ", value).strip()
 
@@ -154,12 +143,6 @@ def extract_meeting_group(item_title: str, url: str) -> str | None:
         if candidate and candidate != normalized_title:
             return candidate
     return None
-
-
-def normalize_meeting_group_dir(meeting_group: str | None) -> str:
-    if not meeting_group:
-        return ""
-    return sanitize_filename(meeting_group, "meeting")
 
 
 def safe_inner_text(locator, timeout_ms: int = 1_500) -> str:
@@ -339,8 +322,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_WAIT_MS,
         help="Playwright操作タイムアウト（ミリ秒）",
     )
-    # 旧版の worker は --ack-robots を付けて起動してくる。作り直すまでは受け取って捨てる。
-    parser.add_argument("--ack-robots", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--save-html",
         action="store_true",

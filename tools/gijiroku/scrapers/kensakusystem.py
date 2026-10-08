@@ -68,7 +68,6 @@ TREE_DEPTH_RE = re.compile(r"treedepth\.value='([^']+)'")
 # `<a class="js-tree-submit" data-depth="…">` で書く。同じ See.exe への POST で
 # 開けるのに、印が違うだけで 0 件になっていた。
 TREE_DEPTH_DATA_RE = re.compile(r'class="js-tree-submit"[^>]*data-depth="([^"]+)"|data-depth="([^"]+)"[^>]*class="js-tree-submit"')
-TITLE_RE = re.compile(r"<title>(.*?)</title>", flags=re.I | re.S)
 NON_DOCUMENT_FILE_RE = re.compile(
     r"(?:FUGI|FUTA|GIAN|GIIN|IINK|IKEN|KAIK|KETS|MEIB|MOKU|QUES|SAKU|SANP|SEIG|SING|TUKO)(?:\.html?)?$",
     flags=re.I,
@@ -133,23 +132,6 @@ def normalize_space(value: str) -> str:
 
 def to_ascii_digits(value: str) -> str:
     return value.translate(str.maketrans("０１２３４５６７８９", "0123456789"))
-
-
-def sanitize_filename(text: str, fallback: str) -> str:
-    return gijiroku_planning.sanitize_filename(text, fallback)
-
-
-def normalize_year_dir(year_label: str) -> str:
-    label = sanitize_filename((year_label or "unknown").strip(), "unknown")
-    if not label:
-        return "unknown"
-    return label
-
-
-def normalize_meeting_group_dir(meeting_group: str | None) -> str:
-    if not meeting_group:
-        return ""
-    return sanitize_filename(meeting_group, "meeting")
 
 
 def html_to_text(raw_html: str) -> str:
@@ -242,13 +224,6 @@ def _request_text_once(
         body = response.read()
         final_url = response.geturl()
     return decode_html(body), final_url
-
-
-def extract_title(page_html: str) -> str:
-    match = TITLE_RE.search(page_html)
-    if not match:
-        return ""
-    return normalize_space(html_to_text(match.group(1)))
 
 
 def extract_hidden_value(page_html: str, name: str) -> str:
@@ -613,8 +588,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_WAIT_MS,
         help="HTTP 操作タイムアウト（ミリ秒）",
     )
-    # 旧版の worker は --ack-robots を付けて起動してくる。作り直すまでは受け取って捨てる。
-    parser.add_argument("--ack-robots", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--save-html",
         action="store_true",

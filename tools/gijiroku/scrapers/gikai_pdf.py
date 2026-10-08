@@ -101,14 +101,11 @@ DEFAULT_MAX_PAGES = 600
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="汎用 自治体サイト PDF 会議録スクレイパ")
     parser.add_argument("--slug", required=True, help="対象自治体 slug")
-    # 旧版の worker は --ack-robots を付けて起動してくる。作り直すまでは受け取って捨てる。
-    parser.add_argument("--ack-robots", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--max-meetings", type=int, default=0, help="処理するPDF件数上限（0 は無制限）")
     parser.add_argument("--max-pages", type=int, default=DEFAULT_MAX_PAGES, help="クロールするページ数上限")
     parser.add_argument("--max-depth", type=int, default=3, help="入口からのリンク追跡の深さ上限")
     parser.add_argument("--delay-seconds", type=float, default=1.5, help="PDFアクセス間の待機秒数")
     parser.add_argument("--timeout-ms", type=int, default=10_000, help="HTTPタイムアウト（ミリ秒）")
-    parser.add_argument("--save-html", action="store_true", help="互換用（未使用）")
     parser.add_argument("--headful", action="store_true", help="互換用（HTTPなので無視）")
     parser.add_argument("--no-resume", action="store_true", help="既存の保存結果を無視して取り直す")
     return parser

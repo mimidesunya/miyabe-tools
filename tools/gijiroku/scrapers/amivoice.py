@@ -295,8 +295,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--delay-seconds", type=float, default=1.5)
     parser.add_argument("--max-meetings", type=int, default=0)
     parser.add_argument("--timeout-ms", type=int, default=30_000)
-    # 旧版の worker は --ack-robots を付けて起動してくる。作り直すまでは受け取って捨てる。
-    parser.add_argument("--ack-robots", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--headful", action="store_true", help="HTTP取得方式では互換性のため受け付けるだけです。")
     parser.add_argument("--save-html", action="store_true")
     parser.add_argument("--no-resume", action="store_true")

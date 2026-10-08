@@ -14,7 +14,6 @@ from typing import Any
 from urllib.parse import parse_qs, quote, urlparse, urlunparse
 
 
-_AVAILABLE: bool | None = None
 _MIGRATED = False
 _CONN = None
 # (task_key -> slug -> item の JSON 文字列)。前回書き込みと同一の行は UPSERT を省く。
@@ -82,22 +81,6 @@ def _reset_connection() -> None:
     _CONN = None
     _MIGRATED = False
     _ITEM_CACHE.clear()
-
-
-def available() -> bool:
-    global _AVAILABLE
-    if _AVAILABLE is not None:
-        return _AVAILABLE
-    conn = _connect()
-    if conn is None:
-        _AVAILABLE = False
-        return False
-    try:
-        conn.close()
-    except Exception:
-        pass
-    _AVAILABLE = True
-    return True
 
 
 def migrate(conn) -> None:

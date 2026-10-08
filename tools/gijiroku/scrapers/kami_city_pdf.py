@@ -264,8 +264,6 @@ def build_parser() -> argparse.ArgumentParser:
         description="自治体公式サイトの site/gikai 型会議録PDF一覧を巡回し、PDF本文をテキスト保存します。"
     )
     parser.add_argument("--slug", default="39212-kami-shi", help="対象自治体 slug")
-    # 旧版の worker は --ack-robots を付けて起動してくる。作り直すまでは受け取って捨てる。
-    parser.add_argument("--ack-robots", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--max-meetings", type=int, default=0, help="処理するPDF件数上限（0 は無制限）")
     parser.add_argument("--max-pages", type=int, default=120, help="一覧・詳細ページの探索上限（0 は無制限）")
     parser.add_argument("--delay-seconds", type=float, default=1.5, help="PDFアクセス間の待機秒数")
@@ -1009,10 +1007,6 @@ def composed_minutes_text(
     header.extend(minutes_kind.held_on_header_lines(held_on))
     header.append(f"出典: {item.url}")
     return "\n".join(header) + "\n\n" + pdf_text.strip() + "\n"
-
-
-def normalize_year_dir(year_label: str) -> str:
-    return sanitize_filename(year_label or "unknown", "unknown")
 
 
 def main() -> int:

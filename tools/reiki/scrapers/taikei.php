@@ -1711,9 +1711,8 @@ function build_reiki_target_entry(string $slug, array $entry, array $urlEntry, a
     ];
 }
 
-function iter_reiki_targets(?string $expectedSystem = null, bool $configuredOnly = false): array
+function iter_reiki_targets(?string $expectedSystem = null): array
 {
-    // $configuredOnly は旧 CLI 互換の引数として受けるが、現在は全国マスタをそのまま使う。
     $targets = [];
     $urlIndex = load_local_reiki_url_index();
     $masterIndex = taikei_load_municipality_master_index();
@@ -1770,7 +1769,7 @@ function reiki_target_matches_slug(array $target, string $slug): bool
 
 function load_reiki_target(string $slug, string $expectedSystem): array
 {
-    foreach (iter_reiki_targets($expectedSystem, false) as $target) {
+    foreach (iter_reiki_targets($expectedSystem) as $target) {
         if (reiki_target_matches_slug($target, $slug)) {
             return $target;
         }
@@ -1827,7 +1826,7 @@ function default_slug_for_system(string $expectedSystem): string
         }
     }
 
-    $allTargets = iter_reiki_targets($expectedSystem, false);
+    $allTargets = iter_reiki_targets($expectedSystem);
     if ($allTargets !== []) {
         return (string)($allTargets[0]['slug'] ?? '');
     }

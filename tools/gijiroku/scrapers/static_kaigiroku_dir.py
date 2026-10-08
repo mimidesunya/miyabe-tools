@@ -109,8 +109,6 @@ def build_parser() -> argparse.ArgumentParser:
         description="静的な kaigiroku/gijiroku ディレクトリ配下を巡回し、会議録PDF/HTML本文を保存します。"
     )
     parser.add_argument("--slug", required=True, help="対象自治体 slug")
-    # 旧版の worker は --ack-robots を付けて起動してくる。作り直すまでは受け取って捨てる。
-    parser.add_argument("--ack-robots", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--max-meetings", type=int, default=0, help="処理する文書件数上限（0 は無制限）")
     parser.add_argument("--max-pages", type=int, default=250, help="巡回するHTMLページ上限（0 は無制限）")
     parser.add_argument("--delay-seconds", type=float, default=1.5, help="文書アクセス間の待機秒数")
@@ -207,10 +205,6 @@ def is_skippable_document_label(label: str) -> bool:
     if SKIP_DOCUMENT_LABEL_RE.match(normalize_space(label)) is not None:
         return True
     return minutes_kind.non_minutes_reason(label, "") is not None
-
-
-def saved_output_count(planned_items: list[dict]) -> int:
-    return sum(1 for plan in planned_items if plan.get("existing_output") is not None)
 
 
 def relative_page_filename(page_url: str, fallback: str = "page") -> str:

@@ -122,23 +122,6 @@ def normalize_space(value: str) -> str:
     return re.sub(r"[ \t\u3000]+", " ", value).strip()
 
 
-def sanitize_filename(text: str, fallback: str) -> str:
-    return gijiroku_planning.sanitize_filename(text, fallback)
-
-
-def normalize_year_dir(year_label: str) -> str:
-    label = sanitize_filename((year_label or "unknown").strip(), "unknown")
-    if not label:
-        return "unknown"
-    return label
-
-
-def normalize_meeting_group_dir(meeting_group: str | None) -> str:
-    if not meeting_group:
-        return ""
-    return sanitize_filename(meeting_group, "meeting")
-
-
 def html_to_text(raw_html: str) -> str:
     text = re.sub(r"<script[\s\S]*?</script>", "", raw_html, flags=re.I)
     text = re.sub(r"<style[\s\S]*?</style>", "", text, flags=re.I)
@@ -2374,8 +2357,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_DISCOVERY_TIMEOUT_SECONDS,
         help="会議一覧収集の最大秒数（0 は無制限）",
     )
-    # 旧版の worker は --ack-robots を付けて起動してくる。作り直すまでは受け取って捨てる。
-    parser.add_argument("--ack-robots", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--save-html",
         action="store_true",
