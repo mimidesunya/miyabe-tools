@@ -470,6 +470,32 @@ function homepage_reiki_coverage_complete(?array $coverage): bool
     return !($startedAt !== '' && $startedAt > $observedAt);
 }
 
+// 走査記録の時刻（`20261007_175100`）を画面の書き方（`2026-10-07 17:51`）にする。
+function homepage_coverage_time_label(string $value): string
+{
+    if (preg_match('/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})/', trim($value), $matches) !== 1) {
+        return '';
+    }
+    return "{$matches[1]}-{$matches[2]}-{$matches[3]} {$matches[4]}:{$matches[5]}";
+}
+
+// 詳細に「最終巡回」を添える。確認日は成功した回しか更新しないので、失敗が続く
+// 自治体は「更新」の時刻が出ず、表示が 6 月のまま止まって見えた（2026-10-08 に
+// 52 自治体。実際は 10 月にも歩いていた）。走査記録の時刻は失敗した回でも残る。
+function homepage_display_with_walk_time(?array $display, ?array $sourceCoverage): ?array
+{
+    if (!is_array($display) || !is_array($sourceCoverage)) {
+        return $display;
+    }
+    $walkedAt = homepage_coverage_time_label((string)($sourceCoverage['updated_at'] ?? ''));
+    $detail = trim((string)($display['detail'] ?? ''));
+    if ($walkedAt === '' || str_contains($detail, '更新 ') || str_contains($detail, '最終巡回 ')) {
+        return $display;
+    }
+    $display['detail'] = $detail !== '' ? ($detail . "\n最終巡回 " . $walkedAt) : ('最終巡回 ' . $walkedAt);
+    return $display;
+}
+
 function homepage_gijiroku_source_coverage(array $feature): ?array
 {
     // 走査の記録は source_coverage.json を見る。scrape_state.json は実行の頭で
@@ -3199,6 +3225,12 @@ function homepage_collect_visible_features(
                         : $acquisitionDetail;
                 }
             }
+        }
+        if ($hasData) {
+            $display = homepage_display_with_walk_time(
+                $display,
+                is_array($acquisition['source_coverage'] ?? null) ? $acquisition['source_coverage'] : null
+            );
         }
         if (in_array($acquisitionState, ['partial_error', 'update_error'], true)) {
             $hasError = true;
