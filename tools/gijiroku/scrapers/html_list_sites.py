@@ -962,7 +962,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--delay-seconds", type=float, default=1.0)
     parser.add_argument("--max-meetings", type=int, default=0)
     parser.add_argument("--timeout-ms", type=int, default=30_000)
-    parser.add_argument("--headful", action="store_true", help="互換用（未使用）")
     parser.add_argument("--no-resume", action="store_true")
     return parser
 

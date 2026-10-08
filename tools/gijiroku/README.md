@@ -155,7 +155,7 @@ Web画面:
 
 - `--slug` 自治体slug。全国マスタから出力先を解決する
 - `--output-dir` 保存先ディレクトリ
-- `--headful` ブラウザ表示モードで実行
+- `--headful` ブラウザ表示モードで実行（Playwright で動く dbsr・gijiroku.com・kaigiroku.net だけに渡す）
 - `--delay-seconds` 会議ごとの待機秒数（既定: `1.5`）
 - `--max-meetings` 処理件数上限（`0` は無制限）
 - `--timeout-ms` 操作タイムアウト（ミリ秒）
@@ -204,8 +204,7 @@ Web画面:
 `dbsr` / `db-search` / `kaigiroku-indexphp` 系は年別一覧から `Template=list` をたどり、検索結果一覧のページ送りを巡回して日付ごとに `本文` を抽出します。  
 `--max-meetings` は候補列挙の途中でも効くので、最初の動作確認を短く回したいときに便利です。
 
-`kensakusystem` 系は `See.exe` の年別ツリーを再帰的にたどり、`PRINT_ALL` の全文表示を使って本文を保存します。  
-`--headful` は他スクリプトとの互換のため受理しますが、取得処理自体はブラウザ描画を使いません。
+`kensakusystem` 系は `See.exe` の年別ツリーを再帰的にたどり、`PRINT_ALL` の全文表示を使って本文を保存します。
 
 公開 URL の `slug` は `自治体コード-ローマ字名称` に統一します。既存 slug や自治体コードだけの指定も alias として受け付けます。
 

@@ -566,11 +566,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="取得データの保存先ディレクトリ（未指定時は slug 規約から自動決定）",
     )
     parser.add_argument(
-        "--headful",
-        action="store_true",
-        help="互換のため受理のみ（kensakusystem では未使用）",
-    )
-    parser.add_argument(
         "--delay-seconds",
         type=float,
         default=1.5,

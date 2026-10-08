@@ -156,7 +156,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--delay-seconds", type=float, default=1.5)
     parser.add_argument("--max-meetings", type=int, default=0)
     parser.add_argument("--timeout-ms", type=int, default=30_000)
-    parser.add_argument("--headful", action="store_true", help="HTTP取得方式では互換性のため受け付けるだけです。")
     parser.add_argument("--save-html", action="store_true")
     parser.add_argument("--no-resume", action="store_true")
     return parser

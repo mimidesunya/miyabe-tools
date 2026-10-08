@@ -106,7 +106,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-depth", type=int, default=3, help="入口からのリンク追跡の深さ上限")
     parser.add_argument("--delay-seconds", type=float, default=1.5, help="PDFアクセス間の待機秒数")
     parser.add_argument("--timeout-ms", type=int, default=10_000, help="HTTPタイムアウト（ミリ秒）")
-    parser.add_argument("--headful", action="store_true", help="互換用（HTTPなので無視）")
     parser.add_argument("--no-resume", action="store_true", help="既存の保存結果を無視して取り直す")
     return parser
 

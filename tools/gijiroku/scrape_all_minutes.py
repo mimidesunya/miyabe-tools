@@ -59,6 +59,9 @@ SUPPORTED_SYSTEMS = {
     "iwate-kengikai": "scrapers/html_list_sites.py",
 }
 SUPPORTED_INPUT_SYSTEMS = set(SUPPORTED_SYSTEMS.keys()) | {"voices", "db-search", "kaigiroku-indexphp"}
+# --headful（ブラウザを画面に出す）を受け取るのは Playwright で動く系統だけ。
+# HTTP だけで取る系統は受け取らない。
+HEADFUL_SYSTEMS = {"dbsr", "gijiroku.com", "kaigiroku.net"}
 SAVE_HTML_SYSTEMS = {
     "gijiroku.com",
     "dbsr",
@@ -195,7 +198,7 @@ def build_child_command(args: argparse.Namespace, target: dict) -> list[str]:
         cmd.append("--save-html")
     if args.save_debug_json and system_family == "kaigiroku.net":
         cmd.append("--save-debug-json")
-    if args.headful:
+    if args.headful and system_family in HEADFUL_SYSTEMS:
         cmd.append("--headful")
     if args.no_resume:
         cmd.append("--no-resume")

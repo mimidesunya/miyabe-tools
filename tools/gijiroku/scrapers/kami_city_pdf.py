@@ -269,7 +269,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--delay-seconds", type=float, default=1.5, help="PDFアクセス間の待機秒数")
     parser.add_argument("--timeout-ms", type=int, default=10_000, help="HTTPタイムアウト（ミリ秒）")
     parser.add_argument("--save-html", action="store_true", help="取得した一覧ページHTMLを work 側へ保存する")
-    parser.add_argument("--headful", action="store_true", help="互換オプション。HTTPスクレイパーなので無視します")
     parser.add_argument("--no-resume", action="store_true", help="既存の保存結果を無視して取り直す")
     return parser
 
