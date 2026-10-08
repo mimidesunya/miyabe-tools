@@ -1081,8 +1081,6 @@ services:
       MCP_ALLOWED_HOSTS: ${{MCP_ALLOWED_HOSTS:-}}
       MCP_ALLOWED_ORIGINS: ${{MCP_ALLOWED_ORIGINS:-}}
       PORT: 3000
-    volumes:
-      - ./docker/mcp/src:/app/src:ro
 
   php:
     image: {img_php}
@@ -1172,8 +1170,9 @@ volumes:
         ssh_exec(
             config,
             f"cd {dest_dir} && docker compose up -d php opensearch && "
+            # mcp はイメージに dist を焼き込むので、--build で作り直せばそれで足りる。
             "docker compose up -d --build mcp && "
-            "docker compose restart php mcp && sleep 2 && "
+            "docker compose restart php && sleep 2 && "
             "docker compose up -d web log-pruner && docker compose restart web"
         )
 

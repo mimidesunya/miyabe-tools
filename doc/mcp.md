@@ -64,6 +64,9 @@ curl -s -X POST http://localhost:8301/mcp -H 'Content-Type: application/json' -H
 docker compose up -d opensearch php mcp web
 ```
 
+`docker/mcp/src` を変えたら `docker compose up -d --build mcp` でイメージを作り直します。イメージには
+ビルド済みの `dist` だけが入り、起動時には TypeScript をビルドしません。
+
 MCP Inspector などから `http://localhost:8301/mcp` に接続します。
 
 ## 設定

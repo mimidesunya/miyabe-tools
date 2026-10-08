@@ -39,8 +39,6 @@ services:
       MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-}
       MCP_ALLOWED_ORIGINS: ${MCP_ALLOWED_ORIGINS:-}
       PORT: 3000
-    volumes:
-      - ./docker/mcp/src:/app/src:ro
 
   php:
     build:

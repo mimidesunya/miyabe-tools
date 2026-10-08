@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc --noEmit -p tsconfig.json",
-    "start": "npm run build && node dist/server.js"
+    "start": "node dist/server.js"
   },
   "dependencies": {
     "@modelcontextprotocol/express": "^2.0.0",
