@@ -11,6 +11,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'scrapers' . DIRECTORY_SEPARATOR . 'taikei.php';
 
+// 取得元には繋がないので、1 件ごとの間隔は待たない。
+taikei_throttle_scale(0.0);
+
 $failures = 0;
 
 function check(string $label, bool $condition): void

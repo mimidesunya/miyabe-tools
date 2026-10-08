@@ -2605,9 +2605,20 @@ function ensure_dir(string $path): void
     }
 }
 
+// 取得元に繋がないテストは、例規 1 件ごとの間隔を待たない（taxonomy のテストが 3 秒かかっていた）。
+function taikei_throttle_scale(?float $scale = null): float
+{
+    static $current = 1.0;
+    if ($scale !== null) {
+        $current = max(0.0, $scale);
+    }
+    return $current;
+}
+
 function throttled_sleep(): void
 {
-    usleep(rate_limited_seen() ? TAIKEI_SLEEP_AFTER_RATE_LIMIT_USEC : TAIKEI_SLEEP_USEC);
+    $delay = rate_limited_seen() ? TAIKEI_SLEEP_AFTER_RATE_LIMIT_USEC : TAIKEI_SLEEP_USEC;
+    usleep((int)($delay * taikei_throttle_scale()));
 }
 
 

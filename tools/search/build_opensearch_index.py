@@ -122,7 +122,7 @@ from rebuild_status import (  # type: ignore  # noqa: E402
 )
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build or incrementally update OpenSearch indexes from scraper-produced source files."
     )
@@ -201,7 +201,7 @@ def parse_args() -> argparse.Namespace:
             "旧文書を残す。"
         ),
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 # 列挙に失敗して索引から丸ごと落ちた自治体。strict でない全量 rebuild では
@@ -1714,33 +1714,29 @@ def update_one(
     return count
 
 
-def main() -> int:
-    args = parse_args()
-    reset_source_integrity_tracking()
-    build_id = args.build_id.strip() or default_build_id()
-    slugs = parse_slug_filter(args.slug)
+def resolve_mode(args: argparse.Namespace, slugs: set[str]) -> str:
     mode = args.mode
     if mode == "auto":
         mode = "update" if slugs else "rebuild"
+    return mode
+
+
+def partial_alias_refusal(args: argparse.Namespace, mode: str, slugs: set[str]) -> str:
+    """公開の alias を欠けた索引にする指定なら、断る理由を返す。問題なければ空。"""
     if mode == "update" and not slugs:
-        print("[ERROR] --mode update requires --slug.", file=sys.stderr, flush=True)
-        return 2
+        return "[ERROR] --mode update requires --slug."
     # 一部だけ作った索引を公開の alias に切り替えると、残りの自治体が
     # まるごと検索から消える。--mode update は自治体ごとの差し替えなので
     # 別（alias はそのまま）。rebuild だけを止める。
     # 差分更新は、その自治体の文書を全部消してから入れ直す。--limit で
     # 切ると、消したあと一部しか戻らない。生きている検索から大半が消える。
     if mode == "update" and int(args.limit or 0) > 0 and not args.allow_partial_alias:
-        print(
+        return (
             f"[ERROR] --mode update に --limit {args.limit} は付けられません。"
             "差分更新は対象自治体の文書を全部消してから入れ直すので、"
             "切った分がそのまま検索から消えます。"
-            "意図しているなら --allow-partial-alias を付けてください。",
-            file=sys.stderr,
-            flush=True,
+            "意図しているなら --allow-partial-alias を付けてください。"
         )
-        return 2
-
     # resume も途中から作り直すので、slug や limit で絞れば部分索引になる。
     partial_rebuild = mode in {"rebuild", "resume"} and (
         bool(slugs) or int(args.limit or 0) > 0
@@ -1751,14 +1747,24 @@ def main() -> int:
             reason.append(f"{len(slugs)}自治体だけ")
         if int(args.limit or 0) > 0:
             reason.append(f"--limit {args.limit}")
-        print(
+        return (
             "[ERROR] " + "・".join(reason) + "で作った索引は公開の alias に"
             "切り替えられません。残りの自治体が検索から消えます。"
             "作るだけなら --no-switch-alias、意図して公開するなら"
-            " --allow-partial-alias を付けてください。",
-            file=sys.stderr,
-            flush=True,
+            " --allow-partial-alias を付けてください。"
         )
+    return ""
+
+
+def main() -> int:
+    args = parse_args()
+    reset_source_integrity_tracking()
+    build_id = args.build_id.strip() or default_build_id()
+    slugs = parse_slug_filter(args.slug)
+    mode = resolve_mode(args, slugs)
+    refusal = partial_alias_refusal(args, mode, slugs)
+    if refusal:
+        print(refusal, file=sys.stderr, flush=True)
         return 2
 
     resume_index = str(args.resume_index or "").strip()
