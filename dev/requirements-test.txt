@@ -1,0 +1,13 @@
+# テストを走らせるための Python の依存（CI と手元）。本番の取得イメージの
+# docker/scraper/requirements.txt のうち、テストが import するものと pytest。
+pytest>=8
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=5.0
+pypdf[crypto]>=4.0.0
+sudachipy>=0.6
+sudachidict_core
+pillow>=10.0
+celery[redis]>=5.4,<6
+# スクレイパが import する。ブラウザは入れない（テストは起動しない）。
+playwright==1.50.0
