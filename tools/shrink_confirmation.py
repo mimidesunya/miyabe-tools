@@ -150,8 +150,9 @@ def observe(
 
     seen = int(payload.get("seen") or 0)
     # 短時間の連続再試行は 1 回の観測として扱う。日をまたいだ再現だけを数える。
+    # 同じ実行の中でもう一度確かめたときは、確定済みならそのまま確定と返す。
     if last_seen is not None and (current - last_seen) < timedelta(hours=min_interval_hours):
-        return {"confirmed": False, "seen": seen, "required": required_runs,
+        return {"confirmed": seen >= required_runs, "seen": seen, "required": required_runs,
                 "first_seen": str(payload.get("first_seen") or stamp),
                 "last_seen": str(payload.get("last_seen") or stamp),
                 "too_soon": True}

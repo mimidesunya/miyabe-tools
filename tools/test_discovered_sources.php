@@ -38,6 +38,22 @@ $cases = [
         ['url' => 'https://registry.test/', 'system_type' => 'g-reiki', 'crawl_status' => 'enabled'],
         ['url' => 'https://registry.test/', 'system_type' => 'g-reiki', 'crawl_status' => 'enabled'],
     ],
+    // 登録した入口が死んで探し直した記録は、登録簿がその入口のままの間だけ重ねる（美深町など）。
+    '死んだ入口を探し直した記録は重ねる' => [
+        $found + ['replaces_url' => 'https://registry.test/'],
+        ['url' => 'https://registry.test/', 'system_type' => 'g-reiki', 'crawl_status' => 'enabled'],
+        ['url' => $found['url'], 'system_type' => 'taikei', 'crawl_status' => 'enabled'],
+    ],
+    '登録簿を直したら探し直した記録は使わない' => [
+        $found + ['replaces_url' => 'https://registry.test/'],
+        ['url' => 'https://fixed.test/', 'system_type' => 'g-reiki', 'crawl_status' => 'enabled'],
+        ['url' => 'https://fixed.test/', 'system_type' => 'g-reiki', 'crawl_status' => 'enabled'],
+    ],
+    '同じ入口しか見つからなければそのまま' => [
+        ['url' => 'https://registry.test/', 'replaces_url' => 'https://registry.test/'] + $found,
+        ['url' => 'https://registry.test/', 'system_type' => 'g-reiki', 'crawl_status' => 'enabled'],
+        ['url' => 'https://registry.test/', 'system_type' => 'g-reiki', 'crawl_status' => 'enabled'],
+    ],
 ];
 
 foreach ($cases as $label => [$entry, $row, $expected]) {

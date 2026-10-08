@@ -302,6 +302,13 @@ FETCH_RETRY_WAITS_SECONDS = (2.0, 8.0)
 # PDF は数 MB あり、小さな町のサーバは最初の応答までに 10 秒以上かかる
 # ことがある（八幡浜市は時間切れ 7 件）。ページより長く待つ。
 PDF_MIN_TIMEOUT_SECONDS = 30.0
+# やり直しでは、最初の待ち時間（既定 10 秒）より長く待つ。同じ 10 秒で
+# やり直していたため、小清水町・飯島町・豊郷町は一覧のページを開けないままだった。
+FETCH_RETRY_MIN_TIMEOUT_MS = 30_000
+# やり直しても通らなかった取得がこの回数続いたら、取得元が落ちているとみて
+# やり直しをやめる。1 件ごと 1 分以上待つと巡回が終わらない。1 件でも通れば数え直す。
+FETCH_RETRY_GIVE_UP_AFTER = 3
+_consecutive_exhausted_fetches = 0
 
 
 def is_transient_fetch_error(exc: BaseException) -> bool:
@@ -322,19 +329,34 @@ def fetch_status_code(exc: BaseException) -> int:
     return 0
 
 
-def _with_transient_retry(fetch):
-    for wait in FETCH_RETRY_WAITS_SECONDS:
+def _with_transient_retry(fetch, timeout_ms: int):
+    """`fetch(timeout_ms)` を、やり直せば通る失敗のときだけ繰り返す。"""
+    global _consecutive_exhausted_fetches
+    waits = () if _consecutive_exhausted_fetches >= FETCH_RETRY_GIVE_UP_AFTER else FETCH_RETRY_WAITS_SECONDS
+    attempt_timeout_ms = timeout_ms
+    for wait in waits:
         try:
-            return fetch()
+            result = fetch(attempt_timeout_ms)
         except Exception as exc:
             if not is_transient_fetch_error(exc):
                 raise
             time.sleep(wait)
-    return fetch()
+            attempt_timeout_ms = max(timeout_ms, FETCH_RETRY_MIN_TIMEOUT_MS)
+        else:
+            _consecutive_exhausted_fetches = 0
+            return result
+    try:
+        result = fetch(attempt_timeout_ms)
+    except Exception as exc:
+        if is_transient_fetch_error(exc):
+            _consecutive_exhausted_fetches += 1
+        raise
+    _consecutive_exhausted_fetches = 0
+    return result
 
 
 def request_text(session: requests.Session, url: str, timeout_ms: int) -> str:
-    return _with_transient_retry(lambda: _request_text_once(session, url, timeout_ms))
+    return _with_transient_retry(lambda timeout: _request_text_once(session, url, timeout), timeout_ms)
 
 
 class NonHtmlResponse(ValueError):
@@ -389,7 +411,7 @@ def looks_like_pdf_response(content_type: str, content_disposition: str, raw: by
 
 def request_pdf_bytes(session: requests.Session, url: str, timeout_ms: int) -> bytes:
     """PDF を取る。PDF でない応答は、本文として扱わずに断る。"""
-    return _with_transient_retry(lambda: _request_pdf_bytes_once(session, url, timeout_ms))
+    return _with_transient_retry(lambda timeout: _request_pdf_bytes_once(session, url, timeout), timeout_ms)
 
 
 def _request_pdf_bytes_once(session: requests.Session, url: str, timeout_ms: int) -> bytes:
@@ -1073,11 +1095,14 @@ def main() -> int:
     accepted_urls = gijiroku_storage.previous_accepted_urls(work_dir, state) - set(
         catalog_walk.get("dropped_urls") or []
     )
+    # 取り切れた走査の縮みだけ、繰り返し再現したら取得元の変更として受け入れる。
+    walk_complete = int(catalog_walk.get("missed_pages") or 0) == 0 and not (bool(LIST_PAGE_LIMIT_HIT) or args.max_meetings > 0)
     plan_shrank = gijiroku_storage.meetings_index_would_shrink(
         index_json,
         [asdict(item) for item in meeting_items],
         explained_drop_count=explained_drops,
         accepted_urls=accepted_urls,
+        walk_complete=walk_complete,
     )
     gijiroku_storage.record_catalog_walk(
         work_dir,
@@ -1100,6 +1125,7 @@ def main() -> int:
         [asdict(item) for item in meeting_items],
         explained_drop_count=explained_drops,
         accepted_urls=accepted_urls,
+        walk_complete=walk_complete,
     )
 
     emit_progress(0, len(meeting_items), state_path, state)

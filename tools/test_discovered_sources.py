@@ -56,6 +56,30 @@ class ApplyTest(unittest.TestCase):
         weak = {"url": "https://example.test/x", "system_type": "", "confidence": "low"}
         self.assertEqual(discovered_sources.apply_to_row(weak, "", ""), ("", "", False))
 
+    def test_replaces_a_dead_registered_entry(self) -> None:
+        # 登録した入口が死んで（会議候補 0 件が続いて）探し直した記録は、
+        # 登録簿の URL がその入口のままの間だけ重ねる（美深町など）。
+        moved = {**self.entry, "replaces_url": "https://written.example/old/"}
+        url, system_type, replaced = discovered_sources.apply_to_row(
+            moved, "https://written.example/old/", "独自"
+        )
+        self.assertEqual((url, system_type, replaced), ("https://example.test/gikai/", "独自", True))
+
+    def test_a_fixed_registry_wins_over_the_replacement(self) -> None:
+        # 人が TSV を直したら、探し直した記録は使わない。
+        moved = {**self.entry, "replaces_url": "https://written.example/old/"}
+        self.assertEqual(
+            discovered_sources.apply_to_row(moved, "https://written.example/new/", "dbsr"),
+            ("https://written.example/new/", "dbsr", False),
+        )
+
+    def test_finding_the_same_dead_entry_changes_nothing(self) -> None:
+        same = {**self.entry, "url": "https://written.example/old/", "replaces_url": "https://written.example/old/"}
+        self.assertEqual(
+            discovered_sources.apply_to_row(same, "https://written.example/old/", "独自"),
+            ("https://written.example/old/", "独自", False),
+        )
+
 
 class StoreTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -66,6 +90,13 @@ class StoreTest(unittest.TestCase):
     def tearDown(self) -> None:
         discovered_sources.WORK_ROOT = self.original
         self.directory.cleanup()
+
+    def test_replaced_entry_is_recorded(self) -> None:
+        discovered_sources.record("gijiroku", "01234", url="https://example.test/new/",
+                                  system_type="独自", confidence="high", replaces_url="https://example.test/old/")
+        self.assertEqual(discovered_sources.load("gijiroku")["01234"]["replaces_url"], "https://example.test/old/")
+        discovered_sources.record("gijiroku", "05678", confidence="none")
+        self.assertNotIn("replaces_url", discovered_sources.load("gijiroku")["05678"])
 
     def test_records_round_trip(self) -> None:
         discovered_sources.record("gijiroku", "01234", url="https://example.test/",

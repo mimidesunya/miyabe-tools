@@ -180,6 +180,10 @@ class LocalPdfReuseTest(unittest.TestCase):
 
 
 class TransientRetryTest(unittest.TestCase):
+    def setUp(self) -> None:
+        kami_city_pdf._consecutive_exhausted_fetches = 0
+        self.addCleanup(setattr, kami_city_pdf, "_consecutive_exhausted_fetches", 0)
+
     class _Response:
         def __init__(self, content: bytes, headers: dict, status: int = 200) -> None:
             self.content = content
@@ -194,9 +198,11 @@ class TransientRetryTest(unittest.TestCase):
         def __init__(self, outcomes) -> None:
             self.outcomes = list(outcomes)
             self.calls = 0
+            self.timeouts: list = []
 
-        def get(self, _url, **_kwargs):
+        def get(self, _url, **kwargs):
             self.calls += 1
+            self.timeouts.append(kwargs.get("timeout"))
             outcome = self.outcomes.pop(0)
             if isinstance(outcome, BaseException):
                 raise outcome
@@ -224,6 +230,26 @@ class TransientRetryTest(unittest.TestCase):
             with self.assertRaises(requests.Timeout):
                 kami_city_pdf.request_text(session, "https://example.lg.jp/slow.html", 10_000)
         self.assertEqual(session.calls, 1 + len(kami_city_pdf.FETCH_RETRY_WAITS_SECONDS))
+
+
+    def test_retry_waits_longer_than_the_first_attempt(self) -> None:
+        # 同じ 10 秒でやり直すと、遅い一覧のページは何度やっても開けない（小清水町・飯島町・豊郷町）。
+        page = self._Response(b"<html></html>", {"Content-Type": "text/html"})
+        page.encoding = page.apparent_encoding = "utf-8"
+        session = self._Session([requests.Timeout("t"), page])
+        with mock.patch.object(kami_city_pdf.time, "sleep"):
+            kami_city_pdf.request_text(session, "https://example.lg.jp/list.html", 10_000)
+        self.assertEqual(session.timeouts, [10.0, kami_city_pdf.FETCH_RETRY_MIN_TIMEOUT_MS / 1000.0])
+
+    def test_stops_retrying_while_the_source_is_down(self) -> None:
+        attempts_per_call = 1 + len(kami_city_pdf.FETCH_RETRY_WAITS_SECONDS)
+        give_up = kami_city_pdf.FETCH_RETRY_GIVE_UP_AFTER
+        session = self._Session([requests.Timeout("t")] * (attempts_per_call * give_up + 1))
+        with mock.patch.object(kami_city_pdf.time, "sleep"):
+            for _ in range(give_up + 1):
+                with self.assertRaises(requests.Timeout):
+                    kami_city_pdf.request_text(session, "https://example.lg.jp/slow.html", 10_000)
+        self.assertEqual(session.calls, attempts_per_call * give_up + 1)
 
 
 class SourceSideSummaryTest(unittest.TestCase):
@@ -440,6 +466,211 @@ class CrawlDeadPagesTest(unittest.TestCase):
         items, walk = self._crawl({self.START: start_html})
         self.assertEqual([item.url for item in items], ["https://www.town.example.lg.jp/gikai/kaigiroku/r7-1.pdf"])
         self.assertEqual(walk["missed_pages"], 0)
+
+
+class PersistentFailureTest(unittest.TestCase):
+    """何度取りに行っても取れない 1〜3 件で、自治体全体をエラー停止にしない（江差町 735/736 など）。"""
+
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.work_dir = Path(self.temporary.name)
+
+    def run_result(self, stamp: str, rows: dict[str, str]) -> None:
+        path = self.work_dir / f"run_result_{stamp}.csv"
+        lines = ["title,year,url,status,output,error"]
+        lines += [f"t,令和6年,{url},{status},," for url, status in rows.items()]
+        path.write_text("".join(line + "\n" for line in lines), encoding="utf-8")
+
+    def test_failing_every_run_for_a_week_is_persistent(self) -> None:
+        self.run_result("20260920_030000", {"u/broken": "error", "u/ok": "saved_text"})
+        self.run_result("20260924_030000", {"u/broken": "timeout", "u/ok": "skipped_existing"})
+        self.run_result("20260928_030000", {"u/broken": "error", "u/ok": "skipped_existing"})
+
+        self.assertEqual(gijiroku_storage.persistently_failing_urls(self.work_dir), {"u/broken"})
+
+    def test_recent_or_few_failures_are_not_persistent(self) -> None:
+        # 3 回でも 2 日のうちなら、取得元の一時的な不調かもしれない。
+        self.run_result("20260926_030000", {"u/a": "error"})
+        self.run_result("20260927_030000", {"u/a": "error", "u/b": "error"})
+        self.run_result("20260928_030000", {"u/a": "error", "u/b": "error"})
+
+        self.assertEqual(gijiroku_storage.persistently_failing_urls(self.work_dir), set())
+
+    def test_a_success_in_between_restarts_the_count(self) -> None:
+        self.run_result("20260901_030000", {"u/a": "error"})
+        self.run_result("20260910_030000", {"u/a": "error"})
+        self.run_result("20260920_030000", {"u/a": "saved_text"})
+        self.run_result("20260925_030000", {"u/a": "error"})
+        self.run_result("20260928_030000", {"u/a": "error"})
+
+        self.assertEqual(gijiroku_storage.persistently_failing_urls(self.work_dir), set())
+
+    def test_only_urls_that_failed_in_the_latest_run_count(self) -> None:
+        self.run_result("20260901_030000", {"u/a": "error"})
+        self.run_result("20260910_030000", {"u/a": "error"})
+        self.run_result("20260920_030000", {"u/a": "error"})
+        self.run_result("20260928_030000", {"u/other": "saved_text"})
+
+        self.assertEqual(gijiroku_storage.persistently_failing_urls(self.work_dir), set())
+
+    def test_runs_that_skipped_the_url_do_not_break_the_streak(self) -> None:
+        self.run_result("20260901_030000", {"u/a": "error"})
+        self.run_result("20260905_030000", {"u/b": "saved_text"})
+        self.run_result("20260910_030000", {"u/a": "error"})
+        self.run_result("20260920_030000", {"u/a": "error"})
+
+        self.assertEqual(gijiroku_storage.persistently_failing_urls(self.work_dir), {"u/a"})
+
+    def test_validation_completes_with_a_warning(self) -> None:
+        self.run_result("20260920_030000", {"u/broken": "error"})
+        self.run_result("20260924_030000", {"u/broken": "error"})
+        self.run_result("20260928_030000", {"u/broken": "error"})
+        state_path = self.work_dir / "scrape_state.json"
+
+        summary = gijiroku_storage.apply_classified_scrape_validation(
+            state_path,
+            {},
+            discovered_count=736,
+            downloaded_count=735,
+            status_counts={"saved_text": 735, "error": 1},
+        )
+
+        self.assertEqual(summary["failed_count"], 0)
+        self.assertEqual(summary["progress_current"], summary["progress_total"])
+        self.assertEqual(summary["status_counts"].get("persistent_failure"), 1)
+        self.assertTrue(any("何度取りに行っても取れない候補 1件" in line for line in summary["warning_lines"]))
+        self.assertFalse(any("会議録本体ではない候補" in line for line in summary["warning_lines"]))
+
+    def test_nothing_downloaded_is_still_a_failure(self) -> None:
+        # 1 件も取れないなら、登録した入口が古くなった合図。完了に見せない。
+        summary = gijiroku_storage.classified_scrape_summary(
+            discovered_count=2,
+            downloaded_count=0,
+            status_counts={"persistent_failure": 2},
+        )
+
+        self.assertEqual(summary["failed_count"], 2)
+        self.assertLess(summary["progress_current"], summary["progress_total"])
+
+    def test_new_failures_are_still_errors(self) -> None:
+        self.run_result("20260928_030000", {"u/new": "error"})
+        state_path = self.work_dir / "scrape_state.json"
+
+        summary = gijiroku_storage.apply_classified_scrape_validation(
+            state_path,
+            {},
+            discovered_count=10,
+            downloaded_count=9,
+            status_counts={"saved_text": 9, "error": 1},
+        )
+
+        self.assertEqual(summary["failed_count"], 1)
+
+
+class ConfirmedShrinkTest(unittest.TestCase):
+    """取り切れた走査で同じ縮み方が日をまたいで再現したら、一覧を置き換える（幸田町など 46 自治体）。"""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.path = Path(self._tmp.name) / "meetings_index.json"
+        # 前の版の巡回が議会だよりのページから拾った 80 件を含む一覧。
+        old = [{"url": f"https://example.lg.jp/{i}.pdf"} for i in range(100)]
+        self.path.write_text(json.dumps(old), encoding="utf-8")
+        self.accepted = {f"https://example.lg.jp/{i}.pdf" for i in range(100)}
+        self.current = [{"url": f"https://example.lg.jp/{i}.pdf"} for i in range(20)]
+
+    def run_at(self, stamp: str, *, walk_complete: bool = True, payload=None) -> bool:
+        payload = self.current if payload is None else payload
+        with mock.patch.object(gijiroku_storage.shrink_confirmation, "now_text", return_value=stamp):
+            shrank = gijiroku_storage.meetings_index_would_shrink(
+                self.path, payload, accepted_urls=self.accepted, walk_complete=walk_complete
+            )
+            gijiroku_storage.save_meetings_index(
+                self.path, payload, accepted_urls=self.accepted, walk_complete=walk_complete
+            )
+        return shrank
+
+    def saved_count(self) -> int:
+        return len(json.loads(self.path.read_text(encoding="utf-8")))
+
+    def test_the_same_shrink_on_three_days_is_accepted(self) -> None:
+        self.assertTrue(self.run_at("2026-10-01 03:00:00"))
+        self.assertTrue(self.run_at("2026-10-02 03:00:00"))
+        self.assertEqual(self.saved_count(), 100)
+
+        self.assertFalse(self.run_at("2026-10-03 03:00:00"))
+        self.assertEqual(self.saved_count(), 20)
+        # 置き換えたら観測は消す。次の縮みは 1 回目から数える。
+        self.assertFalse(gijiroku_storage.shrink_confirmation.observation_path(self.path).exists())
+
+    def test_retries_on_the_same_day_count_once(self) -> None:
+        for stamp in ("2026-10-01 03:00:00", "2026-10-01 05:00:00", "2026-10-01 09:00:00"):
+            self.assertTrue(self.run_at(stamp))
+        self.assertEqual(self.saved_count(), 100)
+
+    def test_an_incomplete_walk_never_confirms(self) -> None:
+        for stamp in ("2026-10-01 03:00:00", "2026-10-02 03:00:00", "2026-10-03 03:00:00", "2026-10-04 03:00:00"):
+            self.assertTrue(self.run_at(stamp, walk_complete=False))
+        self.assertEqual(self.saved_count(), 100)
+
+    def test_an_empty_list_never_confirms(self) -> None:
+        for stamp in ("2026-10-01 03:00:00", "2026-10-02 03:00:00", "2026-10-03 03:00:00"):
+            self.run_at(stamp, payload=[])
+        self.assertEqual(self.saved_count(), 100)
+
+    def test_a_near_total_collapse_is_never_confirmed(self) -> None:
+        # 一覧がほぼ消えたのは入口か収集器が壊れた形。人が見るまで守る（阿賀野市 272 → 3）。
+        collapsed = [{"url": "https://example.lg.jp/0.pdf"}]
+        for stamp in ("2026-10-01 03:00:00", "2026-10-02 03:00:00", "2026-10-03 03:00:00", "2026-10-04 03:00:00"):
+            self.assertTrue(self.run_at(stamp, payload=collapsed))
+        self.assertEqual(self.saved_count(), 100)
+
+    def test_a_different_shrink_starts_counting_again(self) -> None:
+        self.run_at("2026-10-01 03:00:00")
+        self.run_at("2026-10-02 03:00:00")
+        other = [{"url": f"https://example.lg.jp/{i}.pdf"} for i in range(21)]
+        self.assertTrue(self.run_at("2026-10-03 03:00:00", payload=other))
+        self.assertEqual(self.saved_count(), 100)
+
+
+class EphemeralUrlTest(unittest.TestCase):
+    """巡回のたびに URL が変わる配信口では、同じ文書かを題名で判断する（中土佐町・安芸市など）。"""
+
+    OLD = "https://www.town.nakatosa.lg.jp/data/fd_20file/downfile{}.pdf"
+    NEW = "https://www.town.nakatosa.lg.jp/data/fd_12file/downfile{}.pdf"
+
+    def test_key_ignores_the_rotating_part(self) -> None:
+        self.assertEqual(
+            gijiroku_storage.document_key(self.OLD.format(16472), "１日目"),
+            gijiroku_storage.document_key(self.NEW.format(16472), "1日目"),
+        )
+        ordinary = "https://www.town.example.lg.jp/gikai/r6/1.pdf"
+        self.assertEqual(gijiroku_storage.document_key(ordinary, "１日目"), ordinary)
+
+    def test_new_tokens_are_not_counted_as_lost_minutes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            work_dir = Path(directory)
+            titles = [f"令和8年第{i}回定例会" for i in range(1, 10)]
+            lines = ["title,year,url,status,output,error"]
+            lines += [f"{title},令和8年,{self.OLD.format(16000 + i)},saved_text,," for i, title in enumerate(titles)]
+            (work_dir / "run_result_20260920_030000.csv").write_text("".join(line + "\n" for line in lines), encoding="utf-8")
+            index = work_dir / "meetings_index.json"
+            index.write_text(
+                json.dumps([{"url": self.OLD.format(16000 + i), "title": t} for i, t in enumerate(titles)]), encoding="utf-8"
+            )
+            accepted = gijiroku_storage.previous_accepted_urls(work_dir)
+            # 合言葉も番号も変わった（安芸市）。題名が同じなら同じ文書。
+            current = [{"url": self.NEW.format(90000 + i), "title": t} for i, t in enumerate(titles)]
+
+            self.assertEqual(gijiroku_storage.lost_accepted_urls(current, accepted), [])
+            self.assertFalse(gijiroku_storage.meetings_index_would_shrink(index, current, accepted_urls=accepted))
+
+            # 題名ごと消えたなら、従来どおり見失った会議録として守る。
+            self.assertTrue(
+                gijiroku_storage.meetings_index_would_shrink(index, current[:2], accepted_urls=accepted)
+            )
 
 
 if __name__ == "__main__":

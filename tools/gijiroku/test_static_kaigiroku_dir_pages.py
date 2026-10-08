@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import sys
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from bs4 import BeautifulSoup
@@ -114,6 +115,40 @@ class EraDirectoryYearTest(unittest.TestCase):
             "https://example.lg.jp/gijiroku/x08/0301.htm",
         ):
             self.assertEqual(kami_city_pdf.extract_year_info("", url), ("不明", None), url)
+
+
+class SectionAnchorTest(unittest.TestCase):
+    """目次から日ごとのページへ、節の見出し（〇議事日程）のリンクも張られている（阿賀野市）。"""
+
+    BASE = "https://www.city.example.lg.jp/section/shigikai/kaigiroku/"
+    TOC = (
+        '<html><head><title>令和８年第４回定例会会議録目次</title></head><body>'
+        '<a href="R0806T_01.html">第 １ 号 （６月１日）</a>'
+        '<a href="R0806T_01.html#0101">〇議事日程</a>'
+        '<a href="R0806T_01.html#0110">〇諸般の報告</a>'
+        '</body></html>'
+    )
+    DAY = (
+        '<html><head><title>令和８年第４回定例会議事日程（第１号）</title></head><body><div id="main">'
+        + ("<p>〇議長（佐藤　一郎君）　これより本日の会議を開きます。</p>" * 80)
+        + '<p>出席議員（１８名）</p><p>欠席議員（なし）</p><p>午前１０時００分開会</p></div></body></html>'
+    )
+
+    def test_a_document_linked_from_a_section_heading_is_not_counted_as_dropped(self) -> None:
+        pages = {self.BASE + "indx.html": self.TOC, self.BASE + "R0806T_01.html": self.DAY}
+
+        def request_text(_session, url, _timeout_ms):
+            return pages[url]
+
+        walk: dict = {}
+        with unittest.mock.patch.object(static_dir, "request_text", request_text):
+            items = static_dir.discover_items(
+                None, self.BASE + "indx.html", 10_000, None, max_pages=10, include_html_documents=True, walk=walk
+            )
+
+        self.assertIn(self.BASE + "R0806T_01.html", {item.url for item in items})
+        self.assertNotIn(self.BASE + "R0806T_01.html", walk["dropped_urls"])
+        self.assertEqual(walk["dropped_non_minutes"], 0)
 
 
 if __name__ == "__main__":

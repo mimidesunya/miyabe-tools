@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """取得元 URL が空の自治体を、少しずつ自動で探索して埋める。
 
+会議録では、登録した入口が死んだ（前は取れていたのに会議候補 0 件が続く）
+自治体も探し直す。見つかった入口は、登録簿の URL がその死んだ入口のままの
+間だけ重ねる（`discovered_sources.apply_to_row`）。
+
 登録簿に URL が無い自治体は `crawl_status=unresolved` で、巡回のキューに
 載らない。載らないので何度放置しても状態は変わらない。2026-09-06 の点検で
 会議録 245 自治体、例規集 27 自治体がこの形だった。
@@ -66,6 +70,56 @@ def unresolved_codes(task_name: str) -> list[str]:
     return codes
 
 
+def dead_entries(task_name: str) -> dict[str, str]:
+    """登録した入口が死んだ自治体と、その入口（自治体コード → URL）。
+
+    前は会議録を取れていたのに、会議候補 0 件の実行が回数・日数とも続いている
+    （`gijiroku_storage.entry_looks_dead`）。取得元がサイトを作り直した形で、
+    URL が空ではないので `unresolved_codes` には入らず、誰も探し直さなかった
+    （美深町・興部町・えりも町など、2026-10-08 に 6 自治体）。
+    例規は 0 件を記録していないので対象外。
+    """
+    if task_name != "gijiroku":
+        return {}
+    import gijiroku_storage
+    import gijiroku_targets
+
+    entries: dict[str, str] = {}
+    for target in gijiroku_targets.iter_scrapeable_gijiroku_targets():
+        if gijiroku_storage.entry_looks_dead(Path(target["work_dir"])) is None:
+            continue
+        code = str(target.get("code") or "").strip()
+        url = str(target.get("source_url") or "").strip()
+        if code and url:
+            entries[code] = url
+    return entries
+
+
+def due_dead_entries(task_name: str, dead: dict[str, str], *, retry_days: int) -> list[str]:
+    """入口が死んだ自治体のうち、この入口でまだ探し直していないもの。
+
+    探し直して別の入口が見つかれば、その記録が重なって入口が変わり、ここには
+    もう出てこない。見つからなかった・同じ入口しか見つからなかったときは、
+    `retry_days` を空けてからまた探す。
+    """
+    entries = discovered_sources.load(task_name)
+    current = discovered_sources.parse_time(discovered_sources.now_text())
+    due: list[tuple[str, str]] = []
+    for code, url in dead.items():
+        entry = entries.get(code) or {}
+        observed = discovered_sources.parse_time(str(entry.get("observed_at", "")))
+        if (
+            str(entry.get("replaces_url", "")).strip() == url
+            and observed is not None
+            and current is not None
+            and (current - observed).days < retry_days
+        ):
+            continue
+        due.append((str(entry.get("observed_at", "")), code))
+    due.sort()
+    return [code for _observed, code in due]
+
+
 def load_names_and_homepages() -> tuple[dict[str, str], dict[str, str]]:
     names: dict[str, str] = {}
     with open(DATA_ROOT / "municipalities" / "municipality_master.tsv",
@@ -129,6 +183,11 @@ def run(task_name: str, *, limit: int = DEFAULT_LIMIT, retry_days: int = 14,
     codes = discovered_sources.due_codes(
         task_name, unresolved_codes(task_name), retry_days=retry_days, limit=limit
     )
+    dead = dead_entries(task_name)
+    if dead and (not limit or len(codes) < limit):
+        room = (limit - len(codes)) if limit else 0
+        dead_codes = [code for code in due_dead_entries(task_name, dead, retry_days=retry_days) if code not in codes]
+        codes += dead_codes[:room] if room else dead_codes
     if not codes:
         print(f"[INFO] {task_name}: 探索する自治体はありません", flush=True)
         return {"task": task_name, "checked": 0, "registered": 0}
@@ -143,10 +202,11 @@ def run(task_name: str, *, limit: int = DEFAULT_LIMIT, retry_days: int = 14,
     for index, code in enumerate(codes, 1):
         name = names.get(code, "")
         homepage = homepages.get(code, "")
+        replaces_url = dead.get(code, "")
         if not homepage:
             if not dry_run:
                 discovered_sources.record(task_name, code, confidence="none",
-                                          note="公式ホームページ URL が無い")
+                                          note="公式ホームページ URL が無い", replaces_url=replaces_url)
             print(f"[{index}/{len(codes)}] × {code} {name} 公式ホームページ URL が無い", flush=True)
             continue
         try:
@@ -154,7 +214,10 @@ def run(task_name: str, *, limit: int = DEFAULT_LIMIT, retry_days: int = 14,
         except Exception as error:
             found = {"url": "", "system_type": "", "confidence": "none", "note": f"error: {error}"}
 
-        usable = discovered_sources.is_usable(found)
+        if replaces_url and found["url"].strip() == replaces_url:
+            # 死んだ入口しか見つからなかった。差し替える先が無い。
+            found = {**found, "note": f"登録と同じ入口しか見つからない: {found['note']}"}
+        usable = discovered_sources.is_usable(found) and found["url"].strip() != replaces_url
         mark = "○" if usable else "×"
         print(
             f"[{index}/{len(codes)}] {mark} {code} {name} "
@@ -168,6 +231,7 @@ def run(task_name: str, *, limit: int = DEFAULT_LIMIT, retry_days: int = 14,
             task_name, code,
             url=found["url"], system_type=found["system_type"],
             confidence=found["confidence"], note=found["note"],
+            replaces_url=replaces_url,
         )
         if usable:
             registered += 1

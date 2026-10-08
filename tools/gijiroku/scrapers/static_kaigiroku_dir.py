@@ -428,6 +428,12 @@ def discover_items(
             )
             items_by_url.setdefault(absolute, item)
 
+    # 同じ文書へのリンクが、節の見出し（目次の「〇議事日程」「〇諸般の報告」）でも
+    # 張られている。`#` を落とすと同じ URL になり、会議録として拾った日ごとの
+    # ページが「会議録でないので落とした」側にも数えられていた（阿賀野市 397 件）。
+    # 拾った文書は落とした数に入れない。
+    for url in items_by_url:
+        dropped_by_url.pop(url, None)
     dropped_reasons: dict[str, int] = {}
     for reason in dropped_by_url.values():
         dropped_reasons[reason] = dropped_reasons.get(reason, 0) + 1
@@ -525,11 +531,14 @@ def main() -> int:
     accepted_urls = gijiroku_storage.previous_accepted_urls(work_dir, state) - set(
         catalog_walk.get("dropped_urls") or []
     )
+    # 取り切れた走査の縮みだけ、繰り返し再現したら取得元の変更として受け入れる。
+    walk_complete = int(catalog_walk.get("missed_pages") or 0) == 0 and not (bool(catalog_walk.get("limit_reached")) or args.max_meetings > 0)
     plan_shrank = gijiroku_storage.meetings_index_would_shrink(
         index_json,
         [asdict(item) for item in meeting_items],
         explained_drop_count=explained_drops,
         accepted_urls=accepted_urls,
+        walk_complete=walk_complete,
     )
     gijiroku_storage.record_catalog_walk(
         work_dir,
@@ -552,6 +561,7 @@ def main() -> int:
         [asdict(item) for item in meeting_items],
         explained_drop_count=explained_drops,
         accepted_urls=accepted_urls,
+        walk_complete=walk_complete,
     )
 
     emit_progress(0, len(meeting_items), state_path, state)

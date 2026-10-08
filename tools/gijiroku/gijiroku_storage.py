@@ -11,7 +11,10 @@ import gzip
 import hashlib
 import json
 import os
+import re
 import shutil
+import sys
+import unicodedata
 import tempfile
 import time
 from datetime import datetime
@@ -19,6 +22,10 @@ from dataclasses import asdict, is_dataclass
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import urlsplit
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+import shrink_confirmation  # noqa: E402
 
 
 TEXT_ENCODINGS = ("utf-8", "cp932", "shift_jis", "euc_jp")
@@ -27,11 +34,20 @@ SCRAPE_VALIDATION_MODE = "classified_scrape_result"
 # 取得元の事情で取れない候補。こちらが取り損ねたのではないので失敗に数えない。
 # source_missing は取得元でリンクが切れている（404・410）、external_unavailable は
 # 自治体が張った外部の保存先に断られる（robots.txt で禁じている WARP など）。
-SCRAPE_SOURCE_SIDE_STATUSES = frozenset({"source_missing", "external_unavailable"})
+SCRAPE_SOURCE_SIDE_STATUSES = frozenset({"source_missing", "external_unavailable", "persistent_failure"})
 SCRAPE_EXCLUDED_STATUSES = (
     frozenset({"empty_text", "empty_pdf_text", "skipped_not_minutes"}) | SCRAPE_SOURCE_SIDE_STATUSES
 )
 SCRAPE_FAILED_STATUSES = frozenset({"error", "timeout", "not_found"})
+# 何度取りに行っても取れない候補。取得元の文書そのものが壊れている（毎回 500 を
+# 返す・途中で切れる）とみて、失敗ではなく取得元の事情に数え直す。ほかの会議録を
+# 全部取れていても、この 1〜3 件で自治体全体が「エラー停止」のままだった
+# （江差町 735/736・大館市 370/373 など 11 自治体、2026-10-08）。run_result の
+# 行は error のまま残し、件数を数えるときだけ読み替える。
+SCRAPE_PERSISTENT_FAILURE_STATUS = "persistent_failure"
+# 一時的な不調を隠さないよう、回数と日数の両方を満たしたときだけ読み替える。
+PERSISTENT_FAILURE_MIN_RUNS = 3
+PERSISTENT_FAILURE_MIN_DAYS = 7
 # 本文を取れた（今回取った・前回までに取ってあった）候補。
 SCRAPE_ACCEPTED_STATUSES = frozenset({"saved_text", "skipped_existing"})
 # 検索投入が読めない形式を完了扱いすると、ディスクには有るのに索引へは
@@ -688,6 +704,10 @@ def count_statuses(status_counts: dict[str, int], statuses: frozenset[str]) -> i
 # 会議候補の一覧が、前回のこれを下回るほど減ったら上書きしない。
 # 取得元から一斉に会議が消えることは、まず無い。
 PLAN_SHRINK_ALLOWANCE = 0.8
+# 繰り返し再現した縮みでも、前回の一覧のこれを下回るほど崩れていたら確定しない。
+# 一覧がほぼ消えるのは、取得元の整理より入口や収集器が壊れた形に近い
+# （阿賀野市 272 件 → 3 件、大鹿村 48 件 → 5 件）。人が見るまで前回の一覧を守る。
+SHRINK_CONFIRM_MIN_KEEP_RATIO = 0.2
 
 
 def merge_dropped_non_minutes(
@@ -807,8 +827,27 @@ def _demote_coverage_for_shrink(work_dir: Path, current: int, previous: int) -> 
         print(f"[WARN] 走査記録を直せませんでした: {error}", flush=True)
 
 
+# 巡回のたびに URL が変わる配信口。高知県の市町村の会議録システム
+# （giji_search.php）は PDF を /data/fd_<合言葉>/downfile<番号>.pdf で配り、
+# 合言葉が毎回変わって古い URL は 404 になる（中土佐町・南国市・四万十町）。
+# 安芸市は番号まで変わる。URL では同じ文書か判断できず、毎回「前に取れた
+# 会議録を全部見失った」ことになって一覧を置き換えられなかった。
+# この形の URL だけ、同じ文書かをホストと題名で判断する。
+EPHEMERAL_PDF_PATH_RE = re.compile(r"/data/fd_[0-9a-z]+/downfile\d+\.pdf$", re.IGNORECASE)
+
+
+def document_key(url: str, title: str = "") -> str:
+    """縮みの判定で、同じ文書かを判断する鍵。ふつうは URL そのもの。"""
+    url = str(url or "").strip()
+    parts = urlsplit(url)
+    if not EPHEMERAL_PDF_PATH_RE.search(parts.path):
+        return url
+    normalized = re.sub(r"\s+", "", unicodedata.normalize("NFKC", str(title or "")))
+    return f"{parts.netloc}|{normalized}" if normalized else url
+
+
 def accepted_item_urls(state: dict[str, Any] | None) -> set[str]:
-    """これまでに本文を取れた候補の URL。"""
+    """これまでに本文を取れた候補の鍵（`document_key`。ふつうは URL）。"""
     items = (state or {}).get("items")
     if not isinstance(items, dict):
         return set()
@@ -820,7 +859,7 @@ def accepted_item_urls(state: dict[str, Any] | None) -> set[str]:
             continue
         url = str(item.get("url") or "").strip()
         if url:
-            urls.add(url)
+            urls.add(document_key(url, str(item.get("title") or "")))
     return urls
 
 
@@ -851,23 +890,95 @@ def previous_accepted_urls(
         for row in rows:
             url = str(row.get("url") or "").strip()
             status = str(row.get("status") or "").strip()
-            if not url or url in decided:
+            key = document_key(url, str(row.get("title") or ""))
+            if not url or key in decided:
                 continue
             if status in SCRAPE_ACCEPTED_STATUSES:
-                accepted.add(url)
-                decided.add(url)
+                accepted.add(key)
+                decided.add(key)
             elif status in SCRAPE_EXCLUDED_STATUSES:
-                decided.add(url)
+                decided.add(key)
     return accepted
 
 
+def _run_result_time(path: Path) -> datetime | None:
+    try:
+        return datetime.strptime(path.stem.removeprefix("run_result_"), "%Y%m%d_%H%M%S")
+    except ValueError:
+        return None
+
+
+def persistently_failing_urls(
+    work_dir: Path,
+    *,
+    min_runs: int = PERSISTENT_FAILURE_MIN_RUNS,
+    min_days: float = PERSISTENT_FAILURE_MIN_DAYS,
+    max_runs: int = 20,
+) -> set[str]:
+    """最新の実行でも取れず、それまでも毎回取れていない候補の URL。
+
+    run_result_*.csv を新しい順に読む。最新の実行で取得エラーになった URL について、
+    取れた（または除外と決まった）回に当たるまで遡り、失敗した回数と、最初の失敗
+    から最新までの日数を数える。その回に出てこなかった（再開で飛ばした）実行は数えない。
+    """
+    runs = [
+        (path, at)
+        for path in sorted(Path(work_dir).glob("run_result_*.csv"), reverse=True)[: max(0, int(max_runs))]
+        if (at := _run_result_time(path)) is not None
+    ]
+    failed_at: dict[str, list[datetime]] = {}
+    settled: set[str] = set()
+    for run_index, (path, at) in enumerate(runs):
+        try:
+            with path.open(encoding="utf-8", errors="replace", newline="") as handle:
+                rows = list(csv.DictReader(handle))
+        except (OSError, csv.Error):
+            continue
+        seen: set[str] = set()
+        for row in rows:
+            url = str(row.get("url") or "").strip()
+            if not url or url in seen or url in settled:
+                continue
+            seen.add(url)
+            if str(row.get("status") or "").strip() not in SCRAPE_FAILED_STATUSES:
+                settled.add(url)
+            elif run_index == 0 or url in failed_at:
+                failed_at.setdefault(url, []).append(at)
+    span = float(min_days) * 86400
+    return {
+        url
+        for url, stamps in failed_at.items()
+        if len(stamps) >= int(min_runs) and (stamps[0] - stamps[-1]).total_seconds() >= span
+    }
+
+
+def reclassify_persistent_failures(status_counts: dict[str, int], persistent_count: int) -> dict[str, int]:
+    """取得エラーのうち `persistent_count` 件を、取得元の事情（persistent_failure）へ移す。"""
+    counts = normalized_status_counts(status_counts)
+    remaining = max(0, int(persistent_count))
+    moved = 0
+    for status in ("error", "timeout", "not_found"):
+        take = min(remaining, counts.get(status, 0))
+        if take <= 0:
+            continue
+        counts[status] -= take
+        if counts[status] <= 0:
+            del counts[status]
+        remaining -= take
+        moved += take
+    if moved:
+        counts[SCRAPE_PERSISTENT_FAILURE_STATUS] = counts.get(SCRAPE_PERSISTENT_FAILURE_STATUS, 0) + moved
+    return counts
+
+
 def _payload_urls(payload: list[Any]) -> set[str]:
+    """一覧の候補の鍵（`document_key`。ふつうは URL）。"""
     urls: set[str] = set()
     for row in payload:
         if isinstance(row, dict):
             url = str(row.get("url") or "").strip()
             if url:
-                urls.add(url)
+                urls.add(document_key(url, str(row.get("title") or "")))
     return urls
 
 
@@ -885,6 +996,7 @@ def meetings_index_would_shrink(
     *,
     explained_drop_count: int = 0,
     accepted_urls: set[str] | None = None,
+    walk_complete: bool = False,
 ) -> bool:
     """この一覧で保存すると、前回より大きく減って拒否されるか。
 
@@ -900,7 +1012,24 @@ def meetings_index_would_shrink(
     毎回「大きく減った」になり、置き換えが永久に拒まれる。2026-10-01 の本番で
     58 自治体がこの形で「エラー停止」のまま止まっていたが、本文を取れていた
     会議録は 1 件も見失っていなかった。
+
+    `walk_complete`（入口から取り切れた走査）なら、同じ縮み方が日をまたいで
+    繰り返し再現したときに取得元の変更として受け入れる（`shrink_confirmation`）。
     """
+    if not _shrinks_by_count_or_loss(
+        path, payload, explained_drop_count=explained_drop_count, accepted_urls=accepted_urls
+    ):
+        return False
+    return not meetings_index_shrink_confirmed(path, payload, walk_complete=walk_complete)
+
+
+def _shrinks_by_count_or_loss(
+    path: Path,
+    payload: list[Any],
+    *,
+    explained_drop_count: int = 0,
+    accepted_urls: set[str] | None = None,
+) -> bool:
     try:
         existing = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
@@ -920,12 +1049,43 @@ def meetings_index_would_shrink(
     return True
 
 
+def meetings_index_shrink_confirmed(path: Path, payload: list[Any], *, walk_complete: bool) -> bool:
+    """取り切れた走査で、同じ縮み方を日をまたいで繰り返し観測したか。
+
+    縮みのガードは、前回の一覧を守ったまま「エラー停止」を出し続ける。
+    取得元が会議録の置き場を作り直した・こちらの判定で会議録でない
+    ページ（議会だよりなど）を辿らなくなった場合も、同じ形で永久に止まる
+    （2026-10-08 に 46 自治体。幸田町は議会だよりの記事 629 件を守っていた）。
+    取り切れた走査で同じ中身の縮みが日をまたいで再現するなら、一時的な不調
+    ではないので受け入れる。保存済みの本文は消さないので、検索からは消えない。
+    取り切れていない走査と、0 件（発見の失敗）は確定させない。
+    """
+    if not walk_complete or not payload:
+        return False
+    try:
+        existing = json.loads(Path(path).read_text(encoding="utf-8"))
+    except Exception:
+        existing = []
+    if isinstance(existing, list) and len(payload) < len(existing) * SHRINK_CONFIRM_MIN_KEEP_RATIO:
+        return False
+    confirmation = shrink_confirmation.observe(path, shrink_confirmation.content_signature(_payload_urls(payload)))
+    if not confirmation.get("confirmed"):
+        print(
+            f"[INFO] 同じ縮み方の観測 {confirmation.get('seen')}/{confirmation.get('required')} 回目。"
+            f"日をまたいで繰り返し再現すれば一覧を置き換えます: {path}",
+            flush=True,
+        )
+        return False
+    return True
+
+
 def save_meetings_index(
     path: Path,
     payload: list[Any],
     *,
     explained_drop_count: int = 0,
     accepted_urls: set[str] | None = None,
+    walk_complete: bool = False,
 ) -> None:
     """会議候補の一覧を保存する。空では上書きしない。
 
@@ -947,17 +1107,26 @@ def save_meetings_index(
                 flush=True,
             )
             _demote_coverage_for_shrink(path.parent, 0, len(existing))
+            observe_empty_discovery(path.parent)
             return
         # 大きく減ったときも守る。1202 件が 1 件になっても
         # 「取得元から会議が消えた」より「発見が途中で終わった」を疑う。
         # ただし取り切れた走査で会議録でないと判定して落とした分は、
         # 縮小の理由が分かっているので置き換えてよい。
-        if meetings_index_would_shrink(
+        shrinks = _shrinks_by_count_or_loss(
             path,
             payload,
             explained_drop_count=explained_drop_count,
             accepted_urls=accepted_urls,
-        ):
+        )
+        if shrinks and meetings_index_shrink_confirmed(path, payload, walk_complete=walk_complete):
+            print(
+                f"[INFO] 同じ縮み方を日をまたいで繰り返し観測したので、前回の {len(existing)}件から"
+                f" 今回の {len(payload)}件への置き換えを取得元の変更として受け入れます: {path}",
+                flush=True,
+            )
+            shrinks = False
+        if shrinks:
             if accepted_urls:
                 lost = lost_accepted_urls(payload, accepted_urls)
                 print(
@@ -981,6 +1150,84 @@ def save_meetings_index(
     path.parent.mkdir(parents=True, exist_ok=True)
     body = json.dumps(payload, ensure_ascii=False, indent=2)
     _write_bytes_atomically(path, body.encode("utf-8"), compress=False)
+    if payload:
+        clear_empty_discovery(path.parent)
+    # 置き換えたら縮みの観測は用済み。残すと次の縮みを 1 回目から数え直せない。
+    shrink_confirmation.clear_observation(shrink_confirmation.observation_path(path))
+
+
+# 前は取れていたのに、会議候補が 0 件の実行が続いている記録。取得元がサイトを
+# 作り直して、登録した入口が空のページになった形がこれになる（美深町・興部町・
+# えりも町など、2026-10-08 に 6 自治体）。縮みのガードが前回の分を守るので
+# 検索からは消えないが、新しい会議録は二度と入らない。取得元の探索
+# （tools/tasks/discover_sources.py）がこの記録を見て、入口を探し直す。
+EMPTY_DISCOVERY_FILENAME = "empty_discovery.json"
+# 同じ実行の中で何度呼ばれても 1 回と数える。
+EMPTY_DISCOVERY_SAME_RUN_SECONDS = 60 * 60
+# 入口が死んだとみなす回数と日数。一時的な不調で探し直さない。
+EMPTY_DISCOVERY_MIN_RUNS = 3
+EMPTY_DISCOVERY_MIN_DAYS = 7
+_EMPTY_DISCOVERY_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+
+def load_empty_discovery(work_dir: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads((Path(work_dir) / EMPTY_DISCOVERY_FILENAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def observe_empty_discovery(work_dir: Path, *, now: datetime | None = None) -> dict[str, Any]:
+    """会議候補が 0 件だった実行を数える。"""
+    current = now or datetime.now()
+    record = load_empty_discovery(work_dir)
+    try:
+        last_seen = datetime.strptime(str(record.get("last_seen") or ""), _EMPTY_DISCOVERY_TIME_FORMAT)
+    except ValueError:
+        last_seen = None
+    if last_seen is not None and (current - last_seen).total_seconds() < EMPTY_DISCOVERY_SAME_RUN_SECONDS:
+        return record
+    stamp = current.strftime(_EMPTY_DISCOVERY_TIME_FORMAT)
+    record = {
+        "first_seen": str(record.get("first_seen") or stamp),
+        "last_seen": stamp,
+        "count": int(record.get("count") or 0) + 1,
+    }
+    try:
+        write_json(Path(work_dir) / EMPTY_DISCOVERY_FILENAME, record)
+    except Exception as error:
+        print(f"[WARN] 会議候補 0 件の記録を残せませんでした: {error}", flush=True)
+    return record
+
+
+def clear_empty_discovery(work_dir: Path) -> None:
+    try:
+        (Path(work_dir) / EMPTY_DISCOVERY_FILENAME).unlink()
+    except FileNotFoundError:
+        pass
+    except OSError as error:
+        print(f"[WARN] 会議候補 0 件の記録を消せませんでした: {error}", flush=True)
+
+
+def entry_looks_dead(
+    work_dir: Path,
+    *,
+    min_runs: int = EMPTY_DISCOVERY_MIN_RUNS,
+    min_days: float = EMPTY_DISCOVERY_MIN_DAYS,
+) -> dict[str, Any] | None:
+    """会議候補 0 件が回数・日数とも続いていれば、その記録を返す。"""
+    record = load_empty_discovery(work_dir)
+    try:
+        first_seen = datetime.strptime(str(record.get("first_seen") or ""), _EMPTY_DISCOVERY_TIME_FORMAT)
+        last_seen = datetime.strptime(str(record.get("last_seen") or ""), _EMPTY_DISCOVERY_TIME_FORMAT)
+    except ValueError:
+        return None
+    if int(record.get("count") or 0) < int(min_runs):
+        return None
+    if (last_seen - first_seen).total_seconds() < float(min_days) * 86400:
+        return None
+    return record
 
 
 def classified_scrape_summary(
@@ -997,13 +1244,15 @@ def classified_scrape_summary(
     failed = count_statuses(counts, SCRAPE_FAILED_STATUSES)
     source_missing = int(counts.get("source_missing", 0))
     external_unavailable = int(counts.get("external_unavailable", 0))
+    persistent_failure = int(counts.get(SCRAPE_PERSISTENT_FAILURE_STATUS, 0))
     # 1 件も取れず、見つけたリンクが取得元で切れているだけなら、それは取得元の
     # 事情ではなく登録した入口が古くなった合図である。除外にすると 0/0 で
-    # 完了に見えるので、この場合だけ失敗に数える。
-    if downloaded == 0 and source_missing > 0:
-        excluded -= source_missing
-        failed += source_missing
+    # 完了に見えるので、この場合だけ失敗に数える。何度やっても取れない候補も同じ。
+    if downloaded == 0 and (source_missing > 0 or persistent_failure > 0):
+        excluded -= source_missing + persistent_failure
+        failed += source_missing + persistent_failure
         source_missing = 0
+        persistent_failure = 0
 
     # discovered は最初に見つかった候補数なので、目次・一覧・空 PDF が混ざることがある。
     # ただし「成功でも除外でも失敗でもない候補」は取りこぼしなので、明示的に失敗扱いへ回す。
@@ -1015,7 +1264,7 @@ def classified_scrape_summary(
     # 本文が取り出せなかった PDF は、目次や名簿を除いたのとは事情が違う。
     # 会議録そのものなのに紙を画像で貼った PDF で、待っても本文にならない。
     empty_pdf = int(counts.get("empty_pdf_text", 0))
-    other_excluded = excluded - empty_pdf - source_missing - external_unavailable
+    other_excluded = excluded - empty_pdf - source_missing - external_unavailable - persistent_failure
     if empty_pdf > 0:
         if downloaded == 0 and other_excluded == 0:
             warning_lines.append(
@@ -1029,6 +1278,11 @@ def classified_scrape_summary(
         warning_lines.append(f"取得元でリンクが切れている候補 {source_missing}件")
     if external_unavailable > 0:
         warning_lines.append(f"外部の保存先に取得を断られた候補 {external_unavailable}件")
+    if persistent_failure > 0:
+        warning_lines.append(
+            f"何度取りに行っても取れない候補 {persistent_failure}件"
+            f"（{PERSISTENT_FAILURE_MIN_DAYS}日以上・{PERSISTENT_FAILURE_MIN_RUNS}回以上続けて取得エラー）"
+        )
     if failed > 0:
         warning_lines.append(f"取得エラー {failed}件")
     if unknown_missing > 0:
@@ -1068,7 +1322,14 @@ def apply_classified_scrape_validation(
     downloaded_count: int,
     status_counts: dict[str, int] | None = None,
 ) -> dict[str, Any]:
-    """分類済みの完了判定を scrape_state.json へ保存し、親バッチの母数を揃える。"""
+    """分類済みの完了判定を scrape_state.json へ保存し、親バッチの母数を揃える。
+
+    取得エラーのうち、何度取りに行っても取れない候補は取得元の事情に数え直す。
+    run_result_*.csv は scrape_state.json と同じ作業ディレクトリにある。
+    """
+    persistent = persistently_failing_urls(Path(state_path).parent)
+    if persistent:
+        status_counts = reclassify_persistent_failures(status_counts or {}, len(persistent))
     summary = classified_scrape_summary(
         discovered_count=discovered_count,
         downloaded_count=downloaded_count,

@@ -1637,16 +1637,21 @@ function load_local_reiki_url_index(): array
  * 規則は tools/discovered_sources.py の apply_to_row と lib/municipalities.php の
  * apply_discovered_source と同じ。巡回（Python）は探索結果で北方町を起動するのに、
  * ここが登録簿だけを見て「system_type が空」と 1 秒で落ちていた。
+ * 登録した入口が死んで探し直した記録は、`replaces_url` が登録簿の URL と同じ間だけ重ねる。
  */
 function taikei_apply_discovered_source(?array $entry, array $row): array
 {
-    if (trim((string)($row['url'] ?? '')) !== '' || !is_array($entry)) {
+    if (!is_array($entry)) {
         return $row;
     }
     $confidence = trim((string)($entry['confidence'] ?? ''));
     $url = trim((string)($entry['url'] ?? ''));
     $systemType = trim((string)($entry['system_type'] ?? ''));
     if (!in_array($confidence, ['high', 'medium'], true) || $url === '' || $systemType === '') {
+        return $row;
+    }
+    $registered = trim((string)($row['url'] ?? ''));
+    if ($registered !== '' && (trim((string)($entry['replaces_url'] ?? '')) !== $registered || $url === $registered)) {
         return $row;
     }
     $row['url'] = $url;

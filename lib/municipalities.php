@@ -870,16 +870,21 @@ function discovered_sources_of_version(array $entries, int $version): array
  *
  * 取得側（Python）は探索結果で巡回しているのに、画面は登録簿の URL だけを見ていたので
  * 「取得元未特定」と出ていた（村田町）。登録簿に URL があるときは触らない。
+ * ただし登録した入口が死んで探し直した記録は、`replaces_url` が登録簿の URL と同じ間だけ重ねる。
  */
 function apply_discovered_source(?array $entry, array $row): array
 {
-    if (trim((string)($row['url'] ?? '')) !== '' || !is_array($entry)) {
+    if (!is_array($entry)) {
         return $row;
     }
     $confidence = trim((string)($entry['confidence'] ?? ''));
     $url = trim((string)($entry['url'] ?? ''));
     $systemType = trim((string)($entry['system_type'] ?? ''));
     if (!isset(DISCOVERED_SOURCE_USABLE_CONFIDENCE[$confidence]) || $url === '' || $systemType === '') {
+        return $row;
+    }
+    $registered = trim((string)($row['url'] ?? ''));
+    if ($registered !== '' && (trim((string)($entry['replaces_url'] ?? '')) !== $registered || $url === $registered)) {
         return $row;
     }
     $row['url'] = $url;

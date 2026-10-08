@@ -2,6 +2,7 @@ import gzip
 import os
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
@@ -190,6 +191,48 @@ class AtomicMinutesWriteTest(unittest.TestCase):
 
             self.assertEqual(events, ["fsync", "replace"])
             self.assertEqual(gzip.decompress(written.read_bytes()).decode("utf-8"), "会議録本文")
+
+
+class EmptyDiscoveryTest(unittest.TestCase):
+    """前は取れていたのに会議候補 0 件が続く入口を、探し直しの対象として覚える（美深町など）。"""
+
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.work_dir = Path(self.temporary.name)
+        self.index = self.work_dir / "meetings_index.json"
+        self.index.write_text('[{"url": "https://example.jp/a.pdf"}]', encoding="utf-8")
+
+    def observe(self, when: str) -> dict:
+        return gijiroku_storage.observe_empty_discovery(self.work_dir, now=datetime.fromisoformat(when))
+
+    def test_empty_runs_over_a_week_mean_the_entry_is_dead(self) -> None:
+        self.observe("2026-09-20 03:00:00")
+        self.observe("2026-09-24 03:00:00")
+        self.assertIsNone(gijiroku_storage.entry_looks_dead(self.work_dir))
+        self.observe("2026-09-28 03:00:00")
+
+        record = gijiroku_storage.entry_looks_dead(self.work_dir)
+        self.assertIsNotNone(record)
+        self.assertEqual(record["count"], 3)
+
+    def test_calls_within_one_run_count_once(self) -> None:
+        self.observe("2026-09-20 03:00:00")
+        self.observe("2026-09-20 03:10:00")
+        self.assertEqual(gijiroku_storage.load_empty_discovery(self.work_dir)["count"], 1)
+
+    def test_many_empty_runs_in_two_days_are_not_enough(self) -> None:
+        for when in ("2026-09-27 03:00:00", "2026-09-27 15:00:00", "2026-09-28 03:00:00", "2026-09-28 15:00:00"):
+            self.observe(when)
+        self.assertIsNone(gijiroku_storage.entry_looks_dead(self.work_dir))
+
+    def test_saving_an_empty_list_is_observed_and_a_real_list_clears_it(self) -> None:
+        gijiroku_storage.save_meetings_index(self.index, [])
+        self.assertEqual(gijiroku_storage.load_empty_discovery(self.work_dir)["count"], 1)
+        self.assertIn("a.pdf", self.index.read_text(encoding="utf-8"))
+
+        gijiroku_storage.save_meetings_index(self.index, [{"url": "https://example.jp/a.pdf"}])
+        self.assertEqual(gijiroku_storage.load_empty_discovery(self.work_dir), {})
 
 
 if __name__ == "__main__":

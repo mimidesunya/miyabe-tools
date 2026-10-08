@@ -104,10 +104,12 @@ def record(
     system_type: str = "",
     confidence: str = "",
     note: str = "",
+    replaces_url: str = "",
 ) -> None:
     """探索の結果を記録する。見つからなかった場合も、試した時刻を残す。
 
     時刻を残さないと、同じ自治体を毎回試して他の自治体に順番が回らない。
+    `replaces_url` は、登録簿の入口が死んだので探し直したときの、その入口。
     """
     normalized = str(code).strip()
     if normalized == "":
@@ -121,6 +123,8 @@ def record(
         "observed_at": now_text(),
         "discoverer_version": str(discoverer_version(task_name)),
     }
+    if str(replaces_url).strip():
+        entries[normalized]["replaces_url"] = str(replaces_url).strip()
     save(task_name, entries)
 
 
@@ -167,12 +171,18 @@ def apply_to_row(
 
     **登録簿に URL があるときは触らない。** 人が書いた値が常に優先で、
     TSV が埋まれば上書きは自然に使われなくなる。
+
+    例外は、登録した入口が死んで（会議候補 0 件が続いて）探し直した記録。
+    記録の `replaces_url` が登録簿の URL と同じ間だけ重ねる。人が TSV を
+    直せば URL が変わるので、上書きは自然に使われなくなる。
     """
-    if str(url).strip():
-        return url, system_type, False
+    registered = str(url).strip()
     if not is_usable(entry):
         return url, system_type, False
-    return str(entry["url"]).strip(), str(entry["system_type"]).strip(), True
+    found = str(entry["url"]).strip()
+    if registered and (str(entry.get("replaces_url", "")).strip() != registered or found == registered):
+        return url, system_type, False
+    return found, str(entry["system_type"]).strip(), True
 
 
 def due_codes(

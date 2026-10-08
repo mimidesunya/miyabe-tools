@@ -138,5 +138,16 @@ class ManifestGuardTest(unittest.TestCase):
         self.assertFalse(shrink_confirmation.observation_path(self.path).exists())
 
 
+class SameRunRecheckTest(unittest.TestCase):
+    def test_a_confirmed_shrink_stays_confirmed_within_the_same_run(self) -> None:
+        # 会議録は縮みの判定と保存で 2 回確かめる。2 回目で「間隔が短い」と取り消さない。
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "meetings_index.json"
+            for stamp in ("2026-10-01 03:00:00", "2026-10-02 03:00:00"):
+                self.assertFalse(shrink_confirmation.observe(path, "1:x", now=stamp)["confirmed"])
+            self.assertTrue(shrink_confirmation.observe(path, "1:x", now="2026-10-03 03:00:00")["confirmed"])
+            self.assertTrue(shrink_confirmation.observe(path, "1:x", now="2026-10-03 03:05:00")["confirmed"])
+
+
 if __name__ == "__main__":
     unittest.main()
