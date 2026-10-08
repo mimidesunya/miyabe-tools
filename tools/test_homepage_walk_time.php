@@ -43,6 +43,18 @@ walk_time_check(
 $once = homepage_display_with_walk_time($stale, $coverage);
 walk_time_check($failures, '二度足さない', homepage_display_with_walk_time($once, $coverage) === $once);
 
+// 公開用に整えるときは作業の説明を最後の 1 行だけ残す。最終巡回がその 1 行を
+// 取り合って、取得の状態の説明を押し出していた（配備直後の江差町）。
+$failed = homepage_display_with_walk_time([
+    'label' => '一部検索可',
+    'class' => 'task-failed',
+    'detail' => "735/736件\n最新日付 2026-06-15\n取得元の一部を取得できず、全件取得が完了していません。",
+], $coverage);
+$publicLines = explode("\n", (string)(homepage_sanitize_home_card_display($failed)['detail'] ?? ''));
+walk_time_check($failures, '公開用でも取得の状態の説明が残る', in_array('作業 取得元の一部を取得できず、全件取得が完了していません。', $publicLines, true));
+walk_time_check($failures, '公開用でも最終巡回が残る', in_array('最終巡回 2026-10-07 17:51', $publicLines, true));
+walk_time_check($failures, '最終巡回に作業を付けない', !in_array('作業 最終巡回 2026-10-07 17:51', $publicLines, true));
+
 if ($failures !== []) {
     fwrite(STDERR, "FAILED:\n- " . implode("\n- ", $failures) . "\n");
     exit(1);

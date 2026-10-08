@@ -1441,6 +1441,11 @@ function homepage_task_display_freshness_line(?array $display): string
     return $label . ' ' . $date;
 }
 
+function homepage_task_display_is_walk_line(string $line): bool
+{
+    return preg_match('/^最終巡回\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}$/u', trim($line)) === 1;
+}
+
 function homepage_task_display_public_activity_line(string $line): string
 {
     $line = trim($line);
@@ -1457,6 +1462,11 @@ function homepage_task_display_public_activity_line(string $line): string
         return '';
     }
     if (preg_match('/^警告あり\s+\d+件$/u', $line) === 1) {
+        return '';
+    }
+    // 最終巡回は作業の説明ではなく時刻の行。作業の行として最後の 1 行を
+    // 取り合うと、取得の状態の説明（取得元の一部を取得できず…）を押し出す。
+    if (homepage_task_display_is_walk_line($line)) {
         return '';
     }
 
@@ -1502,6 +1512,12 @@ function homepage_sanitize_home_card_display(?array $display): ?array
             if ($line !== '' && !in_array($line, $detailLines, true)) {
                 $detailLines[] = $line;
             }
+        }
+    }
+    foreach (homepage_task_display_detail_lines($display) as $line) {
+        $line = trim((string)$line);
+        if (homepage_task_display_is_walk_line($line) && !in_array($line, $detailLines, true)) {
+            $detailLines[] = $line;
         }
     }
     $display['detail'] = implode("\n", $detailLines);
