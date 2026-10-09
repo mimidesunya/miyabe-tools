@@ -118,7 +118,25 @@ if (($result['state'] ?? '') === 'complete') {
     $failures[] = '走査が未完了なのに完了と出た';
 }
 
-foreach (['no_validation', 'mismatch', 'match', 'killed_midway', 'raw_partial', 'no_progress', 'partial'] as $name) {
+// 退避で一覧も文書も無くなった自治体に、残った判定の件数を「DL済」と出さない。
+$archived = make_feature($base . '/archived', $coverage, [
+    'mode' => 'classified_scrape_result',
+    'discovered_count' => 100,
+    'progress_current' => 100,
+    'progress_total' => 100,
+]);
+$archived['index_json_path'] = $base . '/archived/meetings_index.json';
+if (homepage_feature_fallback_display('gijiroku', $archived) !== null) {
+    $failures[] = '一覧も文書も無いのに、残った判定の件数を出した';
+}
+@mkdir($archived['downloads_dir'], 0777, true);
+$display = homepage_feature_fallback_display('gijiroku', $archived);
+if (!is_array($display) || !str_contains((string)($display['detail'] ?? ''), 'DL済 100')) {
+    $failures[] = '文書があるのに判定の件数を出さない: ' . json_encode($display, JSON_UNESCAPED_UNICODE);
+}
+@rmdir($archived['downloads_dir']);
+
+foreach (['no_validation', 'mismatch', 'match', 'killed_midway', 'raw_partial', 'no_progress', 'partial', 'archived'] as $name) {
     @unlink($base . '/' . $name . '/source_coverage.json');
     @unlink($base . '/' . $name . '/scrape_state.json');
     @rmdir($base . '/' . $name);
@@ -129,4 +147,4 @@ if ($failures !== []) {
     fwrite(STDERR, "NG: " . implode("\n    ", $failures) . "\n");
     exit(1);
 }
-echo "OK: 会議録の公開表示が走査記録どおり (7 件)\n";
+echo "OK: 会議録の公開表示が走査記録どおり (9 件)\n";

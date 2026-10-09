@@ -1060,6 +1060,12 @@ function homepage_feature_fallback_display(string $featureKey, array $feature, ?
         $indexPath = (string)($feature['index_json_path'] ?? '');
         $downloadsDir = (string)($feature['downloads_dir'] ?? '');
         $classifiedProgress = homepage_gijiroku_classified_progress($feature);
+        // 一覧も文書も無いなら、scrape_state.json に残った判定の件数は出さない。
+        // 会議録でない文書を退避した坂祝町・村田町が「DL済 100件」と出ていた。
+        if (is_array($classifiedProgress)
+            && !is_file($indexPath) && !is_file($indexPath . '.gz') && !is_dir($downloadsDir)) {
+            $classifiedProgress = null;
+        }
         if (is_array($classifiedProgress)) {
             $downloadedCount = (int)$classifiedProgress['current'];
             $totalCount = (int)$classifiedProgress['total'];
