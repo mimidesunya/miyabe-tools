@@ -113,7 +113,55 @@ def era_from_western(year: int) -> str:
     return f"昭和{year - 1925}年"
 
 
+# 時間切れ・接続断・5xx・429 だけ、間を置いて待ち時間を延ばしてやり直す
+# （kami_city_pdf・kensakusystem と同じ規則）。出水市は 1 周で一覧のページを
+# 3 件開けず、そのたびにエラー停止になっていた（2026-10-09）。404 などの
+# やり直しても結果が変わらない失敗は繰り返さない。
+FETCH_RETRY_WAITS_SECONDS = (5.0, 20.0)
+FETCH_RETRY_MIN_TIMEOUT_MS = 30_000
+# やり直しても通らない取得が続いたら、取得元が落ちているとみてやり直しをやめる。
+FETCH_RETRY_GIVE_UP_AFTER = 3
+_consecutive_exhausted_fetches = 0
+
+
+def is_transient_fetch_error(exc: BaseException) -> bool:
+    """やり直せば通る見込みのある失敗か。"""
+    if isinstance(exc, requests.HTTPError):
+        response = exc.response
+        status = response.status_code if response is not None else 0
+        return status == 429 or status >= 500
+    return isinstance(
+        exc,
+        (requests.ConnectionError, requests.Timeout, requests.exceptions.ChunkedEncodingError),
+    )
+
+
 def fetch(session: requests.Session, url: str, *, timeout_ms: int, data: dict | None = None, referer: str = "") -> str:
+    global _consecutive_exhausted_fetches
+    waits = () if _consecutive_exhausted_fetches >= FETCH_RETRY_GIVE_UP_AFTER else FETCH_RETRY_WAITS_SECONDS
+    attempt_timeout_ms = timeout_ms
+    for wait in waits:
+        try:
+            text = _fetch_once(session, url, timeout_ms=attempt_timeout_ms, data=data, referer=referer)
+        except Exception as exc:
+            if not is_transient_fetch_error(exc):
+                raise
+            time.sleep(wait)
+            attempt_timeout_ms = max(timeout_ms, FETCH_RETRY_MIN_TIMEOUT_MS)
+        else:
+            _consecutive_exhausted_fetches = 0
+            return text
+    try:
+        text = _fetch_once(session, url, timeout_ms=attempt_timeout_ms, data=data, referer=referer)
+    except Exception as exc:
+        if is_transient_fetch_error(exc):
+            _consecutive_exhausted_fetches += 1
+        raise
+    _consecutive_exhausted_fetches = 0
+    return text
+
+
+def _fetch_once(session: requests.Session, url: str, *, timeout_ms: int, data: dict | None, referer: str) -> str:
     headers = {"User-Agent": USER_AGENT, "Accept-Language": "ja,en;q=0.8"}
     if referer:
         headers["Referer"] = referer

@@ -122,5 +122,63 @@ class IwateKengikaiTest(unittest.TestCase):
         self.assertNotIn("次へ", text)
 
 
+class _FakeResponse:
+    def __init__(self, status: int, text: str = "") -> None:
+        import requests
+
+        self.status_code = status
+        self.text = text
+        self.encoding = "utf-8"
+        self.apparent_encoding = "utf-8"
+        self._requests = requests
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            raise self._requests.HTTPError(f"{self.status_code}", response=self)
+
+
+class _FakeSession:
+    def __init__(self, outcomes: list) -> None:
+        self.outcomes = outcomes
+        self.timeouts: list[float] = []
+
+    def get(self, url, headers=None, timeout=None):
+        self.timeouts.append(timeout)
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+
+
+class FetchRetryTest(unittest.TestCase):
+    """時間切れ・接続断 1 回で一覧のページを諦めない（出水市）。"""
+
+    def setUp(self) -> None:
+        from unittest import mock
+
+        html_list_sites._consecutive_exhausted_fetches = 0
+        self.addCleanup(setattr, html_list_sites, "_consecutive_exhausted_fetches", 0)
+        patcher = mock.patch.object(html_list_sites.time, "sleep")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_timeout_is_retried_with_a_longer_wait(self) -> None:
+        import requests
+
+        session = _FakeSession([requests.Timeout("read timed out"), _FakeResponse(200, "ok")])
+
+        self.assertEqual(html_list_sites.fetch(session, "https://example.jp/detail_select/1", timeout_ms=10_000), "ok")
+        self.assertEqual(session.timeouts, [10.0, html_list_sites.FETCH_RETRY_MIN_TIMEOUT_MS / 1000.0])
+
+    def test_not_found_is_not_retried(self) -> None:
+        import requests
+
+        session = _FakeSession([_FakeResponse(404)])
+
+        with self.assertRaises(requests.HTTPError):
+            html_list_sites.fetch(session, "https://example.jp/detail_select/9999", timeout_ms=10_000)
+        self.assertEqual(len(session.timeouts), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
