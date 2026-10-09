@@ -79,9 +79,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="assembly_minutes_system_urls.tsv の対応済み system_type をまとめてスクレイピングします。"
     )
-    # 旧版の取得 worker は --ack-robots を付けて起動してくる。worker を作り直すまでは
-    # 受け取って捨てる（robots.txt の判定は 2026-10-01 に削除した）。
-    parser.add_argument("--ack-robots", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--list-excluded",
         action="store_true",
