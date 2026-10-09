@@ -118,6 +118,40 @@ class FailureIsRetryableTest(unittest.TestCase):
         self.assertFalse(priority.failure_is_retryable(finished.strftime(fmt), started.strftime(fmt)))
 
 
+class ShrinkConfirmationPendingTest(unittest.TestCase):
+    """縮みの確定を待つ自治体は、失敗でも 7 日待たずに次の観測へ進む。"""
+
+    def setUp(self) -> None:
+        self.work = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, self.work, True)
+        self.target = {"index_json_path": str(self.work / "meetings_index.json")}
+
+    def _observe(self, seen: int, hours_ago: float) -> None:
+        last = priority.freshness_metadata.now_tokyo() - timedelta(hours=hours_ago)
+        stamp = last.strftime("%Y-%m-%d %H:%M:%S")
+        path = priority.shrink_confirmation.observation_path(self.work / "meetings_index.json")
+        path.write_text(
+            json.dumps({"signature": "s", "seen": seen, "first_seen": stamp, "last_seen": stamp}),
+            encoding="utf-8",
+        )
+
+    def test_pending_observation_is_retried_after_the_interval(self) -> None:
+        self._observe(1, hours_ago=13)
+        self.assertTrue(priority.shrink_confirmation_pending(self.target))
+
+    def test_too_soon_after_the_last_observation(self) -> None:
+        self._observe(1, hours_ago=2)
+        self.assertFalse(priority.shrink_confirmation_pending(self.target))
+
+    def test_confirmed_shrink_is_not_pending(self) -> None:
+        self._observe(priority.shrink_confirmation.DEFAULT_REQUIRED_RUNS, hours_ago=13)
+        self.assertFalse(priority.shrink_confirmation_pending(self.target))
+
+    def test_no_observation(self) -> None:
+        self.assertFalse(priority.shrink_confirmation_pending(self.target))
+        self.assertFalse(priority.shrink_confirmation_pending({}))
+
+
 class FailureReferenceTimeTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()

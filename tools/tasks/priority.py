@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import freshness_metadata
+import shrink_confirmation
 from tools.tasks import input_fingerprint as input_generation
 from tools.tasks import status as batch_status
 
@@ -305,6 +306,31 @@ def failure_is_retryable(finished_at: str, started_at: str = "") -> bool:
     if started is not None and 0 <= (finished - started).total_seconds() <= FAILED_QUICK_RUN_SECONDS:
         wait_days = FAILED_QUICK_RETRY_DAYS
     return (freshness_metadata.now_tokyo() - finished) >= timedelta(days=wait_days)
+
+
+def shrink_confirmation_pending(target: dict[str, Any]) -> bool:
+    """縮みの確定を待っていて、次の観測を数えられる時刻になったか。
+
+    縮みのガードで止まった実行は失敗になるが、確定には日をまたいだ観測が
+    3 回要る。失敗の待ち（7 日）に乗せると、確定まで 2 週間かかる
+    （2026-10-09 に村上市・幸田町・高浜市などが 1/3 回目で 7 日待ちになっていた）。
+    観測が途中の自治体は、観測の最短間隔がたてばやり直す。
+    """
+    index_json = str(target.get("index_json_path") or "").strip()
+    if not index_json:
+        return False
+    payload = shrink_confirmation.load_observation(shrink_confirmation.observation_path(Path(index_json)))
+    try:
+        seen = int(payload.get("seen") or 0)
+    except (TypeError, ValueError):
+        return False
+    if seen <= 0 or seen >= shrink_confirmation.DEFAULT_REQUIRED_RUNS:
+        return False
+    last_seen = shrink_confirmation.parse_time(str(payload.get("last_seen") or ""))
+    if last_seen is None:
+        return False
+    waited = freshness_metadata.now_tokyo() - last_seen
+    return waited >= timedelta(hours=shrink_confirmation.DEFAULT_MIN_INTERVAL_HOURS)
 
 
 def _valid_failure_time(value: object) -> str:
@@ -654,7 +680,9 @@ class PriorityCalculator:
         if failed_task_name:
             failed_item = task_item(failed_task_name, slug)
             failed_at = failure_reference_time(failed_task_name, slug, failed_item)
-            if not failure_is_retryable(failed_at, str(failed_item.get("started_at") or "")):
+            if not failure_is_retryable(
+                failed_at, str(failed_item.get("started_at") or "")
+            ) and not shrink_confirmation_pending(target):
                 return {
                     "priority_group": 5,
                     "priority_score": 0,
