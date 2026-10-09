@@ -64,6 +64,11 @@ curl -s -X POST http://localhost:8301/mcp -H 'Content-Type: application/json' -H
 docker compose up -d opensearch php mcp web
 ```
 
+`/mcp` への GET は、`Accept: text/event-stream` を付けたときだけ 200 で SSE の流れを開きます
+（状態を持たない作りなので送る通知は無く、25 秒ごとの合図だけを流して 10 分で閉じます。同時に開ける
+流れは 50 まで）。OpenAI の Plugins のツール検出が GET の SSE を前提にしているためです。
+それ以外の GET は 405 です。
+
 `docker/mcp/src` を変えたら `docker compose up -d --build mcp` でイメージを作り直します。イメージには
 ビルド済みの `dist` だけが入り、起動時には TypeScript をビルドしません。
 

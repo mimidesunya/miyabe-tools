@@ -510,6 +510,39 @@ app.get("/healthz", (req, res) => {
   res.json({ status: "ok", service: "miyabe-tools-mcp" });
 });
 
+// Streamable HTTP の GET は、サーバーから送る通知のための SSE の流れを開く。状態を持たない
+// この作りでは送る通知が無いので、仕様上は 405 でよいが、OpenAI の Plugins のツール検出は
+// GET に 200 と text/event-stream が返ることを前提にしている（2026-10 のサポートの回答）。
+// 生きている合図だけを流し、上限の時間で閉じる。開いている流れの数にも上限を置く。
+const SSE_KEEPALIVE_MS = 25_000;
+const SSE_MAX_DURATION_MS = 10 * 60_000;
+const SSE_MAX_STREAMS = 50;
+let openSseStreams = 0;
+
+app.get("/mcp", (req: Request, res: Response, next: NextFunction) => {
+  const accept = String(req.headers.accept || "");
+  if (!accept.includes("text/event-stream") || openSseStreams >= SSE_MAX_STREAMS) {
+    // SSE を求めていない GET と、上限を超えた分は、これまでどおり SDK が 405 を返す。
+    next();
+    return;
+  }
+  openSseStreams += 1;
+  res.status(200);
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+  res.write(": miyabe-tools mcp stream\n\n");
+  const keepalive = setInterval(() => res.write(": ping\n\n"), SSE_KEEPALIVE_MS);
+  const limit = setTimeout(() => res.end(), SSE_MAX_DURATION_MS);
+  res.on("close", () => {
+    clearInterval(keepalive);
+    clearTimeout(limit);
+    openSseStreams -= 1;
+  });
+});
+
 app.all("/mcp", (req: Request, res: Response) => {
   void mcpNodeHandler(req, res, req.body);
 });
