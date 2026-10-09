@@ -2041,6 +2041,10 @@ def previous_doc_urls_by_list_url(previous_items: list[MeetingItem]) -> dict[str
 
 
 def should_quick_update_from_state(state: dict) -> bool:
+    # 本番の巡回では効かない（batch.py の remove_stale_scrape_state が実行の頭で
+    # scrape_state.json を消すので plan_summary が無い）。取り切った自治体は 30 日に
+    # 1 回しか回らないので、その回は一覧を全部歩いて確かめる方がよく、意図して
+    # このままにしている（2026-10-09）。手で続けて走らせるときだけ効く。
     summary = state.get("plan_summary")
     if not isinstance(summary, dict):
         return False
