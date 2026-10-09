@@ -716,5 +716,63 @@ class ListWalkResumeTest(unittest.TestCase):
         self.assertNotIn("https://x/old", [row.url for row in rows])
 
 
+class _FlakyWalkPage(_WalkPage):
+    """決まったページだけ、開くときに時間切れになる一覧。"""
+
+    def __init__(self, url: str, rows_per_page: dict[int, list], *, fail_once=(), fail_always=()) -> None:
+        self.fail_once = set(fail_once)
+        self.fail_always = set(fail_always)
+        super().__init__(url, rows_per_page)
+
+    def goto(self, url: str, **kwargs) -> None:
+        from urllib.parse import parse_qs, urlsplit
+
+        number = int(parse_qs(urlsplit(url).query).get("Page", ["1"])[0])
+        if number in self.fail_always or number in self.fail_once:
+            self.fail_once.discard(number)
+            raise dbsr.PlaywrightTimeoutError(f"Page.goto: Timeout {kwargs.get('timeout')}ms exceeded.")
+        super().goto(url, **kwargs)
+
+
+class ListWalkPageRetryTest(unittest.TestCase):
+    """ページ送りの時間切れ 1 回で、残りのページを捨てない（春日市・福岡市）。"""
+
+    URL = "https://www.city.kasuga.fukuoka.dbsr.jp/index.php/100000?Template=list&ListOrder=Asc"
+
+    def setUp(self) -> None:
+        for name in (
+            "LIST_WALK_RESUME", "LIST_WALK_REACHED", "LIST_WALK_ROWS", "LIST_WALK_CACHED_ROWS",
+            "LIST_WALK_RESUMED", "LIST_WALK_TIMED_OUT", "ABANDONED_LIST_PAGES", "REPEATED_LIST_PAGES",
+            "DECLARED_DOCUMENT_TOTALS",
+        ):
+            getattr(dbsr, name).clear()
+            self.addCleanup(getattr(dbsr, name).clear)
+        dbsr._consecutive_exhausted_gotos = 0
+        self.addCleanup(setattr, dbsr, "_consecutive_exhausted_gotos", 0)
+        mock.patch.object(dbsr.time, "sleep").start()
+        self.addCleanup(mock.patch.stopall)
+
+    def _pages(self) -> dict:
+        return {n: [_fukuoka_item(n, f"2005-05-{20 + n}")] for n in (1, 2, 3)}
+
+    def test_timeout_on_the_next_page_is_retried(self) -> None:
+        page = _FlakyWalkPage(self.URL, self._pages(), fail_once={2})
+
+        rows = dbsr.collect_document_rows_from_open_list(page, 1_000)
+
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(dbsr.ABANDONED_LIST_PAGES, [])
+
+    def test_page_that_never_opens_is_abandoned_and_keeps_earlier_rows(self) -> None:
+        page = _FlakyWalkPage(self.URL, self._pages(), fail_always={2})
+
+        rows = dbsr.collect_document_rows_from_open_list(page, 1_000)
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(len(dbsr.ABANDONED_LIST_PAGES), 1)
+        self.assertIn("次のページを開けなかった", dbsr.ABANDONED_LIST_PAGES[0])
+        self.assertEqual(dbsr.LIST_WALK_REACHED[dbsr.list_walk_key(self.URL)], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1913,8 +1913,19 @@ def collect_document_rows_from_open_list(
                 page_number += 1
                 continue
             except Exception:
-                ABANDONED_LIST_PAGES.append(f"「次へ」を押せなかった: {page.url}")
-                break
+                # ボタンのページ送りはフォームの POST だが、GET の Page= でも開ける
+                # （福岡県で確認）。1 回押せなかっただけで残りのページを捨てない。
+                if page_number >= final_page:
+                    ABANDONED_LIST_PAGES.append(f"「次へ」を押せなかった: {page.url}")
+                    break
+                fallback_url = canonicalize_template_url(replace_page_number(first_page_url, page_number + 1))
+                outcome = open_next_list_page(page, fallback_url, timeout_ms, deadline, page_number, final_page)
+                if outcome != "opened":
+                    if outcome == "abandoned":
+                        ABANDONED_LIST_PAGES.append(f"「次へ」を押せなかった: {page.url}")
+                    break
+                page_number += 1
+                continue
 
         final_page = max(final_page, last_page_number(page))
 
@@ -1929,9 +1940,10 @@ def collect_document_rows_from_open_list(
                 break
         if next_url == "" and page_number < final_page:
             # 「次へ」を見失っても、最終ページ番号がまだ先なら歩き終えていない。
-            # Page= を直に組んで続ける。
+            # Page= を直に組んで続ける。ボタンで送った後の page.url は一覧の
+            # 条件を持たない（index.php/821106）ので、歩き始めの URL から組む。
             next_url = canonicalize_template_url(
-                replace_page_number(page.url, page_number + 1)
+                replace_page_number(first_page_url, page_number + 1)
             )
         if next_url == "":
             if page_number < final_page:
@@ -1939,19 +1951,37 @@ def collect_document_rows_from_open_list(
                     f"ページ送りを見失った({page_number}/{final_page}): {page.url}"
                 )
             break
+        outcome = open_next_list_page(page, next_url, timeout_ms, deadline, page_number, final_page)
+        if outcome != "opened":
+            if outcome == "abandoned":
+                ABANDONED_LIST_PAGES.append(f"次のページを開けなかった: {next_url}")
+            break
         page_number += 1
 
-        try:
-            page.goto(next_url, wait_until="domcontentloaded", timeout=timeout_ms)
-            try:
-                page.wait_for_load_state("networkidle", timeout=3_000)
-            except Exception:
-                pass
-        except Exception:
-            ABANDONED_LIST_PAGES.append(f"次のページを開けなかった: {next_url}")
-            break
-
     return collected
+
+
+def open_next_list_page(
+    page, next_url: str, timeout_ms: int, deadline: float | None, page_number: int, final_page: int
+) -> str:
+    """一覧の次のページを開く。opened・timed_out・abandoned のどれかを返す。
+
+    以前は 1 回の時間切れで残りのページを捨てていた（春日市は申告 4,254 件の
+    うち 2,125 件、福岡市は 501 ページ目で止まった）。入口を開くときと同じく
+    待ち時間を延ばしてやり直し、制限時間に当たったら集めた分を残して降りる。
+    """
+    try:
+        goto_list_page(page, next_url, timeout_ms, deadline=deadline)
+    except DiscoveryTimeoutError:
+        LIST_WALK_TIMED_OUT.append(f"{page_number}/{final_page}: {next_url}")
+        return "timed_out"
+    except Exception:
+        return "abandoned"
+    try:
+        page.wait_for_load_state("networkidle", timeout=3_000)
+    except Exception:
+        pass
+    return "opened"
 
 
 def meeting_item_from_dict(payload: dict) -> MeetingItem | None:
