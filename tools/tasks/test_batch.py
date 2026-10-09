@@ -115,5 +115,31 @@ class RetryFailedCoversAutoRetryTest(unittest.TestCase):
         self.assertEqual(batch.select_runnable_targets(spec, [{"slug": "auto"}]), [])
 
 
+class PreservePreviousFailedItemsTest(unittest.TestCase):
+    def _preserve(self, excluded_slugs=()) -> dict:
+        from unittest import mock
+
+        previous = {
+            "20417-ooshika-mura": {"slug": "20417-ooshika-mura", "status": "failed", "returncode": -1},
+            "01234-test-shi": {"slug": "01234-test-shi", "status": "failed", "returncode": 1},
+        }
+        state = {"items": {"99999-running-shi": {"slug": "99999-running-shi", "status": "pending"}}}
+        with mock.patch.object(batch.task_backfill, "previous_failed_items", return_value=previous):
+            batch.preserve_previous_failed_items(state, "gijiroku", excluded_slugs)
+        return state["items"]
+
+    def test_failures_outside_this_run_are_kept(self) -> None:
+        self.assertEqual(
+            sorted(self._preserve()),
+            ["01234-test-shi", "20417-ooshika-mura", "99999-running-shi"],
+        )
+
+    def test_failures_of_excluded_municipalities_are_dropped(self) -> None:
+        # 取得対象外にした自治体は二度と走らないので、古い失敗が永久に「直近失敗」と出る。
+        items = self._preserve({"20417-ooshika-mura"})
+        self.assertNotIn("20417-ooshika-mura", items)
+        self.assertIn("01234-test-shi", items)
+
+
 if __name__ == "__main__":
     unittest.main()

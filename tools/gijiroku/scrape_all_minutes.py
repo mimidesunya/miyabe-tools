@@ -420,7 +420,12 @@ def main() -> int:
         )
     targets = [target for target in selected_targets if bool(target.get("crawl_enabled", True))]
 
-    return scraping_batch.run_batch(BATCH_SPEC, args, targets)
+    return scraping_batch.run_batch(
+        BATCH_SPEC,
+        args,
+        targets,
+        excluded_slugs={str(target.get("slug") or "") for target in excluded_targets},
+    )
 
 
 if __name__ == "__main__":

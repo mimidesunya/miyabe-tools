@@ -15,7 +15,7 @@ import shlex
 import subprocess
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -210,13 +210,20 @@ def remove_stale_scrape_state(state_path: Path) -> None:
         pass
 
 
-def preserve_previous_failed_items(status_state: dict, task_name: str) -> None:
-    """今回の実行対象から外した失敗済み item を main state に残す。"""
+def preserve_previous_failed_items(
+    status_state: dict, task_name: str, excluded_slugs: Collection[str] = ()
+) -> None:
+    """今回の実行対象から外した失敗済み item を main state に残す。
+
+    台帳で取得対象外にした自治体の失敗は残さない。もう取りに行かないのに
+    「直近失敗」と出し続ける（大鹿村は 9/19 の失敗が 10/09 まで残っていた）。
+    """
     items = status_state.setdefault("items", {})
     if not isinstance(items, dict):
         return
+    excluded = set(excluded_slugs)
     for slug, item in task_backfill.previous_failed_items(task_name).items():
-        if slug not in items:
+        if slug not in items and slug not in excluded:
             items[slug] = item
     batch_status.refresh_counts(status_state)
 
@@ -884,7 +891,13 @@ ALL_FAILED_MIN_TARGETS = 5
 
 
 # 一括スクレイピング全体の制御ループ。優先度選定〜結果記録までを共通で行う。
-def run_batch(spec: BatchSpec, args: argparse.Namespace, targets: list[dict]) -> int:
+def run_batch(
+    spec: BatchSpec,
+    args: argparse.Namespace,
+    targets: list[dict],
+    *,
+    excluded_slugs: Collection[str] = (),
+) -> int:
     stop_controller = install_stop_signal_handlers()
     # 1 件も成功しなかった実行を成功として終えないための数え。
     TARGET_OUTCOMES["succeeded"] = 0
@@ -928,7 +941,7 @@ def run_batch(spec: BatchSpec, args: argparse.Namespace, targets: list[dict]) ->
     status_state = batch_status.build_state(spec.task_name, run_id, len(targets), summary_path, run_logs_dir)
     for target in targets:
         batch_status.register_target(status_state, target, target_host(target))
-    preserve_previous_failed_items(status_state, spec.task_name)
+    preserve_previous_failed_items(status_state, spec.task_name, excluded_slugs)
 
     with summary_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=SUMMARY_FIELDNAMES)
