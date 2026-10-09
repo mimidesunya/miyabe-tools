@@ -646,16 +646,70 @@ def load_list_walk_progress(work_dir: Path) -> dict[str, int]:
     return result
 
 
+def _write_work_json(path: Path, payload: Any) -> None:
+    # 一覧を歩く途中で何度も書き直す作業用の記録。write_json は上書きのたびに
+    # 古い版を退避するので、ここで使うと退避先に写しが溜まる。
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    _write_bytes_atomically(path, text.encode("utf-8"), compress=False)
+
+
 def save_list_walk_progress(work_dir: Path, pages: dict[str, int]) -> None:
     if not pages:
         return
-    write_json(
+    _write_work_json(
         list_walk_progress_path(work_dir),
         {
             "pages": {str(key): int(value) for key, value in pages.items()},
             "observed_at": datetime.now().strftime("%Y%m%d_%H%M%S"),
         },
     )
+
+
+LIST_WALK_ROWS_FILE = "list_walk_rows.json"
+
+
+def list_walk_rows_path(work_dir: Path) -> Path:
+    return Path(work_dir) / LIST_WALK_ROWS_FILE
+
+
+def load_list_walk_rows(work_dir: Path) -> dict[str, list[dict[str, str]]]:
+    """歩きかけの一覧で、まだ meetings_index に入っていない行を読む。
+
+    歩いた位置だけを途中で残すと、そこまでの行を書く前に止まった実行の分は
+    次の実行が飛ばしてしまい、二度と取られない。位置と行は対で残す。
+    """
+    payload = load_json(list_walk_rows_path(work_dir), None)
+    walks = payload.get("walks") if isinstance(payload, dict) else None
+    if not isinstance(walks, dict):
+        return {}
+    result: dict[str, list[dict[str, str]]] = {}
+    for key, rows in walks.items():
+        if not isinstance(rows, list):
+            continue
+        cleaned = [
+            {"title": str(row.get("title") or ""), "url": str(row["url"]), "held_on": str(row.get("held_on") or "")}
+            for row in rows
+            if isinstance(row, dict) and row.get("url")
+        ]
+        if cleaned:
+            result[str(key)] = cleaned
+    return result
+
+
+def save_list_walk_rows(work_dir: Path, walks: dict[str, list[dict[str, str]]]) -> None:
+    walks = {str(key): rows for key, rows in walks.items() if rows}
+    if not walks:
+        return
+    _write_work_json(
+        list_walk_rows_path(work_dir),
+        {"walks": walks, "observed_at": datetime.now().strftime("%Y%m%d_%H%M%S")},
+    )
+
+
+def clear_list_walk_rows(work_dir: Path) -> None:
+    """meetings_index へ書き終えた行を捨てる。"""
+    list_walk_rows_path(work_dir).unlink(missing_ok=True)
 
 
 def save_state(path: Path, state: dict[str, Any]) -> None:

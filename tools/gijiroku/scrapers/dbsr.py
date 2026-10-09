@@ -142,11 +142,25 @@ def safe_inner_text(locator, timeout_ms: int = 1_500) -> str:
         return ""
 
 
-def safe_href(locator) -> str:
+def safe_href(locator, timeout_ms: int = 1_500) -> str:
+    # 時間切れを付けないと、要素が無いときにページの既定（10 秒）いっぱい待つ。
+    # 一覧の 1 行ごとに待つと、福岡県は 1 ページに数分かかっていた。
     try:
-        return locator.get_attribute("href") or ""
+        return locator.get_attribute("href", timeout=timeout_ms) or ""
     except Exception:
         return ""
+
+
+def first_present(scope, selectors: tuple[str, ...]):
+    """候補のセレクタのうち、要素があるものの最初の 1 つ。無ければ None（待たない）。"""
+    for selector in selectors:
+        locator = scope.locator(selector).first
+        try:
+            if locator.count() > 0:
+                return locator
+        except Exception:
+            continue
+    return None
 
 
 def discovery_deadline(timeout_seconds: int) -> float | None:
@@ -1402,6 +1416,10 @@ def is_disabled(locator) -> bool:
         return aria_disabled == "true" or disabled is not None
 
 
+ANS_TITLE_ANCHOR_SELECTORS = (".ans-title__name a", "a.ans-title__name", ".ans-title__item--name a")
+ANS_TITLE_DATE_SELECTORS = (".ans-title__date", ".ans-title__item--date")
+
+
 def extract_document_rows_from_page(page) -> list[DocumentRow]:
     rows: list[DocumentRow] = []
     # 行の中身（.ans-title__name / .ans-title__date）は共通だが、外側の
@@ -1412,16 +1430,19 @@ def extract_document_rows_from_page(page) -> list[DocumentRow]:
     for index in range(items.count()):
         item = items.nth(index)
         # 見出しのクラスが入れ物に付く取得元と、リンクそのものに付く
-        # 取得元がある（八王子市は a.ans-title__name）。
-        anchor = item.locator(".ans-title__name a").first
-        if anchor.count() == 0:
-            anchor = item.locator("a.ans-title__name").first
+        # 取得元がある（八王子市は a.ans-title__name）。福岡県は修飾子付きの
+        # .ans-title__item--name / --date で、どれにも当たらないまま 1 行ごとに
+        # 待っていた。無い要素は数えて飛ばし、待たない。
+        anchor = first_present(item, ANS_TITLE_ANCHOR_SELECTORS)
+        if anchor is None:
+            continue
         title = safe_inner_text(anchor)
         href = safe_href(anchor)
         if not title or not href:
             continue
 
-        date_text = safe_inner_text(item.locator(".ans-title__date").first)
+        date_node = first_present(item, ANS_TITLE_DATE_SELECTORS)
+        date_text = safe_inner_text(date_node) if date_node is not None else ""
         held_on = held_on_from_text(date_text or title)
         if not held_on:
             continue
@@ -1686,6 +1707,35 @@ LIST_WALK_TIMED_OUT: list[str] = []
 # 途中のページから歩き始めた一覧。先頭を飛ばしているので、
 # 今回の結果だけで meetings_index を上書きすると一覧が縮む。
 LIST_WALK_RESUMED: list[str] = []
+# 歩いた位置を途中でも書き残す置き場（自治体の作業ディレクトリ）。歩き終えてから
+# 1 回だけ書くと、途中で止まった・止めた実行の分がまるごと消える（福岡県は
+# 31 時間歩いて 1 ページも残らなかった）。
+LIST_WALK_PROGRESS_DIR: Path | None = None
+LIST_WALK_CHECKPOINT_PAGES = 25
+# 位置と対で残す行。前回の実行が meetings_index へ書く前に止まった分
+# （LIST_WALK_CACHED_ROWS）と、今回歩いて集めている分（LIST_WALK_ROWS）。
+LIST_WALK_CACHED_ROWS: dict[str, list[DocumentRow]] = {}
+LIST_WALK_ROWS: dict[str, list[DocumentRow]] = {}
+
+
+def save_list_walk_checkpoint() -> None:
+    """ここまで歩いた位置を、そこまでに集めた行と一緒に書き残す。
+
+    位置は前回より手前には戻さない。行を先に書くので、間で止まっても
+    「位置だけ進んで行が無い」にはならない。
+    """
+    if LIST_WALK_PROGRESS_DIR is None:
+        return
+    walks = {key: [asdict(row) for row in rows] for key, rows in LIST_WALK_CACHED_ROWS.items()}
+    walks.update({key: [asdict(row) for row in rows] for key, rows in LIST_WALK_ROWS.items()})
+    progress = dict(LIST_WALK_RESUME)
+    for key, reached in LIST_WALK_REACHED.items():
+        progress[key] = max(progress.get(key, 0), reached)
+    try:
+        gijiroku_storage.save_list_walk_rows(LIST_WALK_PROGRESS_DIR, walks)
+        gijiroku_storage.save_list_walk_progress(LIST_WALK_PROGRESS_DIR, progress)
+    except Exception as exc:
+        print(f"[WARN] 一覧の歩いた位置を書き残せませんでした: {exc}", flush=True)
 
 
 def list_walk_key(url: str) -> str:
@@ -1725,6 +1775,18 @@ def last_page_number(page) -> int:
             largest = max(largest, int(matched.group(1)))
         except ValueError:
             continue
+    # ページ送りをフォームのボタン（name="Page" value="766"）で組む取得元がある
+    # （福岡県）。リンクだけを見ると 0 になり、続きから歩く仕組みが働かなかった。
+    try:
+        buttons = page.locator(".pagination button[name='Page']")
+        values = buttons.evaluate_all("nodes => nodes.map(node => node.value)")
+    except Exception:
+        values = []
+    for value in values or []:
+        try:
+            largest = max(largest, int(str(value).strip()))
+        except ValueError:
+            continue
     return largest
 
 
@@ -1750,6 +1812,7 @@ def collect_document_rows_from_open_list(
 
     # 前回どこまで歩けたかが残っていれば、その手前から続ける。
     walk_key = list_walk_key(page.url)
+    LIST_WALK_ROWS[walk_key] = collected
     first_page_url = page.url
     resume_page = LIST_WALK_RESUME.get(walk_key, 0)
     if final_page > 1 and resume_page > 1:
@@ -1767,6 +1830,11 @@ def collect_document_rows_from_open_list(
             if extract_document_rows_from_page(page):
                 page_number = resume_page
                 LIST_WALK_RESUMED.append(walk_key)
+                # 前回が meetings_index へ書く前に止まっていれば、飛ばす手前の行はここにしかない。
+                for row in LIST_WALK_CACHED_ROWS.get(walk_key, []):
+                    if row.url not in seen_urls:
+                        seen_urls.add(row.url)
+                        collected.append(row)
                 print(f"[INFO] 一覧の {resume_page}/{final_page} ページ目から続けます", flush=True)
             else:
                 page.goto(first_page_url, wait_until="domcontentloaded", timeout=timeout_ms)
@@ -1811,6 +1879,8 @@ def collect_document_rows_from_open_list(
             # 見張りは無出力が続くと故障とみなして打ち切る。福岡県の 1,933 ページの
             # 一覧は黙って歩いている間に 60 分で殺され、12 時間分が無駄になっていた。
             print(f"[INFO] 一覧 {page_number}/{final_page} ページ目（{len(collected)} 行）", flush=True)
+        if page_number % LIST_WALK_CHECKPOINT_PAGES == 0:
+            save_list_walk_checkpoint()
 
         # known_urls はセッション番号を落とした形で持っている。比べる側も
         # 揃えないと、毎回すべてが「初見」になり quick update が働かない。
@@ -2441,6 +2511,11 @@ def main() -> int:
         # 別ファイルに置いてある。
         LIST_WALK_RESUME.clear()
         LIST_WALK_RESUME.update(gijiroku_storage.load_list_walk_progress(state_path.parent))
+        LIST_WALK_CACHED_ROWS.clear()
+        for key, rows in gijiroku_storage.load_list_walk_rows(state_path.parent).items():
+            LIST_WALK_CACHED_ROWS[key] = [DocumentRow(**row) for row in rows]
+        global LIST_WALK_PROGRESS_DIR
+        LIST_WALK_PROGRESS_DIR = state_path.parent
         meeting_items = discover_meeting_items(
             page,
             target,
@@ -2453,10 +2528,7 @@ def main() -> int:
         )
         # 今回は前回より手前までしか歩けなかった、ということが起きる。
         # そのまま書くと進捗が後退して、次回はもっと手前から始まる。
-        progress = dict(LIST_WALK_RESUME)
-        for key, reached in LIST_WALK_REACHED.items():
-            progress[key] = max(progress.get(key, 0), reached)
-        gijiroku_storage.save_list_walk_progress(state_path.parent, progress)
+        save_list_walk_checkpoint()
         print(f"[INFO] 会議候補 {len(meeting_items)} 件")
         if not meeting_items:
             raise RuntimeError(
@@ -2511,6 +2583,10 @@ def main() -> int:
 
         index_json.parent.mkdir(parents=True, exist_ok=True)
         gijiroku_storage.save_meetings_index(index_json, [asdict(item) for item in meeting_items])
+        # 歩いた行は meetings_index に入ったので、位置だけ残せば足りる。
+        gijiroku_storage.clear_list_walk_rows(state_path.parent)
+        LIST_WALK_CACHED_ROWS.clear()
+        LIST_WALK_ROWS.clear()
         emit_progress(0, len(meeting_items), state_path, state)
 
         with result_csv.open("w", encoding="utf-8", newline="") as handle:

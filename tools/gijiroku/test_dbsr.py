@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from tools.gijiroku.scrapers import dbsr
@@ -504,6 +505,215 @@ class GotoListPageRetryTest(unittest.TestCase):
         with self.assertRaises(dbsr.DiscoveryTimeoutError):
             dbsr.goto_list_page(page, "https://example.dbsr.jp/", 10_000, deadline=0.0)
         self.assertEqual(len(page.timeouts), 1)
+
+
+class _Node:
+    """テスト用の DOM 要素。セレクタごとに子要素を持たせる。"""
+
+    def __init__(self, text: str = "", attrs: dict | None = None, children: dict | None = None) -> None:
+        self.text = text
+        self.attrs = attrs or {}
+        self.children = children or {}
+
+
+class _Locator:
+    def __init__(self, nodes: list, log: list | None = None) -> None:
+        self.nodes = nodes
+        self.log = log if log is not None else []
+
+    @property
+    def first(self) -> "_Locator":
+        return _Locator(self.nodes[:1], self.log)
+
+    def nth(self, index: int) -> "_Locator":
+        return _Locator(self.nodes[index:index + 1], self.log)
+
+    def count(self) -> int:
+        return len(self.nodes)
+
+    def locator(self, selector: str) -> "_Locator":
+        return _Locator([child for node in self.nodes for child in node.children.get(selector, [])], self.log)
+
+    def inner_text(self, timeout=None) -> str:
+        self.log.append(("inner_text", timeout))
+        if not self.nodes:
+            raise dbsr.PlaywrightTimeoutError("no element")
+        return self.nodes[0].text
+
+    def get_attribute(self, name: str, timeout=None):
+        self.log.append(("get_attribute", timeout))
+        if not self.nodes:
+            raise dbsr.PlaywrightTimeoutError("no element")
+        return self.nodes[0].attrs.get(name)
+
+    def evaluate_all(self, _script: str) -> list:
+        return [node.attrs.get("value") for node in self.nodes]
+
+
+class _Page:
+    def __init__(self, url: str, selectors: dict) -> None:
+        self.url = url
+        self.selectors = selectors
+
+    def locator(self, selector: str) -> _Locator:
+        return _Locator(self.selectors.get(selector, []))
+
+
+def _fukuoka_item(number: int, held_on: str) -> _Node:
+    # 福岡県の行は修飾子付きの .ans-title__item--name / --date で組まれている。
+    anchor = _Node(f"第{number}回定例会 本文", {"href": f"index.php/1?Template=document&Id={number}#one"})
+    return _Node(children={
+        ".ans-title__item--name a": [anchor],
+        ".ans-title__item--date": [_Node(f"開催日:{held_on}")],
+    })
+
+
+class FukuokaListMarkupTest(unittest.TestCase):
+    """福岡県の一覧は 1 行ごとに既定の 10 秒を待ち、1 ページ 5 分かかっていた。"""
+
+    URL = "https://www.pref.fukuoka.dbsr.jp/index.php/100000?Template=list"
+
+    def test_rows_with_modifier_classes_are_read(self) -> None:
+        page = _Page(self.URL, {
+            "ul.result-document li.result-document__item": [_fukuoka_item(1, "2005-05-23"), _fukuoka_item(2, "2005-05-24")],
+        })
+
+        rows = dbsr.extract_document_rows_from_page(page)
+
+        self.assertEqual([row.held_on for row in rows], ["2005-05-23", "2005-05-24"])
+        self.assertEqual(rows[0].title, "第1回定例会 本文")
+        self.assertIn("Id=1", rows[0].url)
+
+    def test_missing_href_does_not_wait_the_page_default(self) -> None:
+        log: list = []
+        dbsr.safe_href(_Locator([], log))
+        self.assertEqual(log, [("get_attribute", 1_500)])
+
+    def test_last_page_is_read_from_page_buttons(self) -> None:
+        # ページ送りが <a> ではなく <button name="Page" value="766"> で組まれている。
+        buttons = [_Node(attrs={"value": value}) for value in ("2", "3", "766", "")]
+        page = _Page(self.URL, {".pagination button[name='Page']": buttons})
+
+        self.assertEqual(dbsr.last_page_number(page), 766)
+
+
+class ListWalkCheckpointTest(unittest.TestCase):
+    """歩いた位置は、そこまでに集めた行と対で残す。"""
+
+    def setUp(self) -> None:
+        import tempfile
+
+        self.work_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, self.work_dir, True)
+        for name in ("LIST_WALK_RESUME", "LIST_WALK_REACHED", "LIST_WALK_ROWS", "LIST_WALK_CACHED_ROWS"):
+            getattr(dbsr, name).clear()
+            self.addCleanup(getattr(dbsr, name).clear)
+        mock.patch.object(dbsr, "LIST_WALK_PROGRESS_DIR", self.work_dir).start()
+        self.addCleanup(mock.patch.stopall)
+
+    def test_rows_are_saved_with_the_position(self) -> None:
+        row = dbsr.DocumentRow(title="本文", url="https://x.dbsr.jp/index.php/1?Id=1", held_on="2005-05-23")
+        dbsr.LIST_WALK_RESUME["k"] = 100
+        dbsr.LIST_WALK_REACHED["k"] = 50
+        dbsr.LIST_WALK_ROWS["k"] = [row]
+
+        dbsr.save_list_walk_checkpoint()
+
+        # 前回より手前の位置へは戻さない。
+        self.assertEqual(dbsr.gijiroku_storage.load_list_walk_progress(self.work_dir), {"k": 100})
+        self.assertEqual(
+            dbsr.gijiroku_storage.load_list_walk_rows(self.work_dir),
+            {"k": [{"title": "本文", "url": row.url, "held_on": "2005-05-23"}]},
+        )
+
+    def test_cached_rows_of_walks_not_visited_are_kept(self) -> None:
+        cached = dbsr.DocumentRow(title="前回", url="https://x.dbsr.jp/index.php/1?Id=9", held_on="2001-01-01")
+        dbsr.LIST_WALK_CACHED_ROWS["old"] = [cached]
+        dbsr.LIST_WALK_REACHED["new"] = 25
+        dbsr.LIST_WALK_ROWS["new"] = []
+
+        dbsr.save_list_walk_checkpoint()
+
+        self.assertEqual(list(dbsr.gijiroku_storage.load_list_walk_rows(self.work_dir)), ["old"])
+
+    def test_clearing_rows_keeps_the_position(self) -> None:
+        dbsr.LIST_WALK_REACHED["k"] = 30
+        dbsr.LIST_WALK_ROWS["k"] = [dbsr.DocumentRow(title="t", url="u", held_on="2005-05-23")]
+        dbsr.save_list_walk_checkpoint()
+
+        dbsr.gijiroku_storage.clear_list_walk_rows(self.work_dir)
+
+        self.assertEqual(dbsr.gijiroku_storage.load_list_walk_rows(self.work_dir), {})
+        self.assertEqual(dbsr.gijiroku_storage.load_list_walk_progress(self.work_dir), {"k": 30})
+
+
+class _WalkPage:
+    """Page= で開くページが変わる一覧。最後のページはボタンの value で申告する。"""
+
+    def __init__(self, url: str, rows_per_page: dict[int, list]) -> None:
+        self.rows_per_page = rows_per_page
+        self.opened: list[int] = []
+        self.goto(url)
+
+    def goto(self, url: str, **_kwargs) -> None:
+        from urllib.parse import parse_qs, urlsplit
+
+        self.url = url
+        self.current = int(parse_qs(urlsplit(url).query).get("Page", ["1"])[0])
+        self.opened.append(self.current)
+
+    def wait_for_load_state(self, *_args, **_kwargs) -> None:
+        return None
+
+    def inner_text(self, *_args, **_kwargs) -> str:
+        return ""
+
+    def locator(self, selector: str) -> _Locator:
+        if selector == "ul.result-document li.result-document__item":
+            return _Locator(self.rows_per_page.get(self.current, []))
+        if selector == ".pagination button[name='Page']":
+            return _Locator([_Node(attrs={"value": str(max(self.rows_per_page))})])
+        return _Locator([])
+
+
+class ListWalkResumeTest(unittest.TestCase):
+    URL = "https://www.pref.fukuoka.dbsr.jp/index.php/100000?Template=list&ListOrder=Asc"
+
+    def setUp(self) -> None:
+        for name in (
+            "LIST_WALK_RESUME", "LIST_WALK_REACHED", "LIST_WALK_ROWS", "LIST_WALK_CACHED_ROWS",
+            "LIST_WALK_RESUMED", "LIST_WALK_TIMED_OUT", "ABANDONED_LIST_PAGES", "REPEATED_LIST_PAGES",
+            "DECLARED_DOCUMENT_TOTALS",
+        ):
+            getattr(dbsr, name).clear()
+            self.addCleanup(getattr(dbsr, name).clear)
+
+    def test_resumed_walk_keeps_rows_the_killed_run_had_not_written(self) -> None:
+        # 前回は 3 ページ目まで歩いたが、meetings_index へ書く前に止まった。
+        key = dbsr.list_walk_key(self.URL)
+        dbsr.LIST_WALK_RESUME[key] = 3
+        dbsr.LIST_WALK_CACHED_ROWS[key] = [
+            dbsr.DocumentRow(title="第1回定例会 本文", url=f"https://www.pref.fukuoka.dbsr.jp/index.php/1?Template=document&Id={n}", held_on="2005-05-23")
+            for n in (1, 2)
+        ]
+        page = _WalkPage(self.URL, {1: [_fukuoka_item(1, "2005-05-23")], 2: [_fukuoka_item(2, "2005-05-24")], 3: [_fukuoka_item(3, "2005-05-25")]})
+
+        rows = dbsr.collect_document_rows_from_open_list(page, 1_000)
+
+        self.assertEqual(page.opened, [1, 3])  # 1・2 ページ目は開き直さない
+        self.assertEqual(sorted(row.url.split("Id=")[1] for row in rows), ["1", "2", "3"])
+        self.assertEqual(dbsr.LIST_WALK_RESUMED, [key])
+        self.assertIs(dbsr.LIST_WALK_ROWS[key], rows)
+
+    def test_walk_from_the_start_ignores_cached_rows(self) -> None:
+        key = dbsr.list_walk_key(self.URL)
+        dbsr.LIST_WALK_CACHED_ROWS[key] = [dbsr.DocumentRow(title="古い行", url="https://x/old", held_on="2001-01-01")]
+        page = _WalkPage(self.URL, {1: [_fukuoka_item(1, "2005-05-23")], 2: [_fukuoka_item(2, "2005-05-24")]})
+
+        rows = dbsr.collect_document_rows_from_open_list(page, 1_000)
+
+        self.assertEqual(page.opened, [1, 2])
+        self.assertNotIn("https://x/old", [row.url for row in rows])
 
 
 if __name__ == "__main__":
