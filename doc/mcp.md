@@ -34,8 +34,8 @@ nginx は `/mcp` と `/mcp/` を `mcp:3000/mcp` へ proxy します。MCP サー
 - legacy: `2025-11-25` 以前。従来どおり `initialize` で交渉する。
 
 legacy 側は `createMcpHandler` の既定である `legacy: 'stateless'` のままです。移行前と同じく
-リクエストごとにサーバを組み立ててセッションを持たないので、`GET /mcp` と `DELETE /mcp` は
-`405` を返します。
+リクエストごとにサーバを組み立ててセッションを持たないので、`DELETE /mcp` は `405` を返します。
+`GET /mcp` は、`Accept: text/event-stream` のときだけ合図だけの SSE の流れを開きます（後述）。
 
 POST の `Content-Type` は `application/json` が必須です。v2 は媒体型を解析して検証するため、
 別の値や未指定は `415` になります（v1 は部分一致で通していました）。
