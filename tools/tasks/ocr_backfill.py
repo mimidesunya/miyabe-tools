@@ -89,17 +89,29 @@ def settled_count(work_dir: Path) -> int:
     return settled
 
 
+def scrapeable_slugs() -> set[str]:
+    """台帳で取得してよい（enabled）自治体の slug。"""
+    return {str(target.get("slug") or "") for target in gijiroku_targets.iter_scrapeable_gijiroku_targets()}
+
+
 def pending_targets() -> list[tuple[str, int]]:
     """OCR 待ちの自治体を、件数の多い順に返す。
 
     読めた分と試し尽くした分を引いて数える。全部片付いた自治体は載せない。
     そうしないと、OCR 済みの自治体や OCR でも読めない自治体を毎回選び直す。
+
+    **取得対象でない自治体も載せない。** 作業ディレクトリは取得対象から外したあとも
+    残る。外した自治体は取得器を起動した時点で落ちるので、件数の多い順の先頭に
+    居座ると、掃き取りは毎回そこで終わる（2026-10-12 まで、取得元が台帳から消えた
+    猿払村と取得対象外にした留寿都村が先頭に居座り、3 時間ごとの掃き取りが毎回
+    1 秒で終わっていた）。
     """
     pending: list[tuple[str, int]] = []
     if not WORK_ROOT.is_dir():
         return pending
+    enabled = scrapeable_slugs()
     for work_dir in sorted(WORK_ROOT.iterdir()):
-        if not work_dir.is_dir():
+        if not work_dir.is_dir() or work_dir.name not in enabled:
             continue
         empty = empty_pdf_count(work_dir)
         if empty <= 0:
@@ -161,11 +173,21 @@ def run(limit: int = DEFAULT_LIMIT) -> dict:
         print("[INFO] OCR 待ちの自治体はありません", flush=True)
         return {"checked": 0}
 
+    # 対象を読めずに落ちた自治体（台帳がこの間に変わったなど）は数に入れず、次へ進む。
+    # 数に入れると、落ちる自治体が先頭にある限り OCR が 1 件も進まない。
     handled = []
-    for slug, remaining in targets[: max(1, int(limit))]:
+    ran = 0
+    for slug, remaining in targets:
+        if ran >= max(1, int(limit)):
+            break
         try:
             result = run_one(slug)
+            ran += 1
+        except ValueError as error:
+            # 対象の読み込み・系統の判定で落ちた。取得器は走っていない。
+            result = {"slug": slug, "error": str(error)}
         except Exception as error:
+            ran += 1
             result = {"slug": slug, "error": str(error)}
         result["pending_before"] = remaining
         handled.append(result)
