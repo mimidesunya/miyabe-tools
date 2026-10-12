@@ -127,6 +127,31 @@ class CatalogRefreshTest(unittest.TestCase):
         self.assertEqual(walk["missed_pages"], 1)
         self.assertEqual(walk["missed_examples"], ["bunya_0010000.html"])
 
+    def test_a_few_dead_branches_do_not_block_completion(self) -> None:
+        # 館林市は目次の 146 枝のうち 3 枝が取得元で 404 のまま（2026-10）。取得元のリンク切れで、
+        # 取得元が直すまで毎回「取り切れていない」になっていた。少しなら取りこぼしに数えない。
+        links = "".join(f'<a href="bunya_{i:03d}0000.html">第{i}類</a>' for i in range(1, 11))
+        pages = {"mokuji_bunya_index.html": links}
+        for i in range(1, 11):
+            if i != 4:
+                pages[f"bunya_{i:03d}0000.html"] = f'<a href="N{i}/N{i}_j.html">例規{i}</a>'
+        found, walk = self.walk(FakeSite(pages), check_updates=True)
+        self.assertEqual(len(found), 9)
+        self.assertEqual(walk["missed_pages"], 0)
+        self.assertEqual(walk["dead_pages"], 1)
+        self.assertEqual(walk["dead_examples"], ["bunya_0040000.html"])
+        # 目録の枝は例規の本文ではないので、取得元から消えた本文の数にも入れない。
+        self.assertEqual(d1_law.DOWNLOAD_MISSING, [])
+
+    def test_many_dead_branches_still_count_as_missed(self) -> None:
+        # 辿った枝の 2 割以上が一度に消えたのは、取得元の作り替え。完了にしない。
+        links = "".join(f'<a href="bunya_{i:03d}0000.html">第{i}類</a>' for i in range(1, 6))
+        pages = {"mokuji_bunya_index.html": links, "bunya_0010000.html": '<a href="N1/N1_j.html">例規1</a>'}
+        found, walk = self.walk(FakeSite(pages), check_updates=True)
+        self.assertEqual(found, ["N1"])
+        self.assertEqual(walk["missed_pages"], 4)
+        self.assertEqual(walk["dead_pages"], 4)
+
     def test_a_guessed_menu_that_is_gone_is_neither_read_nor_counted(self) -> None:
         # 決め打ちの目次の古い控えが残っていても、取得元に無いなら読まない。
         self.store("mokuji_index_index.html", "<a href=\"javascript:OpenResDataWin('OLD9')\">旧</a>")

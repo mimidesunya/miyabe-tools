@@ -60,6 +60,21 @@ check('a corrected date within weeks is not', !taikei_catalog_regressed('令和8
 check('an unreadable date is not judged', !taikei_catalog_regressed('', '令和6年9月30日') && !taikei_catalog_regressed('令和3年3月31日', ''));
 check('the era change is handled', taikei_catalog_regressed('平成30年3月31日', '令和元年12月1日'));
 
+// 尾花沢市は表示が「令和7年6月30日」へ戻ったが、目録には令和8年4月1日の例規まで載っていた。
+check('a stale label over newer contents is not a regression', !taikei_catalog_regressed(
+    '令和7年6月30日', '令和8年3月31日', '2026-04-01', '2026-03-24'
+));
+check('an old copy with older contents is still a regression', taikei_catalog_regressed(
+    '令和3年3月31日', '令和6年9月30日', '2021-03-19', '2024-09-20'
+));
+check('the newest date is read from the catalog rows', taikei_newest_document_date([
+    ['listed_date' => '令和元年12月20日', 'date' => '令和元年12月20日'],
+    ['listed_date' => '令和８年４月１日'],
+    ['date' => '設立認可昭和48年2月21日'],
+    'broken',
+]) === '2026-04-01');
+check('no readable date gives an empty newest date', taikei_newest_document_date([['date' => '']]) === '');
+
 if ($failures > 0) {
     echo "{$failures} failure(s)\n";
     exit(1);

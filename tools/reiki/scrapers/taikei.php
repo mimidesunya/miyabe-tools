@@ -407,7 +407,12 @@ function main(array $argv): void
     // 目録の版（内容現在）が前回より大きく古いなら、古い複製を辿っている。
     // 与那国町はメニューの相対リンクが令和3年の複製を指していて、令和6年の版で
     // 取れていた 77 件が目録から消えた扱いになった。
-    $catalogRegressed = taikei_catalog_regressed($catalogVersion, $previousCatalogVersion);
+    $catalogRegressed = taikei_catalog_regressed(
+        $catalogVersion,
+        $previousCatalogVersion,
+        taikei_newest_document_date($manifests),
+        taikei_newest_document_date($existingManifest)
+    );
     $manifestWritten = true;
     if ($catalogRegressed) {
         $manifestWritten = false;
@@ -2169,15 +2174,50 @@ function taikei_keep_previous_entry(
  *
  * 更新の遅れや日付の打ち直しは数週間の範囲に収まる。それより古い版が出てきたら、
  * 入口が古い複製を指していると見る。どちらかの日付が読めなければ判断しない。
+ *
+ * 表示の日付だけが戻ることもある。尾花沢市は 2026-10 に「令和7年6月30日現在」へ
+ * 戻ったが、目録には令和8年4月1日の要綱まで載り、件数も 981 から 988 に増えていた。
+ * 目録に載る例規の最新の日付（$currentNewest・$previousNewest）が前回より古く
+ * なっていなければ、古い複製ではない。
  */
-function taikei_catalog_regressed(string $current, string $previous): bool
-{
+function taikei_catalog_regressed(
+    string $current,
+    string $previous,
+    string $currentNewest = '',
+    string $previousNewest = ''
+): bool {
     $currentDate = wareki_to_seireki($current);
     $previousDate = wareki_to_seireki($previous);
     if ($currentDate === '' || $previousDate === '') {
         return false;
     }
-    return strtotime($currentDate . ' +180 days') < strtotime($previousDate);
+    if (strtotime($currentDate . ' +180 days') >= strtotime($previousDate)) {
+        return false;
+    }
+    if ($currentNewest !== '' && $previousNewest !== '' && strcmp($currentNewest, $previousNewest) >= 0) {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * 目録に載る例規の日付（公布日など）のうち、最も新しいもの（YYYY-MM-DD）。読めなければ空。
+ */
+function taikei_newest_document_date(array $records): string
+{
+    $newest = '';
+    foreach ($records as $record) {
+        if (!is_array($record)) {
+            continue;
+        }
+        foreach (['listed_date', 'date'] as $field) {
+            $date = wareki_to_seireki((string)($record[$field] ?? ''));
+            if ($date !== '' && strcmp($date, $newest) > 0) {
+                $newest = $date;
+            }
+        }
+    }
+    return $newest;
 }
 
 function taikei_source_changed(string $sourceHash, string $fetchedHtml, bool $force = false): bool

@@ -587,6 +587,8 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None
     # 新しい Reiki-Base の本文。ID ではなく目次からの相対パスで持つ。
     honbun_paths: set[str] = set()
     missed_pages: list[str] = []
+    # 目次は指しているのに、取得元が 404・410 と答えた枝（取得元のリンク切れ）。
+    dead_pages: list[str] = []
 
     print("Fetching index pages...")
     # 入口ページが目次を指しているなら、それを使う。指していなければ決め打ち。
@@ -620,6 +622,7 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None
 
         file_path = data_dir / current
         stored_path = reiki_io.existing_path(file_path)
+        gone = False
         if stored_path is None or refresh:
             _, fetched_path, _, fetched = download_file(
                 base_url + current, file_path, force=force, check_updates=check_updates
@@ -627,12 +630,18 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None
             # 取得元が「もう無い」と答えたページは、手元の古い控えを読まない。
             # 読むと、消えた枝に載っていた例規を本文 404 のまま数え続ける。
             # 通信の失敗なら控えを使う（失敗は DOWNLOAD_FAILURES で数えている）。
-            stored_path = None if fetched.get("gone_status") else fetched_path
+            gone = bool(fetched.get("gone_status"))
+            stored_path = None if gone else fetched_path
         if stored_path is None or not stored_path.exists():
             if current in optional_menus:
                 # 決め打ちの名前が無かっただけ。個票の失敗にも数えない。
                 _forget_download_failure(base_url + current)
                 optional_missing.add(current)
+                continue
+            if gone:
+                # 目録の枝であって例規の本文ではないので、取得元から消えた本文の数には入れない。
+                _forget_download_failure(base_url + current)
+                dead_pages.append(current)
                 continue
             # 目録の枝が開けない。その先の例規はまるごと見えなくなる。
             missed_pages.append(current)
@@ -669,14 +678,28 @@ def get_hno_list(base_url, data_dir, force=False, check_updates=False, walk=None
         for path in REIKI_HONBUN_LINK_RE.findall(content):
             honbun_paths.add(urljoin(prefix, path))
 
+    # 取得元のリンク切れは、こちらの取りこぼしではない。館林市は目次の 3 枝が 404 の
+    # まま（2026-10）で、取得元が直すまで毎回「取り切れていない」で失敗していた。
+    # ただし辿った枝の 2 割以上が一度に消えたなら、取得元の作り替えなので数える。
+    walked_menus = len(scanned - optional_menus)
+    dead_share_exceeded = bool(dead_pages) and len(dead_pages) * 5 >= max(1, walked_menus)
+    counted_missed = missed_pages + (dead_pages if dead_share_exceeded else [])
+    if dead_pages and not dead_share_exceeded:
+        print(
+            f"[WARN] 目録の枝 {len(dead_pages)} 件が取得元でリンク切れでした（404・410）。"
+            f"例: {', '.join(dead_pages[:3])}",
+            flush=True,
+        )
     if walk is not None:
         walk.update(
             {
                 "scanned_pages": len(scanned),
                 # 決め打ちの名前が全部無くても、宣言された目次から集められていれば
                 # 取りこぼしではない。1 件も集まらなかったときだけ数える。
-                "missed_pages": len(missed_pages) + (len(optional_missing) if not hno_set and not honbun_paths else 0),
-                "missed_examples": (missed_pages + (sorted(optional_missing) if not hno_set and not honbun_paths else []))[:10],
+                "missed_pages": len(counted_missed) + (len(optional_missing) if not hno_set and not honbun_paths else 0),
+                "missed_examples": (counted_missed + (sorted(optional_missing) if not hno_set and not honbun_paths else []))[:10],
+                "dead_pages": len(dead_pages),
+                "dead_examples": dead_pages[:10],
                 # 目次を入口ページから読めたか。読めていないなら、決め打ちの
                 # 名前に頼っている。取得元が名前を変えれば次に壊れる。
                 "menus_declared": len(declared_menus),
@@ -1258,6 +1281,9 @@ def main():
             "guessed_menu": bool(catalog_walk.get("guessed_menu")),
             "missed_pages": missed_pages,
             "missed_examples": catalog_walk.get("missed_examples") or [],
+            # 取得元のリンク切れの枝。少なければ完了を妨げない（get_hno_list）。
+            "dead_pages": int(catalog_walk.get("dead_pages") or 0),
+            "dead_examples": catalog_walk.get("dead_examples") or [],
             "failed": total_failures,
             "failed_examples": (DOWNLOAD_FAILURES + parse_failure_urls)[:10],
             # 取得元がもう出していない本文。失敗とは別に数える。
