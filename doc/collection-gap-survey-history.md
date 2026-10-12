@@ -4793,5 +4793,21 @@ static_kaigiroku_dir の 2 回目の `save_meetings_index`）が「1010 件の�
 
 - 失敗の 7 日待ちに入った自治体は、待ちが明けるまで回らない。配備のあとで
   `enqueue.py gijiroku-cycle --retry-failed` を積めば、次の周回で取り直す
-- 滝上町（`.../nougyo/nougyoiinka...`）と更別村（`.../agri/nogyoiinnkai/gijiroku/`）は、
-  登録 URL が議会ではなく農業委員会のページ。別に直す
+- 配備（5c20547）と `gijiroku-cycle --retry-failed` の投入は 10-12 18 時台。18:21 に始まった周回で、
+  エラー停止は 38 から 19:26 に 27 へ減った
+
+### 農業委員会の議事録を議会の会議録として登録していた 2 自治体
+
+滝上町（`.../nougyo/nougyoiinkai/sokaigijiroku.html`）と更別村（`.../agri/nogyoiinnkai/gijiroku/`）は、
+登録 URL が議会ではなく農業委員会の総会議事録のページだった。滝上町は総会議事録 116 件が
+「滝上町議会」の会議録として検索に出ていた。
+
+- 滝上町は議会のページ（`/gikai/`）に、定例会・臨時会の日ごとの「議事日程と結果」の PDF（1 枚）・
+  会議日程・議会広報しかない。会議録は公開していないので、取得対象外（not_published）にした
+- 更別村は `/gikai/kaigiroku/` に平成20年〜令和8年の会議録 PDF がある。gikai_pdf の
+  `crawl_pdf_items` で 266 件を取りこぼしなく辿れた（令和8年第1回定例会の初日分は 74 ページ・8.1 万字）。
+  登録 URL をここへ直した
+- 本番では、台帳の 2 行を書き換え、両自治体の downloads・pdfs・meetings_index・document_kinds を
+  `_archive/20261012_102705_*` へ退避し、`gijiroku_snapshot`・`gijiroku_reflect` の項目を外して控えを
+  `removed_task_items.json` に残した。自治体ごとの索引の作り直しを積み、検索から消す
+  （大鹿村・坂祝町と同じ手順）
