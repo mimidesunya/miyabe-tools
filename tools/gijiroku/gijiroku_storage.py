@@ -1044,6 +1044,20 @@ def lost_accepted_urls(payload: list[Any], accepted_urls: set[str] | None) -> li
     return sorted(url for url in accepted_urls if url not in current)
 
 
+def kept_accepted_urls(existing: list[Any], accepted_urls: set[str] | None) -> set[str]:
+    """本文を取れていた候補のうち、いま保存している一覧に載っているもの。
+
+    縮みのガードが守れるのは、いまの一覧に載っている分だけである。縮みを
+    受け入れて一覧から外れた分まで数えると、置き換えた直後の絞り込みの保存も、
+    その後の毎回の実行も、同じ縮みでまた止まる。2026-10-10 の幸田町は 616 件
+    から 381 件への置き換えを受け入れた直後に「1010 件のうち 629 件が出てこない」
+    で止まり、失敗の 7 日待ちに入った（村上市・高浜市・周防大島町・南あわじ市も同じ）。
+    """
+    if not accepted_urls:
+        return set()
+    return set(accepted_urls) & _payload_urls(existing)
+
+
 def meetings_index_would_shrink(
     path: Path,
     payload: list[Any],
@@ -1091,8 +1105,9 @@ def _shrinks_by_count_or_loss(
     if not isinstance(existing, list) or not existing:
         return False
     if accepted_urls:
-        lost = lost_accepted_urls(payload, accepted_urls)
-        return len(lost) > len(accepted_urls) * (1.0 - PLAN_SHRINK_ALLOWANCE)
+        protected = kept_accepted_urls(existing, accepted_urls)
+        lost = lost_accepted_urls(payload, protected)
+        return len(lost) > len(protected) * (1.0 - PLAN_SHRINK_ALLOWANCE)
     current = len(payload)
     previous = len(existing)
     if current >= previous * PLAN_SHRINK_ALLOWANCE:
@@ -1182,9 +1197,10 @@ def save_meetings_index(
             shrinks = False
         if shrinks:
             if accepted_urls:
-                lost = lost_accepted_urls(payload, accepted_urls)
+                protected = kept_accepted_urls(existing, accepted_urls)
+                lost = lost_accepted_urls(payload, protected)
                 print(
-                    f"[WARN] 本文を取れていた会議録 {len(accepted_urls)}件のうち "
+                    f"[WARN] 本文を取れていた会議録 {len(protected)}件のうち "
                     f"{len(lost)}件が、今回の一覧に出てきません。"
                     f"前回の分を残します: {path} 例: {', '.join(lost[:3])}",
                     flush=True,

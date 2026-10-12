@@ -627,6 +627,36 @@ class ConfirmedShrinkTest(unittest.TestCase):
             self.assertTrue(self.run_at(stamp, payload=collapsed))
         self.assertEqual(self.saved_count(), 100)
 
+    def accept_the_shrink(self) -> None:
+        for stamp in ("2026-10-01 03:00:00", "2026-10-02 03:00:00", "2026-10-03 03:00:00"):
+            self.run_at(stamp)
+        self.assertEqual(self.saved_count(), 20)
+
+    def test_narrowing_right_after_the_replacement_keeps_it(self) -> None:
+        # 置き換えた実行の最後に、本文を取れた分へ一覧を絞る保存がある。前に取れていた
+        # 100 件と比べると「80 件が出てこない」になり、受け入れた縮みをガードが止め直していた
+        # （2026-10-10 の幸田町: 616 → 381 を受け入れた直後に「1010 件のうち 629 件」）。
+        self.accept_the_shrink()
+        narrowed = self.current[:18]
+        self.assertFalse(
+            gijiroku_storage.meetings_index_would_shrink(self.path, narrowed, accepted_urls=self.accepted)
+        )
+        gijiroku_storage.save_meetings_index(self.path, narrowed, accepted_urls=self.accepted)
+        self.assertEqual(self.saved_count(), 18)
+
+    def test_the_run_after_the_replacement_is_not_a_shrink(self) -> None:
+        # 前に取れていた記録（run_result_*.csv）は 20 回分残るので、外れた 80 件は
+        # 次の実行でも accepted に入ってくる。一覧に無い分は守る対象ではない。
+        self.accept_the_shrink()
+        self.assertFalse(self.run_at("2026-10-04 03:00:00"))
+        self.assertEqual(self.saved_count(), 20)
+        self.assertFalse(gijiroku_storage.shrink_confirmation.observation_path(self.path).exists())
+
+    def test_narrowing_after_a_refused_replacement_keeps_the_old_list(self) -> None:
+        self.assertTrue(self.run_at("2026-10-01 03:00:00"))
+        gijiroku_storage.save_meetings_index(self.path, self.current[:18], accepted_urls=self.accepted)
+        self.assertEqual(self.saved_count(), 100)
+
     def test_a_different_shrink_starts_counting_again(self) -> None:
         self.run_at("2026-10-01 03:00:00")
         self.run_at("2026-10-02 03:00:00")
