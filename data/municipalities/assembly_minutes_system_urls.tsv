@@ -131,7 +131,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 01552	https://www.town.saroma.hokkaido.jp/gikai/hongikai/kaigiroku.html	独自	enabled			2026-08-02	0ee84f8c07e2ddb27441f8a4b21e8ede7e6576ed8042e1790e892762956fd419
 01555	https://engaru.jp/information/page.php?id=398	独自	enabled			2026-08-02	9ded0fdcdcd2cf88ec13e220f416a3aa69322331536f3b82c7f21aa61ad4a2e6
 01559	https://www.town.yubetsu.lg.jp/administration/town/detail.html?content=516	独自	enabled				0a1b2f08a225fa46b5b3f6350cfacb117602f23b6479ee3e47f5bdcc18695a55
-01560	https://www.town.takinoue.hokkaido.jp/chosei/sangyo/nougyo/nougyoiinkai/sokaigijiroku.html	独自	enabled			2026-08-02	1c9fa2337c3b33e9305fe098a4435ca8736339d3601602ee0f1aacdf9a7f44f3
+01560	https://www.town.takinoue.hokkaido.jp/gikai/	独自	excluded	not_published	会議録の公開なし（2026-10-12確認: 議会のページ（gikai/）は定例会・臨時会の日ごとの議事日程と結果の PDF（1 枚）・会議日程・議会広報のみ。以前登録していた sokaigijiroku.html は農業委員会の総会議事録）	2026-08-02	1c9fa2337c3b33e9305fe098a4435ca8736339d3601602ee0f1aacdf9a7f44f3
 01561	https://www.town.okoppe.lg.jp/cms/section/gikai/nbm3tm0000000ndt.html	独自	excluded	not_published	会議録の公開なし（2026-09-15確認: 登録ページは議会だよりのみ。自動探索でも会議録PDFを見つけられず）	2026-08-20	bcec6d7432d99988c76c4710e96ed6e954b5c085e736ee9cfedf780cad5fe6d5
 01562			unresolved	source_url_unresolved	登録URLは総合教育会議の会議録。議会会議録の公開先を未特定		f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 01563	http://www1.town.oumu.hokkaido.jp/dbp/phpdb.php?table=minutes&skin=folder	oumu-dbpocket	enabled				b792fa6b7bb877a8a6e05c6a01f8c1925879861d918a1edc6f2fe1f2346c38a9
@@ -158,7 +158,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 01636	https://www.town.shimizu.hokkaido.jp/gikai/past/kaigiroku2/index.html	static-kaigiroku-dir	enabled			2026-08-02	cd4b9c0f221f1acfc9a5615e903b026bad3cf47ac4c612362f231d849f12e715
 01637	https://ssp.kaigiroku.net/tenant/memuro/SpMinuteSearch.html	kaigiroku.net	enabled				35c48df18da7b760c04a0b929c326788207ae60de1051f56aef257b6f06c4bac
 01638	https://www.vill.nakasatsunai.hokkaido.jp/gikai/kaigiroku/	static-kaigiroku-dir	enabled			2026-08-02	5422c4f415ce7b676523b587cfd8c73e2eb8f68a625da76a356e884adf86437c
-01639	https://www.sarabetsu.jp/shigoto/agri/nogyoiinnkai/gijiroku/	独自	enabled			2026-08-02	d4b218d51da8ec9690d561105b93220ed06ee4901669f78086ee2dbd49a15615
+01639	https://www.sarabetsu.jp/gikai/kaigiroku/	独自	enabled			2026-08-02	d4b218d51da8ec9690d561105b93220ed06ee4901669f78086ee2dbd49a15615
 01641	https://www.town.taiki.hokkaido.jp/choseijoho/taikichogikai/1698.html	独自	enabled			2026-08-02	fffe1d9134d43307fc5968bdf4ede01dac63025ff12fa060d600265a35e76474
 01642	https://www.town.hiroo.lg.jp/gikai/gikaikaigiroku/gikaikaigiroku_r07/	独自	enabled			2026-08-02	992efecedd9baa62af7866bd560ffc1181dba439f73fe66a467019aadd7d9002
 01643	https://www.town.makubetsu.lg.jp/gikai/hongikai/gikaikaigiroku/	static-kaigiroku-dir	enabled			2026-08-02	c45bea79ef70ec1168fa73db7e516ae329f9cfd99dc12f400771ca629c2068cd
