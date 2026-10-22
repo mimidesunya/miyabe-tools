@@ -38,6 +38,7 @@ import time
 from pathlib import Path
 from typing import NamedTuple
 
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
@@ -501,6 +502,78 @@ BODY_FETCH_ATTEMPTS = 2
 # 本文が空だった記録は最初の数件だけ詳しく出す。熊本市は 571 件が黙って落ちていた。
 EMPTY_BODY_REPORT_LIMIT = 10
 
+# 取得元の処理エラー画面（「Reiki-Base Error 処理エラーが発生しました」）。
+# 取得元はこの画面を返すときにセッションを捨て、新しい JSESSIONID を渡す。
+# メイン画面に残った検索画面は古いセッションのものなので、そのあとの
+# 検索・「次へ」・本文はどれも効かない（2026-10 に白浜町で確かめた）。
+SOURCE_ERROR_MARK = "処理エラーが発生しました"
+SOURCE_ERROR_EVAL = (
+    "() => ({ id: document.body ? document.body.id : '',"
+    " text: document.body ? document.body.innerText : '' })"
+)
+# セッションを作り直す回数の上限（1 回の走査あたり）。入り直しは入口を開いて
+# 検索を 1 回するだけで軽いが、取得元が止まっているときに際限なく入り直さない。
+MAX_SESSION_RENEWALS = 30
+# 入り直す前に空ける秒数。続けて入り直せないときは、その回数に応じて延ばす。
+SESSION_RENEW_WAIT_SECONDS = 5
+# 1 つの検索結果を歩く途中でセッションが切れたとき、入り直して歩き直す回数。
+HARVEST_RESUME_LIMIT = 5
+# 入り直した直後に開いても処理エラーになる本文は、取得元の側で開けないものと
+# して失敗に数えない。数が多いときは取得元かこちらの不具合なので完了にしない。
+MAX_MISSING_AT_SOURCE = 5
+
+
+class SessionLost(Exception):
+    """取得元がセッションを捨てた。入り直さないと先へ進めない。"""
+
+    def __init__(self, reason: str, *, fresh_session: bool = False) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        # そのセッションで最初に開いた本文で起きたか（is_broken_at_source）。
+        self.fresh_session = fresh_session
+
+
+def is_source_error_page(body_id: str, text: str) -> bool:
+    """取得元の処理エラー画面か。本文ビューアの代わりにこれが返る。"""
+    return str(body_id or "") == "ERROR" or SOURCE_ERROR_MARK in str(text or "")
+
+
+def is_session_lost_request(resource_type: str, url: str) -> bool:
+    """メイン画面の非同期要求が入口へ戻されたか。
+
+    セッションが切れると、検索や「次へ」の要求は入口（SJSrbLogin.jsf）へ
+    転送される。転送先が http:// なので https の画面からは mixed content と
+    して止められ、結果が差し替わらないまま timeout_ms 待つことになる。
+    大阪市はこれが 20 回続いて走査ごと中断した。健全なときに入口を読むのは
+    画面遷移（document）だけで、非同期要求では読まない。
+    """
+    if resource_type not in ("xhr", "fetch"):
+        return False
+    path = str(url).split("?", 1)[0].split("#", 1)[0]
+    return path.endswith("/SJSrbLogin.jsf")
+
+
+def is_broken_at_source(previous_errors: int, fresh_session: bool) -> bool:
+    """処理エラーになった本文を、取得元の側で開けないものと決めてよいか。
+
+    処理エラーは、セッションがほかの理由で切れたときにも出る。白浜町立保育園
+    条例は本番で処理エラーになったが、新しいセッションでは何度でも開けた。
+    前にも処理エラーになり、入り直した直後（そのセッションで最初に開く本文）
+    でもまた処理エラーになったときだけ、その本文のせいとみなす。
+    """
+    return previous_errors >= 1 and fresh_session
+
+
+def missing_at_source_exceeded(missing: int, collected: int) -> bool:
+    """取得元の側で開けないとした本文が、欠けとして見過ごせないほど多いか。
+
+    1 本ずつの欠けなら取得元の不具合だが、まとまって出るならセッションの
+    壊れ方を見誤っている。そのときは完了にせず、一覧の縮みも許さない。
+    """
+    if missing <= 0:
+        return False
+    return missing > MAX_MISSING_AT_SOURCE or missing * 5 >= collected + missing
+
 
 def run_search(page, timeout_ms: int) -> str:
     """検索を実行し、結果が差し替わるのを待つ。SEARCH_* のいずれかを返す。"""
@@ -560,13 +633,14 @@ def extract_body_html(popup) -> str:
     except PlaywrightTimeoutError:
         pass
     # 本文は networkidle の後に描かれることがある。要素が現れるまで待つ。
+    # 処理エラー画面なら本文は来ないので、それが出た時点で待つのをやめる。
     try:
-        popup.wait_for_selector(".viewer-jobun", timeout=10_000)
+        popup.wait_for_selector(".viewer-jobun, body#ERROR", timeout=10_000)
     except PlaywrightTimeoutError:
         pass
     popup.wait_for_timeout(400)
     body = _read_viewer_body(popup)
-    if not body.strip():
+    if not body.strip() and popup.query_selector("body#ERROR") is None:
         popup.wait_for_timeout(2000)
         body = _read_viewer_body(popup)
     return body
@@ -606,12 +680,71 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=not headful, args=["--ignore-certificate-errors"])
-        context = browser.new_context(ignore_https_errors=True, locale="ja-JP", user_agent=USER_AGENT)
-        page = context.new_page()
-        page.set_default_timeout(timeout_ms)
-        # ポップアップ(本文ビューア)にも既定のタイムアウトを効かせる。
-        context.set_default_timeout(timeout_ms)
-        open_search(page, source_url, timeout_ms)
+        context = None
+        page = None
+        # メイン画面の要求が入口へ戻された（取得元がセッションを捨てた）か。
+        session_lost = False
+        session_renewals = 0
+        renew_failures = 0
+        # いまのセッションで開いた本文の数。0 なら入り直した直後。
+        bodies_in_session = 0
+
+        def on_main_request(request) -> None:
+            nonlocal session_lost
+            if is_session_lost_request(request.resource_type, request.url):
+                session_lost = True
+
+        def start_session() -> None:
+            """クッキーの無い新しいコンテキストで入口から入り、検索画面を開く。"""
+            nonlocal context, page, session_lost, bodies_in_session
+            context = browser.new_context(ignore_https_errors=True, locale="ja-JP", user_agent=USER_AGENT)
+            # ポップアップ(本文ビューア)にも既定のタイムアウトを効かせる。
+            context.set_default_timeout(timeout_ms)
+            page = context.new_page()
+            page.set_default_timeout(timeout_ms)
+            page.on("request", on_main_request)
+            session_lost = False
+            bodies_in_session = 0
+            open_search(page, source_url, timeout_ms)
+
+        def renew_session(reason: str) -> bool:
+            """コンテキストごと捨てて、入口から入り直す。
+
+            取得元は処理エラーのときにセッションを捨てる。同じ画面のまま操作を
+            続けても効かず、白浜町・平戸市・大阪市は本文 1 件の処理エラーの
+            あと検索が軒並み時間切れになって取り切れなかった。クッキーも
+            残さず、人が開き直すのと同じ形で入り直す。入り直せたら True。
+            """
+            nonlocal session_renewals, renew_failures
+            if session_renewals >= MAX_SESSION_RENEWALS:
+                print(
+                    f"[WARN] {reason}が、セッションの作り直しは上限の"
+                    f"{MAX_SESSION_RENEWALS}回に達しています",
+                    flush=True,
+                )
+                return False
+            session_renewals += 1
+            print(
+                f"[WARN] {reason}ので、セッションを作り直して入り直します"
+                f"（{session_renewals}回目）",
+                flush=True,
+            )
+            try:
+                context.close()
+            except Exception:
+                pass
+            # 取得元の負担を考えて間を空ける。続けて入り直せないときは長く待つ。
+            time.sleep(SESSION_RENEW_WAIT_SECONDS * (1 + renew_failures))
+            try:
+                start_session()
+            except PlaywrightError as exc:
+                renew_failures += 1
+                print(f"[WARN] 入り直しましたが検索画面を開けませんでした: {str(exc)[:120]}", flush=True)
+                return False
+            renew_failures = 0
+            return True
+
+        start_session()
 
         emit_total = 0
         stopped = False
@@ -671,22 +804,32 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
 
             空のまま黙って失敗にすると、何が起きたか後から分からない。
             熊本市は 1,366 件のうち 571 件が記録なしで落ちていた。
+
+            取得元が処理エラー画面を返したら SessionLost を投げる。取得元は
+            もうセッションを捨てているので、同じ画面で開き直しても処理エラーが
+            返るだけになる。入り直すのは呼んだ側（walk_result_pages）。
             """
-            nonlocal empty_body_reports
+            nonlocal empty_body_reports, bodies_in_session
             for attempt in range(BODY_FETCH_ATTEMPTS):
                 body_html = ""
                 popup_url = ""
                 snippet = ""
+                source_error = False
+                fresh_session = bodies_in_session == 0
                 try:
                     with page.expect_popup(timeout=timeout_ms) as pi:
                         anchor.click()
                     popup = pi.value
+                    bodies_in_session += 1
                     try:
                         popup_url = popup.url
                         body_html = extract_body_html(popup)
                         if not body_html.strip():
                             try:
-                                snippet = re.sub(r"\s+", " ", popup.inner_text("body"))[:120]
+                                shown = popup.evaluate(SOURCE_ERROR_EVAL) or {}
+                                text = str(shown.get("text") or "")
+                                source_error = is_source_error_page(str(shown.get("id") or ""), text)
+                                snippet = re.sub(r"\s+", " ", text)[:120]
                             except Exception:
                                 snippet = ""
                     finally:
@@ -698,6 +841,15 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                     return ""
                 if body_html.strip():
                     return body_html
+                if source_error:
+                    print(
+                        f"[WARN] 本文を開くと取得元が処理エラーを返しました {title[:30]}: {popup_url[:80]}",
+                        flush=True,
+                    )
+                    raise SessionLost(
+                        f"本文「{title[:30]}」で取得元が処理エラーを返した",
+                        fresh_session=fresh_session,
+                    )
                 if empty_body_reports < EMPTY_BODY_REPORT_LIMIT:
                     empty_body_reports += 1
                     print(
@@ -716,39 +868,121 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
         ) -> str | None:
             """条件を設定して検索を 1 回実行する。
 
-            画面操作がタイムアウトしたら検索画面を開き直してやり直す。日立市は
-            30 秒待っても検索ボタンが押せず、1 度の例外で走査全体が落ちていた。
+            画面操作がタイムアウトしたら入り直してやり直す。日立市は 30 秒
+            待っても検索ボタンが押せず、1 度の例外で走査全体が落ちていた。
+            白浜町・平戸市は同じコンテキストのまま開き直しても時間切れが
+            続いたので、クッキーごと捨てて入り直す。検索の要求が入口へ戻されたとき
+            （is_session_lost_request）も、結果は差し替わらないので入り直す。
             諦めたときは None を返す。
             """
+            label = f"{kind['text']} {span_label(span, days)}{words_label(words)}"
             for attempt in range(SEARCH_RECOVERY_ATTEMPTS + 1):
                 try:
                     reopen_detail(page, timeout_ms)
                     apply_filters(page, kind["id"], span, days, words)
-                    return run_search(page, timeout_ms)
+                    outcome = run_search(page, timeout_ms)
                 except PlaywrightTimeoutError:
-                    label = f"{kind['text']} {span_label(span, days)}{words_label(words)}"
                     if attempt >= SEARCH_RECOVERY_ATTEMPTS:
                         print(f"[WARN] {label}: 画面操作がタイムアウトしたので諦めます", flush=True)
                         return None
-                    print(f"[WARN] {label}: 画面操作がタイムアウトしたので検索画面を開き直します", flush=True)
-                    try:
-                        open_search(page, source_url, timeout_ms)
-                    except PlaywrightTimeoutError:
-                        continue
+                    if not renew_session(f"{label}: 画面操作がタイムアウトした"):
+                        # 作り直せないときは、これまでどおり同じ画面で開き直す。
+                        print(f"[WARN] {label}: 検索画面を開き直します", flush=True)
+                        try:
+                            open_search(page, source_url, timeout_ms)
+                        except PlaywrightTimeoutError:
+                            pass
+                    continue
+                if (
+                    outcome == SEARCH_STALE
+                    and session_lost
+                    and attempt < SEARCH_RECOVERY_ATTEMPTS
+                    and renew_session(f"{label}: 検索の要求が入口へ戻された（セッション切れ）")
+                ):
+                    continue
+                return outcome
             return None
 
-        def harvest_pages(label: str) -> tuple[int, int]:
+        # 本文が処理エラーになった回数と、取得元の側で開けないと決めた本文。
+        source_error_counts: dict[str, int] = {}
+        missing_at_source: dict[str, dict] = {}
+
+        def note_missing_at_source(
+            stem: str, title: str, number: str, iso_date: str, filename: str, clean_path: Path
+        ) -> None:
+            nonlocal emit_total
+            missing_at_source[stem] = {"title": title, "number": number, "enactment_date": iso_date}
+            print(
+                f"[WARN] 入り直した直後に開いても処理エラーになるので、取得元の側で"
+                f"開けない例規として扱います: {title[:40]}",
+                flush=True,
+            )
+            if reiki_io.existing_path(clean_path) is not None:
+                # 前回までに取れた本文は残す。ここで一覧から落とすと収録が縮む。
+                seen_stems.add(stem)
+                manifest.append(_manifest_row(filename, source_url, title, number, iso_date))
+                emit_total += 1
+
+        def resume_harvest(label: str, reason: str, redo, expected_total: int) -> bool:
+            """入り直して同じ検索結果を出し直す。出し直せたら True。
+
+            redo は同じ条件で検索し直す関数。None なら入口が開く条件なしの
+            検索結果をそのまま使う。総数が変わっていたら同じ結果とは言えない
+            ので、歩き直さない（歩いた行数を申告件数と突き合わせられない）。
+            """
+            if not renew_session(f"{label}: {reason}"):
+                return False
+            if redo is not None and redo() != SEARCH_OK:
+                print(f"[WARN] {label}: 入り直したあとの検索結果を確かめられませんでした", flush=True)
+                return False
+            total = read_result_total(page)
+            if total != expected_total:
+                print(
+                    f"[WARN] {label}: 入り直したあとの総数{total}件が元の{expected_total}件と"
+                    "違うので歩き直しません",
+                    flush=True,
+                )
+                return False
+            return True
+
+        def harvest_pages(label: str, redo=None) -> tuple[int, int]:
             """いま表示中の検索結果をページ送りしながら取り込む。
 
             返すのは (新しく取り込んだ件数, 実際に歩いた行数)。歩いた行数は、
             取得元が言った件数と突き合わせるために要る。件数だけ合っていて
             途中のページを取り落としている、という形を見つけられない。
 
+            途中で取得元がセッションを捨てたら、入り直して同じ検索を出し直し
+            （resume_harvest）、1 ページ目から歩き直す。取り込み済みの行は
+            読み飛ばすので、本文を開き直すのは処理エラーになった行から先だけ。
+            以前は同じ画面で続けたため、本文 1 件の処理エラーでその後の検索が
+            すべて時間切れになっていた（白浜町・平戸市・大阪市）。
+            """
+            start_total = emit_total
+            expected_total = read_result_total(page)
+            # この呼び出しの中で本文を取り損ねた行。歩き直しで開き直さない。
+            settled: set[str] = set()
+            for resumes in range(HARVEST_RESUME_LIMIT + 1):
+                walked, lost = walk_result_pages(label, settled)
+                if lost is None:
+                    break
+                if resumes >= HARVEST_RESUME_LIMIT:
+                    print(f"[WARN] {label}: 歩き直しが{HARVEST_RESUME_LIMIT}回に達したので諦めます", flush=True)
+                    break
+                if not resume_harvest(label, lost, redo, expected_total):
+                    break
+            return emit_total - start_total, walked
+
+        def walk_result_pages(label: str, settled: set[str]) -> tuple[int, str | None]:
+            """検索結果を 1 ページ目から最後まで 1 回歩く。
+
+            返すのは (歩いた行数, セッションが切れた理由)。最後まで歩けたら
+            理由は None。切れたときの行数は、処理を終えた行までしか数えない。
+
             取得済みの例規は読み飛ばすだけなので何も出力せずに何分も進むことがある。
             見張りに故障と誤解されないよう、ページ送りのたびに現在地を知らせる。
             """
             nonlocal emit_total, downloaded, failed, stopped
-            start_total = emit_total
             walked = 0
             page_no = 0
             while True:
@@ -764,7 +998,7 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                     title = str(meta.get("title", "")).strip()
                     date_text, number, _dept = _cell_after_title(meta.get("cells", []))
                     stem = stem_for(title, number, date_text)
-                    if stem in seen_stems:
+                    if stem in seen_stems or stem in settled or stem in missing_at_source:
                         continue
                     filename = f"{stem}.html"
                     clean_path = html_dir / filename
@@ -777,10 +1011,19 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                         emit_total += 1
                         continue
 
-                    body_html = fetch_body(anchors[i], title)
+                    try:
+                        body_html = fetch_body(anchors[i], title)
+                    except SessionLost as lost:
+                        errors = source_error_counts.get(stem, 0)
+                        source_error_counts[stem] = errors + 1
+                        if is_broken_at_source(errors, lost.fresh_session):
+                            note_missing_at_source(stem, title, number, iso_date, filename, clean_path)
+                        # この行から先は処理していない。
+                        return walked - (count - i), lost.reason
 
                     if not body_html.strip():
                         failed += 1
+                        settled.add(stem)
                         if reiki_io.existing_path(clean_path) is not None:
                             # 取り直しに失敗しただけで、本文は既にある。
                             # ここでマニフェストから落とすと収録が縮む
@@ -842,6 +1085,9 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                         timeout=timeout_ms,
                     )
                 except PlaywrightTimeoutError:
+                    if session_lost:
+                        # 「次へ」の要求が入口へ戻された。入り直せば続きを歩ける。
+                        return walked, f"{page_no}ページ目の「次へ」の要求が入口へ戻された（セッション切れ）"
                     # 件数表示を読めなかったときのほか、最終ページでないのに
                     # 差し替えが timeout_ms 以内に来なかったときもここへ来る。
                     # つまり残りのページを捨てている可能性がある。
@@ -852,7 +1098,7 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                     )
                     break
                 page.wait_for_timeout(400)
-            return emit_total - start_total, walked
+            return walked, None
 
         def choose_split_word(
             kind: dict,
@@ -962,6 +1208,7 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             合計）。取り切れなかった区間を含むときは None。割った先の合計が元の
             件数に届くかを、呼んだ側で確かめるのに使う（settle_split）。
             """
+            nonlocal stale_searches
             if stopped:
                 return None
             label = f"{kind['text']} {span_label(span, days)}{words_label(words)}"
@@ -970,6 +1217,14 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                 # 一時的な遅れのことが多いので、まず同じ条件で 1 度だけやり直す。
                 # 期間指定なしの検索は、制定年月日を持たない例規を拾う保険なので、
                 # ここで諦めると分割してもその分を取り戻せない。
+                outcome = search_with_recovery(kind, span, days, words)
+            if (
+                outcome == SEARCH_STALE
+                and stale_searches + 1 >= MAX_STALE_SEARCHES
+                and renew_session(f"{label}: 検索結果の差し替えを続けて確認できなかった")
+            ):
+                # 走査ごと中断する前に、1 度だけ入り直して聞き直す。セッション切れが
+                # 要求から見分けられない形でも、入り直せば戻ることがある。
                 outcome = search_with_recovery(kind, span, days, words)
             if outcome == SEARCH_EMPTY and span is None and kind["id"] and not words:
                 # 種別を選んだだけで 0 件は珍しい。読み違いなら 1 度のやり直しで戻る。
@@ -994,7 +1249,6 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             if outcome is None:
                 note_unresolved(kind, span, "画面操作がタイムアウトした", days=days, words=words)
                 return None
-            nonlocal stale_searches
             if outcome == SEARCH_STALE:
                 stale_searches += 1
                 if stale_searches >= MAX_STALE_SEARCHES:
@@ -1100,7 +1354,9 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             # 上限に張り付いた中間ノードは、どうせ二分するので本文取得は省く。
             # ただし期間指定なしの初回だけは、制定年月日が無い例規を拾う保険として取り込む。
             if not capped or indivisible:
-                got, walked = harvest_pages(label)
+                got, walked = harvest_pages(
+                    label, lambda: search_with_recovery(kind, span, days, words)
+                )
                 if not capped:
                     # 上限に当たっていない区間だけが「取り切れた」と言える。
                     note_leaf(kind, span, total, walked, days=days, words=words)
@@ -1220,9 +1476,16 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             existing_partial.unlink()
     except Exception:
         pass
+    # 入り直しても開けなかった本文は取得元の側の欠けなので、失敗には数えない。
+    # ただしまとまって出たときは見誤りなので完了にしない（missing_at_source_exceeded）。
+    missing_exceeded = missing_at_source_exceeded(len(missing_at_source), emit_total)
     # 取り切れた走査なら、減ったのは取得元から消えたということ。上書きしてよい。
     walk_complete = (
-        not coverage_unresolved and failed == 0 and not stopped and limit <= 0
+        not coverage_unresolved
+        and failed == 0
+        and not stopped
+        and limit <= 0
+        and not missing_exceeded
     )
     manifest_result = reiki_io.write_manifest_guarded(
         manifest_path,
@@ -1256,11 +1519,20 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                 and failed == 0
                 and not stopped
                 and limit <= 0
+                and not missing_exceeded
                 # 前回より減ったなら取り切れたとは言えない。
                 and manifest_result["written"]
             ),
             "collected": emit_total,
             "failed": failed,
+            # 取得元が本文を開かせない例規。失敗とは別に数える（d1_law と同じ名前）。
+            "missing_at_source": len(missing_at_source),
+            "missing_at_source_examples": [
+                row["title"] for row in list(missing_at_source.values())[:10]
+            ],
+            "missing_share_exceeded": missing_exceeded,
+            # 取得元がセッションを捨てたなどで入り直した回数。
+            "session_renewals": session_renewals,
             # 前回より少ない行数で終わったなら、走査が短かった可能性がある。
             "manifest_shrunk": not manifest_result["written"],
             "manifest_previous": manifest_result["previous"],
@@ -1271,10 +1543,26 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             f"[WARN] 取り切れなかった区間が {len(coverage_unresolved)} 件あります",
             flush=True,
         )
+    if missing_at_source:
+        names = "、".join(row["title"][:30] for row in list(missing_at_source.values())[:5])
+        if missing_exceeded:
+            print(
+                f"[WARN] 入り直しても開けなかった本文が {len(missing_at_source)} 件あります（{names}）。"
+                "多すぎるので完了にしていません。",
+                flush=True,
+            )
+        else:
+            print(
+                f"[INFO] 入り直しても開けなかった本文が {len(missing_at_source)} 件あります（{names}）。"
+                "取得元の側の欠けとして失敗に数えません。",
+                flush=True,
+            )
 
     # 取り切れなかった区間や失敗があるなら n/n にしない。バッチの成功判定と
     # snapshot はここを見るので、n/n にすると「取れた」記録が残ってしまう。
     shortfall = len(coverage_unresolved) + failed
+    if missing_exceeded:
+        shortfall += len(missing_at_source)
     static_catalog.emit_progress(emit_total, emit_total + shortfall, state_path)
     print(f"Finished. downloaded={downloaded} failed={failed} manifest={len(manifest)} -> {manifest_path}", flush=True)
     return 0
