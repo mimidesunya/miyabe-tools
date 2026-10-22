@@ -123,7 +123,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 01520	https://www.town.horonobe.lg.jp/www4/section/gikai/le009f0000008a13.html	独自	enabled			2026-08-02	3b65f9adbb89434e6e25625d06d5d3e22dc99f1465dfdce5b21379523afc671d
 01543	https://www.town.bihoro.hokkaido.jp/site/gikai/18672.html	独自	enabled			2026-08-02	f472a7989c0527869f548c1b4d8d73ab3612e36539d2487105a181572f8e94e7
 01544	https://www.town.tsubetsu.hokkaido.jp/choseijoho/tsubetsugikai/2/index.html	独自	enabled			2026-08-02	06e9b5b7c201fe16b0586fd61c28d875293a072a482d1fe9dc999fc818944b53
-01545	http://gikai-sharitown.net/r8giji.html	site-gikai-pdf	enabled				9d062dca54ad7518a9d3180a6a1096394fce77bf81b7baf0981c6ce117f56c57
+01545	http://gikai-sharitown.net/r8giji.html	site-gikai-pdf	excluded	not_published	会議録の公開なし（2026-10-23確認: 議会のサイトの「議事日程・会議録」（r5giji〜r8giji.html）は議事日程・一般質問の通告・新聞折込の PDF のみで、会議録の PDF は無い。取得済みの 44 件は議事日程と新聞折込だった）		9d062dca54ad7518a9d3180a6a1096394fce77bf81b7baf0981c6ce117f56c57
 01546	https://www.town.kiyosato.hokkaido.jp/administration/?category=112	独自	enabled			2026-08-02	841025eac9a907f7d73664e7a6bdfaecfeb169c88cc1180c521adf7dad4f87fe
 01547	https://www.town.koshimizu.hokkaido.jp/gikai/detail/00009799.html	独自	enabled				96ad2562a6837b10eb11d60ddba29ed5b8d7da99b31f211c33c0067857b2bb9c
 01549	https://www.town.kunneppu.hokkaido.jp/gikai/kaigiroku.html	site-gikai-pdf	enabled				958d96104aa93315c9aa67ed0ba1bae1f7f79090075b7235645917c106e9a911
