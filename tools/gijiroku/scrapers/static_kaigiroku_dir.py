@@ -521,8 +521,8 @@ def main() -> int:
     state = gijiroku_storage.load_state(state_path)
     # 縮みは「本文を取れていた会議録を見失ったか」で判断する（gikai_pdf と同じ）。
     # 今回の巡回が会議録でないと判定して落とした分は、見失ったのではない。
-    accepted_urls = gijiroku_storage.previous_accepted_urls(work_dir, state) - set(
-        catalog_walk.get("dropped_urls") or []
+    accepted_urls = gijiroku_storage.previous_accepted_urls(
+        work_dir, state, excluding=catalog_walk.get("dropped_urls") or []
     )
     # 取り切れた走査の縮みだけ、繰り返し再現したら取得元の変更として受け入れる。
     walk_complete = int(catalog_walk.get("missed_pages") or 0) == 0 and not (bool(catalog_walk.get("limit_reached")) or args.max_meetings > 0)

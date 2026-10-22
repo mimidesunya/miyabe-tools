@@ -31,6 +31,7 @@ import gijiroku_planning
 import pdf_ocr
 import gijiroku_storage
 import gijiroku_targets
+import rtf_text
 
 try:
     import minutes_kind
@@ -326,6 +327,52 @@ def fetch_status_code(exc: BaseException) -> int:
     return 0
 
 
+def waf_note(response) -> str:
+    """取得元の前に置かれた WAF（Imperva）を通った応答なら、その注記を返す。
+
+    小清水町は Imperva の配下にある（`X-CDN: Imperva`、`X-Iinfo`）。こちらから
+    開けないとき、取得元の作りではなく WAF に断られたのかを見分ける手がかりにする。
+    Imperva が自分で断ったときは本文に「Incapsula incident ID」が入る。
+    """
+    if response is None:
+        return ""
+    try:
+        head = bytes(getattr(response, "content", b"") or b"")[:4096]
+    except Exception:
+        head = b""
+    if b"Incapsula incident ID" in head:
+        return "WAF に断られた"
+    headers = getattr(response, "headers", None) or {}
+    if str(headers.get("X-CDN", "")).lower() == "imperva" or headers.get("X-Iinfo"):
+        return "Imperva 経由"
+    return ""
+
+
+def fetch_failure_reason(exc: BaseException) -> str:
+    """ページを開けなかった理由を短く書く。
+
+    走査記録には開けなかったページの URL しか残しておらず、時間切れなのか、
+    断られたのか、文字コードで読めなかったのかを後から切り分けられなかった
+    （小清水町は入口 1 件が開けずに候補 0 件、理由はどこにも出ていなかった）。
+    """
+    status = fetch_status_code(exc)
+    if status:
+        note = waf_note(getattr(exc, "response", None))
+        return f"HTTP {status}（{note}）" if note else f"HTTP {status}"
+    if isinstance(exc, requests.exceptions.SSLError):
+        return "TLS の検証に失敗"
+    if isinstance(exc, requests.exceptions.ConnectTimeout):
+        return "接続の時間切れ"
+    if isinstance(exc, requests.Timeout):
+        return "応答の時間切れ"
+    if isinstance(exc, requests.ConnectionError):
+        return "接続できない・切られた"
+    if isinstance(exc, NonHtmlResponse):
+        media_type = str(exc.content_type or "").split(";", 1)[0].strip()
+        return f"HTML ではない応答（{media_type or '種別なし'}）"
+    return type(exc).__name__
+
+
 def _with_transient_retry(fetch, timeout_ms: int):
     """`fetch(timeout_ms)` を、やり直せば通る失敗のときだけ繰り返す。"""
     global _consecutive_exhausted_fetches
@@ -369,6 +416,10 @@ class NonHtmlResponse(ValueError):
     def is_pdf(self) -> bool:
         return looks_like_pdf_response(self.content_type, self.content_disposition, self.head)
 
+    @property
+    def is_rtf(self) -> bool:
+        return looks_like_rtf_response(self.content_type, self.content_disposition, self.head)
+
 
 def _request_text_once(session: requests.Session, url: str, timeout_ms: int) -> str:
     response = session.get(url, timeout=max(timeout_ms / 1000.0, 1.0))
@@ -386,7 +437,12 @@ def _request_text_once(session: requests.Session, url: str, timeout_ms: int) -> 
             continue
         try:
             return raw.decode(encoding)
-        except UnicodeDecodeError:
+        # `Content-Type: text/html; charset=none` を返す取得元がある（舟橋村）。
+        # requests はそのまま `none` を文字コードとして渡すので、推定（SHIFT_JIS）で
+        # 読めないページは LookupError で落ち、「開けなかったページ」になっていた。
+        # 「﨑」のような CP932 にしかない字を含む目次がこれに当たる。名前の無い
+        # 文字コードは飛ばして、最後の CP932 まで試す。
+        except (UnicodeDecodeError, LookupError):
             continue
     return raw.decode("utf-8", errors="replace")
 
@@ -406,8 +462,30 @@ def looks_like_pdf_response(content_type: str, content_disposition: str, raw: by
     return ".pdf" in str(content_disposition or "").lower()
 
 
+RTF_MEDIA_TYPES = frozenset({"application/rtf", "application/x-rtf", "text/rtf", "text/richtext"})
+
+
+def looks_like_rtf_response(content_type: str, content_disposition: str, raw: bytes) -> bool:
+    """応答が RTF か。Word から書き出した会議の文書を RTF で配る取得元がある（菊陽町）。"""
+    if rtf_text.looks_like_rtf(raw):
+        return True
+    media_type = str(content_type or "").split(";", 1)[0].strip().lower()
+    if media_type in RTF_MEDIA_TYPES:
+        return True
+    return ".rtf" in str(content_disposition or "").lower()
+
+
+class EmptySourceDocument(ValueError):
+    """取得元が 0 バイトの文書を返した。
+
+    舟橋村の `17-6PDF/1gou.pdf` は `200 OK` `Content-Length: 0` で、2021 年から
+    中身が無い。本文抽出が「Cannot read an empty file」で落ち、取得エラーとして
+    自治体ごとエラー停止にしていた。何度取りに行っても同じなので、取得元の欠けに数える。
+    """
+
+
 def request_pdf_bytes(session: requests.Session, url: str, timeout_ms: int) -> bytes:
-    """PDF を取る。PDF でない応答は、本文として扱わずに断る。"""
+    """PDF（または RTF）を取る。どちらでもない応答は、本文として扱わずに断る。"""
     return _with_transient_retry(lambda timeout: _request_pdf_bytes_once(session, url, timeout), timeout_ms)
 
 
@@ -415,6 +493,10 @@ def _request_pdf_bytes_once(session: requests.Session, url: str, timeout_ms: int
     response = session.get(url, timeout=max(timeout_ms / 1000.0, PDF_MIN_TIMEOUT_SECONDS))
     response.raise_for_status()
     raw = response.content
+    if not raw:
+        raise EmptySourceDocument(f"取得元の文書が 0 バイトです: {url}")
+    if rtf_text.looks_like_rtf(raw):
+        return raw
     if not looks_like_pdf_response(
         response.headers.get("Content-Type", ""),
         response.headers.get("Content-Disposition", ""),
@@ -597,13 +679,14 @@ def is_crawl_disallowed_archive(url: str) -> bool:
 def classify_fetch_failure(exc: BaseException, url: str, page_url: str = "") -> str:
     """会議録の取得に失敗した理由を、取得の失敗と取得元の事情に分ける。
 
-    取得元でリンクが切れている（404・410）文書は、何度取りに行っても取れない。
-    自治体が外部の保存先（国立国会図書館 WARP など）へ張ったリンクが断られる
-    のも同じで、WARP は robots.txt で保存物の取得を禁じている（飯塚市 225 件）。
+    取得元でリンクが切れている（404・410）文書と、0 バイトで置かれている文書は、
+    何度取りに行っても取れない。自治体が外部の保存先（国立国会図書館 WARP など）へ
+    張ったリンクが断られるのも同じで、WARP は robots.txt で保存物の取得を禁じている
+    （飯塚市 225 件）。
     これらを取得エラーに数えると、自治体ごと「エラー停止」のまま動かない。
     """
     status = fetch_status_code(exc)
-    if status in (404, 410):
+    if status in (404, 410) or isinstance(exc, EmptySourceDocument):
         return "source_missing"
     host = urlsplit(url).netloc.lower()
     page_host = urlsplit(page_url).netloc.lower() if page_url else ""
@@ -821,6 +904,16 @@ def extract_pdf_text(pdf_bytes: bytes) -> str:
     return normalize_pdf_text(minutes_kind.repair_cp932_mojibake("\n\n".join(parts)))
 
 
+def extract_document_text(raw: bytes) -> str:
+    """取った文書の本文。RTF は中身の先頭で見分け、それ以外は PDF として読む。
+
+    保存は PDF と同じく本文を `.txt.gz` にする（索引は downloads の .txt しか読まない）。
+    """
+    if rtf_text.looks_like_rtf(raw):
+        return rtf_text.extract_rtf_text(raw)
+    return extract_pdf_text(raw)
+
+
 def normalize_pdf_text(value: str) -> str:
     # \u58ca\u308c\u305f PDF \u304b\u3089\u5b64\u7acb\u30b5\u30ed\u30b2\u30fc\u30c8\u304c\u6df7\u3058\u308b\u3053\u3068\u304c\u3042\u308b\u3002\u305d\u306e\u307e\u307e\u4fdd\u5b58\u3059\u308b\u3068
     # \u300csurrogates not allowed\u300d\u3067\u66f8\u304d\u51fa\u3057\u304c\u5931\u6557\u3057\u3001\u4f1a\u8b70\u307e\u308b\u3054\u3068\u53d6\u5f97\u5931\u6557\u306b\u306a\u308b\u3002
@@ -843,6 +936,13 @@ def ocr_pdf_when_enabled(pdf_path: Path) -> tuple[str, str]:
         return "", ""
     source = Path(pdf_path)
     if not source.is_file():
+        return "", ""
+    # RTF は画像ではないので OCR しても文字は増えない。
+    try:
+        with source.open("rb") as handle:
+            if rtf_text.looks_like_rtf(handle.read(64)):
+                return "", ""
+    except OSError:
         return "", ""
     # work/gijiroku/<slug>/pdfs/<年>/<ファイル>.pdf の <slug> ディレクトリ。
     try:
@@ -896,7 +996,7 @@ def process_pdf_meeting_plan(
         pdf_bytes = request_pdf_bytes(session, item.url, timeout_ms)
         gijiroku_storage.write_bytes(pdf_path, pdf_bytes, compress=False)
         downloaded = True
-        return extract_pdf_text(pdf_bytes)
+        return extract_document_text(pdf_bytes)
 
     extracted = ""
     if existing_output is not None:
@@ -935,7 +1035,7 @@ def process_pdf_meeting_plan(
                 }
             if pdf_path.exists():
                 try:
-                    extracted = extract_pdf_text(gijiroku_storage.read_bytes(pdf_path))
+                    extracted = extract_document_text(gijiroku_storage.read_bytes(pdf_path))
                 except Exception:
                     extracted = ""
     # 本文として保存しなかった候補（会議録でない・文字情報のない PDF）は、
@@ -946,7 +1046,7 @@ def process_pdf_meeting_plan(
     reused_local_pdf = False
     if not extracted and existing_output is None and not no_resume and local_pdf_is_fresh(pdf_path):
         try:
-            extracted = extract_pdf_text(gijiroku_storage.read_bytes(pdf_path))
+            extracted = extract_document_text(gijiroku_storage.read_bytes(pdf_path))
             reused_local_pdf = True
         except Exception:
             extracted = ""
@@ -1085,8 +1185,8 @@ def main() -> int:
     state = gijiroku_storage.load_state(state_path)
     # 縮みは「本文を取れていた会議録を見失ったか」で判断する（gikai_pdf と同じ）。
     # 今回の巡回が会議録でないと判定して落とした分は、見失ったのではない。
-    accepted_urls = gijiroku_storage.previous_accepted_urls(work_dir, state) - set(
-        catalog_walk.get("dropped_urls") or []
+    accepted_urls = gijiroku_storage.previous_accepted_urls(
+        work_dir, state, excluding=catalog_walk.get("dropped_urls") or []
     )
     # 取り切れた走査の縮みだけ、繰り返し再現したら取得元の変更として受け入れる。
     walk_complete = int(catalog_walk.get("missed_pages") or 0) == 0 and not (bool(LIST_PAGE_LIMIT_HIT) or args.max_meetings > 0)

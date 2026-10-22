@@ -90,7 +90,7 @@ python tools/gijiroku/scrapers/static_kaigiroku_dir.py \
   --max-meetings 3
 ```
 
-`独自`（自治体サイト上の PDF 会議録・共通システム無し）を汎用クロールで取得:
+`独自`（自治体サイト上の PDF・RTF 会議録・共通システム無し）を汎用クロールで取得（RTF も PDF と同じく本文を `.txt.gz` で保存する）:
 
 ```bash
 python tools/gijiroku/scrapers/gikai_pdf.py \

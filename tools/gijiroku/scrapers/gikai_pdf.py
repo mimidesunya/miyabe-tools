@@ -14,6 +14,8 @@ gijiroku_planning/gijiroku_storage の実装を再利用する。ここでの新
   しか読まない。**PDF は必ずテキスト抽出して .txt(.gz) で保存する**こと
   （PDF をそのまま置いても検索インデックスに入らない）。composed_minutes_text +
   gijiroku_storage.write_text がこれを担う。
+- Word から書き出した RTF で会議の文書を配る取得元がある（菊陽町）。.rtf も
+  PDF と同じく候補として拾い、本文を取り出して .txt(.gz) で保存する（rtf_text）。
 - 汎用クロールは議会サイト上の議案・資料・広報・表紙 PDF にも当たる。
   会議録らしいページを辿ったうえで、採用直前に題名と本文を見て会議録でない
   ものを落とす。既に索引された分は、同じ判定を classify_doc_type から呼ぶ。
@@ -51,6 +53,7 @@ from kami_city_pdf import (  # noqa: E402
     clean_pdf_label,
     emit_progress,
     extract_year_info,
+    fetch_failure_reason,
     fetch_status_code,
     looks_like_attachment_pdf,
     looks_like_generic_minutes_page,
@@ -70,9 +73,24 @@ except ModuleNotFoundError:  # pragma: no cover
     from tools.gijiroku import minutes_kind
 
 ASSET_SUFFIXES = (
-    ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".zip", ".doc", ".docx",
+    ".pdf", ".rtf", ".jpg", ".jpeg", ".png", ".gif", ".zip", ".doc", ".docx",
     ".xls", ".xlsx", ".ppt", ".pptx", ".css", ".js", ".ico", ".mp4", ".mp3",
 )
+# 本文を取り出せる文書の拡張子。RTF は Word から書き出した会議の文書で使われる
+# （菊陽町）。ページとして開くと HTML でないので「開けなかったページ」に数えられ、
+# 自治体ごとエラー停止になっていた（57 件）。PDF と同じく候補として拾う。
+DOCUMENT_SUFFIXES = (".pdf", ".rtf")
+
+
+def is_document_url(url: str) -> bool:
+    return urlsplit(url).path.lower().endswith(DOCUMENT_SUFFIXES)
+
+
+def crawl_key(url: str) -> str:
+    """辿ったページと候補の重複を見る鍵。http と https の違いだけなら同じ。"""
+    return gijiroku_storage.scheme_neutral_url(url)
+
+
 # リンク文字列末尾の「[PDF｜297.3KB]」「（PDF：1.2MB）」等のファイル種別/サイズ注記。
 # 括弧の外に出した「PDF(26KB)」（湧別町）は残る。ここを変えると題名が変わり、
 # 題名から作る保存名も変わって、取得済みの会議録を別名でもう一度保存してしまう。
@@ -144,14 +162,20 @@ def crawl_pdf_items(
     控える。どちらもその先の会議録が見えなくなるのに、黙って捨てていた。
     """
     start_netloc = urlsplit(start_url).netloc
+    # 辿ったページと候補は `crawl_key` で重複を見る。舟橋村は同じ目次と会議録を
+    # http と https の両方のリンクで載せていて、同じ PDF を 2 回取りに行っていた。
     visited: set[str] = set()
     queue: deque[tuple[str, int]] = deque([(start_url, 0)])
     items: dict[str, PdfMeetingItem] = {}
     missed: list[str] = []
+    # 開けなかった理由ごとの件数と例。URL だけでは、時間切れなのか、断られたのか、
+    # 文字コードで読めなかったのかを後から切り分けられなかった。
+    missed_reasons: dict[str, int] = {}
+    missed_details: list[str] = []
     # 取得元でリンクが切れていたページ。取得元の書き損じ（`23478html`）や
     # 消えたページで、こちらが開き損ねたのではない。
     dead: list[str] = []
-    dropped_by_url: dict[str, str] = {}
+    dropped_by_key: dict[str, tuple[str, str]] = {}
     # 深さの上限で辿るのをやめたリンク。その先の会議録は見えていない。
     depth_capped = 0
     # ページとして辿ったリンクの文字列と、見つけたページ。開いたら PDF だったときに使う。
@@ -160,16 +184,17 @@ def crawl_pdf_items(
     def add_pdf_item(
         absolute: str, text: str, page_url: str, title: str, page_year_label: str, page_source_year: int | None
     ) -> None:
+        key = crawl_key(absolute)
         label = clean_label(text) or title
         skip_reason = minutes_kind.non_minutes_reason(label, "")
         if skip_reason:
-            dropped_by_url.setdefault(absolute, skip_reason)
+            dropped_by_key.setdefault(key, (absolute, skip_reason))
             return
         year_label, source_year = extract_year_info(label, title)
         if year_label == "不明":
             year_label, source_year = page_year_label, page_source_year
         items.setdefault(
-            absolute,
+            key,
             PdfMeetingItem(
                 title=label,
                 url=absolute,
@@ -184,9 +209,9 @@ def crawl_pdf_items(
 
     while queue and len(visited) < max_pages:
         url, depth = queue.popleft()
-        if url in visited:
+        if crawl_key(url) in visited:
             continue
-        visited.add(url)
+        visited.add(crawl_key(url))
         if len(visited) % 50 == 0:
             # 子の出力が長く止まると、親が固まったとみて打ち切る。
             print(f"[INFO] 一覧を {len(visited)} ページ見ました（PDF候補 {len(items)} 件）", flush=True)
@@ -198,8 +223,8 @@ def crawl_pdf_items(
         except Exception as exc:
             # 拡張子の無い配信口の PDF（野辺地町の /download_file/view/…、榛東村の
             # /manage/contents/upload/…）は、ページとして開くと HTML でないので落ちる。
-            # 開けなかったページではなく、会議録の候補として拾う。
-            if isinstance(exc, NonHtmlResponse) and exc.is_pdf and url in link_context:
+            # 開けなかったページではなく、会議録の候補として拾う。RTF も同じ。
+            if isinstance(exc, NonHtmlResponse) and (exc.is_pdf or exc.is_rtf) and url in link_context:
                 add_pdf_item(url, *link_context[url])
                 continue
             # 入口より下で 404・410 なら、取得元のリンク切れとして分ける。
@@ -208,7 +233,11 @@ def crawl_pdf_items(
                 dead.append(url)
                 continue
             # 開けないページの先は、まるごと見えなくなる。数えておく。
+            reason = fetch_failure_reason(exc)
             missed.append(url)
+            missed_reasons[reason] = missed_reasons.get(reason, 0) + 1
+            if len(missed_details) < 10:
+                missed_details.append(f"{reason}: {url}")
             continue
         title = page_title(soup)
         page_year_label, page_source_year = extract_year_info(title)
@@ -226,7 +255,7 @@ def crawl_pdf_items(
             absolute = urljoin(base_url, src).split("#", 1)[0]
             if (
                 depth < max_depth
-                and absolute not in visited
+                and crawl_key(absolute) not in visited
                 and _is_followable_html(start_netloc, absolute)
             ):
                 # frame の中身は同じ 1 ページの続きなので先に処理する。
@@ -238,14 +267,11 @@ def crawl_pdf_items(
                 continue
             absolute = urljoin(base_url, href).split("#", 1)[0]
             text = anchor.get_text(" ", strip=True)
-            if (
-                urlsplit(absolute).path.lower().endswith(".pdf")
-                or looks_like_attachment_pdf(absolute, text)
-            ):
+            if is_document_url(absolute) or looks_like_attachment_pdf(absolute, text):
                 add_pdf_item(absolute, text, url, title, page_year_label, page_source_year)
             elif (
                 depth >= max_depth
-                and absolute not in visited
+                and crawl_key(absolute) not in visited
                 and _is_followable_html(start_netloc, absolute)
                 and looks_like_generic_minutes_page(text, absolute)
             ):
@@ -253,7 +279,7 @@ def crawl_pdf_items(
                 depth_capped += 1
             elif (
                 depth < max_depth
-                and absolute not in visited
+                and crawl_key(absolute) not in visited
                 and _is_followable_html(start_netloc, absolute)
                 and (
                     looks_like_generic_minutes_page(text, absolute)
@@ -265,16 +291,20 @@ def crawl_pdf_items(
 
     # 同じ PDF が別のページでは会議録の文言でリンクされていれば、拾った側を採る。
     # 落とした数に入れると、縮みの判定で見失った会議録から外れてしまう。
-    for url in items:
-        dropped_by_url.pop(url, None)
+    for key in items:
+        dropped_by_key.pop(key, None)
     dropped_reasons: dict[str, int] = {}
-    for reason in dropped_by_url.values():
+    for _url, reason in dropped_by_key.values():
         dropped_reasons[reason] = dropped_reasons.get(reason, 0) + 1
+    if missed_details:
+        print(f"[WARN] 開けなかったページ: {'; '.join(missed_details[:3])}", flush=True)
     if walk is not None:
         walk.update(
             {
                 "missed_pages": len(missed),
                 "missed_examples": missed[:10],
+                "missed_reasons": missed_reasons,
+                "missed_details": missed_details,
                 "dead_pages": len(dead),
                 "dead_examples": dead[:10],
                 # 上限に当たって止まったなら、まだ辿る先が残っている。
@@ -283,9 +313,9 @@ def crawl_pdf_items(
                 "limit_reached": bool(queue) and len(visited) >= max_pages,
                 "depth_capped_links": depth_capped,
                 "visited_pages": len(visited),
-                "dropped_non_minutes": len(dropped_by_url),
+                "dropped_non_minutes": len(dropped_by_key),
                 # 縮みの判定で、見失ったのではなく会議録でないと分かった分を外す。
-                "dropped_urls": sorted(dropped_by_url),
+                "dropped_urls": sorted(url for url, _reason in dropped_by_key.values()),
                 "dropped_non_minutes_reasons": dropped_reasons,
             }
         )
@@ -339,8 +369,8 @@ def main() -> int:
     # 縮みは「本文を取れていた会議録を見失ったか」で判断する。件数で比べると、
     # 前の版が一覧に入れた会議録でない文書の分だけ毎回縮んで見える。
     # 今回の巡回が会議録でないと判定して落とした分は、見失ったのではない。
-    accepted_urls = gijiroku_storage.previous_accepted_urls(work_dir, state) - set(
-        catalog_walk.get("dropped_urls") or []
+    accepted_urls = gijiroku_storage.previous_accepted_urls(
+        work_dir, state, excluding=catalog_walk.get("dropped_urls") or []
     )
     # 取り切れた走査の縮みだけ、繰り返し再現したら取得元の変更として受け入れる。
     walk_complete = int(catalog_walk.get("missed_pages") or 0) == 0 and not (bool(catalog_walk.get("limit_reached")) or args.max_meetings > 0)
@@ -371,6 +401,9 @@ def main() -> int:
             # 深さの上限で辿らなかった会議録らしいリンク。多い自治体は、
             # 深さを上げれば取れる会議録が残っている見込みがある。
             "depth_capped_links": int(catalog_walk.get("depth_capped_links") or 0),
+            # 開けなかった理由（「HTTP 403（Imperva 経由）」「応答の時間切れ」など）。
+            "missed_reasons": catalog_walk.get("missed_reasons") or {},
+            "missed_details": (catalog_walk.get("missed_details") or [])[:10],
             "dead_pages": dead_pages,
             "dead_examples": (catalog_walk.get("dead_examples") or [])[:10],
             "dropped_non_minutes": crawl_dropped,
@@ -399,7 +432,9 @@ def main() -> int:
         for plan in gijiroku_planning.build_base_plans(meeting_items, downloads_dir, use_group_dir=False):
             item = plan["item"]
             gijiroku_planning.attach_text_output(plan, key="text_base")
-            pdf_name = f"{item.source_fino or plan['original_idx']}_{plan['stem']}.pdf"
+            # 取った文書の写しの名前。RTF を .pdf の名前で置くと紛らわしい。
+            suffix = ".rtf" if urlsplit(item.url).path.lower().endswith(".rtf") else ".pdf"
+            pdf_name = f"{item.source_fino or plan['original_idx']}_{plan['stem']}{suffix}"
             plan["pdf_path"] = pdf_dir / plan["year_dir"] / pdf_name
             planned_items.append(plan)
 

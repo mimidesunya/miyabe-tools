@@ -22,7 +22,7 @@ from dataclasses import asdict, is_dataclass
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 import shrink_confirmation  # noqa: E402
@@ -890,12 +890,27 @@ def _demote_coverage_for_shrink(work_dir: Path, current: int, previous: int) -> 
 EPHEMERAL_PDF_PATH_RE = re.compile(r"/data/fd_[0-9a-z]+/downfile\d+\.pdf$", re.IGNORECASE)
 
 
+def scheme_neutral_url(url: str) -> str:
+    """http と https の違いだけの URL を同じものにそろえる（https に寄せる）。
+
+    舟橋村は同じ会議録を `http://` と `https://` の両方のリンクで載せており、
+    汎用クロールは同じ PDF を別の候補として 2 回取りに行っていた。
+    """
+    url = str(url or "").strip()
+    parts = urlsplit(url)
+    if parts.scheme.lower() != "http" or not parts.netloc:
+        return url
+    return urlunsplit(("https", parts.netloc, parts.path, parts.query, parts.fragment))
+
+
 def document_key(url: str, title: str = "") -> str:
-    """縮みの判定で、同じ文書かを判断する鍵。ふつうは URL そのもの。"""
+    """縮みの判定で、同じ文書かを判断する鍵。ふつうは URL（http は https に寄せる）。"""
     url = str(url or "").strip()
     parts = urlsplit(url)
     if not EPHEMERAL_PDF_PATH_RE.search(parts.path):
-        return url
+        # 候補の重複を http/https でまとめたので、前回 http で取れていた文書を
+        # 今回 https で見つけても、見失ったことにしない。
+        return scheme_neutral_url(url)
     normalized = re.sub(r"\s+", "", unicodedata.normalize("NFKC", str(title or "")))
     return f"{parts.netloc}|{normalized}" if normalized else url
 
@@ -922,8 +937,13 @@ def previous_accepted_urls(
     state: dict[str, Any] | None = None,
     *,
     max_runs: int = 20,
+    excluding: Any = (),
 ) -> set[str]:
     """前回までに本文を取れていた候補の URL。
+
+    `excluding` には今回の巡回が会議録でないと判定して落とした URL を渡す。
+    鍵（`document_key`）にそろえてから外す。生の URL のまま引くと、http の URL が
+    https に寄せた鍵と食い違って外れない。
 
     batch は実行の前に scrape_state.json を消す（tools/tasks/batch.py の
     remove_stale_scrape_state）。state だけを見ると毎回空になり、縮みの判定が
@@ -952,7 +972,8 @@ def previous_accepted_urls(
                 decided.add(key)
             elif status in SCRAPE_EXCLUDED_STATUSES:
                 decided.add(key)
-    return accepted
+    excluded = {document_key(str(url)) for url in (excluding or ()) if str(url or "").strip()}
+    return accepted - excluded
 
 
 def _run_result_time(path: Path) -> datetime | None:
