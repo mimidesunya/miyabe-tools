@@ -131,7 +131,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 01552	https://www.town.saroma.hokkaido.jp/gikai/hongikai/kaigiroku.html	独自	enabled			2026-08-02	0ee84f8c07e2ddb27441f8a4b21e8ede7e6576ed8042e1790e892762956fd419
 01555	https://engaru.jp/information/page.php?id=398	独自	enabled			2026-08-02	9ded0fdcdcd2cf88ec13e220f416a3aa69322331536f3b82c7f21aa61ad4a2e6
 01559	https://www.town.yubetsu.lg.jp/administration/town/detail.html?content=516	独自	enabled				0a1b2f08a225fa46b5b3f6350cfacb117602f23b6479ee3e47f5bdcc18695a55
-01560	https://www.town.takinoue.hokkaido.jp/gikai/	独自	excluded	not_published	会議録の公開なし（2026-10-12確認: 議会のページ（gikai/）は定例会・臨時会の日ごとの議事日程と結果の PDF（1 枚）・会議日程・議会広報のみ。以前登録していた sokaigijiroku.html は農業委員会の総会議事録）	2026-08-02	1c9fa2337c3b33e9305fe098a4435ca8736339d3601602ee0f1aacdf9a7f44f3
+01560	https://www.town.takinoue.hokkaido.jp/gikai/	独自	excluded	not_published	会議録の公開なし（2026-10-12確認: 議会のページ（gikai/）は定例会・臨時会の日ごとの議事日程と結果の PDF（1 枚）・会議日程・議会広報のみ。以前登録していた sokaigijiroku.html は農業委員会の総会議事録）	2026-08-02	626830eea78ac11bb25d0221b22b637f94d65ac50408295be2397a176952f5ad
 01561	https://www.town.okoppe.lg.jp/cms/section/gikai/nbm3tm0000000ndt.html	独自	excluded	not_published	会議録の公開なし（2026-09-15確認: 登録ページは議会だよりのみ。自動探索でも会議録PDFを見つけられず）	2026-08-20	bcec6d7432d99988c76c4710e96ed6e954b5c085e736ee9cfedf780cad5fe6d5
 01562			unresolved	source_url_unresolved	登録URLは総合教育会議の会議録。議会会議録の公開先を未特定		f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 01563	http://www1.town.oumu.hokkaido.jp/dbp/phpdb.php?table=minutes&skin=folder	oumu-dbpocket	enabled				b792fa6b7bb877a8a6e05c6a01f8c1925879861d918a1edc6f2fe1f2346c38a9
@@ -158,7 +158,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 01636	https://www.town.shimizu.hokkaido.jp/gikai/past/kaigiroku2/index.html	static-kaigiroku-dir	enabled			2026-08-02	cd4b9c0f221f1acfc9a5615e903b026bad3cf47ac4c612362f231d849f12e715
 01637	https://ssp.kaigiroku.net/tenant/memuro/SpMinuteSearch.html	kaigiroku.net	enabled				35c48df18da7b760c04a0b929c326788207ae60de1051f56aef257b6f06c4bac
 01638	https://www.vill.nakasatsunai.hokkaido.jp/gikai/kaigiroku/	static-kaigiroku-dir	enabled			2026-08-02	5422c4f415ce7b676523b587cfd8c73e2eb8f68a625da76a356e884adf86437c
-01639	https://www.sarabetsu.jp/gikai/kaigiroku/	独自	enabled			2026-08-02	d4b218d51da8ec9690d561105b93220ed06ee4901669f78086ee2dbd49a15615
+01639	https://www.sarabetsu.jp/gikai/kaigiroku/	独自	enabled				794e99ce5f036827973ae6f11a2f53aa3398ead9688f6dd3157af3238838c98b
 01641	https://www.town.taiki.hokkaido.jp/choseijoho/taikichogikai/1698.html	独自	enabled			2026-08-02	fffe1d9134d43307fc5968bdf4ede01dac63025ff12fa060d600265a35e76474
 01642	https://www.town.hiroo.lg.jp/gikai/gikaikaigiroku/gikaikaigiroku_r07/	独自	enabled			2026-08-02	992efecedd9baa62af7866bd560ffc1181dba439f73fe66a467019aadd7d9002
 01643	https://www.town.makubetsu.lg.jp/gikai/hongikai/gikaikaigiroku/	static-kaigiroku-dir	enabled			2026-08-02	c45bea79ef70ec1168fa73db7e516ae329f9cfd99dc12f400771ca629c2068cd
@@ -226,7 +226,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 02445	https://www.town.aomori-nanbu.lg.jp/site/gikai/9641.html	独自	enabled				7a5a7b8fba015be72d1358177bd1880c95bc56ea6f0af5d281fd87a2f05c9e95
 02446	https://www.town.hashikami.lg.jp/index.cfm/9,0,46,438,html	独自	enabled			2026-08-02	a0e22744a8463314302656623f9adc96aebe7995be509e4b7f65aac6c0c8c98c
 02450	https://www.vill.shingo.aomori.jp/page-30802/	独自	enabled			2026-08-02	d6c9d945239ed8202386a50bc38b42312f1a353e28d064793aebb792139ed46f
-03000	https://www3.pref.iwate.jp/gikai/user/www/Zenbun/	iwate-kengikai	enabled				5dc0aec04e1e5046555e431a699caea7d79ff366a33be39273e7a7f5db35da09
+03000	https://www3.pref.iwate.jp/gikai/user/www/Zenbun/	iwate-kengikai	enabled				7788f511e7eb72f5d81252a3450d4731c13f01bf796cafbb0165fd7e5af55db2
 03201	https://ssp.kaigiroku.net/tenant/morioka/MinuteSearch.html	kaigiroku.net	enabled				851cc92c430f7682e7dc850c61adfdd58eb356970a5379c101c77b0a634a4831
 03202	https://ssp.kaigiroku.net/tenant/miyako/SpMinuteSearch.html	kaigiroku.net	enabled				4ce8bd90e45b9584b6f4a8d4bd185b20ac07d8e771b76ca05339236d31df7bfd
 03203	https://ssp.kaigiroku.net/tenant/ofunato/SpMinuteSearch.html	kaigiroku.net	enabled				da8a4769dcfbca93972f4f17e15d6d39353a6a5085f1a6594433ddb369033429
@@ -258,7 +258,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 03501	https://www.town.karumai.iwate.jp/article/gyosei/gikai/kaigirokudata/	static-kaigiroku-dir	enabled			2026-08-02	27f58fa16ecfcaac26873f116fea74ad0a1c97d8290df38fb96dce13c5a54e82
 03503	https://www.vill.noda.iwate.jp/soshiki/gikaijimukyoku/nodasongikai/1845.html	独自	enabled			2026-08-02	af0861f5f3b251c4ca6f4363cfc6c16a0e1d1cf02622c0dbf79c188b33945114
 03506	https://www.vill.kunohe.iwate.jp/docs/2709.html	独自	enabled			2026-08-02	9c52deb4c0381a290d2590a87e03cecfda9e6b97bd4f905e7272366654fbe031
-03507	https://www.town.hirono.iwate.jp/category/bunya/gikai/gikai/more@docs_4@c_koho.html	独自	enabled			2026-08-02	4fa6e1a2a77bf0da8b021b7510cbcd60b07b0b81f31821e7996a963fc7389d3d
+03507	https://www.town.hirono.iwate.jp/category/bunya/gikai/gikai/more@docs_4@c_koho.html	独自	enabled				5dd87fe718928dba1e45ccc15bce54d52b1e48b472ce77b761b46f456eb70064
 03524	https://ssp.kaigiroku.net/tenant/ichinohe/SpTop.html	kaigiroku.net	enabled				590d34aa49be4ae79226565aa67b02beaa41cd0811e85aa419b6763a074f368d
 04000	https://ssp.kaigiroku.net/tenant/prefmiyagi/SpMinuteSearch.html	kaigiroku.net	enabled				d97b5e9c737e1f3c3005dd7e5adbb181043807697226f622ee87c7e38d304974
 04100	https://www.city.sendai.miyagi.dbsr.jp/index.php/	dbsr	enabled				e598d80c3e3f86ab17b318164e887b3b288a2a1f8f89a311e1c86642e00d06a9
@@ -570,7 +570,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 11324	https://ssp.kaigiroku.net/tenant/miyoshi/SpMinuteSearch.html	kaigiroku.net	enabled				5454e04fee5fb9e71b4f96a0f7990e466350932ae16f5ebaeebde097145a0ec2
 11326	https://ssp.kaigiroku.net/tenant/moroyama/MinuteSearch.html	kaigiroku.net	enabled				e1e9162e825242cd34bfea89c5566dc8e7350182aa60f46e9467ef7b808bbde4
 11327	https://ssp.kaigiroku.net/tenant/ogose/MinuteSearch.html	kaigiroku.net	enabled				7b44e2a36a02eafbe9f163b4e9235d9e5e66ecc862de9279cc45d99f67e8b81a
-11341	https://www.town.namegawa.saitama.jp/choseijoho/gikai/2236.html	独自	enabled				53bfa167f3317572d1d0c4af124250282f10811448e8964d058278a564afa14a
+11341	https://www.town.namegawa.saitama.jp/choseijoho/gikai/2236.html	独自	enabled				400b9d886a822b8600c555bbba4db455aed6c6140017773424a26a8fa9763b1d
 11342	https://www.town.ranzan.saitama.jp/category/2-19-9-0-0-0-0-0-0-0.html	独自	enabled				23d9b01f9a3c6216ee1334d20d83d6d2c14e2963023049ce56a81dd4d076f149
 11343	https://ssp.kaigiroku.net/tenant/ogawa/MinuteSearch.html	kaigiroku.net	enabled				652b71c212b9f546c19ec23c8af98064d17fa38c650b3c2eaae4abf1c375a167
 11346	https://ssp.kaigiroku.net/tenant/kawajima/SpMinuteSearch.html	kaigiroku.net	enabled				50e921fd638f598a85a696add4cd7858ed6eced6a90bf085c1a2f18198dbc0bd
@@ -642,7 +642,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 12426	https://www.town.nagara.chiba.jp/site/gikai/9653.html	site-gikai-pdf	enabled			2026-08-02	65af7a172a694dc3fc5f459d9755538eee2d4f6e1bc62631e5e3677f26825ef9
 12427	https://www.town.chonan.chiba.jp/chousei/gikai/%E4%BC%9A%E8%AD%B0%E9%8C%B2/	独自	enabled			2026-08-02	64d0d24feeabf8f91d31c9ddfb39ed3ad3c0e78c99f164790bf5e7230ab5905d
 12441	https://www.town.otaki.chiba.jp/gyousei/gikai/1423.html	独自	enabled			2026-08-02	c8505c20252bff0208f77097f5792958f732ae49d62f7b83b45c48898f8cabf8
-12443	https://www.town.onjuku.chiba.jp/sub5/4/gikai/gijiroku/	独自	enabled			2026-08-20	13af3492b9c70529d129c98e185d79ec809dacd0a21a641cfcd332ba665b51eb
+12443	https://www.town.onjuku.chiba.jp/sub5/4/gikai/gijiroku/	独自	enabled				158584c6b3c2f897e4012fac11f474c37d39af271f53c53c48d47eae327cf06e
 12463	https://www.town.kyonan.chiba.jp/site/machigikai/list23.html	独自	enabled			2026-08-02	7522ec250860f686dfc59d750346f56f24906cbc3fd9aee7428c1e6f19c02935
 13000	https://www.record.gikai.metro.tokyo.lg.jp/	dbsr	enabled				ac08249d473f8bad20420ded6ddf8ecfd7a2726623c28e43a67bcb681a9c8b4c
 13101	http://www.city.chiyoda.tokyo.dbsr.jp/index.php/	dbsr	enabled				3b2ac5291c2c98f39260f745e2f83b60e273f0269ae801bd48f308e1e5bba97e
@@ -1105,7 +1105,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 25207	http://www.kensakusystem.jp/moriyama/index.html	kensakusystem	enabled			2026-08-02	ccda97b643976c77ddac8b437f6ec49b005000ac113d1c8e03c3b2b24eb97369
 25208	http://www.kensakusystem.jp/ritto/index.html	kensakusystem	enabled			2026-08-02	9bd1f8fad92bb9172394edd623f06bdc588d15a309ed5c7cca5e9461b3bd79ea
 25209	https://ssp.kaigiroku.net/tenant/koka/MinuteSearch.html	kaigiroku.net	enabled				2e7ffde418ff3f5795cc45f3720c99f321c99259ba5b9726a7ed95368903b7dc
-25210	https://www.city.yasu.lg.jp/soshiki/gikai/teirei/index.html	独自	enabled			2026-08-02	4fc234e2cbcad7de9ee77ba3dbd868be4c3c13d38fc8a272450a845945011d6b
+25210	https://www.city.yasu.lg.jp/soshiki/gikai/teirei/index.html	独自	enabled				0a5c756949a9daf5b8d910550ed0c10a66eb6900449e1554059a631ce8091083
 25211	https://ssp.kaigiroku.net/tenant/konan/MinuteSearch.html	kaigiroku.net	enabled				0848e097bb72bf548db970980428e03d89131647e7bf9e1efadd2ef5dc6a988f
 25212	https://ssp.kaigiroku.net/tenant/takashima/SpMinuteSearch.html	kaigiroku.net	enabled				59a4f81a512ad9bb50a490dc56c6c968f2f7e4ebe31e6e5c100402203abaa8b5
 25213	http://www.kensakusystem.jp/higashiomi/index.html	kensakusystem	enabled			2026-08-02	c5f004b12c7224302bb9ef25a3075bddae132ae86f124a72b86808cfd34a9a99
@@ -1659,7 +1659,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 43511			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
 43512	https://www.vill.yamae.lg.jp/list00252.html	独自	enabled				76c38cfe8e89ed03ebac94f1630e1378da2ca8ca32eff8ad4a02ff9fc51c559a
 43513	https://www.kumamura.com/list00249.html	独自	enabled				f13172935298e872ba683bd013877a4c25bc797e429014190c66c5d70b91f447
-43514	https://www.town.asagiri.lg.jp/list00300.html	独自	enabled				496fd48763be623f7de1413ed16c7fa0f4162b2788a631705e9c611e4557843f
+43514	https://www.town.asagiri.lg.jp/list00300.html	独自	enabled				675ac073cf7dfae2dd64cba0537b4b137c7513f0b95d6e6269f3a889bad085d3
 43531	https://reihoku-kumamoto.jp/kiji003676/index.html	独自	enabled			2026-10-01	3c291b5952cf12cc1565da41201f87195f089e2d24c65712fdcbe977b42602e8
 44000	https://ssp.kaigiroku.net/tenant/prefoita/MinuteSearch.html	kaigiroku.net	enabled				27d694294a3e387a851dda9f4efe2b6e4f6541f7148425a8c80f7e0f1007112d
 44201	https://www.kensakusystem.jp/oita/index.html	kensakusystem	enabled			2026-08-02	7c7bb90645a4b5a59eb04eecc7554b0b27070b6c50f221270325da98af7a095b
