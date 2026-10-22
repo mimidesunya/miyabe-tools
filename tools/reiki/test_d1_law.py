@@ -282,3 +282,38 @@ class D1LawGoneAtSourceTest(unittest.TestCase):
             self.assertFalse(parse_succeeded)
             self.assertEqual(d1_law.DOWNLOAD_MISSING, [str(plan["url"])])
             self.assertTrue(d1_law.download_already_accounted(str(plan["url"])))
+
+
+class D1LawOpensearchErrorPageTest(unittest.TestCase):
+    """例規集を移した自治体の opensearch が返すエラー画面を、目次の作りの変化と分ける。
+
+    蕨市は 2026-10 に g-reiki へ移った。旧い jctcd の入口は HTTP 200 で
+    「システムエラー」の画面を返し、「mokujicd が無い」として毎回落ちていた。
+    """
+
+    SOURCE_URL = "https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A7FF958AD"
+    # 2026-10-21 に蕨市の旧い入口が返した画面（要所だけ）。
+    ERROR_PAGE = """<html><head><title>エラー</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"></head>
+<body><div class="header-title"><h1>システムエラー</h1></div>
+<div class="messageBox"><p>システムエラーが発生しました。</p></div></body></html>"""
+
+    def collect_with_init_page(self, html: str) -> None:
+        response = mock.Mock()
+        response.text = html
+        response.raise_for_status.return_value = None
+        session = mock.Mock()
+        session.get.return_value = response
+        with mock.patch.object(d1_law.requests, "Session", return_value=session):
+            d1_law.collect_opensearch_entries(self.SOURCE_URL)
+
+    def test_system_error_page_says_the_source_may_have_moved(self) -> None:
+        self.assertTrue(d1_law.looks_like_opensearch_error_page(self.ERROR_PAGE))
+        with self.assertRaisesRegex(ValueError, "system error page"):
+            self.collect_with_init_page(self.ERROR_PAGE)
+
+    def test_page_without_categories_keeps_the_old_message(self) -> None:
+        page = "<html><head><title>例規集</title></head><body><p>目次</p></body></html>"
+        self.assertFalse(d1_law.looks_like_opensearch_error_page(page))
+        with self.assertRaisesRegex(ValueError, "No top-level mokujicd"):
+            self.collect_with_init_page(page)

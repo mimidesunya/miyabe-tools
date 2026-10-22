@@ -783,6 +783,14 @@ def fetch_opensearch_pages(
     return pages
 
 
+def looks_like_opensearch_error_page(html: str) -> bool:
+    # 判定は discover_reiki_urls.looks_like_error_page と同じ（御前崎市）。
+    title = re.search(r"<title>\s*(.*?)\s*</title>", html or "", re.I | re.S)
+    if title and title.group(1).strip() in ("エラー", "システムエラー"):
+        return True
+    return "システムエラーが発生しました" in (html or "")
+
+
 def collect_opensearch_entries(source_url: str) -> tuple[requests.Session, list[dict[str, str]]]:
     # OpenSearch 型 D1-Law は静的な目次ページではなく、ページングされた検索結果から例規を拾う。
     # 詳細取得でも探索時の cookie を使えるよう、確立済み session も返す。
@@ -804,6 +812,14 @@ def collect_opensearch_entries(source_url: str) -> tuple[requests.Session, list[
         top_level_codes.append(mokujicd)
 
     if not top_level_codes:
+        # 例規集を他へ移した自治体にも、opensearch は HTTP 200 で「システムエラー」の
+        # 画面を返す。目次の作りが変わったのと見分けがつくよう、落ちる理由を書き分ける。
+        # 蕨市は 2026-10 に g-reiki へ移り、この画面を「mokujicd が無い」として毎回落ちていた。
+        if looks_like_opensearch_error_page(init_response.text):
+            raise ValueError(
+                "opensearch returned its system error page; the municipality may have "
+                f"moved its reiki to another provider: {source_url}"
+            )
         raise ValueError(f"No top-level mokujicd found in opensearch page: {source_url}")
 
     print(f"Discovered {len(top_level_codes)} top-level opensearch categories.", flush=True)
