@@ -1841,16 +1841,21 @@ function default_slug_for_system(string $expectedSystem): string
 
 // 中継ページに並ぶ「体系目次」「五十音順目次」から、走査の入口を選ぶ。
 // 体系目次を優先する（分野ごとに辿れて、重複が少ない）。
-function find_reiki_index_link(string $sourceUrl, int $depth = 2): string
+function find_reiki_index_link(string $sourceUrl, int $depth = 2, ?callable $fetch = null): string
 {
+    $fetch ??= 'fetch_url';
     try {
-        $html = fetch_url($sourceUrl);
+        $html = $fetch($sourceUrl);
     } catch (Throwable $exception) {
         return '';
     }
     $best = '';
     $relay = '';
-    if (preg_match_all('#<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>#si', $html, $matches, PREG_SET_ORDER) < 1) {
+    // `<a` の直後は空白に限る。`<a[^>]*` と書くと `<area>` も拾う。横浜市の
+    // メニューは市のヘッダの画像地図（`<area href=".../search.html">`）が
+    // 目次より前にあり、次の `</a>` までの「体系目次」を文言として抱えたまま
+    // サイト内検索のページを入口に選んでいた。例規 0 件で毎回落ちていた。
+    if (preg_match_all('#<a\s[^>]*href="([^"]+)"[^>]*>(.*?)</a>#si', $html, $matches, PREG_SET_ORDER) < 1) {
         return '';
     }
     foreach ($matches as $match) {
@@ -1890,7 +1895,7 @@ function find_reiki_index_link(string $sourceUrl, int $depth = 2): string
         return $best;
     }
     if ($relay !== '' && $depth > 1) {
-        return find_reiki_index_link($relay, $depth - 1);
+        return find_reiki_index_link($relay, $depth - 1, $fetch);
     }
     return '';
 }
