@@ -436,6 +436,11 @@ class ExpandCabinetValuesTest(unittest.TestCase):
         self.assertEqual(len(dbsr.expand_cabinet_values(options)), 2)
 
 
+class _Response:
+    def __init__(self, status: int) -> None:
+        self.status = status
+
+
 class _FakePage:
     def __init__(self, outcomes: list) -> None:
         self.outcomes = outcomes
@@ -446,6 +451,8 @@ class _FakePage:
         outcome = self.outcomes.pop(0)
         if isinstance(outcome, BaseException):
             raise outcome
+        if isinstance(outcome, int):
+            return _Response(outcome)
         return None
 
 
@@ -504,6 +511,28 @@ class GotoListPageRetryTest(unittest.TestCase):
 
         with self.assertRaises(dbsr.DiscoveryTimeoutError):
             dbsr.goto_list_page(page, "https://example.dbsr.jp/", 10_000, deadline=0.0)
+        self.assertEqual(len(page.timeouts), 1)
+
+    def test_server_error_status_is_retried(self) -> None:
+        # page.goto は 503 でも例外を投げない。見ないとエラー画面を 0 件の一覧として読む。
+        page = _FakePage([503, 200])
+
+        dbsr.goto_list_page(page, "https://www.pref.hiroshima.dbsr.jp/index.php/1?Template=list&Page=3", 10_000)
+
+        self.assertEqual(len(page.timeouts), 2)
+
+    def test_server_error_status_that_persists_is_raised(self) -> None:
+        page = _FakePage([503] * 3)
+
+        with self.assertRaises(dbsr.ListPageStatusError):
+            dbsr.goto_list_page(page, "https://example.dbsr.jp/", 10_000)
+        self.assertEqual(len(page.timeouts), 1 + len(dbsr.LIST_GOTO_RETRY_WAITS_SECONDS))
+
+    def test_not_found_is_not_retried(self) -> None:
+        page = _FakePage([404])
+
+        dbsr.goto_list_page(page, "https://example.dbsr.jp/", 10_000)
+
         self.assertEqual(len(page.timeouts), 1)
 
 
@@ -772,6 +801,183 @@ class ListWalkPageRetryTest(unittest.TestCase):
         self.assertEqual(len(dbsr.ABANDONED_LIST_PAGES), 1)
         self.assertIn("次のページを開けなかった", dbsr.ABANDONED_LIST_PAGES[0])
         self.assertEqual(dbsr.LIST_WALK_REACHED[dbsr.list_walk_key(self.URL)], 1)
+
+
+HIROSHIMA_LIST_URL = (
+    "https://www.pref.hiroshima.dbsr.jp/index.php/100000?Template=list&Cabinet=1"
+    "&QueryType=New&TermEnd=2026-10-20&TermStart=1970-01-01"
+)
+
+
+class _HiroshimaListPage:
+    """広島県議会の一覧を真似た取得元。
+
+    行は div.result-document、ページ送りは前後 5 ページの番号と「次 >」のリンク。
+    リンクはセッション番号付きの `index.php/6398926?Template=list&Page=N` で、
+    QueryType=New を付けると Page= を無視して 1 ページ目を返す（実物で確認）。
+    `blank` に挙げたページは、その回数だけ中身の無いページを `blank_status` で返す。
+    """
+
+    ROWS_PER_PAGE = 2
+
+    def __init__(self, total_pages: int, *, blank=None, blank_status: int = 200, next_on_last_page: bool = False) -> None:
+        self.total_pages = total_pages
+        self.blank = dict(blank or {})
+        self.blank_status = blank_status
+        self.next_on_last_page = next_on_last_page
+        self.opened: list[int] = []
+        self.goto(HIROSHIMA_LIST_URL)
+
+    def goto(self, url: str, **_kwargs) -> _Response:
+        from urllib.parse import parse_qs, urlsplit
+
+        query = parse_qs(urlsplit(url).query)
+        self.url = url
+        self.current = 1 if "New" in query.get("QueryType", []) else int(query.get("Page", ["1"])[0])
+        self.opened.append(self.current)
+        self.is_blank = self.blank.get(self.current, 0) > 0
+        if self.is_blank:
+            self.blank[self.current] -= 1
+            return _Response(self.blank_status)
+        return _Response(200)
+
+    def wait_for_load_state(self, *_args, **_kwargs) -> None:
+        return None
+
+    def inner_text(self, *_args, **_kwargs) -> str:
+        return ""
+
+    def title(self) -> str:
+        return "Service Unavailable" if self.is_blank else "広島県議会 議事録の閲覧と検索：検索結果"
+
+    def _has_content(self) -> bool:
+        return not self.is_blank and self.current <= self.total_pages
+
+    def _rows(self) -> list:
+        rows = []
+        for offset in range(self.ROWS_PER_PAGE):
+            number = (self.current - 1) * self.ROWS_PER_PAGE + offset + 1
+            anchor = _Node(
+                f"令和８年２月定例会（第{number}日）　本文",
+                {"href": f"/index.php/6398926?Template=document&VoiceType=all&DocumentID={number}"},
+            )
+            rows.append(_Node(children={"a": [anchor], ".result-document-date": [_Node("2026-02-26")]}))
+        return rows
+
+    def _links(self) -> list:
+        links = [
+            _Node(str(number), {"href": f"/index.php/6398926?Template=list&Page={number}"})
+            for number in range(max(1, self.current - 5), min(self.total_pages, self.current + 5) + 1)
+            if number != self.current
+        ]
+        if self.current < self.total_pages or self.next_on_last_page:
+            links.append(_Node("次 >", {"href": f"/index.php/6398926?Template=list&Page={self.current + 1}"}))
+        return links
+
+    def locator(self, selector: str) -> _Locator:
+        if not self._has_content():
+            return _Locator([])
+        if selector == ".result-document:not(.result-document__item)":
+            return _Locator(self._rows())
+        if selector == ".pagination a":
+            return _Locator(self._links())
+        return _Locator([])
+
+
+class HiroshimaListWalkTest(unittest.TestCase):
+    """広島県は 221 ページある一覧の 3 ページ目が 0 件で返り、毎回エラー停止になっていた。"""
+
+    def setUp(self) -> None:
+        for name in (
+            "LIST_WALK_RESUME", "LIST_WALK_REACHED", "LIST_WALK_ROWS", "LIST_WALK_CACHED_ROWS",
+            "LIST_WALK_RESUMED", "LIST_WALK_TIMED_OUT", "ABANDONED_LIST_PAGES", "REPEATED_LIST_PAGES",
+            "DECLARED_DOCUMENT_TOTALS",
+        ):
+            getattr(dbsr, name).clear()
+            self.addCleanup(getattr(dbsr, name).clear)
+        dbsr._consecutive_exhausted_gotos = 0
+        self.addCleanup(setattr, dbsr, "_consecutive_exhausted_gotos", 0)
+        self.sleep = mock.patch.object(dbsr.time, "sleep").start()
+        self.addCleanup(mock.patch.stopall)
+
+    def test_page_that_came_back_empty_once_is_read_after_a_pause(self) -> None:
+        page = _HiroshimaListPage(5, blank={3: 1})
+
+        rows = dbsr.collect_document_rows_from_open_list(page, 1_000)
+
+        self.assertEqual(len(rows), 10)
+        self.assertEqual(dbsr.ABANDONED_LIST_PAGES, [])
+        self.assertEqual(page.opened, [1, 2, 3, 3, 4, 5])
+        # すぐ開き直すと同じものが返るので、間を置いてから開き直す。
+        self.sleep.assert_called_once_with(dbsr.LIST_GOTO_RETRY_WAITS_SECONDS[0])
+
+    def test_server_error_page_is_retried_instead_of_read_as_empty(self) -> None:
+        page = _HiroshimaListPage(5, blank={3: 1}, blank_status=503)
+
+        rows = dbsr.collect_document_rows_from_open_list(page, 1_000)
+
+        self.assertEqual(len(rows), 10)
+        self.assertEqual(dbsr.ABANDONED_LIST_PAGES, [])
+        self.assertEqual(page.opened, [1, 2, 3, 3, 4, 5])
+
+    def test_page_that_stays_empty_is_abandoned_with_what_came_back(self) -> None:
+        page = _HiroshimaListPage(5, blank={3: 99})
+
+        rows = dbsr.collect_document_rows_from_open_list(page, 1_000)
+
+        self.assertEqual(len(rows), 4)
+        self.assertEqual(page.opened, [1, 2, 3] + [3] * len(dbsr.LIST_GOTO_RETRY_WAITS_SECONDS))
+        self.assertEqual(len(dbsr.ABANDONED_LIST_PAGES), 1)
+        # 次の本番の記録で、取得元が何を返していたかが分かるようにする。
+        self.assertIn("一覧が0件で返った(HTTP 200 Service Unavailable)", dbsr.ABANDONED_LIST_PAGES[0])
+        self.assertIn("Page=3", dbsr.ABANDONED_LIST_PAGES[0])
+
+    def test_empty_page_past_the_last_page_is_the_end_not_a_failure(self) -> None:
+        # 最終ページにも「次 >」を残し、その先を 0 件で返す取得元。
+        page = _HiroshimaListPage(5, next_on_last_page=True)
+
+        rows = dbsr.collect_document_rows_from_open_list(page, 1_000)
+
+        self.assertEqual(len(rows), 10)
+        self.assertEqual(dbsr.ABANDONED_LIST_PAGES, [])
+        self.assertEqual(page.opened, [1, 2, 3, 4, 5, 6])
+        self.sleep.assert_not_called()
+
+    def test_resume_on_a_source_that_ignores_page_walks_from_the_start(self) -> None:
+        # QueryType=New と Page=3 を一緒に渡すと 1 ページ目が返る。3 ページ目と数えない。
+        key = dbsr.list_walk_key(HIROSHIMA_LIST_URL)
+        dbsr.LIST_WALK_RESUME[key] = 3
+        page = _HiroshimaListPage(5)
+
+        rows = dbsr.collect_document_rows_from_open_list(page, 1_000)
+
+        self.assertEqual(len(rows), 10)
+        self.assertEqual(dbsr.LIST_WALK_RESUMED, [])
+        self.assertEqual(dbsr.ABANDONED_LIST_PAGES, [])
+        self.assertEqual(dbsr.LIST_WALK_REACHED[key], 5)
+
+    def test_walk_key_drops_host_and_session_number_on_purpose(self) -> None:
+        # 本番の記録の `https:///index.php?...` はホスト名の抜けではなく、
+        # 実行ごとに変わるセッション番号ごと落とした識別子。URL を開くのには使わない。
+        self.assertEqual(
+            dbsr.list_walk_key(HIROSHIMA_LIST_URL.replace("100000", "6398926") + "&Page=3"),
+            "https:///index.php?Cabinet=1&QueryType=New&Template=list&TermEnd=2026-10-20&TermStart=1970-01-01",
+        )
+
+
+class ListWalkPastEndTest(unittest.TestCase):
+    def test_beyond_the_last_page_number(self) -> None:
+        self.assertTrue(dbsr.list_walk_past_end(6, 5, 10, 0))
+
+    def test_inside_the_page_numbers(self) -> None:
+        self.assertFalse(dbsr.list_walk_past_end(3, 7, 20, 0))
+
+    def test_declared_total_already_collected(self) -> None:
+        self.assertTrue(dbsr.list_walk_past_end(3, 0, 20, 20))
+        self.assertFalse(dbsr.list_walk_past_end(3, 0, 19, 20))
+
+    def test_unknown_end_is_not_the_end(self) -> None:
+        self.assertFalse(dbsr.list_walk_past_end(3, 0, 20, 0))
 
 
 if __name__ == "__main__":

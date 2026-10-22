@@ -97,6 +97,14 @@ class DiscoveryTimeoutError(RuntimeError):
     pass
 
 
+class ListPageStatusError(RuntimeError):
+    """一覧のページが 5xx・429 で返った。
+
+    page.goto は HTTP の失敗では例外を投げない。見ないと、取得元のエラー画面を
+    「0 件の一覧」として読み、そこを一覧の終わりにしてしまう。
+    """
+
+
 def now_ts() -> str:
     return time.strftime("%Y%m%d_%H%M%S")
 
@@ -1169,7 +1177,15 @@ def discover_list_pages(
 
     ensure_discovery_time(deadline, "検索ページ")
     search_library_url = find_search_library_url(page, str(target["source_url"]))
-    page.goto(search_library_url, wait_until="domcontentloaded", timeout=timeout_ms)
+    # 年度別一覧のページが取得元のエラー画面で返ると、入口の「直近分」へ落ちる。
+    # 本番の広島県は 163 会期の並ぶ本会議の一覧を読めず、全期間に広げた本会議の
+    # 2 種別だけを歩いていた（委員会は前回の一覧との併合で残っていただけ）。
+    # 一覧のページと同じく 5xx・429・時間切れはやり直す。それでも 5xx なら
+    # これまでどおり次の経路を試す。
+    try:
+        goto_list_page(page, search_library_url, timeout_ms, deadline=deadline)
+    except ListPageStatusError as exc:
+        print(f"[WARN] 年度別一覧のページを開けませんでした: {exc}", flush=True)
     try:
         page.wait_for_load_state("networkidle", timeout=3_000)
     except Exception:
@@ -1602,10 +1618,24 @@ def extract_document_rows_from_page(page) -> list[DocumentRow]:
 
 
 def is_transient_goto_error(exc: BaseException) -> bool:
-    """やり直せば開ける見込みのある失敗か。時間切れと接続の切断だけ。"""
-    if isinstance(exc, PlaywrightTimeoutError):
+    """やり直せば開ける見込みのある失敗か。時間切れ・接続の切断・5xx・429 だけ。"""
+    if isinstance(exc, (PlaywrightTimeoutError, ListPageStatusError)):
         return True
     return isinstance(exc, PlaywrightError) and "net::ERR_" in str(exc)
+
+
+def response_status(response) -> int | None:
+    status = getattr(response, "status", None)
+    return status if isinstance(status, int) else None
+
+
+def open_list_url(page, list_url: str, timeout_ms: int):
+    """一覧のページを 1 回開く。5xx・429 は時間切れと同じく例外にする。"""
+    response = page.goto(list_url, wait_until="domcontentloaded", timeout=timeout_ms)
+    status = response_status(response)
+    if status is not None and (status == 429 or status >= 500):
+        raise ListPageStatusError(f"HTTP {status}: {list_url}")
+    return response
 
 
 def goto_list_page(page, list_url: str, timeout_ms: int, *, deadline: float | None = None) -> None:
@@ -1615,13 +1645,15 @@ def goto_list_page(page, list_url: str, timeout_ms: int, *, deadline: float | No
     なり、自治体全体が「エラー停止」になる（島根県・橿原市・今治市）。
     取得元が落ちているときに 1 ページごと 1 分以上待たないよう、やり直しても
     開けなかったページが続いたらやり直しをやめる。
+    取得元が 5xx・429 を返したときも同じようにやり直す。dbsr は 170 自治体が
+    同じサーバーに乗っていて、中身の無いページが続けて返ることがある（広島県）。
     """
     global _consecutive_exhausted_gotos
     waits = () if _consecutive_exhausted_gotos >= LIST_GOTO_RETRY_GIVE_UP_AFTER else LIST_GOTO_RETRY_WAITS_SECONDS
     attempt_timeout_ms = timeout_ms
     for wait in waits:
         try:
-            page.goto(list_url, wait_until="domcontentloaded", timeout=attempt_timeout_ms)
+            open_list_url(page, list_url, attempt_timeout_ms)
         except Exception as exc:
             if not is_transient_goto_error(exc):
                 raise
@@ -1633,7 +1665,7 @@ def goto_list_page(page, list_url: str, timeout_ms: int, *, deadline: float | No
             _consecutive_exhausted_gotos = 0
             return
     try:
-        page.goto(list_url, wait_until="domcontentloaded", timeout=attempt_timeout_ms)
+        open_list_url(page, list_url, attempt_timeout_ms)
     except Exception as exc:
         if is_transient_goto_error(exc):
             _consecutive_exhausted_gotos += 1
@@ -1790,6 +1822,55 @@ def last_page_number(page) -> int:
     return largest
 
 
+def list_walk_past_end(page_number: int, numbered_last: int, collected_count: int, declared_total: int) -> bool:
+    """0 件で返ったページが、取得元の申告した一覧の終わりより先か。
+
+    ページ送りの番号のリンク（「次へ」は除く）が指す最大のページより先、または
+    申告された文書総数をもう集め終えていれば、終わりの先にいる。どちらも
+    分からなければ先とは決めない。
+    """
+    if declared_total > 0 and collected_count >= declared_total:
+        return True
+    return numbered_last > 0 and page_number > numbered_last
+
+
+def reload_empty_list_page(
+    page, url: str, timeout_ms: int, deadline: float | None
+) -> tuple[list[DocumentRow] | None, str]:
+    """0 件で返った一覧のページを、間を置いて開き直す。
+
+    行と、最後に開いたときの様子（HTTP の状態とページの題）を返す。制限時間に
+    当たったら行は None。広島県は 2,204 文書（221 ページ）ある一覧の 3 ページ目が
+    0 件で返り、すぐ開き直しても 0 件だったので、毎回エラー停止になっていた。
+    手元から同じ URL を開くと 10 件出る。続けてすぐ開き直すと同じものが返るので、
+    ページを開くときのやり直しと同じ間隔を置く。
+    """
+    reason = ""
+    for wait in LIST_GOTO_RETRY_WAITS_SECONDS:
+        time.sleep(wait)
+        if deadline is not None and time.monotonic() > deadline:
+            return None, reason
+        try:
+            response = page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+        except Exception as exc:
+            reason = str(exc).splitlines()[0] if str(exc) else type(exc).__name__
+            continue
+        try:
+            page.wait_for_load_state("networkidle", timeout=3_000)
+        except Exception:
+            pass
+        rows = extract_document_rows_from_page(page)
+        if rows:
+            return rows, ""
+        status = response_status(response)
+        try:
+            title = normalize_space(page.title())[:40]
+        except Exception:
+            title = ""
+        reason = " ".join(part for part in (f"HTTP {status}" if status else "", title) if part)
+    return [], reason or "理由不明"
+
+
 def collect_document_rows_from_open_list(
     page,
     timeout_ms: int,
@@ -1808,6 +1889,8 @@ def collect_document_rows_from_open_list(
     # 「最後 >>」が何ページあるか言ってくれる取得元では、それを終端の根拠にする。
     # 「次へ」を1つずつ辿る方式は、リンクを1回見失うだけで静かに終端になる。
     final_page = last_page_number(page)
+    # ページ送りの番号のリンクが指す最大の Page。「次へ」の行き先は数えない。
+    numbered_last = 0
     page_number = 1
 
     # 前回どこまで歩けたかが残っていれば、その手前から続ける。
@@ -1817,6 +1900,7 @@ def collect_document_rows_from_open_list(
     resume_page = LIST_WALK_RESUME.get(walk_key, 0)
     if final_page > 1 and resume_page > 1:
         resume_page = min(resume_page, final_page)
+        first_rows = extract_document_rows_from_page(page)
         try:
             page.goto(
                 canonicalize_template_url(replace_page_number(page.url, resume_page)),
@@ -1827,7 +1911,13 @@ def collect_document_rows_from_open_list(
                 page.wait_for_load_state("networkidle", timeout=3_000)
             except Exception:
                 pass
-            if extract_document_rows_from_page(page):
+            resumed_rows = extract_document_rows_from_page(page)
+            if resumed_rows and first_rows and url_identity(resumed_rows[0].url) == url_identity(first_rows[0].url):
+                # QueryType=New と Page= を一緒に渡すと Page= を無視して 1 ページ目を
+                # 返す取得元がある（広島県）。開いたのは 1 ページ目なので、そこから歩く。
+                # 途中のページ番号として数えると、終わりの判定がずれる。
+                print("[INFO] 取得元が Page= を受け付けないので、一覧の先頭から歩きます", flush=True)
+            elif resumed_rows:
                 page_number = resume_page
                 LIST_WALK_RESUMED.append(walk_key)
                 # 前回が meetings_index へ書く前に止まっていれば、飛ばす手前の行はここにしかない。
@@ -1855,20 +1945,20 @@ def collect_document_rows_from_open_list(
             break
         page_rows = extract_document_rows_from_page(page)
         if not page_rows and page_number > 1:
-            # 描画前に読んだだけかもしれない。0 件をそのまま終端にすると、
-            # 歩き残したまま complete になる。一度だけ開き直して確かめる。
+            if list_walk_past_end(page_number, numbered_last, len(collected), declared_total):
+                # 最終ページにも「次へ」を残し、その先を 0 件で返す取得元がある。
+                # 申告された最終ページ・文書総数より先の 0 件は終端で、取りこぼしではない。
+                break
+            # 描画前に読んだだけのことも、取得元が一時的に中身の無いページを
+            # 返したこともある。0 件をそのまま終端にすると、歩き残したまま
+            # complete になる。間を置いて開き直して確かめる。
             retry_url = page.url
-            try:
-                page.goto(retry_url, wait_until="domcontentloaded", timeout=timeout_ms)
-                try:
-                    page.wait_for_load_state("networkidle", timeout=3_000)
-                except Exception:
-                    pass
-                page_rows = extract_document_rows_from_page(page)
-            except Exception:
-                page_rows = []
+            page_rows, reason = reload_empty_list_page(page, retry_url, timeout_ms, deadline)
+            if page_rows is None:
+                LIST_WALK_TIMED_OUT.append(f"{page_number}/{final_page}: {retry_url}")
+                break
             if not page_rows:
-                ABANDONED_LIST_PAGES.append(f"一覧が0件で返った: {retry_url}")
+                ABANDONED_LIST_PAGES.append(f"一覧が0件で返った({reason}): {retry_url}")
                 break
         signature = (page_rows[0].url if page_rows else page.url, len(page_rows))
         if signature in seen_page_signatures:
@@ -1938,6 +2028,11 @@ def collect_document_rows_from_open_list(
             if href and "次" in text:
                 next_url = canonicalize_template_url(urljoin(page.url, href))
                 break
+            # 「次へ」より前に並ぶ番号のリンク。最終ページにも「次へ」を残す取得元が
+            # あるので、一覧の終わりの判定には「次へ」の行き先を入れない。
+            numbered = _PAGE_PARAM_RE.search(href or "")
+            if numbered:
+                numbered_last = max(numbered_last, int(numbered.group(1)))
         if next_url == "" and page_number < final_page:
             # 「次へ」を見失っても、最終ページ番号がまだ先なら歩き終えていない。
             # Page= を直に組んで続ける。ボタンで送った後の page.url は一覧の
