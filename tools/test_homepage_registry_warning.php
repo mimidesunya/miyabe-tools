@@ -9,7 +9,8 @@
 //    なし）のように理由の書かれていない「警告あり」だけが出る。
 // 3. 台帳で取得しないと決めた取得元に、検索に載っていない昔のデータが残っていても、
 //    待っても検索には載らない。美深町など 9 町村（議会だよりだけと確かめて対象外）が
-//    「検索準備中」と出ていた。
+//    「検索準備中」と出ていた。台帳の判断を出さないトップページでは、データの無い
+//    取得対象外と同じく出さない。
 
 declare(strict_types=1);
 
@@ -17,7 +18,7 @@ require_once dirname(__DIR__) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATO
 
 $failures = [];
 
-function registry_warning_summary(string $code, string $slug, string $name, array $primaryWarnings, bool $hasData = false): array
+function registry_warning_summary(string $code, string $slug, string $name, array $primaryWarnings, bool $hasData = false, bool $includeRegistryStates = true): array
 {
     $feature = [
         'title' => $name . '議会 会議録 全文検索',
@@ -54,7 +55,7 @@ function registry_warning_summary(string $code, string $slug, string $name, arra
                 'search_indexed' => false,
             ],
         ],
-        true
+        $includeRegistryStates
     );
 }
 
@@ -83,11 +84,21 @@ if (($visible['status_label'] ?? '') !== '取得対象外') {
     $failures[] = '取得対象外の取得元が、残った未索引のデータで「' . ($visible['status_label'] ?? '(空)') . '」と出た';
 }
 
+// トップページ（台帳の判断を出さない）では、美深町の会議録を出さない。
+$summary = registry_warning_summary('01469', '01469-bifuka-cho', '美深町', [], true, false);
+if (($summary['visible_features'] ?? []) !== []) {
+    $failures[] = 'トップページで、取得対象外の未索引のデータが「' . ($summary['visible_features'][0]['status_label'] ?? '(空)') . '」と出た';
+}
+
 // 小清水町は取得対象のまま。データが検索に載る前は「検索準備中」のまま。
 $summary = registry_warning_summary('01547', '01547-koshimizu-cho', '小清水町', [], true);
 $visible = $summary['visible_features'][0] ?? [];
 if (($visible['status_label'] ?? '') !== '検索準備中') {
     $failures[] = '取得対象の未索引のデータが「検索準備中」にならない: ' . ($visible['status_label'] ?? '(空)');
+}
+$summary = registry_warning_summary('01547', '01547-koshimizu-cho', '小清水町', [], true, false);
+if ((($summary['visible_features'][0] ?? [])['status_label'] ?? '') !== '検索準備中') {
+    $failures[] = 'トップページで、取得対象の未索引のデータが「検索準備中」にならない';
 }
 
 if ($failures !== []) {

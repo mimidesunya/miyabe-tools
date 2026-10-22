@@ -3263,10 +3263,13 @@ function homepage_collect_visible_features(
         // 台帳で取得しないと決めた自治体に、検索に載っていない昔のデータが残っている。
         // 待っても検索には載らないので、「検索準備中」「休止中」ではなく台帳の判断を出す
         // （2026-10-21、議会だよりだけと確かめて対象外にした美深町・興部町など 9 町村）。
+        // 台帳の判断を出さないトップページでは、データの無い取得対象外と同じく出さない。
         $leftoverUnindexed = $hasData && $isSearchBacked && !$searchIndexed
-            && $hasRegistryState
             && $acquisitionState !== 'body_not_published'
             && homepage_registry_state_overrides_error($registryState);
+        if ($leftoverUnindexed && !$hasRegistryState) {
+            continue;
+        }
         if (!$hasData && !$needsPublish && !$hasIssue && !$isPlannedTarget && !$hasRegistryState) {
             continue;
         }
