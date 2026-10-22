@@ -284,6 +284,60 @@ class FunahashiTest(unittest.TestCase):
         self.assertEqual(sum(1 for url in requested if url.endswith("28-6cont/mokuji.html")), 1)
         self.assertEqual(walk["missed_pages"], 0)
 
+    def test_questioner_excerpts_are_dropped_next_to_the_toc_view(self) -> None:
+        # 18-9cont/houhou.html: 同じ定例会を「目次から見る」と「質問者から見る」で見せる。
+        # 質問者の側は第２号の一般質問を議員ごとに切り出した PDF（題名は議員名だけ）。
+        index = self.BASE + "index.html"
+        houhou = self.BASE + "18-9cont/houhou.html"
+        mokuji = self.BASE + "18-9cont/mokuji.html"
+        situmon = self.BASE + "18-9cont/situmon.html"
+        pages = {
+            index: (
+                "<html><head><title>舟橋村議会会議録</title></head><body>"
+                '<th>平成１８年</th><td><a href="18-9cont/houhou.html">９月定例会</a></td></body></html>'
+            ),
+            houhou: (
+                "<html><head><title>閲覧の方法</title></head><body>"
+                '<a href="mokuji.html">〔目次から見る〕</a>　<a href="situmon.html">〔質問者から見る〕</a>'
+                "</body></html>"
+            ),
+            mokuji: (
+                "<html><head><title>目次から見る</title></head><body>"
+                '<a href="18-9PDF/1gou.pdf">第１号（９月１４日）</a>'
+                '<a href="18-9PDF/2gou.pdf">第２号（９月１５日）</a></body></html>'
+            ),
+            situmon: (
+                "<html><head><title>質問者から見る</title></head><body>"
+                '<a href="18-9PDF/takesima-y.pdf">竹　島　ユリ子</a>'
+                '<a href="18-9PDF/minabe.pdf">三　鍋　芳　男</a></body></html>'
+            ),
+        }
+        items, walk, _requested = crawl(index, pages)
+
+        self.assertEqual(
+            sorted(item.url for item in items),
+            [self.BASE + "18-9cont/18-9PDF/1gou.pdf", self.BASE + "18-9cont/18-9PDF/2gou.pdf"],
+        )
+        self.assertEqual(walk["dropped_non_minutes_reasons"], {"questioner_excerpt": 2})
+        # 縮みの判定で、見失ったのではなく落としたと分かるようにする。
+        self.assertIn(self.BASE + "18-9cont/18-9PDF/minabe.pdf", walk["dropped_urls"])
+
+    def test_questioner_view_alone_is_kept(self) -> None:
+        # 質問者別しか載せない取得元では、それが一般質問の会議録そのもの。
+        start = "https://www.town.example.lg.jp/kaigiroku/index.html"
+        situmon = "https://www.town.example.lg.jp/kaigiroku/situmon.html"
+        pages = {
+            start: f'<html><head><title>会議録</title></head><body><a href="{situmon}">〔質問者から見る〕</a></body></html>',
+            situmon: (
+                "<html><head><title>令和7年9月定例会 一般質問</title></head><body>"
+                '<a href="r7-9/minabe.pdf">三　鍋　芳　男</a></body></html>'
+            ),
+        }
+        items, walk, _requested = crawl(start, pages)
+
+        self.assertEqual([item.url for item in items], ["https://www.town.example.lg.jp/kaigiroku/r7-9/minabe.pdf"])
+        self.assertEqual(walk["dropped_non_minutes_reasons"], {})
+
     def test_previous_http_candidate_is_not_lost(self) -> None:
         # 前回は http の URL で本文を取れていた。今回 https の 1 件にまとめても、見失ったことにしない。
         http_urls = [f"http://www.vill.funahashi.toyama.jp/kaigiroku/{i}.pdf" for i in range(10)]

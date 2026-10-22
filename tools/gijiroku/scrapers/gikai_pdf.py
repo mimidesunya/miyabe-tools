@@ -140,6 +140,15 @@ def build_parser() -> argparse.ArgumentParser:
 YEAR_ONLY_LINK = YEAR_ONLY_ANCHOR_RE
 
 
+# 舟橋村は定例会ごとに「〔目次から見る〕」と「〔質問者から見る〕」の 2 通りで
+# 同じ会議録を見せる。質問者の側の PDF は、第 N 号の一般質問を議員ごとに切り出した
+# 抜き出しで、題名は議員名だけ、本文に開催日も無い。同じ本文が検索に 2 回出て
+# いた（655 件のうち 387 件）。目次の側も並んでいるときだけ、質問者の側を落とす。
+# 質問者別しか載せない取得元では、それが一般質問の唯一の会議録なので落とさない。
+QUESTIONER_VIEW_LINK = re.compile(r"質問者から見る")
+TOC_VIEW_LINK = re.compile(r"目次から見る")
+
+
 def _is_followable_html(start_netloc: str, url: str) -> bool:
     parts = urlsplit(url)
     if parts.netloc != start_netloc:
@@ -180,11 +189,16 @@ def crawl_pdf_items(
     depth_capped = 0
     # ページとして辿ったリンクの文字列と、見つけたページ。開いたら PDF だったときに使う。
     link_context: dict[str, tuple[str, str, str, str, int | None]] = {}
+    # 目次の見方と並んでいた「質問者から見る」のページ。ここの PDF は抜き出し。
+    questioner_views: set[str] = set()
 
     def add_pdf_item(
         absolute: str, text: str, page_url: str, title: str, page_year_label: str, page_source_year: int | None
     ) -> None:
         key = crawl_key(absolute)
+        if crawl_key(page_url) in questioner_views:
+            dropped_by_key.setdefault(key, (absolute, "questioner_excerpt"))
+            return
         label = clean_label(text) or title
         skip_reason = minutes_kind.non_minutes_reason(label, "")
         if skip_reason:
@@ -261,12 +275,16 @@ def crawl_pdf_items(
                 # frame の中身は同じ 1 ページの続きなので先に処理する。
                 queue.appendleft((absolute, depth + 1))
 
-        for anchor in soup.find_all("a", href=True):
+        anchors = soup.find_all("a", href=True)
+        offers_toc_view = any(TOC_VIEW_LINK.search(anchor.get_text(" ", strip=True)) for anchor in anchors)
+        for anchor in anchors:
             href = normalize_href(anchor.get("href", ""))
             if not href:
                 continue
             absolute = urljoin(base_url, href).split("#", 1)[0]
             text = anchor.get_text(" ", strip=True)
+            if offers_toc_view and QUESTIONER_VIEW_LINK.search(text):
+                questioner_views.add(crawl_key(absolute))
             if is_document_url(absolute) or looks_like_attachment_pdf(absolute, text):
                 add_pdf_item(absolute, text, url, title, page_year_label, page_source_year)
             elif (
