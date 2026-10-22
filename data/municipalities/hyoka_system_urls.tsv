@@ -890,7 +890,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 20363			unresolved	source_url_unresolved	2026-09-17 兆候調査（例規に言及あり）: 巡回で見つからず（検索は未実施）
 20382	https://www.town.tatsuno.lg.jp/gyosei/choseijoho/shisaku_keikaku/gyozaiseikaikaku/4231.html	独自	enabled		2026-09-17 兆候調査で確認: 年度ごとの評価文書 4 件
 20383	https://www.town.minowa.lg.jp/gyoseijoho/gyoseihyoka/index.html	独自	review_required	weak_signal	2026-09-17: 評価の入口『行政評価／箕輪町』
-20384	https://www.town.iijima.lg.jp/soshikiichiran/kikakuseisakuka/kikakukakari/3158.html	独自	enabled		2026-09-17 確認: 年度ごとの評価文書 8 件
+20384	https://www.town.iijima.lg.jp/administration/?content=191	独自	enabled		2026-10-22 確認: サイトの移転で番地が変わった。行政評価（外部評価・内部評価）の年度ごとの文書 10 件（令和3〜7年度）
 20385	https://www.vill.minamiminowa.lg.jp/soshiki/chiiki/gyouseihyoukatoha.html	独自	enabled		2026-09-17 確認: 本文に『事務事業評価』／添付8件
 20386			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 20388			unresolved	source_url_unresolved	2026-09-17 兆候調査（例規に言及あり）: 巡回で見つからず（検索は未実施）
