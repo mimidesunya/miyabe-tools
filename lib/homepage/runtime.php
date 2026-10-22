@@ -3260,6 +3260,13 @@ function homepage_collect_visible_features(
         }
         $needsPublish = !$hasData && homepage_task_display_is_complete($primaryDisplay);
         $hasRegistryState = $includeRegistryStates && (bool)($registryState['registered'] ?? false);
+        // 台帳で取得しないと決めた自治体に、検索に載っていない昔のデータが残っている。
+        // 待っても検索には載らないので、「検索準備中」「休止中」ではなく台帳の判断を出す
+        // （2026-10-21、議会だよりだけと確かめて対象外にした美深町・興部町など 9 町村）。
+        $leftoverUnindexed = $hasData && $isSearchBacked && !$searchIndexed
+            && $hasRegistryState
+            && $acquisitionState !== 'body_not_published'
+            && homepage_registry_state_overrides_error($registryState);
         if (!$hasData && !$needsPublish && !$hasIssue && !$isPlannedTarget && !$hasRegistryState) {
             continue;
         }
@@ -3297,7 +3304,7 @@ function homepage_collect_visible_features(
             $availabilityState = 'ready';
             $mode = 'link';
             $readyVisibleCount += 1;
-        } elseif ($hasData && $isSearchBacked && !$searchIndexed) {
+        } elseif ($hasData && $isSearchBacked && !$searchIndexed && !$leftoverUnindexed) {
             // 取得元が本文を公開していない場合、待っても検索できるようには
             // ならない。「準備中」と言うと反映を待てば使えると読めてしまう。
             if ($acquisitionState === 'body_not_published') {
@@ -3310,7 +3317,7 @@ function homepage_collect_visible_features(
                 $availabilityState = 'search_pending';
             }
             $mode = 'disabled';
-        } elseif ($hasData) {
+        } elseif ($hasData && !$leftoverUnindexed) {
             $statusLabel = '休止中';
             $statusClass = 'status-suspended';
             $availabilityState = 'suspended';
