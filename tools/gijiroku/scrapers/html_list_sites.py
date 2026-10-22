@@ -136,6 +136,18 @@ def is_transient_fetch_error(exc: BaseException) -> bool:
     )
 
 
+def is_transient_browser_error(exc: BaseException) -> bool:
+    """ブラウザ操作の失敗のうち、やり直せば通る見込みのあるもの（時間切れ・接続断）。"""
+    try:
+        from playwright.sync_api import Error as PlaywrightError  # noqa: WPS433
+        from playwright.sync_api import TimeoutError as PlaywrightTimeoutError  # noqa: WPS433
+    except ImportError:
+        return False
+    if isinstance(exc, PlaywrightTimeoutError):
+        return True
+    return isinstance(exc, PlaywrightError) and "net::ERR_" in str(exc)
+
+
 def fetch(session: requests.Session, url: str, *, timeout_ms: int, data: dict | None = None, referer: str = "") -> str:
     global _consecutive_exhausted_fetches
     waits = () if _consecutive_exhausted_fetches >= FETCH_RETRY_GIVE_UP_AFTER else FETCH_RETRY_WAITS_SECONDS
@@ -725,9 +737,16 @@ class KinJsp(Adapter):
 class Voicetechno(Adapter):
     """voicetechno の会議録検索（朝来市・嘉麻市）。ASP.NET + DevExpress で、
     年 → 種別 → 開催回数 → 会議名 のコンボを順に選ぶと `UpdatePanel1` に
-    本文が描かれる。コンボは JavaScript の callback で次を埋めるので、
-    ブラウザで実際にクリックする。会議の識別は各コンボの並び位置で持つ
-    （同じ実行の中でしか意味を持たないが、一覧と本文取得は同じ実行）。"""
+    本文が描かれる。コンボは選ぶたびに UpdatePanel の非同期 postback で
+    描き直されるので、ブラウザで実際にクリックする。会議の識別は各コンボの
+    並び位置で持つ（同じ実行の中でしか意味を持たないが、一覧と本文取得は同じ実行）。
+
+    描き直しを待たずに下のコンボを読むと、前の開催回の会議名を今の開催回の
+    ものとして控えてしまう。嘉麻市の平成29年は「５月臨時会」（会議 1 件）の
+    位置に「３月定例会」の会議名を控え、2 件目以降を押せずに毎回エラー停止に
+    なっていた（2026-09〜10）。決め打ちの待ち時間ではなく、postback の終わりを
+    数えて待つ。どこまで選んだかも手元に控えず、画面のコンボから読む。
+    """
 
     system_type = "voicetechno"
     IDS = {
@@ -738,73 +757,147 @@ class Voicetechno(Adapter):
     }
     PANEL = "#UpdatePanel1"
     TRAILER = "閲覧内容を保存する"
+    # postback の終わりを数える。部分更新では window は残るので、開き直したときだけ付ける。
+    HOOK_JS = (
+        "() => { if (window.__miyabePostbacks !== undefined) return; window.__miyabePostbacks = 0;"
+        " Sys.WebForms.PageRequestManager.getInstance().add_endRequest(() => { window.__miyabePostbacks++; }); }"
+    )
+    POSTBACKS_JS = "() => window.__miyabePostbacks"
+    ITEMS_JS = (
+        "(n) => { const c = window[n]; if (!c) return []; const out = [];"
+        " for (let i = 0; i < c.GetItemCount(); i++) out.push(c.GetItem(i).text); return out; }"
+    )
+    SELECTED_JS = "(n) => { const c = window[n]; return c ? c.GetSelectedIndex() : -1; }"
+    OPEN_JS = "(n) => window[n].ShowDropDown()"
+    # 押したあとの postback が終わり、描き直したコンボが押した項目を選んでいる。
+    DONE_JS = (
+        "([before, n, index]) => window.__miyabePostbacks > before"
+        " && !Sys.WebForms.PageRequestManager.getInstance().get_isInAsyncPostBack()"
+        " && !!window[n] && window[n].GetSelectedIndex() === index"
+    )
+    # 会議名を選ぶと本文ごと返る。コンボだけの postback より重い。
+    BODY_MIN_TIMEOUT_MS = 30_000
 
     def __init__(self) -> None:
         self._pw = None
         self._browser = None
         self._page = None
         self._source_url = ""
-        self._state: dict[str, int] = {}
+        self._needs_reload = False
+        self._exhausted = 0
 
     # ---- browser -------------------------------------------------------
     def _open(self, source_url: str, timeout_ms: int):
-        if self._page is not None:
+        """画面を開く。前の操作が途中で失敗していたら、開き直して初めから選ぶ。"""
+        if self._page is not None and not self._needs_reload:
+            self._page.set_default_timeout(timeout_ms)
             return self._page
-        from playwright.sync_api import sync_playwright  # noqa: WPS433
+        if self._page is None:
+            from playwright.sync_api import sync_playwright  # noqa: WPS433
 
-        self._pw = sync_playwright().start()
-        self._browser = self._pw.chromium.launch(headless=True)
-        context = self._browser.new_context(locale="ja-JP", user_agent=USER_AGENT)
-        page = context.new_page()
+            self._pw = sync_playwright().start()
+            self._browser = self._pw.chromium.launch(headless=True)
+            context = self._browser.new_context(locale="ja-JP", user_agent=USER_AGENT)
+            self._page = context.new_page()
+        page = self._page
         page.set_default_timeout(timeout_ms)
         page.goto(source_url, wait_until="domcontentloaded", timeout=timeout_ms)
         try:
             page.wait_for_load_state("networkidle", timeout=10_000)
         except Exception:
             pass
-        self._page = page
+        page.evaluate(self.HOOK_JS)
         self._source_url = source_url
-        self._state = {}
+        self._needs_reload = False
         return page
 
     def _items(self, key: str) -> list[str]:
-        script = (
-            "(n) => { const c = window[n]; if (!c) return []; const out = [];"
-            " for (let i = 0; i < c.GetItemCount(); i++) out.push(c.GetItem(i).text); return out; }"
-        )
-        return self._page.evaluate(script, self.IDS[key]) or []
+        return self._page.evaluate(self.ITEMS_JS, self.IDS[key]) or []
 
-    def _settle(self) -> None:
-        try:
-            self._page.wait_for_load_state("networkidle", timeout=15_000)
-        except Exception:
-            pass
-        self._page.wait_for_timeout(500)
+    def _select(self, key: str, index: int, timeout_ms: int) -> None:
+        """コンボの index 番目を選び、描き直しが終わるまで待つ。
 
-    def _pick(self, key: str, index: int) -> None:
-        """コンボを開いて index 番目を押す。押した先の callback が終わるまで待つ。"""
+        選んであるものは押さない（押しても postback が起きず、待ちが終わらない）。
+        上のコンボを選び直すと、下のコンボは「選択してください」に戻る。
+        """
         cid = self.IDS[key]
         page = self._page
-        page.click(f"#{cid}_B-1")
-        page.wait_for_timeout(400)
+        if page.evaluate(self.SELECTED_JS, cid) == index:
+            return
+        count = len(self._items(key))
+        if index >= count:
+            raise RuntimeError(f"{key} のコンボに {index + 1} 番目がありません（{count} 件）")
+        before = page.evaluate(self.POSTBACKS_JS)
+        page.evaluate(self.OPEN_JS, cid)
         selector = f"#{cid}_DDD_L_LBI{index}T0"
         if page.query_selector(selector) is None:
             selector = f"#{cid}_DDD_L_LBT tr:nth-child({index + 1}) td"
         page.click(selector)
-        self._settle()
-        # 下位のコンボは選び直しになる。
-        order = ["year", "kind", "kaisu", "name"]
-        for lower in order[order.index(key) + 1 :]:
-            self._state.pop(lower, None)
-        self._state[key] = index
+        page.wait_for_function(self.DONE_JS, arg=[before, cid, index], timeout=timeout_ms)
 
-    def _ensure(self, key: str, index: int) -> None:
-        if self._state.get(key) != index:
-            self._pick(key, index)
+    def _retrying(self, label: str, timeout_ms: int, action):
+        """時間切れ・接続断なら、間を置いて画面を開き直し、やり直す。
+
+        規則は fetch と同じ（5 秒・20 秒置く、やり直しでは 30 秒まで待つ、
+        やり直しても通らないのが 3 回続いたらやめる）。失敗した画面は開いた
+        ままのドロップダウンや途中の postback を残すので、次へ持ち越さない。
+        """
+        waits = () if self._exhausted >= FETCH_RETRY_GIVE_UP_AFTER else FETCH_RETRY_WAITS_SECONDS
+        attempt_timeout_ms = timeout_ms
+        for wait in waits:
+            try:
+                result = action(attempt_timeout_ms)
+            except Exception as exc:
+                self._needs_reload = True
+                if not is_transient_browser_error(exc):
+                    raise
+                print(f"[INFO] {label}: 画面を開き直して読み直します（{str(exc).splitlines()[0]}）", flush=True)
+                time.sleep(wait)
+                attempt_timeout_ms = max(timeout_ms, FETCH_RETRY_MIN_TIMEOUT_MS)
+            else:
+                self._exhausted = 0
+                return result
+        try:
+            result = action(attempt_timeout_ms)
+        except Exception as exc:
+            self._needs_reload = True
+            if is_transient_browser_error(exc):
+                self._exhausted += 1
+            raise
+        self._exhausted = 0
+        return result
+
+    def _discover_year(self, source_url: str, years: list[str], yi: int, timeout_ms: int, counted: int) -> list[MeetingItem]:
+        self._open(source_url, timeout_ms)
+        self._select("year", yi, timeout_ms)
+        found: list[MeetingItem] = []
+        kinds = self._items("kind")
+        for ki in range(len(kinds)):
+            self._select("kind", ki, timeout_ms)
+            sessions = self._items("kaisu")
+            for si in range(len(sessions)):
+                self._select("kaisu", si, timeout_ms)
+                for ni, name in enumerate(self._items("name")):
+                    title = normalize_space(name)
+                    if not title:
+                        continue
+                    found.append(
+                        MeetingItem(
+                            title=title,
+                            url=f"{source_url}#y={yi}&k={ki}&s={si}&n={ni}",
+                            year_label=year_label_from(title) or year_label_from(years[yi]) or "不明",
+                            meeting_group=kinds[ki],
+                        )
+                    )
+            print(
+                f"[INFO] {years[yi]} {kinds[ki]}: 開催 {len(sessions)} 回（会議 {counted + len(found)} 件）",
+                flush=True,
+            )
+        return found
 
     # ---- adapter -------------------------------------------------------
     def discover(self, session, source_url, timeout_ms, walk):
-        self._open(source_url, timeout_ms)
+        self._retrying("入口", timeout_ms, lambda attempt_ms: self._open(source_url, attempt_ms))
         years = self._items("year")
         if not years:
             raise RuntimeError("年のコンボが空です。画面の形が変わった可能性があります。")
@@ -816,50 +909,39 @@ class Voicetechno(Adapter):
         missed: list[str] = []
         for yi in year_indexes:
             try:
-                self._ensure("year", yi)
-                kinds = self._items("kind")
-                for ki in range(len(kinds)):
-                    self._ensure("kind", ki)
-                    sessions = self._items("kaisu")
-                    for si in range(len(sessions)):
-                        self._ensure("kaisu", si)
-                        names = self._items("name")
-                        for ni, name in enumerate(names):
-                            title = normalize_space(name)
-                            if not title:
-                                continue
-                            url = f"{source_url}#y={yi}&k={ki}&s={si}&n={ni}"
-                            items.append(
-                                MeetingItem(
-                                    title=title,
-                                    url=url,
-                                    year_label=year_label_from(title) or year_label_from(years[yi]) or "不明",
-                                    meeting_group=kinds[ki],
-                                )
-                            )
-                    print(
-                        f"[INFO] {years[yi]} {kinds[ki]}: 開催 {len(sessions)} 回（会議 {len(items)} 件）",
-                        flush=True,
-                    )
+                found = self._retrying(
+                    years[yi],
+                    timeout_ms,
+                    lambda attempt_ms, yi=yi: self._discover_year(source_url, years, yi, attempt_ms, len(items)),
+                )
             except Exception as exc:
                 missed.append(f"{years[yi]}: {exc}")
                 print(f"[WARN] {years[yi]} を読めませんでした: {exc}", flush=True)
-                # 画面を開き直して次の年へ。
-                self._page.reload(wait_until="domcontentloaded")
-                self._settle()
-                self._state = {}
+                continue
+            items.extend(found)
         walk["missed_pages"] = len(missed)
         walk["missed_examples"] = missed[:10]
         return items
 
     def fetch_text(self, session, item, timeout_ms):
+        return self._retrying(item.title, timeout_ms, lambda attempt_ms: self._read_meeting(item, attempt_ms))
+
+    def _read_meeting(self, item: MeetingItem, timeout_ms: int) -> str:
         self._open(self._source_url or item.url.split("#")[0], timeout_ms)
         params = parse_qs(item.url.split("#", 1)[1]) if "#" in item.url else {}
         yi, ki, si, ni = (int(params.get(k, ["0"])[0]) for k in ("y", "k", "s", "n"))
-        self._ensure("year", yi)
-        self._ensure("kind", ki)
-        self._ensure("kaisu", si)
-        self._pick("name", ni)
+        self._select("year", yi, timeout_ms)
+        self._select("kind", ki, timeout_ms)
+        self._select("kaisu", si, timeout_ms)
+        # 位置は一覧を読んだときのもの。並びが違えば題名で探し直し、見当たら
+        # なければ止める（別の会議の本文をこの題名で保存しない）。
+        title = normalize_space(item.title)
+        names = [normalize_space(name) for name in self._items("name")]
+        if ni >= len(names) or names[ni] != title:
+            if title not in names:
+                raise RuntimeError(f"会議名のコンボに「{item.title}」がありません（{len(names)} 件）")
+            ni = names.index(title)
+        self._select("name", ni, max(timeout_ms, self.BODY_MIN_TIMEOUT_MS))
         page = self._page
         deadline = time.monotonic() + max(timeout_ms / 1000.0, 10.0)
         text = ""

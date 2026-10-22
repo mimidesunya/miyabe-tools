@@ -180,5 +180,232 @@ class FetchRetryTest(unittest.TestCase):
         self.assertEqual(len(session.timeouts), 1)
 
 
+VOICETECHNO_URL = "https://www.voicetechno.net/MinutesSystem/Kama/"
+H29_MARCH = [f"平成29年 第１回嘉麻市議会定例会会議録（第{d}日：平成29年３月{d + 1}日）" for d in (1, 2, 3)]
+H29_MAY = ["平成29年 第１回嘉麻市議会臨時会会議録（第１日：平成29年５月９日）"]
+H29_JUNE = [f"平成29年 第２回嘉麻市議会定例会会議録（第{d}日：平成29年６月{d + 8}日）" for d in (1, 2)]
+# 年 → 種別 → 開催回数 → 会議名。嘉麻市の平成29年と同じく、会議 1 件だけの臨時会が
+# 定例会に挟まる。
+VOICETECHNO_SITE = {
+    "2016(平成28年)": {"本会議": {"第01回(３月定例会)": ["平成28年 第１回嘉麻市議会定例会会議録（第１日：平成28年３月１日）"]}},
+    "2017(平成29年)": {
+        "本会議": {
+            "第01回(３月定例会)": H29_MARCH,
+            "第01回(５月臨時会)": H29_MAY,
+            "第02回(６月定例会)": H29_JUNE,
+        }
+    },
+}
+
+
+class _FakeVoicetechnoPage:
+    """voicetechno の画面のまね。項目を押すと UpdatePanel の postback が始まり、
+    描き直しは wait_for_function で待つか、決め打ちの待ち時間が取得元の応答
+    （latency_ms）を超えたときに終わる。選んである項目を押しても postback は
+    起きない（DevExpress は選択が変わらないと SelectedIndexChanged を出さない）。"""
+
+    ORDER = ("year", "kind", "kaisu", "name")
+
+    def __init__(self, *, latency_ms: int = 2_000, failing_waits: int = 0) -> None:
+        from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
+        self.timeout_error = PlaywrightTimeoutError
+        self.adapter = html_list_sites.Voicetechno
+        self.key_by_cid = {cid: key for key, cid in self.adapter.IDS.items()}
+        self.latency_ms = latency_ms
+        self.failing_waits = failing_waits
+        self.clicks: list[tuple[str, int]] = []
+        self.gotos = 0
+        self._reset()
+
+    def _reset(self) -> None:
+        # 開いた直後は最新の年が選ばれ、種別は「選択してください」。
+        self.selected = {"year": len(VOICETECHNO_SITE) - 1, "kind": -1, "kaisu": -1, "name": -1}
+        self.postbacks = None
+        self.pending = None
+        self.dropped = ""
+
+    def _branch(self, key: str):
+        node = VOICETECHNO_SITE
+        for upper in self.ORDER[: self.ORDER.index(key)]:
+            index = self.selected[upper]
+            if index < 0:
+                return {}
+            node = node[list(node)[index]]
+        return node
+
+    def items(self, key: str) -> list[str]:
+        return list(self._branch(key))
+
+    def _apply_pending(self) -> None:
+        if self.pending is None:
+            return
+        key, index = self.pending[:2]
+        self.selected[key] = index
+        for lower in self.ORDER[self.ORDER.index(key) + 1 :]:
+            self.selected[lower] = -1
+        self.postbacks += 1
+        self.pending = None
+
+    # ---- Playwright の page のうち、アダプタが使う分 ----
+    def goto(self, url, **_kwargs):
+        self.gotos += 1
+        self._reset()
+
+    def set_default_timeout(self, _timeout_ms):
+        pass
+
+    def wait_for_load_state(self, *_args, **_kwargs):
+        pass
+
+    def evaluate(self, script, arg=None):
+        adapter = self.adapter
+        if script == adapter.HOOK_JS:
+            self.postbacks = 0 if self.postbacks is None else self.postbacks
+            return None
+        if script == adapter.POSTBACKS_JS:
+            return self.postbacks
+        key = self.key_by_cid[arg]
+        if script == adapter.ITEMS_JS:
+            return self.items(key)
+        if script == adapter.SELECTED_JS:
+            return self.selected[key]
+        if script == adapter.OPEN_JS:
+            self.dropped = key
+            return None
+        raise AssertionError(f"知らない script: {script}")
+
+    def query_selector(self, selector):
+        import re
+
+        match = re.fullmatch(r"#(\w+?)_DDD_L_LBI(\d+)T0", selector)
+        key = self.key_by_cid[match.group(1)]
+        return object() if int(match.group(2)) < len(self.items(key)) else None
+
+    def click(self, selector, **_kwargs):
+        import re
+
+        match = re.fullmatch(r"#(\w+?)_DDD_L_(?:LBI(\d+)T0|LBT tr:nth-child\((\d+)\) td)", selector)
+        key = self.key_by_cid[match.group(1)]
+        index = int(match.group(2)) if match.group(2) is not None else int(match.group(3)) - 1
+        if self.dropped != key or index >= len(self.items(key)):
+            raise self.timeout_error(f'Page.click: Timeout exceeded. waiting for locator("{selector}")')
+        self.dropped = ""
+        self.clicks.append((key, index))
+        if index != self.selected[key]:
+            self.pending = [key, index, 0]
+
+    def wait_for_timeout(self, ms):
+        if self.pending is not None:
+            self.pending[2] += ms
+            if self.pending[2] >= self.latency_ms:
+                self._apply_pending()
+
+    def wait_for_function(self, script, arg=None, timeout=None):
+        assert script == self.adapter.DONE_JS
+        if self.failing_waits > 0:
+            self.failing_waits -= 1
+            raise self.timeout_error(f"Timeout {timeout}ms exceeded.")
+        self._apply_pending()
+        before, cid, index = arg
+        if not (self.postbacks > before and self.selected[self.key_by_cid[cid]] == index):
+            raise self.timeout_error(f"Timeout {timeout}ms exceeded.")
+
+    def inner_text(self, selector):
+        assert selector == self.adapter.PANEL
+        if self.selected["name"] < 0:
+            return ""
+        title = self.items("name")[self.selected["name"]]
+        return f"閲覧する\n{title}\n\n○議長　ただいまから本日の会議を開きます。\n" + "発言。" * 100 + f"\n{self.adapter.TRAILER}"
+
+
+class VoicetechnoTest(unittest.TestCase):
+    """コンボの描き直しを待ってから次を読む（嘉麻市 平成29年）。"""
+
+    def setUp(self) -> None:
+        from unittest import mock
+
+        patcher = mock.patch.object(html_list_sites.time, "sleep")
+        self.sleep = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def adapter_on(self, page: _FakeVoicetechnoPage) -> html_list_sites.Voicetechno:
+        adapter = html_list_sites.Voicetechno()
+        adapter._page = page
+        adapter._needs_reload = True
+        return adapter
+
+    def item(self, title: str, fragment: str) -> html_list_sites.MeetingItem:
+        return html_list_sites.MeetingItem(title=title, url=VOICETECHNO_URL + fragment, year_label="平成29年", meeting_group="本会議")
+
+    def test_names_belong_to_the_session_picked_even_when_the_redraw_is_slow(self) -> None:
+        # 応答が 2 秒かかっても、臨時会の位置に定例会の会議名を控えない。
+        page = _FakeVoicetechnoPage(latency_ms=2_000)
+        walk: dict = {}
+
+        items = self.adapter_on(page).discover(None, VOICETECHNO_URL, 10_000, walk)
+
+        self.assertEqual(
+            [(item.url.split("#")[1], item.title) for item in items if item.year_label == "平成29年"],
+            [(f"y=1&k=0&s=0&n={n}", title) for n, title in enumerate(H29_MARCH)]
+            + [("y=1&k=0&s=1&n=0", H29_MAY[0])]
+            + [(f"y=1&k=0&s=2&n={n}", title) for n, title in enumerate(H29_JUNE)],
+        )
+        self.assertEqual(walk["missed_pages"], 0)
+
+    def test_meeting_body_follows_the_title(self) -> None:
+        page = _FakeVoicetechnoPage()
+
+        text = self.adapter_on(page).fetch_text(None, self.item(H29_MARCH[1], "#y=1&k=0&s=0&n=1"), 10_000)
+
+        self.assertTrue(text.startswith(H29_MARCH[1]))
+        self.assertNotIn(html_list_sites.Voicetechno.TRAILER, text)
+
+    def test_already_selected_year_is_not_clicked(self) -> None:
+        # 開いた直後に選ばれている年を押しても postback は来ない。待たずに次へ進む。
+        page = _FakeVoicetechnoPage()
+
+        self.adapter_on(page).fetch_text(None, self.item(H29_MAY[0], "#y=1&k=0&s=1&n=0"), 10_000)
+
+        self.assertEqual(page.clicks, [("kind", 0), ("kaisu", 1), ("name", 0)])
+
+    def test_moved_position_is_found_again_by_title(self) -> None:
+        page = _FakeVoicetechnoPage()
+
+        text = self.adapter_on(page).fetch_text(None, self.item(H29_MARCH[2], "#y=1&k=0&s=0&n=0"), 10_000)
+
+        self.assertTrue(text.startswith(H29_MARCH[2]))
+
+    def test_title_missing_from_the_session_stops_instead_of_saving_another_meeting(self) -> None:
+        # 前の一覧がずれて控えた「５月臨時会の 2 件目 = ３月定例会 第２日」。
+        # 臨時会の 1 件目を押してその本文を保存してはいけない。
+        page = _FakeVoicetechnoPage()
+
+        with self.assertRaisesRegex(RuntimeError, "会議名のコンボに"):
+            self.adapter_on(page).fetch_text(None, self.item(H29_MARCH[1], "#y=1&k=0&s=1&n=1"), 10_000)
+        self.assertNotIn("name", [key for key, _index in page.clicks])
+        self.sleep.assert_not_called()
+
+    def test_timeout_reopens_the_page_and_retries(self) -> None:
+        page = _FakeVoicetechnoPage(failing_waits=1)
+
+        text = self.adapter_on(page).fetch_text(None, self.item(H29_JUNE[1], "#y=1&k=0&s=2&n=1"), 10_000)
+
+        self.assertTrue(text.startswith(H29_JUNE[1]))
+        self.assertEqual(page.gotos, 2)
+        self.sleep.assert_called_once_with(html_list_sites.FETCH_RETRY_WAITS_SECONDS[0])
+
+    def test_year_that_keeps_timing_out_is_counted_as_missed(self) -> None:
+        page = _FakeVoicetechnoPage(failing_waits=99)
+        walk: dict = {}
+
+        items = self.adapter_on(page).discover(None, VOICETECHNO_URL, 10_000, walk)
+
+        # 平成28年は押すたびに時間切れ。平成29年は開いた直後から選ばれていて押さずに済むが、
+        # 種別で時間切れになる。どちらも数えて残す。
+        self.assertEqual(items, [])
+        self.assertEqual(walk["missed_pages"], 2)
+
+
 if __name__ == "__main__":
     unittest.main()
