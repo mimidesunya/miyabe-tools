@@ -1024,7 +1024,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 23209	https://ops-jg.d1-law.com/opensearch/SrFeF01/init?jctcd=8A858330B3	d1-law	enabled		
 23210	https://en3-jg.d1-law.com/kariya/reikishu/reiki.html	d1-law	enabled		
 23211	https://www2.city.toyota.aichi.jp/reiki_int/reiki_menu.html	taikei	enabled		
-23212	https://en3-jg.d1-law.com/anjo/d1w_reiki/reiki.html	d1-law	enabled		
+23212	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A85833111	d1-law	enabled		
 23213	https://ops-jg.d1-law.com/opensearch/SrMjF01/init?jctcd=8A85833112	d1-law	enabled		
 23214	https://www1.g-reiki.net/gamagori/reiki_menu.html	g-reiki	enabled		
 23215	https://ops-jg.d1-law.com/opensearch/SrFeF01/init?jctcd=8A85833114	d1-law	enabled		
