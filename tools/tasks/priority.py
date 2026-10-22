@@ -247,10 +247,16 @@ def _progressed_since_previous_run(
     return verdict
 
 
-def incomplete_wait_reason(task_name: str, slug: str, current_count: int) -> str:
+def incomplete_wait_reason(
+    task_name: str, slug: str, current_count: int, target: dict[str, Any] | None = None
+) -> str:
     """取り切れていないが、いまやり直しても進まないなら、その理由を返す。"""
     item = _latest_finished_item(task_name, slug)
     if not item:
+        return ""
+    if target is not None and not input_generation.fingerprint_matches_observed_input(task_name, target, item):
+        # 失敗の待ちと同じく、台帳を直す前の入力での結果は持ち越さない。飯島町は
+        # 古い入口で 0 件が続いたあと入口を差し替えたが、新しい入口を 1 日試せなかった。
         return ""
     if str(item.get("message") or "").strip().startswith("停止"):
         return ""
@@ -308,13 +314,18 @@ def failure_is_retryable(finished_at: str, started_at: str = "") -> bool:
     return (freshness_metadata.now_tokyo() - finished) >= timedelta(days=wait_days)
 
 
-def shrink_confirmation_pending(target: dict[str, Any]) -> bool:
+def shrink_confirmation_pending(target: dict[str, Any], failed_at: str = "") -> bool:
     """縮みの確定を待っていて、次の観測を数えられる時刻になったか。
 
     縮みのガードで止まった実行は失敗になるが、確定には日をまたいだ観測が
     3 回要る。失敗の待ち（7 日）に乗せると、確定まで 2 週間かかる
     （2026-10-09 に村上市・幸田町・高浜市などが 1/3 回目で 7 日待ちになっていた）。
     観測が途中の自治体は、観測の最短間隔がたてばやり直す。
+
+    数えられる時刻になってから試して（failed_at）、それでも観測が増えていなければ、
+    その失敗は縮みの観測にならない形（0 件で返って一覧を書かない等）だった。
+    待つ観測は来ないので、ふつうの失敗の待ちに戻す。飯島町は入口が 404 になって
+    0 件が続き、観測が 10-18 の 1 回目のまま、4 日間 11 分おきにやり直していた。
     """
     index_json = str(target.get("index_json_path") or "").strip()
     if not index_json:
@@ -329,8 +340,11 @@ def shrink_confirmation_pending(target: dict[str, Any]) -> bool:
     last_seen = shrink_confirmation.parse_time(str(payload.get("last_seen") or ""))
     if last_seen is None:
         return False
-    waited = freshness_metadata.now_tokyo() - last_seen
-    return waited >= timedelta(hours=shrink_confirmation.DEFAULT_MIN_INTERVAL_HOURS)
+    countable_from = last_seen + timedelta(hours=shrink_confirmation.DEFAULT_MIN_INTERVAL_HOURS)
+    failed = freshness_metadata.parse_datetime_text(failed_at)
+    if failed is not None and failed >= countable_from:
+        return False
+    return freshness_metadata.now_tokyo() >= countable_from
 
 
 def _valid_failure_time(value: object) -> str:
@@ -682,7 +696,7 @@ class PriorityCalculator:
             failed_at = failure_reference_time(failed_task_name, slug, failed_item)
             if not failure_is_retryable(
                 failed_at, str(failed_item.get("started_at") or "")
-            ) and not shrink_confirmation_pending(target):
+            ) and not shrink_confirmation_pending(target, failed_at):
                 return {
                     "priority_group": 5,
                     "priority_score": 0,
@@ -719,7 +733,7 @@ class PriorityCalculator:
             priority_group = 1
             priority_label = "incomplete"
             wait_reason = "" if retry_after_failure else incomplete_wait_reason(
-                self.task_name, slug, current_count
+                self.task_name, slug, current_count, target
             )
             if wait_reason:
                 return {

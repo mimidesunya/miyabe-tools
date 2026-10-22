@@ -151,6 +151,20 @@ class ShrinkConfirmationPendingTest(unittest.TestCase):
         self.assertFalse(priority.shrink_confirmation_pending(self.target))
         self.assertFalse(priority.shrink_confirmation_pending({}))
 
+    def _ago(self, **delta) -> str:
+        return (priority.freshness_metadata.now_tokyo() - timedelta(**delta)).strftime("%Y-%m-%d %H:%M:%S")
+
+    def test_failure_from_the_observing_run_is_still_pending(self) -> None:
+        # 縮みのガードで止まった実行そのもの。観測と同じ時刻に失敗している。
+        self._observe(1, hours_ago=13)
+        self.assertTrue(priority.shrink_confirmation_pending(self.target, self._ago(hours=13)))
+
+    def test_failure_that_did_not_add_an_observation_is_not_pending(self) -> None:
+        # 飯島町: 入口が 404 で 0 件が続き、0 件は一覧を書かないので観測は増えない。
+        # 10-18 の 1 回目のまま、4 日間 11 分おきにやり直していた。
+        self._observe(1, hours_ago=96)
+        self.assertFalse(priority.shrink_confirmation_pending(self.target, self._ago(minutes=11)))
+
 
 class FailureReferenceTimeTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -367,6 +381,24 @@ class IncompleteWaitTest(unittest.TestCase):
         second = dict(first, finished_at=self._now_text(timedelta(minutes=-10)))
         with mock.patch.object(priority, "task_item", return_value=second):
             self.assertEqual(priority.incomplete_wait_reason("gijiroku", "04100-sendai-shi", 1400), "")
+
+    def test_result_from_the_old_registry_row_is_not_carried_over(self) -> None:
+        # 飯島町: 古い入口で 0 件が続いたあと入口を差し替えた。新しい入口を 1 日待たせない。
+        old_target = {"source_url": "https://www.town.iijima.lg.jp/gikai_kuroku/91.html", "system_type": "独自"}
+        new_target = {"source_url": "https://www.town.iijima.lg.jp/administration/?category=72", "system_type": "独自"}
+        item = {
+            **old_target,
+            "status": "failed",
+            "returncode": -1,
+            "finished_at": self._now_text(timedelta(minutes=-30)),
+            "progress_current": 0,
+            "progress_total": 0,
+            "scrape_input_fingerprint": priority.input_generation.input_fingerprint("gijiroku", old_target),
+        }
+        self.basis["20384-iijima-cho"] = {"finished_at": "2026-10-22 14:26:27", "count": 0, "progressed": False}
+        with mock.patch.object(priority, "task_item", return_value=item):
+            self.assertEqual(priority.incomplete_wait_reason("gijiroku", "20384-iijima-cho", 0, new_target), "")
+            self.assertTrue(priority.incomplete_wait_reason("gijiroku", "20384-iijima-cho", 0, old_target))
 
 
 if __name__ == "__main__":
