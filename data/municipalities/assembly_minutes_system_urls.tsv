@@ -890,7 +890,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail	policy_c
 20363	https://haramuragikai.gijiroku.com/voices/index.html	gijiroku.com	enabled			2026-08-02	af2bac380e25a55da4d1f1c41fa982fe57165f0bfb0f5c4283cea658747a4b03
 20382	https://www.town.tatsuno.lg.jp/gyosei/soshiki/gikaijimukyoku/choseijoho/1/gikaigijiroku/index.html	独自	enabled			2026-08-02	54a754fea757a0ddc0108586f3295139df6ef45f48c6e1fec8ac2fde4f685269
 20383	https://ssp.kaigiroku.net/tenant/minowa/SpMinuteSearch.html	kaigiroku.net	enabled				0a38d424f8d69cd34d010ced4d3f4cc37b602747372100a99c3c5b0d2be0a040
-20384	https://www.town.iijima.lg.jp/administration/?category=72	独自	enabled			2026-08-02	d36470a9ffe641aa994e271f39f507654924f6719cf884e6a04700013241350f
+20384	https://www.town.iijima.lg.jp/administration/?category=72	独自	enabled				5e65a07702163b512ffa12d2aa836207a576fba15b87a69f0eee7f6e65b4ac73
 20385	https://www.kensakusystem.jp/minamiminowa/index.html	kensakusystem	enabled			2026-08-02	84ddf67e45fd3ffce2eb42967ab706954474eb750382034cf6f2e1e9bf01a583
 20386	https://www.vill.nakagawa.nagano.jp/site/rinia/2558.html	独自	enabled			2026-08-02	3ffcf14131c40fc71d618a4ec2e153bc3a4e85e06279e069786d43ba7ae396d7
 20388			unresolved	source_url_unresolved	会議録の代表URLを未特定	2026-08-02	f4e7b529b2f42d53c257bc2782b0eb5f954301ab8fd137382d26585cfc739c60
