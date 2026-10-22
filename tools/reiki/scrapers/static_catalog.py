@@ -17,9 +17,12 @@ index builder（tools/search）が読む契約に合わせ、成果物は
 
 from __future__ import annotations
 
+import hashlib
 import html as html_lib
+import os
 import re
 import sys
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -42,6 +45,8 @@ USER_AGENT = (
 )
 DEFAULT_DELAY = 0.3
 TIMEOUT = 20
+# 取得元が送ってこない中間証明書。中身と足し方はファイルの先頭に書いてある。
+EXTRA_INTERMEDIATES = SCRAPER_DIR / "certs" / "extra_intermediates.pem"
 
 _ERA_BASE = {"明治": 1867, "大正": 1911, "昭和": 1925, "平成": 1988, "令和": 2018}
 _WAREKI_RE = re.compile(r"(明治|大正|昭和|平成|令和)([0-9０-９元]+)年([0-9０-９]+)月([0-9０-９]+)日")
@@ -150,6 +155,32 @@ def fetch_text(session: requests.Session, url: str, *, referer: str = "") -> str
     return response.text
 
 
+def ca_bundle_path() -> str | bool:
+    """certifi の束に、取得元が送ってこない中間証明書を足した束のパスを返す。
+
+    ブラウザや Windows は発行元の中間証明書を自分で取りに行くので、取得元が
+    違う中間証明書を送っても通る。requests（OpenSSL）は取りに行かないので
+    検証に落ちる（西宮市、2026-10-09 の証明書の更新から）。足す物が無ければ
+    True（requests の既定）を返す。
+    """
+    try:
+        import certifi
+    except ImportError:
+        return True
+    extra = EXTRA_INTERMEDIATES.read_text(encoding="utf-8") if EXTRA_INTERMEDIATES.exists() else ""
+    if "BEGIN CERTIFICATE" not in extra:
+        return True
+    bundle = Path(certifi.where()).read_text(encoding="utf-8").rstrip("\n") + "\n" + extra
+    digest = hashlib.sha256(bundle.encode("utf-8")).hexdigest()[:16]
+    path = Path(tempfile.gettempdir()) / f"miyabe-reiki-ca-{digest}.pem"
+    if not path.exists():
+        # 同時に走る別の取得が読みかけの束を掴まないよう、書き切ってから置き換える。
+        partial = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+        partial.write_text(bundle, encoding="utf-8")
+        os.replace(partial, path)
+    return str(path)
+
+
 def emit_progress(current: int, total: int, state_path: Path) -> None:
     reiki_io.update_progress_state(state_path, current=current, total=total, unit="ordinance")
     print(f"[PROGRESS] unit=ordinance current={max(0, current)} total={max(0, total)}", flush=True)
@@ -194,6 +225,7 @@ def run(
 
     session = requests.Session()
     session.headers.update({"User-Agent": USER_AGENT})
+    session.verify = ca_bundle_path()
 
     # 歩き直しの途中で殺されたら、前回の complete を当てにしない。
     reiki_io.mark_walk_started(work_root, time.strftime("%Y%m%d_%H%M%S"))
