@@ -94,14 +94,25 @@ def filter_recently_queued(
     return kept
 
 
-def mark_queued(kind: str, slugs: list[str], *, now: float | None = None) -> None:
-    """積んだことを控える。古すぎる控えは落として、際限なく太らせない。"""
+def mark_queued(
+    kind: str,
+    slugs: list[str],
+    *,
+    cooldown_seconds: int = DEFAULT_COOLDOWN_SECONDS,
+    now: float | None = None,
+) -> None:
+    """積んだことを控える。古すぎる控えは落として、際限なく太らせない。
+
+    落とすまでの長さは、読む側の待ち時間に合わせる。本文が空の取り直しは 3 日
+    待つのに、控えを既定の 24 時間で落としていたので、同じ自治体が 30 時間ごとに
+    積まれていた。
+    """
     if not slugs:
         return
     moment = time.time() if now is None else float(now)
     queued = _read(kind)
     for slug in slugs:
         queued[str(slug)] = moment
-    keep_after = moment - float(DEFAULT_COOLDOWN_SECONDS) * 4
+    keep_after = moment - float(max(DEFAULT_COOLDOWN_SECONDS, cooldown_seconds)) * 4
     queued = {slug: when for slug, when in queued.items() if when >= keep_after}
     _write(kind, queued)

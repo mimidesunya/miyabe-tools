@@ -173,6 +173,15 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="前回の実エラーで自動除外された対象を、この実行に限って再試行する",
     )
+    parser.add_argument(
+        # 例規の一括取得の --force（保存済みがあっても取り直す）とは別の印。
+        "--ignore-wait",
+        action="store_true",
+        # 本文が空の自治体の取り直し（sweep_empty_body）はこれで積む。件数が
+        # 揃っていると優先度は「最近取り切った」で 0 点になり、本番の取り直しは
+        # 毎回 1 秒で「対象自治体がありません」に終わっていた（第75）。
+        help="--filter で絞った自治体を、優先度の待ちに関わらずこの実行に限って取る",
+    )
 
 
 # 共通 CLI オプションの値を検証し、問題があればエラーメッセージを返す。
@@ -183,6 +192,8 @@ def validate_common_args(args: argparse.Namespace) -> str:
         return "--index-parallel は 1 以上を指定してください。"
     if args.per_host_parallel < 1:
         return "--per-host-parallel は 1 以上を指定してください。"
+    if getattr(args, "ignore_wait", False) and not str(args.filter or "").strip():
+        return "--ignore-wait は --filter と一緒に指定してください。"
     return ""
 
 
@@ -835,6 +846,7 @@ def select_runnable_targets(
     targets: list[dict],
     *,
     retry_failed: bool = False,
+    ignore_wait: bool = False,
 ) -> list[dict]:
     skipped_zero_score = 0
     label_counts: dict[str, int] = {}
@@ -850,7 +862,9 @@ def select_runnable_targets(
         # 失敗から時間が経って自動再試行の対象になったもの（failed_retry）も
         # 拾えないと、手動の復旧経路が使えない。
         retry_previous_failure = retry_failed and label in {"previous_failed", "failed_retry"}
-        if int(priority.get("priority_score") or 0) <= 0 and not retry_previous_failure:
+        # 0 点は「最近取り切った」「前回失敗」「取り切れていないので待つ」の待ちだけ。
+        # --ignore-wait は保存済みが壊れているときの取り直しなので、どの待ちも飛ばす。
+        if int(priority.get("priority_score") or 0) <= 0 and not retry_previous_failure and not ignore_wait:
             skipped_zero_score += 1
             continue
         runnable_targets.append(target)
@@ -908,6 +922,7 @@ def run_batch(
         spec,
         targets,
         retry_failed=bool(getattr(args, "retry_failed", False)),
+        ignore_wait=bool(getattr(args, "ignore_wait", False)),
     )
     if args.max_targets > 0:
         targets = targets[: args.max_targets]

@@ -45,6 +45,43 @@ class SelectRunnableTargetsTest(unittest.TestCase):
         selected = batch.select_runnable_targets(self.spec, self.targets, retry_failed=True)
         self.assertEqual(["failed", "runnable"], [target["slug"] for target in selected])
 
+
+class IgnoreWaitTest(unittest.TestCase):
+    # 本文が空の自治体の取り直しは件数が揃っているので「最近取り切った」で 0 点。
+    # 強制でも選定で外れていて、本番では毎回 1 秒で「対象自治体がありません」だった。
+    def test_ignore_wait_takes_targets_that_recently_completed(self) -> None:
+        spec = SimpleNamespace(
+            priority=FakePriority({"hollow": {"priority_score": 0, "priority_label": "recent_complete"}})
+        )
+        self.assertEqual([], batch.select_runnable_targets(spec, [{"slug": "hollow"}]))
+        selected = batch.select_runnable_targets(spec, [{"slug": "hollow"}], ignore_wait=True)
+        self.assertEqual(["hollow"], [target["slug"] for target in selected])
+
+    def _args(self, *argv: str):
+        import argparse
+
+        parser = argparse.ArgumentParser()
+        batch.add_common_arguments(parser)
+        return parser.parse_args(list(argv))
+
+    def test_ignore_wait_needs_a_filter(self) -> None:
+        # 絞らずに使うと、全自治体を待ちに関わらず取り直してしまう。
+        self.assertIn("--filter", batch.validate_common_args(self._args("--ignore-wait")))
+        self.assertEqual(
+            "", batch.validate_common_args(self._args("--ignore-wait", "--filter", "28585-mikata-kami-cho"))
+        )
+
+    def test_both_batch_runners_still_build_their_parsers(self) -> None:
+        # 例規の一括取得には別の意味の --force がある。共通の引数と名前がぶつかると
+        # argparse が起動のたびに落ちる。
+        from tools.gijiroku import scrape_all_minutes
+        from tools.reiki import scrape_all_reiki
+
+        for module in (scrape_all_minutes, scrape_all_reiki):
+            args = module.build_parser().parse_args(["--ignore-wait", "--filter", "x"])
+            self.assertTrue(args.ignore_wait, module.__name__)
+
+
 class StalledWorkersTest(unittest.TestCase):
     def _worker(self, tmpdir, text: str) -> dict:
         path = Path(tmpdir) / "out.log"

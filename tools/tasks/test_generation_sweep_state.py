@@ -55,6 +55,20 @@ class GenerationSweepStateTest(unittest.TestCase):
         self.assertIn("new", written)
         self.assertNotIn("old", written)
 
+    def test_records_stay_as_long_as_a_longer_cooldown(self):
+        """本文が空の取り直しは 3 日待つ。控えを先に落とすと、30 時間で積み直していた。"""
+        three_days = 3 * 24 * 60 * 60
+        state.mark_queued("minutes_empty_body", ["hollow"], cooldown_seconds=three_days, now=0.0)
+        state.mark_queued(
+            "minutes_empty_body", ["other"], cooldown_seconds=three_days, now=30 * 60 * 60
+        )
+        self.assertEqual(
+            state.filter_recently_queued(
+                "minutes_empty_body", ["hollow"], cooldown_seconds=three_days, now=36 * 60 * 60
+            ),
+            [],
+        )
+
     def test_a_broken_file_does_not_stop_the_sweep(self):
         state.state_path("minutes").write_text("{ broken", encoding="utf-8")
         self.assertEqual(state.filter_recently_queued("minutes", ["a"]), ["a"])

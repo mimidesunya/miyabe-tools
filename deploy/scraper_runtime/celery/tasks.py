@@ -100,7 +100,8 @@ def _gijiroku_scrape_command(
     if force:
         # 保存済みファイルが壊れているときに使う。resume のままだと
         # 「もう取ってある」で読み飛ばし、直した取得処理が走らない。
-        command.append("--no-resume")
+        # 件数は揃っているので、優先度の「最近取り切った」の待ちも飛ばす。
+        command.extend(["--no-resume", "--ignore-wait"])
     command.extend(
         [
             "--parallel",
@@ -460,6 +461,13 @@ def _run_gijiroku_scrape_impl(
 # TSV の URL/system_type が変わった行だけ取得判断を記録し直す。
 def _audit_gijiroku_registry_changes() -> bool:
     if not celery_runtime.env_bool("SCRAPER_GIJIROKU_AUTO_AUDIT", True):
+        return False
+    # 判定は maintenance キューで動き、例規の索引 worker も受ける。そこには会議録の
+    # 作業領域が mount されておらず、行き先の無いリンクになっている。監査は台帳を
+    # 書いたあと、方針のキャッシュを書けずに落ちていた（10-21 からの 2 日で 463 回）。
+    # キャッシュと違う行は、次に会議録側の worker が判定するときに拾われる。
+    work_dir = audit_minutes_registry.DEFAULT_POLICY_CACHE.parent
+    if work_dir.is_symlink() and not work_dir.exists():
         return False
     try:
         summary = audit_minutes_registry.audit_registry(
@@ -1355,7 +1363,11 @@ def sweep_empty_body(limit: int = 0) -> dict[str, object]:
                 continue
             queued_now.append(slug)
             requeued.setdefault(kind, []).append(slug)
-        generation_sweep_state.mark_queued(f"{doc_type}_empty_body", queued_now)
+        generation_sweep_state.mark_queued(
+            f"{doc_type}_empty_body",
+            queued_now,
+            cooldown_seconds=EMPTY_BODY_SWEEP_COOLDOWN_SECONDS,
+        )
     total = sum(len(items) for items in requeued.values())
     if total > 0:
         print(f"[CELERY] 本文が空の {total} 自治体を取り直します: {requeued}", flush=True)
