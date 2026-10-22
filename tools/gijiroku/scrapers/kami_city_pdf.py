@@ -307,6 +307,11 @@ FETCH_RETRY_MIN_TIMEOUT_MS = 30_000
 # やり直しをやめる。1 件ごと 1 分以上待つと巡回が終わらない。1 件でも通れば数え直す。
 FETCH_RETRY_GIVE_UP_AFTER = 3
 _consecutive_exhausted_fetches = 0
+# 入口のページは、もっと長く間を置いてやり直す。入口が開けないとその回の候補が
+# 0 件になり、取得がまるごと無駄になる。本番からだけ入口が時々つながらない取得元が
+# ある（2026-10 の舟橋村は接続の時間切れ 3 回で終わり、そのあと本番からも 0.2 秒で
+# 開けた。小清水町も入口 1 件で候補 0 件）。
+ENTRY_FETCH_RETRY_WAITS_SECONDS = (30.0, 120.0)
 
 
 def is_transient_fetch_error(exc: BaseException) -> bool:
@@ -373,10 +378,10 @@ def fetch_failure_reason(exc: BaseException) -> str:
     return type(exc).__name__
 
 
-def _with_transient_retry(fetch, timeout_ms: int):
+def _with_transient_retry(fetch, timeout_ms: int, retry_waits: tuple[float, ...] = FETCH_RETRY_WAITS_SECONDS):
     """`fetch(timeout_ms)` を、やり直せば通る失敗のときだけ繰り返す。"""
     global _consecutive_exhausted_fetches
-    waits = () if _consecutive_exhausted_fetches >= FETCH_RETRY_GIVE_UP_AFTER else FETCH_RETRY_WAITS_SECONDS
+    waits = () if _consecutive_exhausted_fetches >= FETCH_RETRY_GIVE_UP_AFTER else retry_waits
     attempt_timeout_ms = timeout_ms
     for wait in waits:
         try:
@@ -384,6 +389,9 @@ def _with_transient_retry(fetch, timeout_ms: int):
         except Exception as exc:
             if not is_transient_fetch_error(exc):
                 raise
+            if wait >= 30:
+                # 見張りは無出力が続くと固まったとみる。長く待つときは言っておく。
+                print(f"[INFO] {fetch_failure_reason(exc)}。{wait:.0f} 秒置いてやり直します", flush=True)
             time.sleep(wait)
             attempt_timeout_ms = max(timeout_ms, FETCH_RETRY_MIN_TIMEOUT_MS)
         else:
@@ -399,8 +407,11 @@ def _with_transient_retry(fetch, timeout_ms: int):
     return result
 
 
-def request_text(session: requests.Session, url: str, timeout_ms: int) -> str:
-    return _with_transient_retry(lambda timeout: _request_text_once(session, url, timeout), timeout_ms)
+def request_text(
+    session: requests.Session, url: str, timeout_ms: int, *, entry: bool = False
+) -> str:
+    waits = ENTRY_FETCH_RETRY_WAITS_SECONDS if entry else FETCH_RETRY_WAITS_SECONDS
+    return _with_transient_retry(lambda timeout: _request_text_once(session, url, timeout), timeout_ms, waits)
 
 
 class NonHtmlResponse(ValueError):
@@ -716,7 +727,7 @@ def discover_minutes_pages(
     strict_kami: bool = False,
     max_pages: int = 120,
 ) -> list[str]:
-    start_html = request_text(session, start_url, timeout_ms)
+    start_html = request_text(session, start_url, timeout_ms, entry=True)
     if pages_dir is not None:
         gijiroku_storage.write_text(pages_dir / "start.html", start_html, compress=True)
 

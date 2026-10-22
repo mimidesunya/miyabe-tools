@@ -82,7 +82,7 @@ class _Session:
 def crawl(start: str, pages: dict[str, object]) -> tuple[list, dict, list[str]]:
     requested: list[str] = []
 
-    def fake_request_text(_session, url, _timeout_ms):
+    def fake_request_text(_session, url, _timeout_ms, **_kwargs):
         requested.append(url)
         outcome = pages.get(url, _http_error(404))
         if isinstance(outcome, BaseException):
@@ -335,6 +335,45 @@ class KoshimizuMissedReasonTest(unittest.TestCase):
             reason(kami_city_pdf.NonHtmlResponse("x", content_type="application/msword")),
             "HTML ではない応答（application/msword）",
         )
+
+
+class EntryRetryTest(unittest.TestCase):
+    """入口だけは長く間を置いてやり直す（舟橋村は 10/22 に本番から入口が時間切れ 3 回で候補 0 件）。"""
+
+    START = "https://www.vill.funahashi.toyama.jp/kaigiroku/17-6cont/houhou.html"
+
+    def setUp(self) -> None:
+        kami_city_pdf._consecutive_exhausted_fetches = 0
+        self.addCleanup(setattr, kami_city_pdf, "_consecutive_exhausted_fetches", 0)
+        self.sleep = mock.patch.object(kami_city_pdf.time, "sleep").start()
+        self.addCleanup(mock.patch.stopall)
+
+    def fetch(self, outcomes: list, **kwargs) -> str:
+        mock.patch.object(kami_city_pdf, "_request_text_once", side_effect=outcomes).start()
+        return kami_city_pdf.request_text(object(), self.START, 10_000, **kwargs)
+
+    def test_entry_waits_longer_between_attempts(self) -> None:
+        timeout = requests.exceptions.ConnectTimeout("t")
+        self.assertEqual(self.fetch([timeout, timeout, "<html></html>"], entry=True), "<html></html>")
+        self.assertEqual([c.args[0] for c in self.sleep.call_args_list], list(kami_city_pdf.ENTRY_FETCH_RETRY_WAITS_SECONDS))
+
+    def test_other_pages_keep_the_short_waits(self) -> None:
+        timeout = requests.exceptions.ConnectTimeout("t")
+        self.fetch([timeout, "<html></html>"])
+        self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [kami_city_pdf.FETCH_RETRY_WAITS_SECONDS[0]])
+
+    def test_crawl_marks_only_the_start_page_as_entry(self) -> None:
+        child = "https://www.vill.funahashi.toyama.jp/kaigiroku/17-6cont/r7.html"
+        seen: list[tuple[str, bool]] = []
+        pages = {self.START: f'<a href="{child}">令和7年</a>', child: "<html></html>"}
+
+        def fake_request_text(_session, url, _timeout_ms, *, entry=False):
+            seen.append((url, entry))
+            return pages[url]
+
+        with mock.patch.object(gikai_pdf, "request_text", side_effect=fake_request_text):
+            gikai_pdf.crawl_pdf_items(object(), self.START, timeout_ms=1000, max_pages=10, max_depth=2)
+        self.assertEqual(seen, [(self.START, True), (child, False)])
 
 
 if __name__ == "__main__":

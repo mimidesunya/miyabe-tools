@@ -216,7 +216,7 @@ def crawl_pdf_items(
             # 子の出力が長く止まると、親が固まったとみて打ち切る。
             print(f"[INFO] 一覧を {len(visited)} ページ見ました（PDF候補 {len(items)} 件）", flush=True)
         try:
-            html = request_text(session, url, timeout_ms)
+            html = request_text(session, url, timeout_ms, entry=depth == 0)
             # PDF などを掴んだ場合、パーサが AssertionError を投げて
             # プロセスごと落ちる。解析も同じ try で守る。
             soup = BeautifulSoup(html, "html.parser")

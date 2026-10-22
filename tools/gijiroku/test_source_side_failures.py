@@ -416,7 +416,7 @@ class CrawlDeadPagesTest(unittest.TestCase):
     START = "https://www.town.example.lg.jp/gikai/kaigiroku/index.html"
 
     def _crawl(self, pages: dict[str, object]) -> tuple[list, dict]:
-        def fake_request_text(_session, url, _timeout_ms):
+        def fake_request_text(_session, url, _timeout_ms, **_kwargs):
             outcome = pages.get(url, _http_error(404))
             if isinstance(outcome, BaseException):
                 raise outcome
