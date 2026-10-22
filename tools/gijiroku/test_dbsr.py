@@ -596,6 +596,8 @@ class DeferredListRetryTest(unittest.TestCase):
         mock.patch.object(dbsr, "discover_list_pages", return_value=(pages, "")).start()
         self.addCleanup(mock.patch.stopall)
         self.addCleanup(setattr, dbsr, "_consecutive_exhausted_gotos", 0)
+        dbsr.ABANDONED_LIST_PAGES.clear()
+        self.addCleanup(dbsr.ABANDONED_LIST_PAGES.clear)
 
     def discover(self, outcomes: dict[str, list]):
         opened: list[str] = []
@@ -605,6 +607,8 @@ class DeferredListRetryTest(unittest.TestCase):
             outcome = outcomes[list_url].pop(0)
             if isinstance(outcome, BaseException):
                 raise outcome
+            if callable(outcome):
+                return outcome()
             return outcome
 
         mock.patch.object(dbsr, "collect_list_page_documents", side_effect=collect).start()
@@ -650,6 +654,63 @@ class DeferredListRetryTest(unittest.TestCase):
     def test_time_limit_in_the_first_pass_still_stops_discovery(self) -> None:
         with self.assertRaises(dbsr.DiscoveryTimeoutError):
             self.discover({self.FEB: [dbsr.DiscoveryTimeoutError("制限時間")], self.JUN: []})
+
+    def stopped_partway(self, rows: list):
+        """2 ページ目を開けずに、1 ページ目の行だけ返して降りた一覧。"""
+
+        def outcome():
+            dbsr.ABANDONED_LIST_PAGES.append(f"次のページを開けなかった: {self.FEB}&Page=2")
+            return rows
+
+        return outcome
+
+    def test_list_that_stopped_partway_is_read_again(self) -> None:
+        # 広島県は委員会の一覧の 2 ページ目が 429 で開けず、これ 1 件で取りこぼし扱いになった。
+        first = self.row(self.FEB, "2025-02-17")
+        second = dbsr.DocumentRow(title="本文", url=self.FEB + "&DocumentID=2", held_on="2025-02-18")
+        opened, meetings, report = self.discover({
+            self.FEB: [self.stopped_partway([first]), [first, second]],
+            self.JUN: [[self.row(self.JUN, "2025-06-23")]],
+        })
+
+        self.assertEqual(opened, [self.FEB, self.JUN, self.FEB])
+        self.assertEqual({item.held_on for item in meetings}, {"2025-02-17", "2025-02-18", "2025-06-23"})
+        self.assertEqual(dbsr.ABANDONED_LIST_PAGES, [])
+        self.assertEqual(report["failed_list_page_count"], 0)
+
+    def test_day_split_across_pages_is_grouped_after_the_second_read(self) -> None:
+        # 1 回目の行で先にまとめると、欠けた会議が入って読み直した側が同じ題で捨てられる。
+        first = self.row(self.FEB, "2025-02-17")
+        second = dbsr.DocumentRow(title="本文", url=self.FEB + "&DocumentID=2", held_on="2025-02-17")
+        _opened, meetings, _report = self.discover({
+            self.FEB: [self.stopped_partway([first]), [first, second]],
+            self.JUN: [[self.row(self.JUN, "2025-06-23")]],
+        })
+
+        [meeting] = [item for item in meetings if item.held_on == "2025-02-17"]
+        self.assertEqual(meeting.doc_urls, [first.url, second.url])
+
+    def test_list_that_stops_partway_again_keeps_both_reads(self) -> None:
+        first = self.row(self.FEB, "2025-02-17")
+        second = dbsr.DocumentRow(title="本文", url=self.FEB + "&DocumentID=2", held_on="2025-02-18")
+        _opened, meetings, _report = self.discover({
+            self.FEB: [self.stopped_partway([first]), self.stopped_partway([second])],
+            self.JUN: [[self.row(self.JUN, "2025-06-23")]],
+        })
+
+        self.assertEqual({item.held_on for item in meetings}, {"2025-02-17", "2025-02-18", "2025-06-23"})
+        self.assertEqual(len(dbsr.ABANDONED_LIST_PAGES), 1)
+
+    def test_rows_of_the_first_read_are_kept_when_the_second_cannot_open(self) -> None:
+        _opened, meetings, report = self.discover({
+            self.FEB: [self.stopped_partway([self.row(self.FEB, "2025-02-17")]), dbsr.PlaywrightTimeoutError("t")],
+            self.JUN: [[self.row(self.JUN, "2025-06-23")]],
+        })
+
+        self.assertEqual({item.held_on for item in meetings}, {"2025-02-17", "2025-06-23"})
+        # 落ちたのは 2 ページ目なので、1 回目の記録のまま 1 件と数える（一覧ごとの失敗には足さない）。
+        self.assertEqual(len(dbsr.ABANDONED_LIST_PAGES), 1)
+        self.assertEqual(report["failed_list_page_count"], 0)
 
 
 class _Node:
@@ -828,7 +889,7 @@ class ListWalkResumeTest(unittest.TestCase):
         for name in (
             "LIST_WALK_RESUME", "LIST_WALK_REACHED", "LIST_WALK_ROWS", "LIST_WALK_CACHED_ROWS",
             "LIST_WALK_RESUMED", "LIST_WALK_TIMED_OUT", "ABANDONED_LIST_PAGES", "REPEATED_LIST_PAGES",
-            "DECLARED_DOCUMENT_TOTALS",
+            "DECLARED_DOCUMENT_TOTALS", "LIST_WALK_RETRY_FROM",
         ):
             getattr(dbsr, name).clear()
             self.addCleanup(getattr(dbsr, name).clear)
@@ -888,7 +949,7 @@ class ListWalkPageRetryTest(unittest.TestCase):
         for name in (
             "LIST_WALK_RESUME", "LIST_WALK_REACHED", "LIST_WALK_ROWS", "LIST_WALK_CACHED_ROWS",
             "LIST_WALK_RESUMED", "LIST_WALK_TIMED_OUT", "ABANDONED_LIST_PAGES", "REPEATED_LIST_PAGES",
-            "DECLARED_DOCUMENT_TOTALS",
+            "DECLARED_DOCUMENT_TOTALS", "LIST_WALK_RETRY_FROM",
         ):
             getattr(dbsr, name).clear()
             self.addCleanup(getattr(dbsr, name).clear)
@@ -917,6 +978,35 @@ class ListWalkPageRetryTest(unittest.TestCase):
         self.assertEqual(len(dbsr.ABANDONED_LIST_PAGES), 1)
         self.assertIn("次のページを開けなかった", dbsr.ABANDONED_LIST_PAGES[0])
         self.assertEqual(dbsr.LIST_WALK_REACHED[dbsr.list_walk_key(self.URL)], 1)
+
+    def test_second_read_continues_from_the_last_page_that_opened(self) -> None:
+        # ほかを見終えてから読み直すときは、先頭から歩き直さない。
+        page = _FlakyWalkPage(self.URL, self._pages(), fail_always={3})
+        dbsr.collect_document_rows_from_open_list(page, 1_000)
+        page.fail_always.clear()
+        page.opened.clear()
+        page.goto(self.URL)
+
+        rows = dbsr.collect_document_rows_from_open_list(page, 1_000)
+
+        self.assertEqual(page.opened, [1, 2, 3])
+        self.assertEqual(sorted(row.url.split("Id=")[1] for row in rows), ["1", "2", "3"])
+        self.assertEqual(dbsr.LIST_WALK_RETRY_FROM, {})
+
+    def test_position_from_an_earlier_run_does_not_skip_pages_this_run_missed(self) -> None:
+        # 前回は 3 ページ目まで歩いたが、今回は 2 ページ目で落ちた。読み直しは 2 ページ目から。
+        key = dbsr.list_walk_key(self.URL)
+        dbsr.LIST_WALK_RESUME[key] = 3
+        pages = {n: [_fukuoka_item(n, f"2005-05-{20 + n}")] for n in (1, 2, 3, 4)}
+        page = _FlakyWalkPage(self.URL, pages, fail_once={3}, fail_always={2})
+        dbsr.collect_document_rows_from_open_list(page, 1_000)
+        page.fail_always.clear()
+        page.opened.clear()
+        page.goto(self.URL)
+
+        rows = dbsr.collect_document_rows_from_open_list(page, 1_000)
+
+        self.assertEqual(sorted(row.url.split("Id=")[1] for row in rows), ["1", "2", "3", "4"])
 
 
 HIROSHIMA_LIST_URL = (
@@ -1007,7 +1097,7 @@ class HiroshimaListWalkTest(unittest.TestCase):
         for name in (
             "LIST_WALK_RESUME", "LIST_WALK_REACHED", "LIST_WALK_ROWS", "LIST_WALK_CACHED_ROWS",
             "LIST_WALK_RESUMED", "LIST_WALK_TIMED_OUT", "ABANDONED_LIST_PAGES", "REPEATED_LIST_PAGES",
-            "DECLARED_DOCUMENT_TOTALS",
+            "DECLARED_DOCUMENT_TOTALS", "LIST_WALK_RETRY_FROM",
         ):
             getattr(dbsr, name).clear()
             self.addCleanup(getattr(dbsr, name).clear)

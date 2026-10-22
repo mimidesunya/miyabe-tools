@@ -1774,6 +1774,11 @@ LIST_WALK_CHECKPOINT_PAGES = 25
 # （LIST_WALK_CACHED_ROWS）と、今回歩いて集めている分（LIST_WALK_ROWS）。
 LIST_WALK_CACHED_ROWS: dict[str, list[DocumentRow]] = {}
 LIST_WALK_ROWS: dict[str, list[DocumentRow]] = {}
+# この実行の中でページ送りの途中に落ちた一覧の、読めた最後のページとそこまでの行。
+# ほかを見終えてから読み直すときは、先頭からではなくここから続ける。
+# LIST_WALK_RESUME（前回までの位置）とは混ぜない。混ぜると、前回の位置が今回より
+# 先にあるとき、今回読めていない間のページを飛ばす。
+LIST_WALK_RETRY_FROM: dict[str, tuple[int, list[DocumentRow]]] = {}
 
 
 def save_list_walk_checkpoint() -> None:
@@ -1919,11 +1924,16 @@ def collect_document_rows_from_open_list(
     numbered_last = 0
     page_number = 1
 
-    # 前回どこまで歩けたかが残っていれば、その手前から続ける。
+    # 前回どこまで歩けたかが残っていれば、その手前から続ける。この実行の中で
+    # 途中まで読んだ一覧の読み直しなら、読めた最後のページから続ける。
     walk_key = list_walk_key(page.url)
     LIST_WALK_ROWS[walk_key] = collected
     first_page_url = page.url
-    resume_page = LIST_WALK_RESUME.get(walk_key, 0)
+    abandoned_before = len(ABANDONED_LIST_PAGES)
+    resume_page, cached_rows = LIST_WALK_RETRY_FROM.pop(walk_key, None) or (
+        LIST_WALK_RESUME.get(walk_key, 0),
+        LIST_WALK_CACHED_ROWS.get(walk_key, []),
+    )
     if final_page > 1 and resume_page > 1:
         resume_page = min(resume_page, final_page)
         first_rows = extract_document_rows_from_page(page)
@@ -1947,7 +1957,7 @@ def collect_document_rows_from_open_list(
                 page_number = resume_page
                 LIST_WALK_RESUMED.append(walk_key)
                 # 前回が meetings_index へ書く前に止まっていれば、飛ばす手前の行はここにしかない。
-                for row in LIST_WALK_CACHED_ROWS.get(walk_key, []):
+                for row in cached_rows:
                     if row.url not in seen_urls:
                         seen_urls.add(row.url)
                         collected.append(row)
@@ -2079,6 +2089,8 @@ def collect_document_rows_from_open_list(
             break
         page_number += 1
 
+    if len(ABANDONED_LIST_PAGES) > abandoned_before:
+        LIST_WALK_RETRY_FROM[walk_key] = (page_number, list(collected))
     return collected
 
 
@@ -2297,14 +2309,20 @@ def discover_meeting_items(
     # 開けなかった一覧は、ほかを見終えてから間を置いてもう一度だけ開く。取得元が
     # 混んでいる間は、その場で何度開き直しても同じように落ちる（広島県で 227 のうち 5）。
     # 回しながら後ろへ足すので、足した分もこの for で回る。
+    #
+    # ページ送りの途中で落ちた一覧も同じように読み直す（広島県は 2 ページの委員会の
+    # 一覧で 2 ページ目が 429 で開けず、これ 1 件だけで取りこぼし扱いになった）。
+    # 1 回目に読めた行はその場では会議にまとめない。同じ日の文書がページをまたぐと、
+    # 欠けたまままとめた会議が先に入り、読み直した側が同じ題で捨てられる。
     global _consecutive_exhausted_gotos
     worklist = [(list_index, list_page, False) for list_index, list_page in enumerate(list_pages, start=1)]
+    partial_reads: dict[int, tuple[list[DocumentRow], list[str]]] = {}
     waited_for_retry = False
     for list_index, list_page, is_retry in worklist:
         if is_retry and not waited_for_retry:
             waited_for_retry = True
             print(
-                f"[INFO] 開けなかった会議一覧 {len(worklist) - len(list_pages)} 件を、"
+                f"[INFO] 開けなかった・読み切れなかった会議一覧 {len(worklist) - len(list_pages)} 件を、"
                 f"{LIST_DEFERRED_RETRY_WAIT_SECONDS:.0f} 秒置いてもう一度開きます",
                 flush=True,
             )
@@ -2317,6 +2335,7 @@ def discover_meeting_items(
             f"{list_page.year_label} {list_page.meeting_group}",
             flush=True,
         )
+        abandoned_before = len(ABANDONED_LIST_PAGES)
         try:
             list_url = list_url_with_origin(list_page.url, base_url)
             if list_page.documents is not None:
@@ -2340,12 +2359,28 @@ def discover_meeting_items(
                 continue
             # もう一度開いても開けなかった一覧（開く前に制限時間が来たものも）。
             # 見つけ終えた会議は捨てずに、この一覧だけ失敗に数える。
-            if coverage_report is not None:
-                coverage_report["failed_list_page_count"] = int(
-                    coverage_report.get("failed_list_page_count") or 0
-                ) + 1
             print(f"[WARN] 会議一覧の確認に失敗: {list_page.title} ({exc})", flush=True)
-            continue
+            if list_index not in partial_reads:
+                if coverage_report is not None:
+                    coverage_report["failed_list_page_count"] = int(
+                        coverage_report.get("failed_list_page_count") or 0
+                    ) + 1
+                continue
+            # 1 回目に途中まで読めていれば、その分を使う。落ちたページは 1 回目の記録で数える。
+            rows, abandoned = partial_reads.pop(list_index)
+            ABANDONED_LIST_PAGES.extend(abandoned)
+        else:
+            if not is_retry and len(ABANDONED_LIST_PAGES) > abandoned_before:
+                abandoned = ABANDONED_LIST_PAGES[abandoned_before:]
+                del ABANDONED_LIST_PAGES[abandoned_before:]
+                partial_reads[list_index] = (rows, abandoned)
+                print(f"[INFO] 会議一覧を読み切れませんでした。あとで続きを読みます: {list_page.title} ({abandoned[0]})", flush=True)
+                worklist.append((list_index, list_page, True))
+                continue
+            if list_index in partial_reads:
+                first_rows, _abandoned = partial_reads.pop(list_index)
+                seen_row_urls = {row.url for row in first_rows}
+                rows = first_rows + [row for row in rows if row.url not in seen_row_urls]
 
         if discovery_source == DISCOVERY_SOURCE_FULL_PERIOD:
             # 全期間の一覧は会議種別も年度も混ざるので、表題から会議名を、
@@ -2690,6 +2725,7 @@ def main() -> int:
         LIST_WALK_RESUME.clear()
         LIST_WALK_RESUME.update(gijiroku_storage.load_list_walk_progress(state_path.parent))
         LIST_WALK_CACHED_ROWS.clear()
+        LIST_WALK_RETRY_FROM.clear()
         for key, rows in gijiroku_storage.load_list_walk_rows(state_path.parent).items():
             LIST_WALK_CACHED_ROWS[key] = [DocumentRow(**row) for row in rows]
         global LIST_WALK_PROGRESS_DIR
