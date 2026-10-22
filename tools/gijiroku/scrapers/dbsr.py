@@ -44,6 +44,8 @@ LIST_GOTO_RETRY_WAITS_SECONDS = (5.0, 20.0)
 LIST_GOTO_RETRY_MIN_TIMEOUT_MS = 30_000
 # やり直しても開けなかったページがこの数続いたら、取得元が落ちているとみる。
 LIST_GOTO_RETRY_GIVE_UP_AFTER = 3
+# 一覧を読む途中でページが移ったとき、開き直して読み直す回数。
+LIST_READ_NAVIGATION_RETRIES = 2
 _consecutive_exhausted_gotos = 0
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1673,6 +1675,11 @@ def goto_list_page(page, list_url: str, timeout_ms: int, *, deadline: float | No
     _consecutive_exhausted_gotos = 0
 
 
+def is_navigation_during_read(exc: BaseException) -> bool:
+    """読んでいる途中で、取得元が自分でページを移したか。"""
+    return isinstance(exc, PlaywrightError) and "Execution context was destroyed" in str(exc)
+
+
 def collect_list_page_documents(
     page,
     list_url: str,
@@ -1682,19 +1689,33 @@ def collect_list_page_documents(
     stop_after_known_page: bool = False,
     deadline: float | None = None,
 ) -> list[DocumentRow]:
-    ensure_discovery_time(deadline, list_url)
-    goto_list_page(page, list_url, timeout_ms, deadline=deadline)
-    try:
-        page.wait_for_load_state("networkidle", timeout=3_000)
-    except Exception:
-        pass
-    return collect_document_rows_from_open_list(
-        page,
-        timeout_ms,
-        deadline,
-        known_urls=known_urls,
-        stop_after_known_page=stop_after_known_page,
-    )
+    # 読み込みが済んだあとで、取得元がもう一度ページを移すことがある（広島県）。
+    # 読んでいる文書が消えて落ち、163 会期のうち 13 の一覧が抜けて、自治体ごと
+    # 取りこぼし扱いになっていた。移り終わるのを待ち、開き直して読み直す。
+    for attempt in range(LIST_READ_NAVIGATION_RETRIES + 1):
+        ensure_discovery_time(deadline, list_url)
+        goto_list_page(page, list_url, timeout_ms, deadline=deadline)
+        try:
+            page.wait_for_load_state("networkidle", timeout=3_000)
+        except Exception:
+            pass
+        try:
+            return collect_document_rows_from_open_list(
+                page,
+                timeout_ms,
+                deadline,
+                known_urls=known_urls,
+                stop_after_known_page=stop_after_known_page,
+            )
+        except PlaywrightError as exc:
+            if not is_navigation_during_read(exc) or attempt >= LIST_READ_NAVIGATION_RETRIES:
+                raise
+            print(f"[INFO] 一覧を読む途中でページが移りました。開き直します: {list_url}", flush=True)
+            try:
+                page.wait_for_load_state("load", timeout=10_000)
+            except Exception:
+                pass
+    raise AssertionError("unreachable")
 
 
 # ページ送りを途中で諦めた回数。「次へ」が押せなかった、次のページを開けなかった、

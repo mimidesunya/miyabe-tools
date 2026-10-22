@@ -536,6 +536,47 @@ class GotoListPageRetryTest(unittest.TestCase):
         self.assertEqual(len(page.timeouts), 1)
 
 
+class _LoadStatePage:
+    def wait_for_load_state(self, state, timeout=None):
+        return None
+
+
+class ListReadNavigationRetryTest(unittest.TestCase):
+    """読み込みのあとで取得元がページを移しても、その一覧を落とさない（広島県で 163 会期のうち 13）。"""
+
+    URL = "https://www.pref.hiroshima.dbsr.jp/index.php/5572008?Template=list&Cabinet=1"
+    DESTROYED = "Locator.count: Execution context was destroyed, most likely because of a navigation"
+
+    def setUp(self) -> None:
+        self.gotos = mock.patch.object(dbsr, "goto_list_page").start()
+        self.addCleanup(mock.patch.stopall)
+
+    def read(self, outcomes: list):
+        reader = mock.patch.object(dbsr, "collect_document_rows_from_open_list", side_effect=outcomes).start()
+        return reader, dbsr.collect_list_page_documents(_LoadStatePage(), self.URL, 10_000)
+
+    def test_list_is_reopened_and_read_after_the_page_moved(self) -> None:
+        row = dbsr.DocumentRow(title="2月定例会", url=self.URL + "&DocumentID=1", held_on="2026-02-17")
+
+        reader, rows = self.read([dbsr.PlaywrightError(self.DESTROYED), [row]])
+
+        self.assertEqual(rows, [row])
+        self.assertEqual(self.gotos.call_count, 2)
+        self.assertEqual(reader.call_count, 2)
+
+    def test_page_that_keeps_moving_is_given_up(self) -> None:
+        outcomes = [dbsr.PlaywrightError(self.DESTROYED)] * (dbsr.LIST_READ_NAVIGATION_RETRIES + 1)
+
+        with self.assertRaises(dbsr.PlaywrightError):
+            self.read(outcomes)
+        self.assertEqual(self.gotos.call_count, dbsr.LIST_READ_NAVIGATION_RETRIES + 1)
+
+    def test_other_browser_errors_are_not_retried(self) -> None:
+        with self.assertRaises(dbsr.PlaywrightError):
+            self.read([dbsr.PlaywrightError("Target page, context or browser has been closed")])
+        self.assertEqual(self.gotos.call_count, 1)
+
+
 class _Node:
     """テスト用の DOM 要素。セレクタごとに子要素を持たせる。"""
 
