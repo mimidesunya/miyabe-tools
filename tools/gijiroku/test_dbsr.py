@@ -537,6 +537,8 @@ class GotoListPageRetryTest(unittest.TestCase):
 
 
 class _LoadStatePage:
+    url = "https://www.pref.hiroshima.dbsr.jp/index.php/5572008?Template=list&Cabinet=1"
+
     def wait_for_load_state(self, state, timeout=None):
         return None
 
@@ -549,6 +551,7 @@ class ListReadNavigationRetryTest(unittest.TestCase):
 
     def setUp(self) -> None:
         self.gotos = mock.patch.object(dbsr, "goto_list_page").start()
+        mock.patch.object(dbsr.time, "sleep").start()
         self.addCleanup(mock.patch.stopall)
 
     def read(self, outcomes: list):
@@ -575,6 +578,78 @@ class ListReadNavigationRetryTest(unittest.TestCase):
         with self.assertRaises(dbsr.PlaywrightError):
             self.read([dbsr.PlaywrightError("Target page, context or browser has been closed")])
         self.assertEqual(self.gotos.call_count, 1)
+
+
+class DeferredListRetryTest(unittest.TestCase):
+    """開けなかった会議一覧は、ほかを見終えてからもう一度開く（広島県で 227 のうち 5 が落ちた）。"""
+
+    BASE = "https://www.pref.hiroshima.dbsr.jp/index.php/"
+    FEB = BASE + "2412451?Template=list&Cabinet=1&TermStart=2025-02-17"
+    JUN = BASE + "2412451?Template=list&Cabinet=1&TermStart=2025-06-23"
+
+    def setUp(self) -> None:
+        self.sleep = mock.patch.object(dbsr.time, "sleep").start()
+        pages = [
+            dbsr.ListPage(title="２月定例会", year_label="令和７年", url=url, meeting_group="定例会", auxiliary_docs=[])
+            for url in (self.FEB, self.JUN)
+        ]
+        mock.patch.object(dbsr, "discover_list_pages", return_value=(pages, "")).start()
+        self.addCleanup(mock.patch.stopall)
+        self.addCleanup(setattr, dbsr, "_consecutive_exhausted_gotos", 0)
+
+    def discover(self, outcomes: dict[str, list]):
+        opened: list[str] = []
+
+        def collect(_page, list_url, _timeout_ms, **_kwargs):
+            opened.append(list_url)
+            outcome = outcomes[list_url].pop(0)
+            if isinstance(outcome, BaseException):
+                raise outcome
+            return outcome
+
+        mock.patch.object(dbsr, "collect_list_page_documents", side_effect=collect).start()
+        report: dict = {}
+        meetings = dbsr.discover_meeting_items(None, {"base_url": self.BASE}, 10_000, coverage_report=report)
+        return opened, meetings, report
+
+    @staticmethod
+    def row(list_url: str, held_on: str) -> dbsr.DocumentRow:
+        return dbsr.DocumentRow(title="本文", url=list_url + "&DocumentID=1", held_on=held_on)
+
+    def test_list_is_opened_again_after_the_others(self) -> None:
+        opened, meetings, report = self.discover({
+            self.FEB: [dbsr.PlaywrightTimeoutError("Page.goto: Timeout 30000ms exceeded."), [self.row(self.FEB, "2025-02-17")]],
+            self.JUN: [[self.row(self.JUN, "2025-06-23")]],
+        })
+
+        self.assertEqual(opened, [self.FEB, self.JUN, self.FEB])
+        self.assertEqual({item.held_on for item in meetings}, {"2025-02-17", "2025-06-23"})
+        self.assertEqual(report["failed_list_page_count"], 0)
+        self.sleep.assert_called_once_with(dbsr.LIST_DEFERRED_RETRY_WAIT_SECONDS)
+
+    def test_list_that_fails_again_is_counted_as_failed(self) -> None:
+        destroyed = dbsr.PlaywrightError("Locator.count: Execution context was destroyed")
+        opened, meetings, report = self.discover({
+            self.FEB: [destroyed, destroyed],
+            self.JUN: [[self.row(self.JUN, "2025-06-23")]],
+        })
+
+        self.assertEqual(opened, [self.FEB, self.JUN, self.FEB])
+        self.assertEqual([item.held_on for item in meetings], ["2025-06-23"])
+        self.assertEqual(report["failed_list_page_count"], 1)
+
+    def test_time_limit_during_the_second_try_keeps_what_was_found(self) -> None:
+        _opened, meetings, report = self.discover({
+            self.FEB: [dbsr.PlaywrightTimeoutError("t"), dbsr.DiscoveryTimeoutError("制限時間")],
+            self.JUN: [[self.row(self.JUN, "2025-06-23")]],
+        })
+
+        self.assertEqual([item.held_on for item in meetings], ["2025-06-23"])
+        self.assertEqual(report["failed_list_page_count"], 1)
+
+    def test_time_limit_in_the_first_pass_still_stops_discovery(self) -> None:
+        with self.assertRaises(dbsr.DiscoveryTimeoutError):
+            self.discover({self.FEB: [dbsr.DiscoveryTimeoutError("制限時間")], self.JUN: []})
 
 
 class _Node:

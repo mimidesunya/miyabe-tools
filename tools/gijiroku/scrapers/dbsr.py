@@ -46,6 +46,8 @@ LIST_GOTO_RETRY_MIN_TIMEOUT_MS = 30_000
 LIST_GOTO_RETRY_GIVE_UP_AFTER = 3
 # 一覧を読む途中でページが移ったとき、開き直して読み直す回数。
 LIST_READ_NAVIGATION_RETRIES = 2
+# 開けなかった会議一覧は、ほかを見終えてからこの間を置いてもう一度だけ開く。
+LIST_DEFERRED_RETRY_WAIT_SECONDS = 60.0
 _consecutive_exhausted_gotos = 0
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1710,11 +1712,14 @@ def collect_list_page_documents(
         except PlaywrightError as exc:
             if not is_navigation_during_read(exc) or attempt >= LIST_READ_NAVIGATION_RETRIES:
                 raise
-            print(f"[INFO] 一覧を読む途中でページが移りました。開き直します: {list_url}", flush=True)
             try:
                 page.wait_for_load_state("load", timeout=10_000)
             except Exception:
                 pass
+            # 何がページを移すのかはまだ分かっていない。一覧のページに自分で移る仕掛けは
+            # 無く、移る前には必ず開くのが時間切れになっている。移った先を残しておく。
+            print(f"[INFO] 一覧を読む途中でページが移りました（移った先: {page.url}）。開き直します: {list_url}", flush=True)
+            time.sleep(LIST_GOTO_RETRY_WAITS_SECONDS[0])
     raise AssertionError("unreachable")
 
 
@@ -2289,10 +2294,27 @@ def discover_meeting_items(
     seen_titles: set[tuple[str, str, str]] = set()
     known_urls_by_list_url = previous_doc_urls_by_list_url(previous_items or []) if quick_update else {}
 
-    for list_index, list_page in enumerate(list_pages, start=1):
-        ensure_discovery_time(deadline, f"{list_index}/{len(list_pages)} {list_page.title}")
+    # 開けなかった一覧は、ほかを見終えてから間を置いてもう一度だけ開く。取得元が
+    # 混んでいる間は、その場で何度開き直しても同じように落ちる（広島県で 227 のうち 5）。
+    # 回しながら後ろへ足すので、足した分もこの for で回る。
+    global _consecutive_exhausted_gotos
+    worklist = [(list_index, list_page, False) for list_index, list_page in enumerate(list_pages, start=1)]
+    waited_for_retry = False
+    for list_index, list_page, is_retry in worklist:
+        if is_retry and not waited_for_retry:
+            waited_for_retry = True
+            print(
+                f"[INFO] 開けなかった会議一覧 {len(worklist) - len(list_pages)} 件を、"
+                f"{LIST_DEFERRED_RETRY_WAIT_SECONDS:.0f} 秒置いてもう一度開きます",
+                flush=True,
+            )
+            time.sleep(LIST_DEFERRED_RETRY_WAIT_SECONDS)
+            _consecutive_exhausted_gotos = 0
+        if not is_retry:
+            ensure_discovery_time(deadline, f"{list_index}/{len(list_pages)} {list_page.title}")
         print(
-            f"[INFO] 会議一覧を確認中 {list_index}/{len(list_pages)} {list_page.year_label} {list_page.meeting_group}",
+            f"[INFO] 会議一覧を{'もう一度' if is_retry else ''}確認中 {list_index}/{len(list_pages)} "
+            f"{list_page.year_label} {list_page.meeting_group}",
             flush=True,
         )
         try:
@@ -2309,9 +2331,15 @@ def discover_meeting_items(
                     stop_after_known_page=quick_update,
                     deadline=deadline,
                 )
-        except DiscoveryTimeoutError:
-            raise
         except Exception as exc:
+            if not is_retry:
+                if isinstance(exc, DiscoveryTimeoutError):
+                    raise
+                print(f"[INFO] 会議一覧を開けませんでした。あとでもう一度開きます: {list_page.title} ({exc})", flush=True)
+                worklist.append((list_index, list_page, True))
+                continue
+            # もう一度開いても開けなかった一覧（開く前に制限時間が来たものも）。
+            # 見つけ終えた会議は捨てずに、この一覧だけ失敗に数える。
             if coverage_report is not None:
                 coverage_report["failed_list_page_count"] = int(
                     coverage_report.get("failed_list_page_count") or 0
