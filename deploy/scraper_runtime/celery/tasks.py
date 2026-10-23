@@ -154,10 +154,17 @@ def _metadata_reconcile_command(task_name: str) -> list[str]:
 
 
 # 例規集一括スクレイパを remote 用オプション付きで起動するコマンドを作る。
-def _reiki_scrape_command(*, retry_failed: bool = False, name_filter: str = "") -> list[str]:
+def _reiki_scrape_command(
+    *, retry_failed: bool = False, name_filter: str = "", force: bool = False
+) -> list[str]:
     command = _python_command() + ["tools/reiki/scrape_all_reiki.py"]
     if celery_runtime.env_bool("SCRAPER_REIKI_CHECK_UPDATES", True):
         command.append("--check-updates")
+    if force:
+        # 会議録の強制と同じ。保存済みの原文があっても取り直し、件数が揃って
+        # いても優先度の待ちを飛ばす。待ちを飛ばさないと、本文が空の取り直しは
+        # 1 秒で「対象自治体がありません」に終わる（埼玉県・青森県、第75）。
+        command.extend(["--force", "--ignore-wait"])
     command.extend(
         [
             "--parallel",
@@ -491,10 +498,12 @@ def _audit_gijiroku_registry_changes() -> bool:
 
 
 # 例規集 scrape cycle の実処理を起動する。
-def _run_reiki_scrape_impl(*, retry_failed: bool = False, name_filter: str = "") -> None:
+def _run_reiki_scrape_impl(
+    *, retry_failed: bool = False, name_filter: str = "", force: bool = False
+) -> None:
     _run_command(
         "reiki scrape",
-        _reiki_scrape_command(retry_failed=retry_failed, name_filter=name_filter),
+        _reiki_scrape_command(retry_failed=retry_failed, name_filter=name_filter, force=force),
     )
 
 
@@ -579,13 +588,19 @@ def run_gijiroku_index_update(self, slug: str) -> dict[str, object]:
 
 @app.task(bind=True, name="deploy.scraper_runtime.celery.tasks.run_reiki_cycle", max_retries=None)
 # 例規集 scrape cycle を実行し、失敗時は Celery retry と retry marker を設定する。
-def run_reiki_cycle(self, retry_failed: bool = False, name_filter: str = "") -> dict[str, object]:
+def run_reiki_cycle(
+    self, retry_failed: bool = False, name_filter: str = "", force: bool = False
+) -> dict[str, object]:
     # 実際の例規集スクレイピングを起動する Celery タスク。
     # 会議録と同じ失敗時クールダウンで、連続失敗時の負荷を抑える。
     try:
         celery_runtime.clear_retry_marker("reiki")
         _recover_stale_metadata("reiki")
-        _run_reiki_scrape_impl(retry_failed=bool(retry_failed), name_filter=str(name_filter or ""))
+        _run_reiki_scrape_impl(
+            retry_failed=bool(retry_failed),
+            name_filter=str(name_filter or ""),
+            force=bool(force),
+        )
         celery_runtime.clear_retry_marker("reiki")
         return {"ok": True, "task": "reiki_cycle", "filter": str(name_filter or "")}
     except Exception as exc:
@@ -1321,24 +1336,26 @@ def sweep_empty_body(limit: int = 0) -> dict[str, object]:
         # 空だけでなく「仲間より極端に短い」も取り直しの対象にする。
         # 高崎市はフレーム枠を直した後も本文が 4 分の 1 で、空ではないので
         # empty_body には二度と出てこなかった。
-        try:
-            medians = _slug_medians(client, alias, "body_length")
-            systems = {
-                str(target.get("slug") or ""): str(target.get("system_type") or "")
-                for target in (
-                    gijiroku_targets.iter_gijiroku_targets()
-                    if kind == "gijiroku"
-                    else reiki_targets.iter_reiki_targets()
-                )
-            }
-            for row in coverage_ledger.severe_short_body_rows(
-                coverage_ledger.short_body_rows(medians, systems, totals)
-            ):
-                if row["slug"] not in broken:
-                    broken.append(row["slug"])
-        except Exception as exc:
-            print(f"[CELERY] {kind} 本文の短さを見られませんでした: {exc}", flush=True)
-            failures.append(f"{doc_type}: 本文の短さを見られなかった: {exc}")
+        #
+        # 例規には当てない。中央値 1,000 字の床は会議録の 1 件の長さから決めた
+        # もので、告示の多い県は短いのが正しい。埼玉県（中央値 411 字）・青森県
+        # （432 字）の短い文書は、道路の区域の決定や供用開始の告示が全文そろって
+        # いるものだった（第75）。
+        if kind == "gijiroku":
+            try:
+                medians = _slug_medians(client, alias, "body_length")
+                systems = {
+                    str(target.get("slug") or ""): str(target.get("system_type") or "")
+                    for target in gijiroku_targets.iter_gijiroku_targets()
+                }
+                for row in coverage_ledger.severe_short_body_rows(
+                    coverage_ledger.short_body_rows(medians, systems, totals)
+                ):
+                    if row["slug"] not in broken:
+                        broken.append(row["slug"])
+            except Exception as exc:
+                print(f"[CELERY] {kind} 本文の短さを見られませんでした: {exc}", flush=True)
+                failures.append(f"{doc_type}: 本文の短さを見られなかった: {exc}")
         pending = generation_sweep_state.filter_recently_queued(
             f"{doc_type}_empty_body",
             broken,
@@ -1346,11 +1363,9 @@ def sweep_empty_body(limit: int = 0) -> dict[str, object]:
         )[:sweep_limit]
         queued_now: list[str] = []
         for slug in pending:
-            kwargs: dict[str, object] = {"name_filter": slug}
-            if kind == "gijiroku":
-                # 例規側の一括スクレイパには取り直しの指示が無い。
-                # 通す口ができるまで、会議録だけ強制取得にする。
-                kwargs["force"] = True
+            # 会議録も例規も強制で積む。強制でないと、件数の揃った自治体は
+            # 優先度の待ちで外れ、取り直しが走らない。
+            kwargs: dict[str, object] = {"name_filter": slug, "force": True}
             try:
                 app.send_task(
                     f"deploy.scraper_runtime.celery.tasks.{task_name}",
