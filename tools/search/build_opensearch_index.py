@@ -637,7 +637,17 @@ def iter_minutes_documents(
     emitted = 0
     slug_filter = slugs or set()
     skip_slugs = exclude_slugs or set()
-    for target in indexable_minutes_targets():
+    targets = list(gijiroku_targets.iter_gijiroku_targets())
+    # 台帳で除外した自治体は、取得元に会議録が無いと人が確かめたもの。
+    # 読まないので 0 件になり、自治体ごとの作り直しでは旧文書が残っていた
+    # （斜里町の議事日程 44 件。除外して退避したあとも検索に出た、第75）。
+    CONFIRMED_NON_MINUTES_SLUGS.update(
+        str(target.get("slug") or "").strip()
+        for target in targets
+        if str(target.get("crawl_status") or "") == "excluded"
+        and str(target.get("slug") or "").strip() in slug_filter
+    )
+    for target in indexable_minutes_targets(targets):
         target_slug = str(target.get("slug") or "").strip()
         if slug_filter and target_slug not in slug_filter:
             continue
@@ -1123,7 +1133,7 @@ def _count_reiki_target(target: dict[str, Any]) -> int:
     return len(collect_reiki_preferred_files(html_root, {".html", ".htm"}))
 
 
-def indexable_minutes_targets() -> list[dict]:
+def indexable_minutes_targets(targets: Iterable[dict] | None = None) -> list[dict]:
     """会議録として索引してよい対象。
 
     台帳で除外した対象（録画のみ・公開なしなど）は、取得元に会議録が無いと確かめたもの。
@@ -1132,7 +1142,7 @@ def indexable_minutes_targets() -> list[dict]:
     """
     return [
         target
-        for target in gijiroku_targets.iter_gijiroku_targets()
+        for target in (gijiroku_targets.iter_gijiroku_targets() if targets is None else targets)
         if str(target.get("crawl_status") or "") != "excluded"
     ]
 

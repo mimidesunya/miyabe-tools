@@ -5,10 +5,13 @@ import io
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gijiroku"))
 
 import build_opensearch_index as indexer  # noqa: E402
+import gijiroku_targets  # noqa: E402
 
 
 class FakeClient:
@@ -98,6 +101,25 @@ class IncrementalEmptySlugDeleteTest(unittest.TestCase):
             with contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(update(client, documents, {"slug-a", "slug-b"}), 1)
             self.assertEqual(sorted(client.deleted_slugs()), ["slug-a", "slug-b"])
+        finally:
+            indexer.reset_source_integrity_tracking()
+
+    def test_a_slug_excluded_in_the_registry_is_deleted(self) -> None:
+        # 斜里町: 議事日程と新聞折込しか無いので台帳で除外し、保存物を退避した。
+        # 除外した対象は読まないので 0 件になり、旧文書 44 件が検索に残っていた。
+        targets = [
+            {"slug": "slug-x", "crawl_status": "excluded", "exclusion_reason": "not_published"},
+            {"slug": "slug-y", "crawl_status": "excluded", "exclusion_reason": "not_published"},
+        ]
+        client = FakeClient()
+        indexer.reset_source_integrity_tracking()
+        try:
+            with mock.patch.object(gijiroku_targets, "iter_gijiroku_targets", return_value=iter(targets)):
+                with contextlib.redirect_stderr(io.StringIO()):
+                    documents = indexer.iter_minutes_documents(slugs={"slug-x"}, strict=True)
+                    self.assertEqual(update(client, documents, {"slug-x"}), 0)
+            # 頼まれていない除外の自治体までは消さない。
+            self.assertEqual(client.deleted_slugs(), ["slug-x"])
         finally:
             indexer.reset_source_integrity_tracking()
 
