@@ -21,6 +21,7 @@ from scraped_source_records import (  # noqa: E402
     build_minutes_record,
     canonical_year_label,
     parse_minutes_source_meta,
+    resolved_year_label,
     year_label_from_held_on,
 )
 
@@ -352,6 +353,19 @@ class UnknownYearFromHeldOnTest(unittest.TestCase):
         self.assertEqual(year_label_from_held_on("1989-01-08"), "平成元年")
         self.assertEqual(year_label_from_held_on(""), "")
         self.assertEqual(year_label_from_held_on("2022-13-01"), "")
+
+    def test_a_meeting_name_in_the_year_label_is_replaced(self) -> None:
+        # 小金井市・桑名市などは、年ラベルに会期名や委員会名が入っていた（38,498 件）。
+        for label in ("議会運営委員会", "第１回定例会", "全ての", "不明", ""):
+            with self.subTest(label=label):
+                self.assertEqual(resolved_year_label(label, "2022-06-07"), "令和4年")
+
+    def test_a_label_with_a_year_is_kept(self) -> None:
+        # 会期名の年と開催年は違うことがある（令和3年2月の「令和2年第2回定例会」）。
+        for label in ("令和2年", "平成31年・令和元年", "令和 元年", "令和２年", "2020年"):
+            with self.subTest(label=label):
+                self.assertEqual(resolved_year_label(label, "2021-02-03"), label)
+        self.assertEqual(resolved_year_label("議会運営委員会", None), "議会運営委員会")
 
 if __name__ == "__main__":
     unittest.main()

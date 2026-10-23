@@ -813,6 +813,26 @@ def year_label_from_held_on(held_on: str | None) -> str:
     return ""
 
 
+def label_has_year(year_label: str) -> bool:
+    """年ラベルに年（`令和4年`・`平成31年・令和元年`・`2022年`）が入っているか。"""
+    text = to_ascii_digits(normalize_space(year_label))
+    return bool(YEAR_LABEL_PATTERN.search(text) or re.search(r"(?:18|19|20)\d{2}\s*年", text))
+
+
+def resolved_year_label(year_label: str, held_on: str | None) -> str:
+    """年の入っていない年ラベルを、開催日の年で置き換える。
+
+    年ラベルは一覧行の年をそのまま使うので、一覧で年が読めないと「不明」に
+    なり、会期名や委員会名（`第１回定例会`・`議会運営委員会`・`全ての`）が
+    入ることもある。開催日は本文や原典 URL から取れていることが多い（検索で
+    「不明」34,542 件のうち 27,348 件、年の入らないもの 38,498 件のうち
+    38,483 件）。保存先は動かさないので、移し替えは要らない（第75）。
+    """
+    if label_has_year(year_label):
+        return year_label
+    return year_label_from_held_on(held_on) or year_label
+
+
 def build_minutes_record(
     file_path: Path,
     downloads_dir: Path,
@@ -890,12 +910,7 @@ def build_minutes_record(
         ),
         year_label=meta.year_label if meta else (fallback_year_label or ""),
     )
-    year_label = meta.year_label if meta else extracted_year_label
-    if normalize_space(year_label) in ("", "不明"):
-        # 保存先の年が「不明」でも、開催日は本文や原典 URL から取れていることが
-        # 多い（検索で年が「不明」の 34,542 件のうち 27,348 件）。年ラベルも
-        # 開催日から付ける。保存先は動かさないので、移し替えは要らない（第75）。
-        year_label = year_label_from_held_on(held_on) or year_label
+    year_label = resolved_year_label(meta.year_label if meta else extracted_year_label, held_on)
     return MinuteRecord(
         rel_path=file_path.relative_to(downloads_dir).as_posix(),
         # 一覧行との照合には保存名（`title`）を使うが、公開する題名は会議の名前に
