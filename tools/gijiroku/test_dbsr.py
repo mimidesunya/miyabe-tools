@@ -1186,5 +1186,74 @@ class ListWalkPastEndTest(unittest.TestCase):
         self.assertFalse(dbsr.list_walk_past_end(3, 0, 20, 0))
 
 
+
+class ToyamaContentsAsListTest(unittest.TestCase):
+    """富山県は一覧が無く、会期の目次から日ごとの本文を開く。
+
+    目次そのものを会議として保存し、182 会議の本文がすべて目次だった（第75）。
+    """
+
+    BASE = "https://www.pref.toyama.dbsr.jp/index.php/100000"
+    ANCHORS = (
+        "a[href*='Template=doc-one-frame' i], a[href*='Template=doc-all-frame' i], "
+        "a[href*='Template=document' i]"
+    )
+
+    def day_link(self, cabinet: str, day: str) -> _Node:
+        href = f"{self.BASE}?QueryType=new&Template=document&CabinetName={cabinet}&TermStart={day}&TermEnd={day}"
+        return _Node("本文を開く", {"href": href}, {"xpath=..": [self.contents], "xpath=../..": [self.contents]})
+
+    def voice_link(self, voice: str) -> _Node:
+        href = f"{self.BASE}?QueryType=new&Template=document&VoiceExpand1={voice}"
+        return _Node("石 井 知 事", {"href": href}, {"xpath=..": [self.contents], "xpath=../..": [self.contents]})
+
+    def setUp(self) -> None:
+        # 会期の目次は 1 つの <pre> で、日付は「６月１３日」のように年が無い。
+        self.contents = _Node("平成２４年６月定例会 □ ６月１３日 ［提案理由説明］ 目次を開く 本文を開く 石 井 知 事")
+
+    def test_each_day_is_read_from_the_document_url(self) -> None:
+        page = _Page(f"{self.BASE}?Template=mokuji.hon.2012-h24-06t-mok", {self.ANCHORS: [
+            self.day_link("t", "2012-06-13"),
+            self.voice_link("h24-0613t_001"),
+            self.day_link("t", "2012-06-15"),
+            self.day_link("y", "2012-06-22"),
+        ]})
+
+        rows = dbsr.extract_document_rows_from_page(page)
+
+        self.assertEqual([row.held_on for row in rows], ["2012-06-13", "2012-06-15", "2012-06-22"])
+        self.assertTrue(all("VoiceExpand1" not in row.url for row in rows))
+
+    def test_a_multi_day_link_is_not_taken_as_one_day(self) -> None:
+        self.assertIsNone(dbsr.single_day_from_document_url(
+            f"{self.BASE}?Template=document&TermStart=2012-06-13&TermEnd=2012-06-27"
+        ))
+
+    def test_dated_rows_keep_the_old_reading(self) -> None:
+        # 行に開催日がある取得元は、URL の日付を見ない。
+        dated = _Node("第1回定例会 本文", {"href": f"{self.BASE}?Template=document&Id=1"},
+                      {"xpath=..": [_Node("開催日:2005-05-23")]})
+        page = _Page(self.BASE, {self.ANCHORS: [dated, self.day_link("t", "2012-06-13")]})
+
+        rows = dbsr.extract_document_rows_from_page(page)
+
+        self.assertEqual([row.held_on for row in rows], ["2005-05-23"])
+
+    def test_the_contents_used_as_the_list_is_not_kept_as_a_document(self) -> None:
+        class TitledPage(_Page):
+            def title(self) -> str:
+                return "会議録閲覧 | 富山県議会"
+
+        mokuji = _Node("平成24年６月定例会", {"href": f"{self.BASE}?Template=mokuji.hon.2012-h24-06t-mok"})
+        entries = _Locator([_Node(children={"a": [mokuji]})])
+        items: dict = {}
+
+        dbsr.collect_list_page_entries(TitledPage(self.BASE, {}), entries, "平成24年", items)
+
+        (list_page,) = items.values()
+        self.assertIn("mokuji.hon.2012-h24-06t-mok", list_page.url)
+        self.assertEqual(list_page.meeting_group, "６月定例会")
+        self.assertEqual(list_page.auxiliary_docs, [])
+
 if __name__ == "__main__":
     unittest.main()

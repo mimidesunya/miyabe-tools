@@ -498,8 +498,11 @@ def collect_list_page_entries(page, entries, year_label: str, items: dict[str, L
 
         if not list_url and auxiliary_docs:
             # 一覧を持たず目次だけの取得元がある（富山県）。目次ページに
-            # 本文リンクが並ぶので、目次をそのまま一覧として扱う。
-            list_url = str(auxiliary_docs[0].get("url") or "")
+            # 本文リンクが並ぶので、目次をそのまま一覧として扱う。一覧にした
+            # 目次は補助資料に残さない（目次そのものが会議として保存される）。
+            promoted = auxiliary_docs.pop(0)
+            list_url = str(promoted.get("url") or "")
+            meeting_group = detect_meeting_group(str(promoted.get("title") or ""), page.title())
         if not list_url:
             continue
 
@@ -1410,6 +1413,14 @@ def list_url_with_origin(list_url: str, origin_base: str) -> str:
     return canonicalize_template_url(joined)
 
 
+def single_day_from_document_url(url: str) -> str | None:
+    """1 日分の文書を開く URL（TermStart と TermEnd が同じ日）なら、その日を返す。"""
+    start = query_value(url, "TermStart")
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", start) or query_value(url, "TermEnd") != start:
+        return None
+    return start
+
+
 def infer_day_title_from_held_on(held_on: str) -> str:
     match = re.fullmatch(r"\d{4}-(\d{2})-(\d{2})", held_on)
     if match:
@@ -1546,6 +1557,7 @@ def extract_document_rows_from_page(page) -> list[DocumentRow]:
         "a[href*='Template=document' i]"
     )
     seen_urls: set[str] = set()
+    undated: list[tuple[str, str]] = []
     for index in range(anchors.count()):
         anchor = anchors.nth(index)
         href = safe_href(anchor)
@@ -1563,6 +1575,21 @@ def extract_document_rows_from_page(page) -> list[DocumentRow]:
                 break
         held_on = held_on_from_text(row_text) or held_on_from_text(title)
         if not held_on:
+            undated.append((title, absolute))
+            continue
+        seen_urls.add(absolute)
+        rows.append(DocumentRow(title=title, url=absolute, held_on=held_on))
+    if rows:
+        return rows
+
+    # 目次を一覧として読む取得元（富山県）。会期の全日分の「本文を開く」が
+    # 1 つの <pre> に並び、行から開催日が取れない。日付は文書の URL の
+    # TermStart と TermEnd にしか無いので、1 日分の文書に限りそこから取る。
+    # 取れないと目次そのものを会議として保存し、182 会議の本文がすべて
+    # 目次だった（第75）。発言ごとのリンク（VoiceExpand1）は日付を持たない。
+    for title, absolute in undated:
+        held_on = single_day_from_document_url(absolute)
+        if not held_on or absolute in seen_urls:
             continue
         seen_urls.add(absolute)
         rows.append(DocumentRow(title=title, url=absolute, held_on=held_on))
