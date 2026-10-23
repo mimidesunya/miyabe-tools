@@ -21,6 +21,7 @@ from scraped_source_records import (  # noqa: E402
     build_minutes_record,
     canonical_year_label,
     parse_minutes_source_meta,
+    year_label_from_held_on,
 )
 
 
@@ -312,6 +313,45 @@ class MinutesSourceUrlTest(unittest.TestCase):
         self.assertEqual(canonical_year_label("平成31年・_令和元年"), "平成31年・令和元年")
         self.assertEqual(canonical_year_label("平成31年・\n令和元年"), "平成31年・令和元年")
 
+
+
+class UnknownYearFromHeldOnTest(unittest.TestCase):
+    """保存先の年が「不明」でも、開催日が取れていれば年ラベルを付ける。
+
+    斑鳩町の「第3日目（6月7日）」は、開催日 2022-06-07 を持ちながら年が
+    「不明」と出ていた（検索で 34,542 件のうち 27,348 件が同じ形、第75）。
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.downloads = Path(self._tmp.name) / "downloads"
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _record(self, year_dir: str, body: str):
+        target = self.downloads / year_dir / "第3日目（6月7日）.txt"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(body, encoding="utf-8")
+        return build_minutes_record(target, self.downloads, {}, "2026-10-23T00:00:00Z")
+
+    def test_unknown_year_takes_the_held_on_year(self) -> None:
+        record = self._record("不明", "第3日目（6月7日）\nHeld-On: 2022-06-07\n\n◯議長　開議します。\n")
+        self.assertEqual(record.held_on, "2022-06-07")
+        self.assertEqual(record.year_label, "令和4年")
+
+    def test_unknown_year_without_a_date_stays_unknown(self) -> None:
+        record = self._record("不明", "第3日目\n\n◯議長　開議します。\n")
+        self.assertIsNone(record.held_on)
+        self.assertEqual(record.year_label, "不明")
+
+    def test_era_boundaries(self) -> None:
+        self.assertEqual(year_label_from_held_on("2019-04-30"), "平成31年")
+        self.assertEqual(year_label_from_held_on("2019-05-01"), "令和元年")
+        self.assertEqual(year_label_from_held_on("1989-01-07"), "昭和64年")
+        self.assertEqual(year_label_from_held_on("1989-01-08"), "平成元年")
+        self.assertEqual(year_label_from_held_on(""), "")
+        self.assertEqual(year_label_from_held_on("2022-13-01"), "")
 
 if __name__ == "__main__":
     unittest.main()

@@ -790,6 +790,29 @@ def repair_saved_mojibake(text: str) -> str:
         return text
 
 
+# 元号の切り替わりの日。新しい順に並べる。
+ERA_START_DATES = (
+    ("令和", date(2019, 5, 1)),
+    ("平成", date(1989, 1, 8)),
+    ("昭和", date(1926, 12, 25)),
+    ("大正", date(1912, 7, 30)),
+    ("明治", date(1868, 1, 25)),
+)
+
+
+def year_label_from_held_on(held_on: str | None) -> str:
+    """開催日（`2022-06-07`）から年ラベル（`令和4年`）を作る。読めなければ空。"""
+    try:
+        day = date.fromisoformat(str(held_on or "").strip())
+    except ValueError:
+        return ""
+    for era, start in ERA_START_DATES:
+        if day >= start:
+            year = day.year - start.year + 1
+            return f"{era}{'元' if year == 1 else year}年"
+    return ""
+
+
 def build_minutes_record(
     file_path: Path,
     downloads_dir: Path,
@@ -867,6 +890,12 @@ def build_minutes_record(
         ),
         year_label=meta.year_label if meta else (fallback_year_label or ""),
     )
+    year_label = meta.year_label if meta else extracted_year_label
+    if normalize_space(year_label) in ("", "不明"):
+        # 保存先の年が「不明」でも、開催日は本文や原典 URL から取れていることが
+        # 多い（検索で年が「不明」の 34,542 件のうち 27,348 件）。年ラベルも
+        # 開催日から付ける。保存先は動かさないので、移し替えは要らない（第75）。
+        year_label = year_label_from_held_on(held_on) or year_label
     return MinuteRecord(
         rel_path=file_path.relative_to(downloads_dir).as_posix(),
         # 一覧行との照合には保存名（`title`）を使うが、公開する題名は会議の名前に
@@ -874,7 +903,7 @@ def build_minutes_record(
         # 出ず、会議名で探せない（本番で題名「開議」が 23 件あった）。
         title=display_minutes_title(title, content),
         meeting_name=meeting_name,
-        year_label=meta.year_label if meta else extracted_year_label,
+        year_label=year_label,
         held_on=held_on,
         gregorian_year=gregorian_year,
         month=month,
