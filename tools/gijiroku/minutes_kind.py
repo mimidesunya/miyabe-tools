@@ -187,7 +187,13 @@ MINUTES_BODY_MARKERS = (
     "委員会記録",
     "会議録",
     "議事録",
+    # 1 日分の本文のページだけを取る取得元（富山県の dbsr）は、出席議員や
+    # 議事日程の一覧を持たない。「開議」しか当たらず、一般質問で議案に触れると
+    # 議案と読まれて 325 日分が落ちていた（第75）。
+    "本日の会議を開",
 )
+# 議長・委員長の発言の行（「◯議長（高野行雄君）」）。議案や資料には出ない。
+_SPEECH_MARKER_RE = re.compile(r"[◯○〇◎]\s*(?:副?議長|副?委員長)\s*[（(]")
 # 本文が「PDF をごらんください」だけの会議録がある。gijiroku.com の古い年で、
 # 発言そのものは PDF の中にある。会議録として検索に載るが本文が無い。
 # 本番で町田市 529 件・岩見沢市 212 件・港区 131 件（本文 120 字未満は全国 1,241）。
@@ -548,7 +554,8 @@ _MARKER_SPACE_RE = re.compile(r"[\s\u3000]+")
 def minutes_marker_count(text: str) -> int:
     head = _head_text(text, limit=40) + "\n" + str(text or "")[:4000]
     squeezed = _MARKER_SPACE_RE.sub("", head)
-    return sum(1 for marker in MINUTES_BODY_MARKERS if marker in squeezed)
+    count = sum(1 for marker in MINUTES_BODY_MARKERS if marker in squeezed)
+    return count + (1 if _SPEECH_MARKER_RE.search(head) else 0)
 
 
 # PDF の抽出に失敗すると、文字ではなくグリフ名が並ぶ（垂水市の本文 190 万字は

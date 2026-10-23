@@ -217,5 +217,38 @@ class CommitteeRecordTest(unittest.TestCase):
         self.assertIsNotNone(minutes_kind.non_minutes_reason("61", bill))
 
 
+# 富山県の dbsr は 1 日分の本文のページだけを取る。出席議員や議事日程の一覧が
+# 付かず、手がかりは「開議」だけになる。一般質問で議案に触れると議案と読まれ、
+# 325 日分の本会議が落ちていた（第75）。名前は架空。
+DAY_PAGE = """03月05日－本文
+２月定例会
+令和元年〔平成31年〕
+開催日: 令和元年3月5日
+
+平成31年２月定例会　一般質問
+---------------------------
+午前10時00分開議
+
+◯議長（山田太郎君）ただいまから本日の会議を開き、直ちに日程に入ります。
+
+　日程第１、県政一般に対する質問並びに議案第１号から議案第51号までを議題といたします。
+
+◯知事（鈴木一郎君）ただいま上程になりました議案について御説明申し上げます。
+"""
+
+
+class DayPageTest(unittest.TestCase):
+    def test_a_day_page_that_cites_bills_is_minutes(self) -> None:
+        self.assertIsNone(minutes_kind.non_minutes_reason("03月05日－本文", DAY_PAGE))
+
+    def test_the_chair_speaking_is_a_marker(self) -> None:
+        self.assertGreaterEqual(minutes_kind.minutes_marker_count(DAY_PAGE), 2)
+
+    def test_a_bill_that_names_the_chair_is_still_dropped(self) -> None:
+        # 議案は「議長」に宛てて出すが、発言の行（「◯議長（…君）」）にはならない。
+        bill = "61\n\n議案第６１号\n　　財産の取得について\n富山県議会議長　山田太郎　様\n提案理由\n"
+        self.assertIsNotNone(minutes_kind.non_minutes_reason("61", bill))
+
+
 if __name__ == "__main__":
     unittest.main()
