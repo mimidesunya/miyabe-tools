@@ -2,7 +2,10 @@ FROM php:8.3-fpm
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# apt-get upgrade: the base image lags behind Debian security fixes
+# (libbrotli1 for CVE-2026-111497, 2026-10-24)
 RUN apt-get update \
+    && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
         libpq-dev \
         python3 \
