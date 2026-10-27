@@ -650,12 +650,10 @@ function normalize_municipality_entry(string $slug, array $entry): array
     $reikiSkipDetection = !empty($reikiConfig['skip_detection']);
     $reikiSourceRelative = normalize_data_relative_path(trim((string)($reikiConfig['source_dir'] ?? $reikiConfig['data_dir'] ?? "reiki/{$slug}/source")));
     $reikiCleanHtmlRelative = normalize_data_relative_path(trim((string)($reikiConfig['clean_html_dir'] ?? "reiki/{$slug}/html")));
-    $reikiClassificationRelative = normalize_data_relative_path(trim((string)($reikiConfig['classification_dir'] ?? "reiki/{$slug}/json")));
     $reikiImageRelative = normalize_data_relative_path(trim((string)($reikiConfig['image_dir'] ?? "reiki/{$slug}/images")));
     $reikiMarkdownRelative = normalize_data_relative_path(trim((string)($reikiConfig['markdown_dir'] ?? "reiki/{$slug}/markdown")));
     $reikiSourcePath = work_path($reikiSourceRelative);
     $reikiCleanHtmlPath = data_path($reikiCleanHtmlRelative);
-    $reikiClassificationPath = data_path($reikiClassificationRelative);
     $reikiImagePath = data_path($reikiImageRelative);
     $reikiMarkdownPath = work_path($reikiMarkdownRelative);
     if ($reikiSkipDetection) {
@@ -695,17 +693,15 @@ function normalize_municipality_entry(string $slug, array $entry): array
         'reiki' => [
             'enabled' => $reikiEnabled,
             'has_data' => $reikiDetected,
-            'title' => trim((string)($reikiConfig['title'] ?? ($reikiDefaults['title'] ?? "{$name}例規集 AI評価ビューア"))),
-            'description' => trim((string)($reikiConfig['description'] ?? '例規集の検索とAI評価結果の閲覧')),
+            'title' => trim((string)($reikiConfig['title'] ?? "{$name}例規集")),
+            'description' => trim((string)($reikiConfig['description'] ?? '例規集の検索と本文の閲覧')),
             'url' => '/reiki/?slug=' . rawurlencode($publicSlug),
             'source_dir_rel' => normalize_data_relative_path($reikiSourceRelative),
             'clean_html_dir_rel' => normalize_data_relative_path($reikiCleanHtmlRelative),
-            'classification_dir_rel' => normalize_data_relative_path($reikiClassificationRelative),
             'image_dir_rel' => normalize_data_relative_path($reikiImageRelative),
             'markdown_dir_rel' => normalize_data_relative_path($reikiMarkdownRelative),
             'source_dir' => $reikiSourcePath,
             'clean_html_dir' => $reikiCleanHtmlPath,
-            'classification_dir' => $reikiClassificationPath,
             'image_dir' => $reikiImagePath,
             'image_url' => data_public_url($reikiImageRelative),
             'markdown_dir' => $reikiMarkdownPath,

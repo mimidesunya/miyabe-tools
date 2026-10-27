@@ -183,51 +183,6 @@ body {
     box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
 }
 .title { margin: 0 0 8px 0; font-size: 22px; }
-.badge {
-    display: inline-block;
-    background: #eef2ff;
-    color: #3730a3;
-    border: 1px solid #c7d2fe;
-    border-radius: 999px;
-    font-size: 12px;
-    padding: 3px 8px;
-    margin-right: 6px;
-    margin-bottom: 4px;
-}
-.kv {
-    display: grid;
-    grid-template-columns: 170px 1fr;
-    gap: 6px 10px;
-    font-size: 14px;
-}
-.kv dt { color: #475569; }
-.kv dd { margin: 0; color: #0f172a; }
-
-/* ─── Guide (Legend) ─── */
-.guide h3 {
-    margin: 16px 0 8px;
-    font-size: 17px;
-    color: #0f172a;
-}
-.guide p, .guide li {
-    font-size: 14px;
-    line-height: 1.8;
-    color: #1f2937;
-}
-.guide ul {
-    margin: 0;
-    padding-left: 18px;
-}
-.guide .hint {
-    margin-top: 8px;
-    padding: 10px;
-    border: 1px solid #dbeafe;
-    border-radius: 8px;
-    background: #eff6ff;
-    color: #1e3a8a;
-    font-size: 13px;
-}
-
 /* ─── Law Content ─── */
 .law-content {
     font-size: 15px;
@@ -281,54 +236,6 @@ body {
 /* ─── Desktop Menu Toggle (hidden on desktop) ─── */
 #menu-toggle {
     display: none;
-}
-
-/* ─── Feedback Section ─── */
-.feedback-row {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
-}
-.feedback-buttons {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-.feedback-buttons button {
-    padding: 6px 14px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-#btn-good {
-    border: 1px solid #86efac;
-    background: #f0fdf4;
-}
-#btn-bad {
-    border: 1px solid #fca5a5;
-    background: #fef2f2;
-}
-#vote-status {
-    font-size: 12px;
-    color: #6b7280;
-}
-.view-count-label {
-    margin-left: auto;
-    font-size: 12px;
-    color: #94a3b8;
-    white-space: nowrap;
-}
-#comment-input {
-    flex: 1;
-    padding: 7px 10px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    font-size: 13px;
-    min-width: 0;
 }
 
 /* ═══════════════════════════════════════
@@ -427,30 +334,6 @@ body {
     .header { padding: 10px 12px; }
     .header h1 { font-size: 17px; }
 
-    /* Guide: collapsible on mobile, closed by default */
-    .guide-toggle {
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        -webkit-tap-highlight-color: rgba(39, 94, 163, 0.1);
-    }
-    .guide-arrow::after {
-        content: '\25B6';
-        font-size: 12px;
-        color: #94a3b8;
-        transition: transform 0.2s;
-    }
-    .guide.expanded .guide-arrow::after {
-        transform: rotate(90deg);
-    }
-    .guide-body {
-        display: none;
-    }
-    .guide.expanded .guide-body {
-        display: block;
-    }
-
     .mobile-back a:active {
         background: #e8f0fe;
     }
@@ -508,24 +391,6 @@ body {
     }
     .title { font-size: 18px; line-height: 1.3; }
 
-    /* KV: stack vertically */
-    .kv {
-        grid-template-columns: 1fr;
-        gap: 4px;
-    }
-    .kv dt {
-        margin-top: 10px;
-        font-weight: 600;
-        color: #334155;
-        font-size: 13px;
-    }
-    .kv dd {
-        padding-left: 10px;
-        border-left: 2px solid #e2e8f0;
-        font-size: 14px;
-        line-height: 1.6;
-    }
-
     /* Law content */
     .law-content table {
         display: block;
@@ -537,46 +402,6 @@ body {
         line-height: 1.8;
     }
 
-    /* Guide */
-    .guide h3 { font-size: 16px; }
-    .guide p, .guide li { font-size: 13px; line-height: 1.7; }
-
-    /* Feedback: stack vertically for full-width buttons */
-    .feedback-row {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 10px;
-    }
-    .feedback-buttons {
-        justify-content: center;
-        gap: 12px;
-    }
-    .feedback-buttons button {
-        flex: 1;
-        justify-content: center;
-        padding: 12px 16px;
-        font-size: 16px;
-        min-height: 44px;
-    }
-    .view-count-label {
-        margin-left: 0;
-        text-align: center;
-    }
-    #vote-status {
-        text-align: center;
-        display: block;
-    }
-    #comment-input {
-        font-size: 16px !important;
-        padding: 12px;
-        width: 100%;
-    }
-
-    /* Badge */
-    .badge {
-        font-size: 11px;
-        padding: 2px 6px;
-    }
 }
 
 /* ═══════════════════════════════════════

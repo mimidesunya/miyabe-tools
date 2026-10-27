@@ -5,72 +5,6 @@ declare(strict_types=1);
  * 例規集ページで使う表示補助と HTML 整形の共通関数。
  */
 
-// 分類コードを人が読む形にする。
-//
-// `A_法定必須_維持前提` はデータ側の符号で、区切りの `_` がそのまま画面に
-// 出ていた。機械が吐いた文字列に見えるので、頭の記号は空白、残りは中黒にする。
-// 値そのもの（絞り込みの比較に使う）は変えない。
-function reiki_primary_class_label(string $code): string {
-    $label = preg_replace('/^([A-G])_/u', '$1 ', trim($code)) ?? trim($code);
-    return str_replace('_', '・', $label);
-}
-
-// 各スコアの色と補助ラベルを UI 用に決める。
-function get_score_style_and_label(string $key, float|int $val): array {
-    $style = '';
-    $suffix = '';
-    
-    if ($key === 'necessity_score') {
-        if ($val == -1) {
-            $style = 'color:#94a3b8; font-style:italic;';
-            $suffix = '(対象外)';
-        } elseif ($val >= 80) {
-            $style = 'color:#15803d; font-weight:bold;';
-            $suffix = '(高)';
-        } elseif ($val >= 50) {
-            $style = 'color:#334155;';
-        } elseif ($val >= 21) {
-            $style = 'color:#b45309; font-weight:bold;';
-            $suffix = '(低)';
-        } else {
-            $style = 'color:#dc2626; font-weight:bold; background:#fef2f2; padding:0 2px; border-radius:3px;';
-            $suffix = '(不要?)';
-        }
-    } elseif ($key === 'fiscal_impact_score') {
-        if ($val >= 4.0) {
-            $style = 'color:#dc2626; font-weight:bold; background:#fef2f2; padding:0 2px; border-radius:3px;';
-            $suffix = '(重)';
-        } elseif ($val >= 2.0) {
-            $style = 'color:#334155;'; 
-        } else {
-            $style = 'color:#15803d; font-weight:bold;';
-            $suffix = '(軽)';
-        }
-    } elseif ($key === 'regulatory_burden_score') {
-        if ($val >= 4.0) {
-            $style = 'color:#dc2626; font-weight:bold; background:#fef2f2; padding:0 2px; border-radius:3px;';
-            $suffix = '(重)';
-        } elseif ($val >= 2.0) {
-            $style = 'color:#334155;'; 
-        } else {
-            $style = 'color:#15803d; font-weight:bold;';
-            $suffix = '(軽)';
-        }
-    } elseif ($key === 'policy_effectiveness_score') {
-        if ($val >= 4.0) {
-            $style = 'color:#15803d; font-weight:bold;';
-            $suffix = '(高)';
-        } elseif ($val >= 2.0) {
-            $style = 'color:#334155;';
-        } else {
-            $style = 'color:#dc2626; font-weight:bold; background:#fef2f2; padding:0 2px; border-radius:3px;';
-            $suffix = '(無効?)';
-        }
-    }
-    
-    return [$style, $suffix];
-}
-
 function h(?string $value): string
 {
     return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -80,17 +14,6 @@ function decode_html_text(?string $value): string
 {
     $decoded = html_entity_decode((string)($value ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
     return trim((string)$decoded);
-}
-
-function get_stance_label(string $stance): string
-{
-    return match ($stance) {
-        '合致', '適合' => '適合',
-        '一部合致', '概ね適合' => '概ね適合',
-        '中立/不明', '判断保留' => '判断保留',
-        '衝突', '要見直し' => '要見直し',
-        default => $stance,
-    };
 }
 
 function normalize_document_type(?string $documentType): string
@@ -177,11 +100,6 @@ function normalize_text(string $html): string
     $text = preg_replace("/\r\n|\r/", "\n", (string)$text);
     $text = preg_replace("/\n{3,}/", "\n\n", (string)$text);
     return trim((string)$text);
-}
-
-function get_score_html(string $key, float|int $val) {
-    list($style, $suffix) = get_score_style_and_label($key, $val);
-    return "<span style=\"{$style}\">" . h((string)$val) . " <span style=\"font-size:0.9em; opacity:0.9;\">{$suffix}</span></span>";
 }
 
 // DB に題名が無い旧データでも、HTML から題名を拾って一覧表示を破綻させない。
@@ -428,46 +346,6 @@ function law_html_has_external_relative_images(string $html): bool
         return true;
     }
     return false;
-}
-
-function load_classification_for_record(array $record, string $htmlDir, string $classificationDir): ?array
-{
-    $htmlPath = (string)($record['path'] ?? '');
-    if ($htmlPath === '') {
-        return null;
-    }
-    $htmlReal = realpath($htmlPath);
-    $baseReal = realpath($htmlDir);
-    if ($htmlReal === false || $baseReal === false) {
-        return null;
-    }
-
-    $prefix = rtrim($baseReal, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-    if (!str_starts_with($htmlReal, $prefix)) {
-        return null;
-    }
-
-    $relative = substr($htmlReal, strlen($prefix));
-    if ($relative === false || $relative === '') {
-        return null;
-    }
-
-    $relativeJson = preg_replace('/\.html$/i', '.json', str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $relative));
-    if ($relativeJson === null || $relativeJson === '') {
-        return null;
-    }
-
-    $classificationBasePath = rtrim($classificationDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $relativeJson;
-    $classificationPath = is_file($classificationBasePath . '.gz')
-        ? $classificationBasePath . '.gz'
-        : $classificationBasePath;
-    if (!is_file($classificationPath)) {
-        return null;
-    }
-
-    $json = read_text_auto($classificationPath);
-    $row = json_decode($json, true);
-    return is_array($row) ? $row : null;
 }
 
 function query_with(array $patch): string

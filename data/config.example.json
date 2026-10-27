@@ -1,23 +1,4 @@
 {
-    "openai": {
-        "apiKey": "YOUR_OPENAI_API_KEY",
-        "baseUrl": "https://api.openai.com/v1/chat/completions",
-        "chatModel": "gpt-5.1",
-        "timeoutMs": 300000,
-        "maxRetries": 3
-    },
-    "gemini": {
-        "apiKey": "YOUR_GEMINI_API_KEY",
-        "textModel": "gemini-3-flash-preview",
-        "maxRetries": 3
-    },
-    "claude": {
-        "apiKey": "YOUR_ANTHROPIC_API_KEY",
-        "baseUrl": "https://api.anthropic.com/v1/messages",
-        "chatModel": "claude-3-5-sonnet-20241022",
-        "timeoutMs": 300000,
-        "maxRetries": 3
-    },
     "LINE_CHANNEL_ID": "YOUR_CHANNEL_ID",
     "LINE_CHANNEL_SECRET": "YOUR_CHANNEL_SECRET",
     "REDIRECT_URI": "https://your-domain.com/line/callback.php",

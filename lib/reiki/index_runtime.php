@@ -26,10 +26,9 @@ $reikiFeature = municipality_feature($slug, 'reiki') ?? [];
 $featureAvailable = municipality_feature_enabled($slug, 'reiki');
 $switcherItems = municipality_switcher_items('reiki');
 $cleanHtmlDir = (string)($reikiFeature['clean_html_dir'] ?? '');
-$classificationDir = (string)($reikiFeature['classification_dir'] ?? '');
 // 保存先は選挙ポスター掲示場と同じ canonical slug へ統一したので、既定画像 URL も slug から決め打ちできる。
 $reikiImageUrl = (string)($reikiFeature['image_url'] ?? ('/data/reiki/' . rawurlencode($slug) . '/images'));
-$pageTitle = (string)($reikiFeature['title'] ?? ($municipality['name'] . '例規集 AI評価ビューア'));
+$pageTitle = (string)($reikiFeature['title'] ?? ($municipality['name'] . '例規集'));
 $clearUrl = '/reiki/?slug=' . rawurlencode($requestSlug);
 $featureNotice = $featureAvailable ? '' : ($municipality['name'] . 'の例規集は準備中です。');
 
@@ -49,24 +48,6 @@ if ($file !== '' && (
 )) {
     $file = '';
 }
-$sort = trim((string)($_GET['sort'] ?? 'date'));
-$direction = trim((string)($_GET['dir'] ?? '')); 
-$hasClassFilterParam = array_key_exists('class', $_GET);
-$filterClasses = $_GET['class'] ?? [];
-if (!is_array($filterClasses)) {
-    $str = trim((string)$filterClasses);
-    $filterClasses = $str !== '' ? [$str] : [];
-}
-$filterClasses = array_filter($filterClasses, fn($v) => (string)$v !== '');
-
-$hasStanceFilterParam = array_key_exists('stance', $_GET);
-$filterStances = $_GET['stance'] ?? [];
-if (!is_array($filterStances)) {
-    $str = trim((string)$filterStances);
-    $filterStances = $str !== '' ? [$str] : [];
-}
-$filterStances = array_filter($filterStances, fn($v) => (string)$v !== '');
-
 $documentTypeOptions = ['条例', '規則', '規程', '要綱', 'その他'];
 $hasDocTypeFilterParam = array_key_exists('doctype', $_GET);
 $filterDocTypes = $_GET['doctype'] ?? [];
@@ -83,19 +64,6 @@ $filterDocTypes = array_values(array_unique($filterDocTypes));
 $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = 50;
 
-// Default direction based on sort type
-if ($direction === '') {
-    if ($sort === 'date') {
-        $direction = 'desc';
-    } elseif ($sort === 'score_fiscal' || $sort === 'score_burden') {
-        $direction = 'desc';
-    } else {
-        $direction = 'asc';
-    }
-}
-$direction = strtolower($direction) === 'asc' ? 'asc' : 'desc';
-
-// ─────────────────────────────────────
 // ─────────────────────────────────────
 // Data Retrieval
 // ─────────────────────────────────────
@@ -173,28 +141,13 @@ if ($file !== '') {
 $start = ($page - 1) * $perPage + 1;
 $end = min($total, $page * $perPage);
 
-// Canonical class list
-$canonicalPrimaryClasses = [
-    'A_法定必須_維持前提',
-    'B_自治体裁量だが基幹_効率化対象',
-    'C_裁量的サービス_縮小統合候補',
-    'D_理念宣言中心_実施見直し候補',
-    'E_規制許認可中心_規制緩和候補',
-    'F_手数料使用料連動_負担軽減候補',
-    'G_歴史的・形式的_現状維持',
-];
-
-$allClasses = $canonicalPrimaryClasses;
-$allStances = [];
-
 // ─────────────────────────────────────
-// 選択された例規の本文と AI 評価結果を読み込む
+// 選択された例規の本文を読み込む
 // ─────────────────────────────────────
 $selectedHtml = '';
 $selectedContentHtml = '';
 $selectedText = '';
 $selectedTitle = '';
-$selectedClassification = null;
 
 if ($selectedRecord !== null) {
     $cleanHtmlPath = $cleanHtmlDir . DIRECTORY_SEPARATOR . $selectedRecord['name'];
@@ -212,12 +165,10 @@ if ($selectedRecord !== null) {
     if (empty($selectedText) && is_file($cleanHtmlPath)) {
         $selectedText = normalize_text(read_text_auto($cleanHtmlPath));
     }
-    
-    $selectedClassification = load_classification_for_record($selectedRecord, $cleanHtmlDir, $classificationDir);
 }
 
 foreach ($pagedRecords as $record) {
     resolve_record_title($record, $titleCache);
 }
 
-$isLanding = ($selectedRecord === null && $q === '' && $page === 1 && !$hasClassFilterParam && !$hasStanceFilterParam && !$hasDocTypeFilterParam);
+$isLanding = ($selectedRecord === null && $q === '' && $page === 1 && !$hasDocTypeFilterParam);

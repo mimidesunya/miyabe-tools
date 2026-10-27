@@ -1,6 +1,6 @@
 # 例規集ツール
 
-例規集はスクレイパが保存した HTML / Markdown / JSON から OpenSearch index を作ります。公開検索で SQLite FTS は使いません。
+例規集はスクレイパが保存した HTML / Markdown から OpenSearch index を作ります。公開検索で SQLite FTS は使いません。
 
 ## 画面と API
 
@@ -17,27 +17,17 @@ curl "http://localhost/api/search?q=個人情報&doc_type=reiki&slug=14130-kawas
 ## データ配置
 
 - 整形 HTML: `data/reiki/{slug}/html`
-- AI 評価 JSON: `data/reiki/{slug}/json`
 - 画像: `data/reiki/{slug}/images`
 - 元 HTML: `work/reiki/{slug}/source`
 - Markdown: `work/reiki/{slug}/markdown`
 - クロールマニフェスト: `work/reiki/{slug}/source_manifest.json.gz`
 - レジューム状態: `work/reiki/{slug}/scrape_state.json`
 
-## AI 評価（手動）
+## AI 評価はしない
 
-`data/reiki/{slug}/json` の AI 評価は `dev/reiki/classify.py` が作ります。巡回には入っていない
-手動の道具で、例規ごとに Markdown を AI（Gemini・OpenAI・Claude から `--provider` で選ぶ）へ
-渡して JSON を書きます。既定は下見だけで、`--execute` を付けたときだけ API を呼びます。
-
-```bash
-python dev/reiki/classify.py --slug 14130-kawasaki-shi --limit 5            # 下見
-python dev/reiki/classify.py --slug 14130-kawasaki-shi --limit 5 --execute  # API を呼ぶ
-```
-
-- API キーとモデルは `data/config.json` の `openai`・`gemini`・`claude`（`data/config.example.json` に形）
-- `google-genai`・`openai`・`anthropic` は本番のイメージに入れていないので、手元で走らせる
-- 書いた JSON は例規ビューア（`/reiki/`）と検索の索引が読む
+例規の AI 評価（分類・スコア・判定理由を付ける `dev/reiki/classify.py`、`data/reiki/{slug}/json`、
+評価への投票 `/reiki/api.php`）は 2026-10-27 にやめて消した。画面・索引・検索 API・MCP に評価は出さない。
+サイトは原文と取得元を正確に出し、評価は利用者がそれぞれの AI で原文に当たって確かめる。
 
 ## スクレイピング
 

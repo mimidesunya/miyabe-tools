@@ -36,7 +36,7 @@
 
 ### 2. 例規集ツール
 
-自治体ごとの例規集データを Web 上で閲覧し、AI 評価結果を確認するツールです。
+自治体ごとの例規集データを Web 上で検索し、本文を読むツールです。
 
 - 画面: `/reiki/?slug={slug}`
 - 統合検索: `/search/?doc_type=reiki`
@@ -53,7 +53,7 @@ OpenSearch の index はスクレイピング済みファイルから再構築�
 
 - トップ: https://tools.miya.be/
 - 川崎市ポスター掲示場: https://tools.miya.be/boards/14130-kawasaki-shi/
-- 川崎市例規集 AI評価ビューア: https://tools.miya.be/reiki/?slug=14130-kawasaki-shi
+- 川崎市例規集: https://tools.miya.be/reiki/?slug=14130-kawasaki-shi
 - 会議録・例規集 統合検索: https://tools.miya.be/search/
 - 川崎市議会 会議録 全文検索: https://tools.miya.be/search/?doc_type=minutes&slug=14130-kawasaki-shi
 
