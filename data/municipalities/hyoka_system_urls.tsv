@@ -364,7 +364,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 07203	https://www.city.koriyama.lg.jp/soshiki/6/189469.html	独自	enabled		2026-09-17 確認: 本文に『事務事業の評価』／添付19件
 07204			unresolved	source_url_unresolved	2026-09-17: 以前の候補『指定管理施設経営状況評価結果（令和５年度）｜いわき市』は事務事業評価ではなかった
 07205			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
-07207	https://www.city.sukagawa.fukushima.jp/shisei/gyoseiunei/keikaku/gyosei_hyoka/1002625.html	独自	review_required	needs_confirmation	2026-09-17 最終検算: 『主要な施策の成果／須賀川市公式ホームページ』は評価の頁ではなく、評価表を確認できず
+07207		独自	unresolved	source_url_unresolved	2026-10-27 評価表の取得の試し: 登録の入口は主要な施策の成果（決算の成果説明書）の頁で、事務事業評価ではなかった（元の入口 https://www.city.sukagawa.fukushima.jp/shisei/gyoseiunei/keikaku/gyosei_hyoka/1002625.html）
 07208	https://www.city.kitakata.fukushima.jp/soshiki/kikaku/40292.html	独自	enabled		2026-09-17 兆候調査で確認: 題名『喜多方市の事務事業評価結果をお知らせします - 』
 07209	https://www.city.soma.fukushima.jp/shiseijoho/gyoseikeiei_hyoka/gaibuhyoka/13278.html	独自	enabled		2026-09-17 確認: 本文に『事務事業の評価』／添付1件
 07210	https://www.city.nihonmatsu.lg.jp/shisei/jigyo_keikaku_gyosei/gyousei_hyoka/page000592.html	独自	enabled		2026-09-17 確認: 『行政評価』と『評価シート』／添付32件
@@ -411,7 +411,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 07541			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 07542			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 07543	https://www.tomioka-town.jp/soshiki/kikaku/1317.html	独自	enabled		2026-09-17 確認: 年度ごとの評価文書 2 件
-07544	https://www.kawauchimura.jp/gyosei/keikaku-yosan/yosan-kessan/heisei18/page000122.html	独自	enabled		
+07544		独自	unresolved	source_url_unresolved	2026-10-27 評価表の取得の試し: 登録の入口は予算・決算の下の「給与・定員管理等について」の頁で、事務事業評価ではなかった（元の入口 https://www.kawauchimura.jp/gyosei/keikaku-yosan/yosan-kessan/heisei18/page000122.html）
 07545			unresolved	source_url_unresolved	2026-09-17: 以前の候補『東日本大震災復興交付金事業計画の実績評価結果 - 大』は事務事業評価ではなかった
 07546			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 07547			unresolved	source_url_unresolved	2026-09-17 兆候調査（会議録に言及あり）: 巡回で見つからず（検索は未実施）
@@ -663,7 +663,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 13116	https://www.city.toshima.lg.jp/009/kuse/shisaku/gyosehyoka/r4zimuzigyo.html	独自	enabled		
 13117	https://www.city.kita.lg.jp/city-information/evaluation/1011919/1011920.html	独自	enabled		2026-09-17 兆候調査で確認: 題名『行政評価（施策評価及び事務事業評価）｜東京都北区』
 13118	https://www.city.arakawa.tokyo.jp/gyouseihyouka/index.html	独自	enabled		2026-09-17 確認: 年度ごとの評価文書 20 件
-13119	https://www.city.itabashi.tokyo.jp/kusei/shiteikanri/hyouka/1007771.html	独自	enabled		2026-09-17 確認: 年度ごとの評価文書 2 件
+13119		独自	unresolved	source_url_unresolved	2026-10-27 評価表の取得の試し: 登録の入口は指定管理者のモニタリング・評価結果の頁で、事務事業評価ではなかった（元の入口 https://www.city.itabashi.tokyo.jp/kusei/shiteikanri/hyouka/1007771.html）
 13120			unresolved	source_url_unresolved	2026-09-17 兆候調査（会議録・例規に言及あり）: 事務事業評価の頁群（/kusei/gyokaku/kokakensyo/…）はサイト改修で404。現行のURLは未特定
 13121	https://www.city.adachi.tokyo.jp/sesaku/ku/kuse/gyose-h28-gyosehyoka.html	独自	enabled		2026-09-17 確認: 本文に『事務事業評価』／添付54件
 13122	https://www.city.katsushika.lg.jp/information/1000085/1006294/1006357.html	独自	review_required	needs_confirmation	2026-09-17: 『行政評価』と『評価表』。評価表は下の階層にある
@@ -709,7 +709,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 13421			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 14000			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 14100	https://www.city.yokohama.lg.jp/city-info/gyosei-kansa/innovation/jigyohyoka/r08/	独自	enabled		2026-09-17 確認: 子ページ『令和７年度事業の事業計画書及び事業評価書』: 『事業評価』と『評価書』／評価表43件（子ページ https://www.city.yokohama.lg.jp/city-info/gyosei-kansa/innovation/jigyohyoka/r08/reiwa07jigyo.html）
-14130	https://www.city.kawasaki.jp/450/page/0000154117.html	独自	enabled		2026-09-17 確認: 年度ごとの評価文書 8 件
+14130		独自	unresolved	source_url_unresolved	2026-10-27 評価表の取得の試し: 登録の入口は子ども・若者プランの点検・評価の頁で、事務事業評価ではなかった（元の入口 https://www.city.kawasaki.jp/450/page/0000154117.html）
 14150	https://www.city.sagamihara.kanagawa.jp/shisei/1026766/seido/1026769/gyoseihyouka/1004263.html	独自	enabled		
 14201	https://www.city.yokosuka.kanagawa.jp/0830/upi/hyouka/soutenken25.html	独自	enabled		2026-09-17 確認: 本文に『事務事業評価』／添付1件
 14203			unresolved	source_url_unresolved	2026-09-17: 以前の候補『開けない』は事務事業評価ではなかった
@@ -1340,7 +1340,7 @@ jis_code	url	system_type	crawl_status	exclusion_reason	exclusion_detail
 32526			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 32527			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 32528	https://www.town.okinoshima.shimane.jp/chosei/gyosei_unei/seisaku-keikaku/10/8173.html	独自	enabled		2026-09-17 兆候調査で確認: 本文に『事務事業評価』
-33000	https://www.pref.okayama.jp/page/944926.html	独自	enabled		2026-09-17 確認: 『事業評価』と『評価調書』／添付1件
+33000		独自	unresolved	source_url_unresolved	2026-10-27 評価表の取得の試し: 登録の入口は大規模施設建設事業評価（公共事業）の頁で、事務事業評価ではなかった（元の入口 https://www.pref.okayama.jp/page/944926.html）
 33100			unresolved	source_url_unresolved	この調査手順では入口を見つけられなかった
 33202	https://www.city.kurashiki.okayama.jp/cityinfo/plan/1002154/1002161/index.html	独自	enabled		2026-09-17 確認: 年度ごとの評価文書 4 件
 33203			unresolved	source_url_unresolved	2026-09-17 兆候調査（会議録に言及あり）: 巡回で見つからず（検索は未実施）
