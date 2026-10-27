@@ -1310,25 +1310,6 @@ def normalize_kana(value: str, prefixes: list[str]) -> str:
     return normalized
 
 
-def safe_int(value: object, default: int) -> int:
-    try:
-        return int(str(value).strip())
-    except Exception:
-        return default
-
-
-def safe_float(value: object, default: float) -> float:
-    try:
-        return float(str(value).strip())
-    except Exception:
-        return default
-
-
-def normalize_document_type(value: str) -> str:
-    text = normalize_space(value)
-    return text if text in {"条例", "規則", "規程", "要綱"} else "その他"
-
-
 def detect_document_type(title: str, number: str) -> str:
     for candidate in (number, title):
         if "条例" in candidate:
@@ -1462,7 +1443,6 @@ def build_reiki_record(
     key: str,
     html_path: Path,
     markdown_path: Path | None,
-    classification_path: Path | None,
     manifest: dict[str, Any] | None,
     prefixes: list[str],
     target: dict[str, Any] | None = None,
@@ -1475,40 +1455,16 @@ def build_reiki_record(
         content_text = markdown_to_text(read_text_auto(markdown_path))
     if content_text == "":
         return None
-    classification = (
-        load_json(classification_path, {}, strict=strict)
-        if classification_path is not None
-        else {}
-    )
-    if not isinstance(classification, dict):
-        if strict:
-            raise ValueError(f"reiki classification must be an object: {classification_path}")
-        classification = {}
     manifest = manifest if isinstance(manifest, dict) else {}
     fallback_title = normalize_space(str(manifest.get("title", "")).strip()) or Path(key).name
-    title = normalize_space(decode_html_text(classification.get("title", "")) or extract_title_from_html(html_content, fallback_title))
+    title = normalize_space(extract_title_from_html(html_content, fallback_title))
     if title == "":
         title = Path(key).name
     number = normalize_space(
-        decode_html_text(classification.get("number", ""))
-        or extract_number_from_html(html_content)
+        extract_number_from_html(html_content)
         or decode_html_text(manifest.get("number", ""))
     )
-    reading_kana = normalize_space(decode_html_text(classification.get("readingKana", ""))) or title
-    lens_eval = classification.get("lensEvaluation", {})
-    lens_eval = lens_eval if isinstance(lens_eval, dict) else {}
-    lens_a = lens_eval.get("lensA", {})
-    lens_a = lens_a if isinstance(lens_a, dict) else {}
-    lens_b = lens_eval.get("lensB", {})
-    lens_b = lens_b if isinstance(lens_b, dict) else {}
-    combined = lens_eval.get("combined", {})
-    combined = combined if isinstance(combined, dict) else {}
-    document_type = normalize_document_type(str(classification.get("documentType", "")).strip())
-    if document_type == "その他":
-        document_type = detect_document_type(title, number)
-    responsible_department = normalize_space(str(classification.get("responsibleDepartment", "")).strip())
-    combined_reason = normalize_space(str(combined.get("reason", "")).strip())
-    reason = normalize_space(str(classification.get("reason", "")).strip())
+    document_type = detect_document_type(title, number)
     taxonomy_path = normalize_space(str(manifest.get("taxonomy_path", "")).strip())
     source_file = normalize_source_file_value(manifest.get("source_file") or manifest.get("stored_source_file") or "")
     if source_file == "":
@@ -1522,25 +1478,10 @@ def build_reiki_record(
         "filename": key,
         "title": title,
         "number": number,
-        "reading_kana": reading_kana,
-        "sortable_kana": normalize_kana(reading_kana, prefixes),
-        "primary_class": normalize_space(str(classification.get("primaryClass", "")).strip()),
-        "secondary_tags": join_strings(classification.get("secondaryTags", [])),
-        "necessity_score": safe_int(classification.get("necessityScore", -1), -1),
-        "fiscal_impact_score": safe_float(classification.get("fiscalImpactScore", 0.0), 0.0),
-        "regulatory_burden_score": safe_float(classification.get("regulatoryBurdenScore", 0.0), 0.0),
-        "policy_effectiveness_score": safe_float(classification.get("policyEffectivenessScore", 0.0), 0.0),
-        "lens_tags": join_strings(classification.get("lensTags", [])),
-        "lens_a_stance": normalize_space(str(lens_a.get("stance", "")).strip()),
-        "lens_b_stance": normalize_space(str(lens_b.get("stance", "")).strip()),
-        "combined_stance": normalize_space(str(combined.get("stance", "")).strip()),
-        "combined_reason": combined_reason,
+        "sortable_kana": normalize_kana(title, prefixes),
         "document_type": document_type,
-        "responsible_department": responsible_department,
-        "reason": reason,
         "enactment_date": normalize_space(extract_date_from_html(html_content) or str(manifest.get("enactment_date", "")).strip()),
-        "analyzed_at": normalize_space(str(classification.get("analyzedAt", "")).strip()),
-        "updated_at": record_updated_at(html_path, markdown_path, classification_path),
+        "updated_at": record_updated_at(html_path, markdown_path),
         "source_url": source_url,
         "source_file": source_file,
         "taxonomy_path": taxonomy_path,
@@ -1548,13 +1489,6 @@ def build_reiki_record(
         "content_text": content_text,
         "content_length": len(content_text),
         "title_terms": terms_text(title),
-        "reading_terms": terms_text(reading_kana),
         "content_terms": terms_text(content_text),
-        "department_terms": terms_text(responsible_department),
-        "combined_reason_terms": terms_text(combined_reason),
-        "reason_terms": terms_text(reason),
-        "secondary_terms": terms_text(join_strings(classification.get("secondaryTags", []))),
-        "lens_terms": terms_text(join_strings(classification.get("lensTags", []))),
         "taxonomy_terms": terms_text(taxonomy_path),
-        "has_classification": bool(classification_path is not None and classification_path.exists()),
     }

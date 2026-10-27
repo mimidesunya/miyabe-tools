@@ -1058,7 +1058,6 @@ def main():
     # 走り始めた瞬間に縮み、途中で死ねばそのまま残る。
     partial_manifest_path = work_root / "source_manifest.partial.json.gz"
     state_path = work_root / "scrape_state.json"
-    classification_dir = target["classification_dir"]
 
     print(f"Target: {target['name']} ({target['slug']}, {target['system_type']})")
     print(f"Source URL: {target['source_url']}")

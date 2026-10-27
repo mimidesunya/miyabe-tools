@@ -262,7 +262,6 @@ def build_target_entry(
     name = str((master_entry or {}).get("name", "")).strip() or slug
     base_source_dir = f"reiki/{slug}/source"
     clean_html_dir = f"reiki/{slug}/html"
-    classification_dir = f"reiki/{slug}/json"
     image_dir = f"reiki/{slug}/images"
     markdown_dir = f"reiki/{slug}/markdown"
     work_root = build_work_path(str(Path(base_source_dir).parent))
@@ -282,7 +281,6 @@ def build_target_entry(
         "work_root": work_root,
         "source_dir": build_work_path(base_source_dir),
         "html_dir": build_data_path(clean_html_dir),
-        "classification_dir": build_data_path(classification_dir),
         "image_dir": build_data_path(image_dir),
         "image_public_url": build_public_data_url(image_dir),
         "markdown_dir": build_work_path(markdown_dir),

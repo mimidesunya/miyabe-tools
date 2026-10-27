@@ -164,7 +164,6 @@ class SourceIntegrityGuardTest(unittest.TestCase):
             "source_dir": str(html_dir),
             "html_dir": str(html_dir),
             "markdown_dir": str(root / "markdown"),
-            "classification_dir": str(root / "classification"),
         }
 
         def build(_key, path: Path, *_args, **_kwargs):

@@ -475,43 +475,6 @@ def stable_local_id(*parts: str) -> str:
     return hashlib.sha1(material.encode("utf-8", errors="replace")).hexdigest()
 
 
-# 内部の識別子（`necessityScore`、`fiscalImpactScore`、`Class` など）は
-# 利用者が探す語ではない。検索語から外す。日本語は残す。
-# 識別子は日本語と地続きで書かれる（`necessityScoreを-1とし、Class Gに分類する`）。
-# 空白で切ってトークンごとに見ると、日本語がくっついた分が残る。文字列として除く。
-#
-# **CamelCase を一律に消してはいけない。**一度そうしたところ、評価文から
-# `DX` `IoT` `RPA` `WebAPI` まで消え、「DX推進の基盤となる規則」が
-# 「 推進の基盤となる規則」になった。落とすのは、AI 評価が使う項目名だけにする。
-INTERNAL_IDENTIFIERS = (
-    "necessityScore",
-    "fiscalImpactScore",
-    "regulatoryBurdenScore",
-    "policyEffectivenessScore",
-    "primaryClass",
-    "secondaryTags",
-    "lensTags",
-    "lensEvaluation",
-    "combinedStance",
-    "analyzedAt",
-    "documentType",
-    "responsibleDepartment",
-    "readingKana",
-)
-_INTERNAL_IDENTIFIER_RE = re.compile(
-    "(?:" + "|".join(re.escape(name) for name in INTERNAL_IDENTIFIERS) + ")",
-    re.IGNORECASE,
-)
-# `Class G` は分類の記号で、利用者が探す語ではない。
-_CLASS_LABEL_RE = re.compile(r"(?<![A-Za-z])Class[ 　]*[A-G](?![A-Za-z])")
-
-
-def drop_internal_identifiers(terms: str) -> str:
-    text = _INTERNAL_IDENTIFIER_RE.sub(" ", str(terms or ""))
-    text = _CLASS_LABEL_RE.sub(" ", text)
-    return " ".join(text.split())
-
-
 # 取得元が返したエラーページは条例ではない。題名と本文の両方で見る。
 ERROR_PAGE_TITLES = {"エラー", "error", "Error", "ページが見つかりません"}
 # **`404` や `Not Found` を単独のマーカーにしてはいけない。**一度そうしたところ、
@@ -924,9 +887,6 @@ def iter_reiki_documents(
             markdown_files = build_alias_map(
                 collect_reiki_preferred_files(Path(target["markdown_dir"]), {".md"})
             )
-            classification_files = build_alias_map(
-                collect_reiki_preferred_files(Path(target["classification_dir"]), {".json"})
-            )
             manifest_index = load_reiki_manifest_index_or_quarantine(
                 Path(target["work_root"]) / "source_manifest.json.gz"
             )
@@ -952,7 +912,6 @@ def iter_reiki_documents(
                     key,
                     html_path,
                     preferred_reiki_sidecar(markdown_files, key),
-                    preferred_reiki_sidecar(classification_files, key),
                     manifest_index.get(key) or manifest_index.get(Path(key).name),
                     prefixes,
                     target,
@@ -995,26 +954,11 @@ def iter_reiki_documents(
                     "reiki", target_slug, html_path, "error_page"
                 )
                 continue
-            # 本文は取得元の原文だけにする。AI 評価や所管課をここへ混ぜると、
-            # 検索結果の本文が評価文から始まり、自治体の見解や法文と読み違える。
             body = str(record.get("content_text") or "")
-            # AI が付けた評価。本文とは別に持ち、混ざらないようにする。
-            # 検索対象にもするので、内部の識別子（`necessityScore` `Class G`）は
-            # ここでも落とす。落とさないと、本文に無い語で条例が当たる。
-            evaluation_text = "\n".join(
-                part
-                for part in [
-                    drop_internal_identifiers(clean_text(record.get("combined_stance"))),
-                    drop_internal_identifiers(clean_text(record.get("combined_reason"))),
-                    drop_internal_identifiers(clean_text(record.get("reason"))),
-                ]
-                if part
-            )
             title_terms = " ".join(
                 part
                 for part in [
                     clean_text(record.get("title_terms")),
-                    clean_text(record.get("reading_terms")),
                 ]
                 if part
             ) or terms_text(title)
@@ -1022,15 +966,6 @@ def iter_reiki_documents(
                 part
                 for part in [
                     clean_text(record.get("content_terms")),
-                    clean_text(record.get("department_terms")),
-                    # AI 評価の文には `necessityScore` `Class G` のような内部の
-                    # 識別子が混ざる。そのまま検索語に入れると、本文に無い語で
-                    # 条例が当たる（実際 `necessityScore` で 13 件出ていた）。
-                    # 日本語の評価語は残し、英数字だけの識別子を落とす。
-                    drop_internal_identifiers(clean_text(record.get("combined_reason_terms"))),
-                    drop_internal_identifiers(clean_text(record.get("reason_terms"))),
-                    clean_text(record.get("secondary_terms")),
-                    clean_text(record.get("lens_terms")),
                     clean_text(record.get("taxonomy_terms")),
                 ]
                 if part
@@ -1056,9 +991,6 @@ def iter_reiki_documents(
                 "detail_url": detail_url,
                 "source_file": clean_text(record.get("source_file")) or detail_file,
                 "source_system": source_system,
-                # AI 評価の文面。本文とは分けて持つ。混ぜると、評価文が
-                # 例規本文として表示され、自治体の見解と読み違えられる。
-                "evaluation_text": evaluation_text,
                 "indexed_at": indexed_at,
                 "parser_generation": PARSER_GENERATION,
                 "updated_at": updated_at,
@@ -1068,7 +1000,7 @@ def iter_reiki_documents(
                 "sort_date": promulgated_on,
                 "filename": filename,
                 "ordinance_no": clean_text(record.get("number") or record.get("ordinance_no")),
-                "category": clean_text(record.get("primary_class")) or clean_text(record.get("document_type")),
+                "category": clean_text(record.get("document_type")),
                 "promulgated_on": promulgated_on,
                 "enforced_on": None,
                 # 最終改正日は取得元から読めていない。取得日を入れると

@@ -55,10 +55,6 @@
     "body_length": {
       "type": "integer"
     },
-    "evaluation_text": {
-      "type": "text",
-      "analyzer": "ja_cjk"
-    },
     "source_url": {
       "type": "keyword",
       "ignore_above": 2048

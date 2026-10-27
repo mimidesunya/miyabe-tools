@@ -72,7 +72,6 @@ function main(array $argv): void
     $workRoot = (string)$target['work_root'];
     $sourceDir = (string)$target['source_dir'];
     $htmlDir = (string)$target['html_dir'];
-    $jsonDir = (string)$target['classification_dir'];
     $imageDir = (string)$target['image_dir'];
     $markdownDir = (string)$target['markdown_dir'];
     $statePath = $workRoot . DIRECTORY_SEPARATOR . 'scrape_state.json';
@@ -81,7 +80,6 @@ function main(array $argv): void
     ensure_dir($workRoot);
     ensure_dir($sourceDir);
     ensure_dir($htmlDir);
-    ensure_dir($jsonDir);
     ensure_dir($imageDir);
     ensure_dir($markdownDir);
     echo "Crawling {$target['name']} reiki taxonomy...\n";
@@ -1690,7 +1688,6 @@ function build_reiki_target_entry(string $slug, array $entry, array $urlEntry, a
     // 例規スクレイパの保存先は slug から一意に決め、自治体ごとの path override は持たない。
     $sourceDirRelative = "reiki/{$slug}/source";
     $htmlDirRelative = "reiki/{$slug}/html";
-    $classificationDirRelative = "reiki/{$slug}/json";
     $imageDirRelative = "reiki/{$slug}/images";
     $markdownDirRelative = "reiki/{$slug}/markdown";
     $sourceDir = build_work_path($sourceDirRelative);
@@ -1710,7 +1707,6 @@ function build_reiki_target_entry(string $slug, array $entry, array $urlEntry, a
         'work_root' => dirname($sourceDir),
         'source_dir' => $sourceDir,
         'html_dir' => build_data_path($htmlDirRelative),
-        'classification_dir' => build_data_path($classificationDirRelative),
         'image_dir' => build_data_path($imageDirRelative),
         'markdown_dir' => build_work_path($markdownDirRelative),
     ];
