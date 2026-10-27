@@ -36,20 +36,14 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import gzip
-import hashlib
 import heapq
-import io
-import json
 import re
 import sys
-import time
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from io import BytesIO
+from datetime import datetime
 from pathlib import Path
-from urllib.parse import unquote, urljoin, urlsplit
+from urllib.parse import unquote, urlsplit
 
 import requests
 
@@ -58,23 +52,46 @@ DATA_ROOT = WORKSPACE_ROOT / "data" / "municipalities"
 REGISTRY = DATA_ROOT / "gaibu_kansa_system_urls.tsv"
 DEFAULT_WORK_ROOT = WORKSPACE_ROOT / "work" / "kansa"
 sys.path.append(str(Path(__file__).resolve().parent))
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from discover_kansa_urls import (  # noqa: E402
     INDIVIDUAL_WORDS,
     NEGATIVE_WORDS,
     STRONG_WORDS,
-    USER_AGENT,
-    clean_label,
-    same_organization,
 )
+# 取得・保存・年度・リンクの部品は事務事業評価の取得と共通（tools/document_crawl.py）。
+# テストと呼び出し側が使う名前は、ここからも引けるように取り込んでおく。
+from document_crawl import (  # noqa: E402,F401
+    DEFAULT_DELAY_SECONDS,
+    DEFAULT_REFRESH_DAYS,
+    JST,
+    MIN_TEXT_CHARS,
+    Fetcher,
+    HostBlocked,
+    HostGuard,
+    Link,
+    Target,
+    clean_label,
+    doc_id_for,
+    fetch_document,
+    fiscal_year,
+    load_manifest,
+    mark_missing,
+    note_failure,
+    note_fetched,
+    now_text,
+    page_links,
+    page_title,
+    same_organization,
+    text_document,
+    write_bytes,
+    write_json,
+)
+from document_crawl import extract_pdf_text as extract_text  # noqa: E402
+from document_crawl import load_targets as load_registry_targets  # noqa: E402
 
 MANIFEST_VERSION = 1
-JST = timezone(timedelta(hours=9))
 
-# 1 件ごとの間隔。取得元は自治体の本番サイト。
-DEFAULT_DELAY_SECONDS = 1.5
-# 一度取った文書を問い合わせ直すまでの日数。報告書は出たら変わらないことが多い。
-DEFAULT_REFRESH_DAYS = 30
 # 1 自治体で開くページの上限。入口 → 年度別 → 報告書ページ、の 2 階層で足りる。
 DEFAULT_MAX_PAGES = 30
 DEFAULT_MAX_DEPTH = 2
@@ -84,13 +101,6 @@ DEFAULT_MAX_DEPTH = 2
 DEFAULT_MAX_DOCUMENTS = 600
 # 1 ファイルの上限。全文は 10MB 台がある（久留米市 13.8MB）。
 MAX_DOCUMENT_BYTES = 120 * 1024 * 1024
-# 文字情報が無いと見なす本文の長さ。スキャンだけの PDF は OCR 待ちにする。
-MIN_TEXT_CHARS = 200
-
-# 同じホストで接続を続けて切られたら休む。
-HOST_BLOCK_FILE = "host_blocks.json"
-HOST_BLOCK_THRESHOLD = 5
-HOST_BLOCK_SECONDS = 6 * 60 * 60
 
 # 添付として置かれる PDF。拡張子の無い配信口は、応答の実体で確かめる。
 PDF_URL_RE = re.compile(r"\.pdf(?:$|[?#])", re.I)
@@ -104,11 +114,6 @@ FILE_NOTE_RE = re.compile(
     r"|[（(]\s*[\d.,]+\s*(?:キロバイト|メガバイト|KB|MB)\s*[）)]",
     re.I,
 )
-# 年度。和暦は会計年度の始まる西暦に直す。
-ERA_YEAR_RE = re.compile(r"(令和|平成)\s*([元\d０-９]{1,2})\s*年度?")
-WESTERN_YEAR_RE = re.compile(r"(20\d{2}|19\d{2})\s*年度")
-ERA_BASE = {"令和": 2018, "平成": 1988}
-FULLWIDTH = str.maketrans("０１２３４５６７８９", "0123456789")
 
 # 種別。措置を先に見る（「監査の結果に基づく措置」は「結果」も含む）。
 MEASURE_WORDS = ("措置", "講じた", "対応状況")
@@ -130,45 +135,10 @@ DESCEND_WORDS = STRONG_WORDS + ("外部監査", "監査結果", "結果報告", 
 HOUKATSU_URL_RE = re.compile(r"houkatsu|hokatsu|houkatu|hokatu", re.I)
 ORDINANCE_TITLE_RE = re.compile(r"(条例|規則)$")
 
-HEADING_RE = re.compile(r"<(h[1-6])\b[^>]*>(.*?)</\1>", re.I | re.S)
-ANCHOR_RE = re.compile(r"<a\b[^>]*?href\s*=\s*[\"']([^\"']+)[\"'][^>]*>(.*?)</a>", re.I | re.S)
-
-
-def now_text() -> str:
-    return datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S")
-
-
-def parse_time(value: str) -> datetime | None:
-    try:
-        return datetime.strptime(str(value or ""), "%Y-%m-%d %H:%M:%S").replace(tzinfo=JST)
-    except ValueError:
-        return None
-
 
 # ─────────────────────────────────────
 # 判定
 # ─────────────────────────────────────
-
-def fiscal_year(*texts: str) -> tuple[int | None, str]:
-    """文字列から会計年度を読む。見つからなければ (None, "")。
-
-    「年度」と書いたものを先に探す。「公表第1号（令和8年2月2日）」の
-    「令和8年」は公表の日付で、監査の年度ではない（久留米市）。
-    """
-    for need_fiscal in (True, False):
-        for text in texts:
-            value = str(text or "")
-            for found in ERA_YEAR_RE.finditer(value):
-                if need_fiscal and not found.group(0).endswith("年度"):
-                    continue
-                number = found.group(2).translate(FULLWIDTH)
-                offset = 1 if number == "元" else int(number)
-                return ERA_BASE[found.group(1)] + offset, f"{found.group(1)}{found.group(2)}年度"
-            found = WESTERN_YEAR_RE.search(value)
-            if found:
-                return int(found.group(1)), f"{found.group(1)}年度"
-    return None, ""
-
 
 def document_kind(label: str, heading: str = "") -> str:
     """報告書・概要版・措置・公表のどれか。
@@ -289,51 +259,6 @@ def looks_like_pdf(content_type: str, content_disposition: str, raw: bytes) -> b
     return ".pdf" in str(content_disposition or "").lower()
 
 
-@dataclass
-class Link:
-    url: str
-    label: str
-    heading: str
-
-
-def page_links(base_url: str, html: str) -> list[Link]:
-    """ページのリンクを、直前の見出しと組にして返す。"""
-    events: list[tuple[int, str, str, str]] = []
-    for found in HEADING_RE.finditer(html):
-        events.append((found.start(), "heading", clean_label(found.group(2)), ""))
-    for found in ANCHOR_RE.finditer(html):
-        events.append((found.start(), "anchor", found.group(2), found.group(1)))
-    events.sort(key=lambda item: item[0])
-    heading = ""
-    links: list[Link] = []
-    seen: set[str] = set()
-    for _pos, kind, text, href in events:
-        if kind == "heading":
-            heading = text
-            continue
-        href = href.strip()
-        if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
-            continue
-        target = urljoin(base_url, href.replace("&amp;", "&")).split("#", 1)[0]
-        if urlsplit(target).scheme not in ("http", "https"):
-            continue
-        label = clean_label(text)
-        key = f"{target}\t{label}"
-        if key in seen:
-            continue
-        seen.add(key)
-        links.append(Link(url=target, label=label, heading=heading))
-    return links
-
-
-def page_title(html: str) -> str:
-    for pattern in (r"<h1\b[^>]*>(.*?)</h1>", r"<title[^>]*>(.*?)</title>"):
-        found = re.search(pattern, html, re.I | re.S)
-        if found:
-            return clean_label(found.group(1))[:160]
-    return ""
-
-
 def link_names_houkatsu(link: Link) -> bool:
     """リンク自体が包括外部監査を名乗るか（文字・URL・置かれた見出し）。"""
     return has_strong(link.label) or bool(HOUKATSU_URL_RE.search(link.url)) or has_strong(link.heading)
@@ -372,225 +297,19 @@ def descend_priority(link: Link, page_is_houkatsu: bool, may_descend: bool = Fal
 # 台帳
 # ─────────────────────────────────────
 
-def load_master() -> dict[str, dict[str, str]]:
-    rows: dict[str, dict[str, str]] = {}
-    with io.open(DATA_ROOT / "municipality_master.tsv", encoding="utf-8-sig", newline="") as handle:
-        for row in csv.DictReader(handle, delimiter="\t"):
-            code = str(row.get("jis_code", "")).strip()
-            if code:
-                rows[code] = row
-    return rows
-
-
-def slug_for(code: str, master_row: dict[str, str]) -> str:
-    romaji = str(master_row.get("name_romaji", "")).strip()
-    return f"{code}-{romaji}" if romaji else code
-
-
-@dataclass
-class Target:
-    code: str
-    slug: str
-    name: str
-    url: str
-    crawl_status: str
-
-
 def load_targets(include_review: bool = False) -> list[Target]:
-    master = load_master()
-    statuses = {"enabled", "review_required"} if include_review else {"enabled"}
-    targets: list[Target] = []
-    with io.open(REGISTRY, encoding="utf-8-sig", newline="") as handle:
-        for row in csv.DictReader(handle, delimiter="\t"):
-            code = str(row.get("jis_code", "")).strip()
-            url = str(row.get("url", "")).strip()
-            status = str(row.get("crawl_status", "")).strip()
-            if not code or not url or status not in statuses:
-                continue
-            master_row = master.get(code, {})
-            targets.append(Target(
-                code=code,
-                slug=slug_for(code, master_row),
-                name=str(master_row.get("full_name") or master_row.get("name") or code),
-                url=url,
-                crawl_status=status,
-            ))
-    return targets
-
-
-# ─────────────────────────────────────
-# 保存
-# ─────────────────────────────────────
-
-def doc_id_for(url: str) -> str:
-    return hashlib.sha1(url.encode("utf-8")).hexdigest()[:16]
-
-
-def write_json(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    temporary.replace(path)
-
-
-def write_bytes(path: Path, raw: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_bytes(raw)
-    temporary.replace(path)
-
-
-def load_manifest(work_dir: Path) -> dict:
-    try:
-        payload = json.loads((work_dir / "manifest.json").read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return {}
-    except Exception:
-        # 壊れた manifest は脇へどけて作り直す。保存物は残っている。
-        broken = work_dir / "manifest.json"
-        broken.replace(work_dir / f"manifest.json.corrupt-{int(time.time())}")
-        return {}
-    return payload if isinstance(payload, dict) else {}
-
-
-def extract_text(raw: bytes) -> tuple[str, int]:
-    """PDF の本文とページ数。読めなければ ("", 0)。"""
-    try:
-        from pypdf import PdfReader
-    except ImportError as exc:  # pragma: no cover - 依存は requirements にある
-        raise RuntimeError("PDF の本文抽出には pypdf が必要です。") from exc
-    try:
-        reader = PdfReader(BytesIO(raw))
-    except Exception:
-        return "", 0
-    parts: list[str] = []
-    for page in reader.pages:
-        try:
-            text = page.extract_text() or ""
-        except Exception:
-            text = ""
-        text = "".join(ch for ch in text if not 0xD800 <= ord(ch) <= 0xDFFF)
-        text = text.replace("\r\n", "\n").replace("\r", "\n").strip()
-        if text:
-            parts.append(text)
-    body = re.sub(r"\n{3,}", "\n\n", "\n\n".join(parts)).strip()
-    return body, len(reader.pages)
-
-
-def text_document(entry: dict, body: str) -> str:
-    header = [
-        f"題名: {entry.get('title', '')}",
-        f"年度: {entry.get('year_label', '')}",
-        f"種別: {entry.get('kind', '')}",
-        f"出典: {entry.get('source_url', '')}",
-        f"掲載ページ: {entry.get('page_url', '')}",
-    ]
-    return "\n".join(header) + "\n\n" + body + "\n"
+    return load_registry_targets(REGISTRY, include_review=include_review)
 
 
 # ─────────────────────────────────────
 # 取得
 # ─────────────────────────────────────
 
-class HostGuard:
-    """ホスト単位で、接続を切られ続けたら休む。記録は自治体をまたいで共有する。"""
-
-    def __init__(self, work_root: Path, *, threshold: int = HOST_BLOCK_THRESHOLD,
-                 seconds: int = HOST_BLOCK_SECONDS) -> None:
-        self.path = work_root / HOST_BLOCK_FILE
-        self.threshold = threshold
-        self.seconds = seconds
-        self.failures: dict[str, int] = {}
-
-    def _load(self) -> dict[str, float]:
-        try:
-            payload = json.loads(self.path.read_text(encoding="utf-8"))
-        except Exception:
-            return {}
-        if not isinstance(payload, dict):
-            return {}
-        blocks: dict[str, float] = {}
-        for host, until in payload.items():
-            try:
-                blocks[str(host)] = float(until)
-            except (TypeError, ValueError):
-                continue
-        return blocks
-
-    def blocked(self, host: str, now: float | None = None) -> bool:
-        current = time.time() if now is None else now
-        until = self._load().get(host)
-        return until is not None and current < until
-
-    def success(self, host: str) -> None:
-        self.failures.pop(host, None)
-
-    def failure(self, host: str, now: float | None = None) -> bool:
-        """接続断を 1 回数える。休みに入ったら True。"""
-        count = self.failures.get(host, 0) + 1
-        self.failures[host] = count
-        if count < self.threshold:
-            return False
-        current = time.time() if now is None else now
-        blocks = {h: u for h, u in self._load().items() if u > current}
-        blocks[host] = current + self.seconds
-        try:
-            write_json(self.path, blocks)
-        except Exception as exc:
-            print(f"[WARN] ホストの休止を残せませんでした: {exc}", flush=True)
-        self.failures[host] = 0
-        return True
-
-
-class HostBlocked(Exception):
-    pass
-
-
-@dataclass
-class Fetcher:
-    session: requests.Session
-    guard: HostGuard
-    delay: float = DEFAULT_DELAY_SECONDS
-    timeout: float = 60.0
-    requests_made: int = 0
-    _last_at: float = 0.0
-
-    def _wait(self) -> None:
-        elapsed = time.monotonic() - self._last_at
-        if self._last_at and elapsed < self.delay:
-            time.sleep(self.delay - elapsed)
-        self._last_at = time.monotonic()
-
-    def get(self, url: str, *, headers: dict | None = None, stream: bool = False) -> requests.Response:
-        host = (urlsplit(url).hostname or "").lower()
-        if self.guard.blocked(host):
-            raise HostBlocked(host)
-        self._wait()
-        self.requests_made += 1
-        try:
-            response = self.session.get(
-                url,
-                headers={"User-Agent": USER_AGENT, **(headers or {})},
-                timeout=self.timeout,
-                stream=stream,
-            )
-        except (requests.ConnectionError, requests.Timeout):
-            if self.guard.failure(host):
-                print(f"[WARN] {host} に接続を切られ続けたので、しばらく休みます", flush=True)
-            raise
-        self.guard.success(host)
-        return response
-
-    def html(self, url: str) -> tuple[str, str] | None:
-        response = self.get(url)
-        if response.status_code >= 400:
-            return None
-        content_type = str(response.headers.get("Content-Type", "")).lower()
-        if content_type and "html" not in content_type:
-            return None
-        if not response.encoding or response.encoding.lower() in {"iso-8859-1", "ascii"}:
-            response.encoding = response.apparent_encoding or "utf-8"
-        return response.url, response.text
+def check_pdf_response(response, raw: bytes) -> None:
+    """取った応答が PDF でなければ ValueError（「見つかりません」の HTML を保存しない）。"""
+    if not looks_like_pdf(response.headers.get("Content-Type", ""),
+                          response.headers.get("Content-Disposition", ""), raw):
+        raise ValueError(f"PDF ではない応答: {response.headers.get('Content-Type', '')!r}")
 
 
 @dataclass
@@ -820,64 +539,40 @@ def scrape_one(target: Target, fetcher: Fetcher, work_root: Path, *, max_pages: 
         entry.setdefault("first_seen_at", now_text())
         entry.pop("missing_since", None)
 
-        checked = parse_time(str(entry.get("checked_at", "")))
-        file_ok = entry.get("file") and (work_dir / str(entry["file"])).is_file()
-        if file_ok and checked is not None and now - checked < timedelta(days=refresh_days):
-            result.skipped_recent += 1
-            documents[doc_id] = entry
-            continue
-
-        headers: dict[str, str] = {}
-        if file_ok:
-            if entry.get("etag"):
-                headers["If-None-Match"] = str(entry["etag"])
-            if entry.get("last_modified"):
-                headers["If-Modified-Since"] = str(entry["last_modified"])
         try:
-            response = fetcher.get(candidate.url, headers=headers, stream=True)
-            if response.status_code == 304 and file_ok:
-                entry["checked_at"] = now_text()
-                result.unchanged += 1
-                documents[doc_id] = entry
-                continue
-            if response.status_code >= 400:
-                raise requests.HTTPError(f"HTTP {response.status_code}")
-            chunks: list[bytes] = []
-            size = 0
-            for chunk in response.iter_content(chunk_size=1 << 16):
-                size += len(chunk)
-                if size > MAX_DOCUMENT_BYTES:
-                    raise ValueError(f"大きすぎるため取りません（{MAX_DOCUMENT_BYTES} バイト超）")
-                chunks.append(chunk)
-            raw = b"".join(chunks)
-            if not looks_like_pdf(response.headers.get("Content-Type", ""),
-                                  response.headers.get("Content-Disposition", ""), raw):
-                raise ValueError(f"PDF ではない応答: {response.headers.get('Content-Type', '')!r}")
+            fetched = fetch_document(
+                fetcher, candidate.url, entry, work_dir, now=now, refresh_days=refresh_days,
+                max_bytes=MAX_DOCUMENT_BYTES, check=check_pdf_response,
+            )
         except HostBlocked as exc:
             result.status = "host_blocked"
             result.errors.append(f"ホストを休止中: {exc}")
             documents[doc_id] = entry
             break
-        except Exception as exc:
+        if fetched.state == "recent":
+            result.skipped_recent += 1
+            documents[doc_id] = entry
+            continue
+        if fetched.state == "not_modified":
+            entry["checked_at"] = now_text()
+            result.unchanged += 1
+            documents[doc_id] = entry
+            continue
+        if fetched.state == "failed":
             result.failed += 1
-            entry["last_error"] = f"{type(exc).__name__}: {exc}"[:300]
-            entry["last_error_at"] = now_text()
-            result.errors.append(f"{candidate.url}: {type(exc).__name__}")
+            note_failure(entry, fetched.error)
+            result.errors.append(f"{candidate.url}: {type(fetched.error).__name__}")
             documents[doc_id] = entry
             continue
 
-        sha256 = hashlib.sha256(raw).hexdigest()
-        entry["checked_at"] = now_text()
-        entry["etag"] = response.headers.get("ETag", "")
-        entry["last_modified"] = response.headers.get("Last-Modified", "")
-        entry.pop("last_error", None)
-        entry.pop("last_error_at", None)
-        if file_ok and entry.get("sha256") == sha256:
+        raw = fetched.raw
+        sha256, same = note_fetched(entry, fetched)
+        if same:
             result.unchanged += 1
             documents[doc_id] = entry
             continue
 
-        had_previous = bool(file_ok and entry.get("sha256"))
+        had_previous = bool(fetched.file_ok and entry.get("sha256"))
         relative_pdf = f"source/{doc_id}.pdf"
         relative_text = f"text/{doc_id}.txt.gz"
         write_bytes(work_dir / relative_pdf, raw)
@@ -886,7 +581,7 @@ def scrape_one(target: Target, fetcher: Fetcher, work_root: Path, *, max_pages: 
             "file": relative_pdf,
             "sha256": sha256,
             "bytes": len(raw),
-            "content_type": response.headers.get("Content-Type", ""),
+            "content_type": fetched.headers.get("Content-Type", ""),
             "fetched_at": now_text(),
             "pages": pages,
             "text_chars": len(body),
@@ -909,12 +604,7 @@ def scrape_one(target: Target, fetcher: Fetcher, work_root: Path, *, max_pages: 
     # 見つからなくなった文書。保存物は残し、消えたことだけ記録する。
     # 入口が開けなかった回は判断しない（一時的な 404 で全部を消えた扱いにしない）。
     if result.status == "ok" and result.entry_opened:
-        for doc_id, entry in documents.items():
-            if doc_id in seen_ids or doc_id in listed_ids:
-                continue
-            if not entry.get("missing_since"):
-                entry["missing_since"] = now_text()
-            result.missing += 1
+        result.missing += len(mark_missing(documents, seen_ids | listed_ids))
 
     if not result.entry_opened and result.status == "ok":
         result.status = "entry_unreachable"

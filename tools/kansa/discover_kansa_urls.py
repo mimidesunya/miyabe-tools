@@ -47,8 +47,11 @@ import requests
 WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
 DATA_ROOT = WORKSPACE_ROOT / "data" / "municipalities"
 sys.path.append(str(Path(__file__).resolve().parent))
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from core_cities import mandatory_codes, mandatory_kind  # noqa: E402
+# 同じ組織のホストかの判定は、報告書の取得・事務事業評価の取得と共通。
+from document_crawl import same_organization  # noqa: E402,F401
 
 USER_AGENT = "Mozilla/5.0 (compatible; miyabe-tools/1.0; +https://tools.miya.be/)"
 
@@ -193,21 +196,6 @@ FALLBACK_PATHS = (
     "/kansa/", "/shisei/kansa/", "/kensei/kansa/", "/soshiki/kansa/",
     "/gaibukansa/", "/shisei/", "/kensei/",
 )
-
-
-def same_organization(host: str, other: str) -> bool:
-    """同じ自治体のホストか。監査事務局が別ホストに居ることがある。
-
-    東京都は `www.metro.tokyo.lg.jp` に対して監査事務局が
-    `kansa.metro.tokyo.lg.jp`、神奈川県・愛知県も同じ形。`www.` を外した
-    ドメインを共有していれば同じ組織と見なす。外部のまったく別のサイトへは
-    出ない（`.lg.jp` の別自治体はドメインが違うので混ざらない）。
-    """
-    left = host.lower().removeprefix("www.")
-    right = other.lower().removeprefix("www.")
-    if left == right:
-        return True
-    return left.endswith("." + right) or right.endswith("." + left)
 
 
 def homepage_variants(homepage: str) -> list[str]:
