@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test test/*.test.mjs",
     "start": "node dist/server.js"
   },
   "dependencies": {

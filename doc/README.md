@@ -5,6 +5,7 @@
 - [poster-tool.md](poster-tool.md) — 選挙ポスター掲示場ドメイン。マップ、作業進捗、LINE ログイン、入力TSV
 - [gijiroku.md](gijiroku.md) — 会議録ツール。スクレイプ成果物から OpenSearch index を作る流れと画面・API
 - [reiki.md](reiki.md) — 例規集ツール。保存済み HTML / Markdown / JSON からの index 作成と画面・API
+- [hyoka-search.md](hyoka-search.md) — 事務事業評価の全文検索。頁・出典、索引の作成と本番実行、OCR・項目抽出との境界
 - [mcp.md](mcp.md) — MCP 連携。`/mcp` エンドポイント、ツール定義、設定項目
 
 ## 設計・運用
@@ -27,6 +28,7 @@
 - [reiki-url-survey.md](reiki-url-survey.md) — 自治体例規集システム URL 一覧 `reiki_system_urls.tsv` の調査手順
 - [hyoka-url-survey.md](hyoka-url-survey.md) — 事務事業評価の公開先 `hyoka_system_urls.tsv` の調査手順と全国調査の結果、評価表の取得
 - [hyoka-common-format.md](hyoka-common-format.md) — 事務事業評価の共通形式1.2.0。95自治体の専用欄と文中記載の割合、出典付きSchema、6自治体の記録例
+- [hyoka-extraction.md](hyoka-extraction.md) — 事務事業評価の機械抽出。様式定義、原典照合、13自治体の試行範囲、再開と本番実行の案
 - [kansa-url-survey.md](kansa-url-survey.md) — 包括外部監査の報告書の公開先 `gaibu_kansa_system_urls.tsv` の調査と、報告書の取得
 - [collection-gap-survey.md](collection-gap-survey.md) — 会議録・例規集の収集取りこぼしの現況。取りこぼしの型、直したもの、残っている課題、調査の再現手順
 - [collection-gap-survey-history.md](collection-gap-survey-history.md) — 収集取りこぼしの調査と修正の記録。ラウンドごとの時系列の全記録

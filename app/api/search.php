@@ -14,6 +14,8 @@ try {
         'end_date' => miyabe_search_request_string('end_date'),
         'start_year' => miyabe_search_request_string('start_year'),
         'end_year' => miyabe_search_request_string('end_year'),
+        'fiscal_year' => miyabe_search_request_string('fiscal_year'),
+        'kind' => miyabe_search_request_string('kind'),
         'page' => miyabe_search_request_int('page', 1, 1, 100000),
         'per_page' => miyabe_search_request_int('per_page', 20, 1, 100),
         'sort' => miyabe_search_request_string('sort', 'date'),

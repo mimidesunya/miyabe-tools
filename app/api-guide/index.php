@@ -64,7 +64,7 @@ function api_guide_asset_url(string $relativePath): string
             <h2>これは何をするもの？</h2>
             <p>
                 MCPは、AIに「自治体マップの検索ボタン」を渡すためのしくみです。
-                つなぐと、AIが会議録や条例・規則を検索し、見つけた文書を読めるようになります。
+                つなぐと、AIが会議録、条例・規則、事務事業評価を検索し、見つけた文書を読めるようになります。
                 ただし、すべてのAIがMCPに対応しているわけではなく、つなぎ方もAIごとに違います。
             </p>
         </section>
@@ -139,6 +139,7 @@ function api_guide_asset_url(string $relativePath): string
             <p>むずかしい命令は必要ありません。いつもの言葉で頼んでください。</p>
             <pre><code>川崎市の議会で「盛土」について話し合われた記録を探して
 メガソーラーを規制する条例がある自治体を教えて
+2024年度の事務事業評価から「子育て支援」を探して、原典の頁も示して
 その会議録の全文を読んで、賛成と反対の意見をまとめて
 答えの根拠にした自治体のページも示して</code></pre>
         </section>
@@ -154,9 +155,19 @@ function api_guide_asset_url(string $relativePath): string
                     <h3>例規集</h3>
                     <p>その自治体で決まっている条例や規則を調べます。</p>
                 </div>
+                <div>
+                    <h3>事務事業評価</h3>
+                    <p>自治体が公表した評価表や報告書を、自治体・都道府県・年度・種別で絞って調べます。</p>
+                </div>
             </div>
             <p>
                 AIは検索と本文の読み取りを自動で使い分けます。ツールの名前を覚える必要はありません。
+            </p>
+            <p>
+                事務事業評価の検索には <code>search_hyoka</code>、本文確認には <code>get_municipal_document</code> を使います。
+                このサイトは取得済み本文をそのまま検索し、AIで評価や要約を加えていません。
+                頁が分かる文書は該当頁へ、頁区切りがない文書は文書全体へ案内します。
+                「取得元から消失」と表示されたものは、保存した本文を検索できますが、原典URLが開けない場合があります。
             </p>
         </section>
 
@@ -298,6 +309,7 @@ url = "https://tools.miya.be/mcp"</code></pre>
             </p>
             <pre><code>GET https://tools.miya.be/api/search?q=盛土%20メガソーラー
 GET https://tools.miya.be/api/search?doc_type=reiki&amp;q=個人情報保護
+GET https://tools.miya.be/api/search?doc_type=hyoka&amp;q=子育て&amp;fiscal_year=2024&amp;kind=project_evaluation
 GET https://tools.miya.be/api/document?id=検索結果のid&amp;doc_type=minutes
 
 OpenAPI JSON: https://tools.miya.be/openapi.json
@@ -306,23 +318,31 @@ OpenAPI YAML: https://tools.miya.be/openapi.yaml</code></pre>
                 <dt><code>q</code></dt>
                 <dd>必須。検索語です。空白区切りはAND、<code>"..."</code> は完全一致、<code>OR</code>・<code>NOT</code>・括弧も使えます。</dd>
                 <dt><code>doc_type</code></dt>
-                <dd><code>minutes</code>（会議録）または <code>reiki</code>（例規集）。省略すると <code>minutes</code> です。</dd>
+                <dd><code>minutes</code>（会議録）、<code>reiki</code>（例規集）、<code>hyoka</code>（事務事業評価）。省略すると <code>minutes</code> です。</dd>
                 <dt><code>pref_code</code></dt>
                 <dd>都道府県コード。例: 神奈川県は <code>14</code>。</dd>
                 <dt><code>slug</code></dt>
                 <dd>自治体を1つに絞るID。検索結果や検索画面のURLに含まれます。</dd>
                 <dt><code>start_date</code> / <code>end_date</code></dt>
-                <dd>対象日を絞ります。例: <code>start_date=2020-01-01&amp;end_date=2024-12-31</code>。</dd>
+                <dd>会議録・例規集の対象日を絞ります。例: <code>start_date=2020-01-01&amp;end_date=2024-12-31</code>。事務事業評価には適用されません。</dd>
+                <dt><code>fiscal_year</code> / <code>kind</code></dt>
+                <dd>
+                    事務事業評価専用。年度は西暦4桁の完全一致です。
+                    種別は <code>project_evaluation</code>（事務事業評価）、<code>policy_evaluation</code>（施策・政策評価）、
+                    <code>external_review</code>（外部評価）、<code>overview</code>（概要・一覧）です。
+                    <code>start_year</code> / <code>end_year</code> は事務事業評価には適用されません。
+                </dd>
                 <dt><code>sort</code></dt>
                 <dd>
                     <code>date</code>（新しい順）または <code>relevance</code>（関連度順）。
+                    事務事業評価の <code>date</code> は年度順です。REST API の既定は <code>date</code>、MCP の <code>search_hyoka</code> は <code>relevance</code> です。
                     <code>date</code> で演算子を使わないAND検索をすると、検索語が本文中で近くに現れた文書が
                     まとまって先頭に並び、その中と外がそれぞれ新しい順になります。近さ順に整列するのではなく、
                     近いかどうかで前後に分けます。働いたときは応答の <code>proximity_ranked</code> が
                     <code>true</code> になり、各件の <code>proximity</code> でどちらの側かが分かります。
                 </dd>
                 <dt><code>page</code> / <code>per_page</code></dt>
-                <dd>ページ番号と1ページあたりの件数。<code>per_page</code> は最大100件です。</dd>
+                <dd>検索結果のページ番号と1ページあたりの件数。<code>per_page</code> は最大100件です。結果の各文書が持つ <code>page</code>（原典の頁番号）とは別です。</dd>
                 <dt><code>include_facets</code></dt>
                 <dd><code>true</code> にすると、文書種別・都道府県・自治体ごとの件数を <code>aggregations</code> に返します。</dd>
                 <dt><code>include_body_highlight</code></dt>
@@ -331,6 +351,15 @@ OpenAPI YAML: https://tools.miya.be/openapi.yaml</code></pre>
             <p>
                 検索結果の <code>api_document_url</code> を呼ぶと全文をJSONで取得できます。
                 <code>source_url</code> は自治体や配信元の原サイトで、最終確認に使います。
+            </p>
+            <p>
+                事務事業評価の1件は頁単位です。保存済み本文に頁区切りがない場合は文書全体となり、
+                <code>page</code> は <code>null</code>、<code>page_split_reason</code> に理由が入ります。
+                <code>source_page_link</code> は原典の該当頁（頁不明なら原典）へのURL、
+                <code>source_page_url</code> は原典を見つけた掲載ページです。
+                <code>fiscal_year</code>・<code>year_label</code>・<code>kind</code>、リンク文字 <code>link_text</code>、見出し <code>heading</code>、
+                原典の <code>sha256</code>・取得日時 <code>fetched_at</code>・状態 <code>status</code>・本文抽出状態 <code>text_status</code> も返します。
+                <code>status=gone</code> は取得元から消えた文書です。改訂前の版とOCR待ちの文書は検索対象に含めません。
             </p>
         </section>
     </main>

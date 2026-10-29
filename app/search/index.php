@@ -110,7 +110,17 @@ foreach (municipality_prefecture_names() as $code => $name) {
 $requestedSlug = trim((string)($_GET['slug'] ?? ''));
 
 $requestedDocType = strtolower(trim((string)($_GET['doc_type'] ?? ($_GET['type'] ?? 'minutes'))));
-$selectedDocType = $requestedDocType === 'reiki' ? 'reiki' : 'minutes';
+$selectedDocType = in_array($requestedDocType, ['reiki', 'hyoka'], true) ? $requestedDocType : 'minutes';
+$requestedFiscalYear = trim((string)($_GET['fiscal_year'] ?? ''));
+$requestedFiscalYear = preg_match('/^[1-9]\d{3}$/', $requestedFiscalYear) === 1 ? $requestedFiscalYear : '';
+$hyokaKinds = [
+    'project_evaluation' => '事務事業評価',
+    'policy_evaluation' => '施策・政策評価',
+    'external_review' => '外部評価',
+    'overview' => '概要・一覧',
+];
+$requestedKind = trim((string)($_GET['kind'] ?? ''));
+$requestedKind = isset($hyokaKinds[$requestedKind]) ? $requestedKind : '';
 $requestedStartDate = search_normalize_date_input((string)($_GET['start_date'] ?? ''));
 $requestedEndDate = search_normalize_date_input((string)($_GET['end_date'] ?? ''));
 $requestedStartYear = $requestedStartDate !== ''
@@ -132,6 +142,8 @@ $boot = [
     'endDate' => $requestedEndDate,
     'startYear' => $requestedStartYear,
     'endYear' => $requestedEndYear,
+    'fiscalYear' => $requestedFiscalYear,
+    'kind' => $requestedKind,
     'sort' => trim((string)($_GET['sort'] ?? 'date')),
     'prefectures' => $prefectures,
     'municipalities' => [],
@@ -144,7 +156,7 @@ $boot = [
     <title>全国自治体 横断検索｜自治体マップ</title>
     <?php echo site_render_page_meta(
         '全国自治体 横断検索｜自治体マップ',
-        '全国の自治体の議会会議録と例規集（条例・規則）をまとめて全文検索できます。都道府県・自治体・日付で絞り込み、原典URLまでたどれます。無料・登録不要。',
+        '全国の自治体の議会会議録・例規集（条例・規則）・事務事業評価を全文検索できます。都道府県・自治体などで絞り込み、原典URLまでたどれます。無料・登録不要。',
         '/search/'
     ); ?>
     <?php echo site_render_favicon_links(); ?>
@@ -158,6 +170,7 @@ $boot = [
         <nav class="topnav" aria-label="検索範囲">
             <button type="button" data-doc-type="minutes">会議録</button>
             <button type="button" data-doc-type="reiki">例規集</button>
+            <button type="button" data-doc-type="hyoka">事務事業評価</button>
         </nav>
     </header>
 
@@ -190,7 +203,7 @@ $boot = [
                     </select>
                     <span id="search-municipality-filter-status" class="field-status" aria-live="polite"></span>
                 </label>
-                <div class="split-fields date-fields">
+                <div id="search-date-fields" class="split-fields date-fields"<?php echo $selectedDocType === 'hyoka' ? ' hidden' : ''; ?>>
                     <div class="field date-field">
                         <span>開始日</span>
                         <div class="date-filter-control">
@@ -229,6 +242,21 @@ $boot = [
                         </div>
                         <div id="search-end-date-status" class="date-detail-status" aria-live="polite"></div>
                     </div>
+                </div>
+                <div id="search-hyoka-fields"<?php echo $selectedDocType !== 'hyoka' ? ' hidden' : ''; ?>>
+                    <label class="field" for="search-fiscal-year">
+                        <span>年度（西暦）</span>
+                        <input id="search-fiscal-year" name="fiscal_year" type="number" min="1000" max="9999" step="1" placeholder="指定なし" value="<?php echo search_h($requestedFiscalYear); ?>">
+                    </label>
+                    <label class="field" for="search-hyoka-kind">
+                        <span>評価の種別</span>
+                        <select id="search-hyoka-kind" name="kind">
+                            <option value="">すべて</option>
+                            <?php foreach ($hyokaKinds as $kind => $label): ?>
+                                <option value="<?php echo search_h($kind); ?>"<?php echo $requestedKind === $kind ? ' selected' : ''; ?>><?php echo search_h($label); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
                 </div>
                 <label class="field" for="search-sort">
                     <span>並び順</span>

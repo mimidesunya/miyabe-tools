@@ -8,7 +8,7 @@ REST API と OpenAPI 定義は互換のために維持・掲載する位置づ�
 ChatGPTは契約・管理者設定・段階提供の注意を明記します。Copilot StudioとGemini CLIは開発者向けとして分けます。
 通常のGeminiウェブ版とGemini CLI、通常のMicrosoft CopilotとCopilot Studioも混同しないでください。
 
-会議録・例規集検索は MCP の Streamable HTTP エンドポイントでも公開します。
+会議録・例規集・事務事業評価検索は MCP の Streamable HTTP エンドポイントでも公開します。
 PHP 側には MCP SDK を入れず、`docker/mcp` の Node.js サービスが既存の `/api/search` と `/api/document` を内部 HTTP で呼びます。
 
 MCP SDK は TypeScript SDK v2 を使います。単一パッケージだった v1 の `@modelcontextprotocol/sdk` は
@@ -54,9 +54,21 @@ curl -s -X POST http://localhost:8301/mcp -H 'Content-Type: application/json' -H
 
 - `search_minutes`: 自治体の会議録を検索します
 - `search_reiki`: 条例・規則などの例規集を検索します
+- `search_hyoka`: 事務事業評価を検索します。自治体・都道府県・年度・種別で絞れます
 - `get_municipal_document`: 検索結果の `id` と `doc_type` から本文を取得します
 
 `get_municipal_document` は既定で本文を 20000 文字まで返します。必要な場合は `max_body_chars` を増やせます。
+
+事務事業評価は `search_hyoka` → `get_municipal_document`（`doc_type: "hyoka"`）→原典確認の順で使います。
+サイト側でAIによる評価や要約はせず、取得済み本文をそのまま索引に入れます。
+
+- `fiscal_year`: 西暦4桁の年度を完全一致指定。`kind`: `project_evaluation`（事務事業評価）、`policy_evaluation`（施策・政策評価）、`external_review`（外部評価）、`overview`（概要・一覧）。
+- `sort`: MCP の既定は `relevance`。`date` は年度の新しい順。日付範囲や `start_year` / `end_year` は事務事業評価では使いません。
+- 1件は頁単位。保存済み本文に頁区切りがなければ文書全体で、`page_split_reason` に理由を返し、頁番号を推測しません。MCPは値が無い `page` / `fiscal_year` を省略し、RESTは `null` を返します。
+- `source_url` は原典URL、`source_page_link` は該当頁へのURL（頁不明なら原典URL）、`source_page_url` は原典を見つけた掲載ページです。検索結果の `page` と各文書の `page`（原典の頁番号）は別です。
+- 年度・種別・リンク文字・見出し・原典のSHA-256・取得日時・状態を保持します。`status: "gone"` は取得元から消えた保存済み文書です。現行版の `text_status: "ok"` のみを対象にし、改訂前の `_archive` とOCR待ちは含めません。
+
+索引の作成・本番運用は [事務事業評価の検索](hyoka-search.md) を参照してください。
 
 ## 開発環境
 

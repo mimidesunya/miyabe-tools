@@ -46,6 +46,7 @@ function miyabe_search_alias_for_type(string $docType): string
     return match ($docType) {
         'minutes' => miyabe_search_env('MIYABE_MINUTES_ALIAS', 'miyabe-minutes-current'),
         'reiki' => miyabe_search_env('MIYABE_REIKI_ALIAS', 'miyabe-reiki-current'),
+        'hyoka' => miyabe_search_env('MIYABE_HYOKA_ALIAS', 'miyabe-hyoka-current'),
         default => miyabe_search_env('MIYABE_MINUTES_ALIAS', 'miyabe-minutes-current'),
     };
 }
@@ -154,7 +155,16 @@ function miyabe_search_truthy(mixed $value): bool
 function miyabe_search_normalize_doc_type(string $value): string
 {
     $value = strtolower(trim($value));
-    return $value === 'reiki' ? 'reiki' : 'minutes';
+    return in_array($value, ['reiki', 'hyoka'], true) ? $value : 'minutes';
+}
+
+function miyabe_search_hyoka_source_fields(): array
+{
+    return [
+        'fiscal_year', 'kind', 'link_text', 'heading', 'source_page_url',
+        'page', 'source_page_link', 'sha256', 'fetched_at', 'status',
+        'text_status', 'page_split_reason',
+    ];
 }
 
 function miyabe_search_normalize_pref_code(string $value): string
@@ -223,7 +233,7 @@ function miyabe_search_sort_date_range_filter(
     return $range === [] ? null : ['range' => ['sort_date' => $range]];
 }
 
-function miyabe_search_build_query_clause(string $query): array
+function miyabe_search_build_query_clause(string $query, string $docType = 'minutes'): array
 {
     $prepared = japanese_search_prepare_query($query);
     $rawQuery = trim((string)($prepared['raw_query'] ?? $query));
@@ -237,13 +247,13 @@ function miyabe_search_build_query_clause(string $query): array
         $should[] = [
             'simple_query_string' => [
                 'query' => $rawQuery,
-                'fields' => [
+                'fields' => array_merge([
                     'title^4',
                     'title.ngram^1.4',
                     'meeting_name^2',
                     'body^1.5',
                     'body.ngram',
-                ],
+                ], $docType === 'hyoka' ? ['link_text^2', 'heading^2'] : []),
                 'default_operator' => 'and',
             ],
         ];
@@ -276,11 +286,14 @@ function miyabe_search_build_query_clause(string $query): array
         }
         $must[] = [
             'bool' => [
-                'should' => [
+                'should' => array_merge([
                     ['match_phrase' => ['title' => ['query' => $phrase, 'boost' => 3.0]]],
                     ['match_phrase' => ['meeting_name' => ['query' => $phrase, 'boost' => 2.0]]],
                     ['match_phrase' => ['body' => ['query' => $phrase]]],
-                ],
+                ], $docType === 'hyoka' ? [
+                    ['match_phrase' => ['link_text' => ['query' => $phrase]]],
+                    ['match_phrase' => ['heading' => ['query' => $phrase]]],
+                ] : []),
                 'minimum_should_match' => 1,
             ],
         ];
@@ -385,7 +398,7 @@ function miyabe_search_build_request(array $params): array
         trim((string)($params['end_year'] ?? ''))
     );
 
-    $queryClause = miyabe_search_build_query_clause($query);
+    $queryClause = miyabe_search_build_query_clause($query, $docType);
     $filters = [];
     $filters[] = ['term' => ['doc_type' => $docType]];
     if ($slug !== '') {
@@ -397,8 +410,27 @@ function miyabe_search_build_request(array $params): array
     if ($prefCode !== '') {
         $filters[] = ['term' => ['pref_code' => $prefCode]];
     }
-    if ($yearFilter !== null) {
+    if ($docType !== 'hyoka' && $yearFilter !== null) {
         $filters[] = $yearFilter;
+    }
+    $queryError = '';
+    if ($docType === 'hyoka') {
+        $fiscalYear = trim((string)($params['fiscal_year'] ?? ''));
+        $kind = trim((string)($params['kind'] ?? ''));
+        if ($fiscalYear !== '') {
+            if (preg_match('/^[1-9][0-9]{3}$/', $fiscalYear) !== 1) {
+                $queryError = 'fiscal_year は4桁の西暦年度を指定してください。';
+            } else {
+                $filters[] = ['term' => ['fiscal_year' => (int)$fiscalYear]];
+            }
+        }
+        if ($kind !== '') {
+            if (!in_array($kind, ['project_evaluation', 'policy_evaluation', 'external_review', 'overview'], true)) {
+                $queryError = 'kind は project_evaluation / policy_evaluation / external_review / overview を指定してください。';
+            } else {
+                $filters[] = ['term' => ['kind' => $kind]];
+            }
+        }
     }
 
     $proximityClauses = is_array($queryClause['proximity'] ?? null) ? $queryClause['proximity'] : [];
@@ -445,13 +477,15 @@ function miyabe_search_build_request(array $params): array
 
     $sortSpec = [['_score' => ['order' => 'desc']]];
     if ($sort === 'date') {
+        // hyoka の年度は掲載文書の年度。実際の日付や評価実施年度を推測しない。
+        $dateField = $docType === 'hyoka' ? 'fiscal_year' : 'sort_date';
         $sortSpec = $proximityRanked
             ? [
                 ['_score' => ['order' => 'desc']],
-                ['sort_date' => ['order' => 'desc', 'missing' => '_last']],
+                [$dateField => ['order' => 'desc', 'missing' => '_last']],
             ]
             : [
-                ['sort_date' => ['order' => 'desc', 'missing' => '_last']],
+                [$dateField => ['order' => 'desc', 'missing' => '_last']],
                 ['_score' => ['order' => 'desc']],
             ];
     }
@@ -510,6 +544,9 @@ function miyabe_search_build_request(array $params): array
             'fields' => $highlightFields,
         ],
     ];
+    if ($docType === 'hyoka') {
+        $body['_source'] = array_merge($body['_source'], miyabe_search_hyoka_source_fields());
+    }
     if ($includeFacets) {
         $body['aggs'] = [
             'doc_types' => ['terms' => ['field' => 'doc_type', 'size' => 5]],
@@ -525,6 +562,7 @@ function miyabe_search_build_request(array $params): array
         'page' => $page,
         'per_page' => $perPage,
         'proximity_ranked' => $proximityRanked,
+        'query_error' => $queryError,
         'body' => $body,
     ];
 }
@@ -540,7 +578,8 @@ function miyabe_search_first_highlight(array $hit, string $field): string
 
 function miyabe_search_local_detail_url(array $hit, array $source, string $query = ''): string
 {
-    if ((string)($source['doc_type'] ?? '') !== 'minutes') {
+    $docType = (string)($source['doc_type'] ?? '');
+    if (!in_array($docType, ['minutes', 'hyoka'], true)) {
         return (string)($source['detail_url'] ?? '');
     }
 
@@ -551,7 +590,7 @@ function miyabe_search_local_detail_url(array $hit, array $source, string $query
 
     $params = [
         'id' => $id,
-        'doc_type' => 'minutes',
+        'doc_type' => $docType,
     ];
     $query = trim($query);
     if ($query !== '') {
@@ -582,7 +621,7 @@ function miyabe_search_hit_to_item(array $hit, string $query = '', bool $proximi
     $bodyHighlight = miyabe_search_first_highlight($hit, 'body');
     // 近接優先のときの _score は関連度ではなく 0/1 の判定結果なので、
     // 関連度として読まれないよう score には載せず proximity で返す。
-    return [
+    $item = [
         'id' => (string)($hit['_id'] ?? ''),
         'score' => (!$proximityRanked && isset($hit['_score'])) ? (float)$hit['_score'] : null,
         'proximity' => $proximityRanked ? ((float)($hit['_score'] ?? 0) >= 1.0) : null,
@@ -615,6 +654,14 @@ function miyabe_search_hit_to_item(array $hit, string $query = '', bool $proximi
         'enforced_on' => (string)($source['enforced_on'] ?? ''),
         'amended_on' => (string)($source['amended_on'] ?? ''),
     ];
+    if (($source['doc_type'] ?? '') === 'hyoka') {
+        foreach (miyabe_search_hyoka_source_fields() as $field) {
+            $item[$field] = in_array($field, ['fiscal_year', 'page'], true)
+                ? (isset($source[$field]) ? (int)$source[$field] : null)
+                : (string)($source[$field] ?? '');
+        }
+    }
+    return $item;
 }
 
 function miyabe_search_hit_to_detail(array $hit): array
@@ -650,7 +697,7 @@ function miyabe_search_fetch_detail_document(string $id, string $docType): ?arra
                 'filter' => $filters,
             ],
         ],
-        '_source' => [
+        '_source' => array_merge([
             'doc_type',
             'slug',
             'municipality_code',
@@ -680,7 +727,7 @@ function miyabe_search_fetch_detail_document(string $id, string $docType): ?arra
             'promulgated_on',
             'enforced_on',
             'amended_on',
-        ],
+        ], $docType === 'hyoka' ? miyabe_search_hyoka_source_fields() : []),
     ]);
 
     $hits = is_array($response['hits']['hits'] ?? null) ? $response['hits']['hits'] : [];
@@ -716,10 +763,10 @@ function miyabe_search_execute_request(array $params): array
 {
     $searchRequest = miyabe_search_build_request($params);
     $query = trim((string)$searchRequest['query']);
-    if ($query === '') {
+    if ($query === '' || ($searchRequest['query_error'] ?? '') !== '') {
         return [
             'status' => 'query_error',
-            'error' => 'q を指定してください。',
+            'error' => $query === '' ? 'q を指定してください。' : $searchRequest['query_error'],
             'items' => [],
             'total' => 0,
             'total_relation' => 'eq',

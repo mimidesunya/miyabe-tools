@@ -18,6 +18,10 @@
         endDate: document.getElementById('search-end-date'),
         startDateStatus: document.getElementById('search-start-date-status'),
         endDateStatus: document.getElementById('search-end-date-status'),
+        dateFields: document.getElementById('search-date-fields'),
+        hyokaFields: document.getElementById('search-hyoka-fields'),
+        fiscalYear: document.getElementById('search-fiscal-year'),
+        kind: document.getElementById('search-hyoka-kind'),
         sort: document.getElementById('search-sort'),
         tabs: Array.from(document.querySelectorAll('[data-doc-type]')),
         stats: document.getElementById('search-stats'),
@@ -69,6 +73,8 @@
         endYear: initialEndDate ? initialEndDate.slice(0, 4) : normalizeYear(boot.endYear),
         startDate: initialStartDate,
         endDate: initialEndDate,
+        fiscalYear: normalizeFiscalYear(boot.fiscalYear),
+        kind: normalizeHyokaKind(boot.kind),
         sort: normalizeSort(boot.sort),
         municipalityFilter: '',
         page: 1,
@@ -89,7 +95,25 @@
 
     function normalizeDocType(value) {
         const text = String(value || '').trim();
-        return text === 'reiki' ? 'reiki' : 'minutes';
+        return ['reiki', 'hyoka'].includes(text) ? text : 'minutes';
+    }
+
+    function normalizeFiscalYear(value) {
+        const text = String(value || '').trim();
+        return /^[1-9]\d{3}$/.test(text) ? text : '';
+    }
+
+    function normalizeHyokaKind(value) {
+        return ['project_evaluation', 'policy_evaluation', 'external_review', 'overview'].includes(value) ? value : '';
+    }
+
+    function hyokaKindLabel(value) {
+        return {
+            project_evaluation: '事務事業評価',
+            policy_evaluation: '施策・政策評価',
+            external_review: '外部評価',
+            overview: '概要・一覧',
+        }[value] || '';
     }
 
     function normalizePrefCode(value) {
@@ -154,13 +178,15 @@
                 return '会議録';
             case 'reiki':
                 return '例規集';
+            case 'hyoka':
+                return '事務事業評価';
             default:
                 return '会議録';
         }
     }
 
     function resultKindLabel(value) {
-        return value === 'minutes' ? '会議録' : (value === 'reiki' ? '例規集' : '文書');
+        return value === 'hyoka' ? '事務事業評価' : (value === 'minutes' ? '会議録' : (value === 'reiki' ? '例規集' : '文書'));
     }
 
     function filteredMunicipalities() {
@@ -282,6 +308,13 @@
         refs.endYear.value = state.endYear;
         refs.startDate.value = state.startDate;
         refs.endDate.value = state.endDate;
+        refs.fiscalYear.value = state.fiscalYear;
+        refs.kind.value = state.kind;
+        const isHyoka = state.docType === 'hyoka';
+        refs.dateFields.hidden = isHyoka;
+        refs.hyokaFields.hidden = !isHyoka;
+        [refs.startYear, refs.endYear, refs.startDate, refs.endDate].forEach((control) => { control.disabled = isHyoka; });
+        [refs.fiscalYear, refs.kind].forEach((control) => { control.disabled = !isHyoka; });
         refs.sort.value = state.sort;
         renderDateStatus(refs.startDateStatus, state.startDate, 'start');
         renderDateStatus(refs.endDateStatus, state.endDate, 'end');
@@ -298,6 +331,17 @@
         if (state.docType !== 'minutes') params.set('doc_type', state.docType);
         if (state.slug) params.set('slug', state.slug);
         if (state.prefCode) params.set('pref_code', state.prefCode);
+        addTypeFilters(params);
+        if (state.sort !== 'date') params.set('sort', state.sort);
+        return `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
+    }
+
+    function addTypeFilters(params) {
+        if (state.docType === 'hyoka') {
+            if (state.fiscalYear) params.set('fiscal_year', state.fiscalYear);
+            if (state.kind) params.set('kind', state.kind);
+            return;
+        }
         if (state.startDate) {
             params.set('start_date', state.startDate);
         } else if (state.startYear) {
@@ -308,12 +352,10 @@
         } else if (state.endYear) {
             params.set('end_year', state.endYear);
         }
-        if (state.sort !== 'date') params.set('sort', state.sort);
-        return `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
     }
 
     /* 履歴に残す検索条件。これが変わったときだけ履歴を1つ積む */
-    const HISTORY_KEYS = ['query', 'docType', 'slug', 'prefCode', 'startYear', 'endYear', 'startDate', 'endDate', 'sort', 'page'];
+    const HISTORY_KEYS = ['query', 'docType', 'slug', 'prefCode', 'startYear', 'endYear', 'startDate', 'endDate', 'fiscalYear', 'kind', 'sort', 'page'];
 
     /* 今の履歴項目に書いてある表示。地図の円やタブは state を書き換えてから runSearch を
        呼ぶので、「離れる前の表示」は state からではなくここから取る */
@@ -353,6 +395,8 @@
             endYear: endDate ? endDate.slice(0, 4) : normalizeYear(params.get('end_year')),
             startDate,
             endDate,
+            fiscalYear: normalizeFiscalYear(params.get('fiscal_year')),
+            kind: normalizeHyokaKind(params.get('kind')),
             sort: normalizeSort(params.get('sort')),
             page: 1,
             mapView: null,
@@ -388,6 +432,8 @@
         state.endDate = normalizeDate(snapshot.endDate);
         state.startYear = state.startDate ? state.startDate.slice(0, 4) : normalizeYear(snapshot.startYear);
         state.endYear = state.endDate ? state.endDate.slice(0, 4) : normalizeYear(snapshot.endYear);
+        state.fiscalYear = normalizeFiscalYear(snapshot.fiscalYear);
+        state.kind = normalizeHyokaKind(snapshot.kind);
         state.sort = normalizeSort(snapshot.sort);
         state.page = Math.max(1, Number(snapshot.page || 1));
         pendingMapView = snapshot.mapView || null;
@@ -407,16 +453,7 @@
         });
         if (state.slug) params.set('slug', state.slug);
         if (state.prefCode) params.set('pref_code', state.prefCode);
-        if (state.startDate) {
-            params.set('start_date', state.startDate);
-        } else if (state.startYear) {
-            params.set('start_year', state.startYear);
-        }
-        if (state.endDate) {
-            params.set('end_date', state.endDate);
-        } else if (state.endYear) {
-            params.set('end_year', state.endYear);
-        }
+        addTypeFilters(params);
         // 「検索結果の内訳」を出すには集計を明示的に要求する必要がある。
         params.set('include_facets', '1');
         return params;
@@ -482,14 +519,17 @@
     }
 
     function displayDate(item) {
+        if (item.doc_type === 'hyoka') {
+            return item.year_label || (item.fiscal_year ? `${item.fiscal_year}年度` : '年度不明');
+        }
         return item.held_on || item.promulgated_on || item.sort_date || item.updated_at || '';
     }
 
     function buildDetailUrl(item) {
-        if (item.doc_type === 'minutes' && item.id) {
+        if (['minutes', 'hyoka'].includes(item.doc_type) && item.id) {
             const params = new URLSearchParams({
                 id: String(item.id),
-                doc_type: 'minutes',
+                doc_type: item.doc_type,
             });
             if (state.query) {
                 params.set('q', state.query);
@@ -500,6 +540,15 @@
     }
 
     function resultMeta(item) {
+        if (item.doc_type === 'hyoka') {
+            return [
+                item.pref_name,
+                item.municipality_name,
+                hyokaKindLabel(item.kind),
+                item.page ? `${item.page}頁` : '頁区切りなし（文書全体）',
+                item.status === 'gone' ? '掲載ページで見つからない文書' : '',
+            ].filter(Boolean);
+        }
         const parts = [
             item.pref_name,
             item.municipality_name,
@@ -543,7 +592,8 @@
         refs.results.innerHTML = items.map((item) => {
             const meta = resultMeta(item);
             const detailUrl = buildDetailUrl(item);
-            const sourceUrl = item.source_url || '';
+            const sourceUrl = (item.doc_type === 'hyoka' ? item.source_page_link : '') || item.source_url || '';
+            const sourceLabel = item.doc_type === 'hyoka' ? (item.page ? `原典 ${item.page}頁` : '原典') : '原サイト';
             return `
                 <article class="result-item">
                     <div class="result-top">
@@ -555,7 +605,7 @@
                     ${item.excerpt ? `<p class="result-excerpt">${renderExcerpt(item.excerpt)}</p>` : ''}
                     <div class="result-actions">
                         <a class="result-link" href="${escapeHtml(detailUrl)}" target="_blank" rel="noopener noreferrer">詳細</a>
-                        ${sourceUrl ? `<a class="result-link" href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">原サイト</a>` : ''}
+                        ${sourceUrl ? `<a class="result-link" href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(sourceLabel)}</a>` : ''}
                     </div>
                 </article>
             `;
@@ -786,6 +836,8 @@
         state.endYear = normalizeYear(refs.endYear.value);
         state.startDate = normalizeDate(refs.startDate.value);
         state.endDate = normalizeDate(refs.endDate.value);
+        state.fiscalYear = normalizeFiscalYear(refs.fiscalYear.value);
+        state.kind = normalizeHyokaKind(refs.kind.value);
         if (state.startDate && state.endDate && state.startDate > state.endDate) {
             [state.startDate, state.endDate] = [state.endDate, state.startDate];
         }

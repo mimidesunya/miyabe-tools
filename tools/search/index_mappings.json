@@ -141,6 +141,46 @@
       "type": "date",
       "format": "strict_date_optional_time||yyyy-MM-dd||epoch_millis",
       "ignore_malformed": true
+    },
+    "kind": {
+      "type": "keyword"
+    },
+    "source_page_url": {
+      "type": "keyword"
+    },
+    "source_page_link": {
+      "type": "keyword"
+    },
+    "sha256": {
+      "type": "keyword"
+    },
+    "status": {
+      "type": "keyword"
+    },
+    "text_status": {
+      "type": "keyword"
+    },
+    "page_split_reason": {
+      "type": "keyword"
+    },
+    "fiscal_year": {
+      "type": "integer"
+    },
+    "page": {
+      "type": "integer"
+    },
+    "link_text": {
+      "type": "text",
+      "analyzer": "ja_cjk"
+    },
+    "heading": {
+      "type": "text",
+      "analyzer": "ja_cjk"
+    },
+    "fetched_at": {
+      "type": "date",
+      "format": "strict_date_optional_time||yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis",
+      "ignore_malformed": true
     }
   }
 }

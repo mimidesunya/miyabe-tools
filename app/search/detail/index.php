@@ -21,6 +21,9 @@ function search_detail_asset_url(string $relativePath): string
 
 function search_detail_display_date(array $document): string
 {
+    if (($document['doc_type'] ?? '') === 'hyoka') {
+        return '';
+    }
     foreach (['held_on', 'promulgated_on', 'sort_date', 'updated_at'] as $key) {
         $value = trim((string)($document[$key] ?? ''));
         if ($value !== '') {
@@ -51,18 +54,35 @@ try {
     $error = '詳細の取得に失敗しました。';
 }
 
-$title = trim((string)($document['title'] ?? '会議録詳細'));
+$title = trim((string)($document['title'] ?? ($docType === 'hyoka' ? '事務事業評価詳細' : '会議録詳細')));
 $sourceUrl = trim((string)($document['source_url'] ?? ''));
+$sourcePageUrl = trim((string)($document['source_page_url'] ?? ''));
+$sourcePageLink = $docType === 'hyoka' ? trim((string)($document['source_page_link'] ?? '')) : '';
+$sourceLink = $sourcePageLink !== '' ? $sourcePageLink : $sourceUrl;
+$pageNumber = $docType === 'hyoka' ? (int)($document['page'] ?? 0) : 0;
+$hyokaKindLabels = [
+    'project_evaluation' => '事務事業評価',
+    'policy_evaluation' => '施策・政策評価',
+    'external_review' => '外部評価',
+    'overview' => '概要・一覧',
+];
+$yearLabel = trim((string)($document['year_label'] ?? ''));
+if ($docType === 'hyoka' && $yearLabel === '') {
+    $yearLabel = !empty($document['fiscal_year']) ? (string)$document['fiscal_year'] . '年度' : '年度不明';
+}
 $meta = array_values(array_filter([
     trim((string)($document['pref_name'] ?? '')),
     trim((string)($document['municipality_name'] ?? '')),
     trim((string)($document['assembly_name'] ?? '')),
     trim((string)($document['meeting_name'] ?? '')),
-    trim((string)($document['year_label'] ?? '')),
+    $yearLabel,
     search_detail_display_date($document ?? []),
+    $docType === 'hyoka' ? ($hyokaKindLabels[(string)($document['kind'] ?? '')] ?? '') : '',
+    $docType === 'hyoka' ? ($pageNumber > 0 ? (string)$pageNumber . '頁' : '頁区切りなし（文書全体）') : '',
 ], static fn(string $value): bool => $value !== ''));
 
-$docTypeLabel = $docType === 'reiki' ? '例規' : '会議録';
+$docTypeLabel = match ($docType) { 'reiki' => '例規', 'hyoka' => '事務事業評価', default => '会議録' };
+$bodyLabel = $pageNumber > 0 ? (string)$pageNumber . '頁の本文' : '全文';
 
 $boot = [
     'query' => $query,
@@ -78,7 +98,7 @@ $boot = [
     <?php if ($document !== null): ?>
         <?php echo site_render_page_meta(
             $title . '｜自治体マップ',
-            ($meta !== [] ? implode('・', $meta) . 'の' : '') . $docTypeLabel . '「' . $title . '」の全文を表示します。原典URLつき。',
+            ($meta !== [] ? implode('・', $meta) . 'の' : '') . $docTypeLabel . '「' . $title . '」の' . $bodyLabel . 'を表示します。原典URLつき。',
             '/search/detail/?id=' . rawurlencode($id) . '&doc_type=' . rawurlencode($docType)
         ); ?>
     <?php else: ?>
@@ -91,8 +111,8 @@ $boot = [
 <div class="app-shell">
     <header class="topbar">
         <?php echo site_render_brand('/'); ?>
-        <?php if ($sourceUrl !== ''): ?>
-            <a class="result-link detail-source-link" href="<?php echo search_detail_h($sourceUrl); ?>" target="_blank" rel="noopener noreferrer">原サイト</a>
+        <?php if ($sourceLink !== ''): ?>
+            <a class="result-link detail-source-link" href="<?php echo search_detail_h($sourceLink); ?>" target="_blank" rel="noopener noreferrer"><?php echo $docType === 'hyoka' ? ($pageNumber > 0 ? '原典 ' . $pageNumber . '頁' : '原典') : '原サイト'; ?></a>
         <?php endif; ?>
     </header>
 
@@ -110,6 +130,15 @@ $boot = [
                         <?php endforeach; ?>
                     </div>
                 <?php endif; ?>
+                <?php if ($docType === 'hyoka' && ($document['status'] ?? '') === 'gone'): ?>
+                    <p class="message">取得元の掲載ページで見つからない文書です。最後に取得した本文を表示しています。</p>
+                <?php endif; ?>
+                <?php if ($docType === 'hyoka' && $pageNumber === 0): ?>
+                    <p>保存済み本文の頁区切りを確認できないため、文書全体を表示しています。</p>
+                <?php endif; ?>
+                <?php if ($docType === 'hyoka' && $sourcePageUrl !== ''): ?>
+                    <p><a href="<?php echo search_detail_h($sourcePageUrl); ?>" target="_blank" rel="noopener noreferrer">文書を見つけた掲載ページ</a></p>
+                <?php endif; ?>
             </section>
 
             <section class="detail-search" aria-label="ページ内検索">
@@ -124,7 +153,7 @@ $boot = [
                 </div>
             </section>
 
-            <article id="detail-body" class="detail-body" aria-label="<?php echo search_detail_h($docTypeLabel); ?>全文"></article>
+            <article id="detail-body" class="detail-body" aria-label="<?php echo search_detail_h($docTypeLabel . $bodyLabel); ?>"></article>
         <?php endif; ?>
     </main>
 </div>

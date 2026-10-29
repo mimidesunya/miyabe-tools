@@ -14,7 +14,7 @@ const requestTimeoutMs = Number.parseInt(process.env.MCP_API_TIMEOUT_MS || "2000
 const allowedHosts = parseCsv(process.env.MCP_ALLOWED_HOSTS || "");
 const allowedOrigins = parseCsv(process.env.MCP_ALLOWED_ORIGINS || "");
 
-type DocType = "minutes" | "reiki";
+type DocType = "minutes" | "reiki" | "hyoka";
 
 class PublicApiError extends Error {
   constructor(
@@ -177,10 +177,14 @@ function buildSearchParams(docType: DocType, args: any): URLSearchParams {
   addOptional(params, "end_date", args.end_date);
   addOptional(params, "start_year", args.start_year);
   addOptional(params, "end_year", args.end_year);
+  if (docType === "hyoka") {
+    addOptional(params, "fiscal_year", args.fiscal_year);
+    addOptional(params, "kind", args.kind);
+  }
   // 会議録は新しい発言から見たいので日付順が既定。例規は制定が古い基本規則ほど
   // 重要なことが多く、日付順だと本則が下へ沈む（「補助金等交付規則」で本則が15位、
   // 関連度順なら1位）。例規は関連度順を既定にする。
-  addOptional(params, "sort", args.sort || (docType === "reiki" ? "relevance" : "date"));
+  addOptional(params, "sort", args.sort || (docType === "minutes" ? "date" : "relevance"));
   addOptional(params, "page", args.page || 1);
   addOptional(params, "per_page", args.per_page || 10);
   addOptional(params, "include_facets", args.include_facets);
@@ -200,7 +204,8 @@ function displayDate(item: any): string {
 
 function formatSearchText(payload: any): string {
   const items = Array.isArray(payload?.items) ? payload.items : [];
-  const header = `${payload?.doc_type === "reiki" ? "例規集" : "会議録"}検索: "${payload?.query || ""}" / ${payload?.total ?? 0}件`;
+  const label = payload?.doc_type === "hyoka" ? "事務事業評価" : payload?.doc_type === "reiki" ? "例規集" : "会議録";
+  const header = `${label}検索: "${payload?.query || ""}" / ${payload?.total ?? 0}件`;
   if (items.length === 0) {
     return `${header}\n該当する結果はありませんでした。`;
   }
@@ -211,12 +216,14 @@ function formatSearchText(payload: any): string {
       item.municipality_name,
       item.meeting_name,
       item.category,
-      displayDate(item)
+      displayDate(item),
+      ...hyokaMetadata(item)
     ].filter((value) => String(value || "").trim() !== "").join(" / ");
     const excerpt = String(item.excerpt || "").replace(/\s+/g, " ").trim();
     const urls = [
       item.detail_url ? `detail: ${item.detail_url}` : "",
-      item.source_url ? `source: ${item.source_url}` : ""
+      item.source_url ? `source: ${item.source_url}` : "",
+      item.source_page_link ? `source page: ${item.source_page_link}` : ""
     ].filter(Boolean).join(" / ");
     return [
       `${index + 1}. ${item.title || "(無題)"}`,
@@ -228,6 +235,18 @@ function formatSearchText(payload: any): string {
   });
 
   return [header, ...lines].join("\n");
+}
+
+function hyokaMetadata(document: any): string[] {
+  if (document?.doc_type !== "hyoka") {
+    return [];
+  }
+  return [
+    document.year_label || (document.fiscal_year ? `${document.fiscal_year}年度` : ""),
+    document.kind || "",
+    document.page ? `${document.page}頁` : "頁区切りなし（文書全体）",
+    document.status === "gone" ? "取得元から消失（保存済み本文）" : ""
+  ];
 }
 
 function truncateBody(document: any, maxChars: number): any {
@@ -251,7 +270,8 @@ function formatDocumentText(document: any): string {
     document.assembly_name,
     document.meeting_name,
     document.category,
-    displayDate(document)
+    displayDate(document),
+    ...hyokaMetadata(document)
   ].filter((value) => String(value || "").trim() !== "").join(" / ");
   const body = String(document.body || "");
   return [
@@ -259,6 +279,8 @@ function formatDocumentText(document: any): string {
     meta,
     document.id ? `id: ${document.id}` : "",
     document.source_url ? `source: ${document.source_url}` : "",
+    document.source_page_link ? `source page: ${document.source_page_link}` : "",
+    document.source_page_url ? `found at: ${document.source_page_url}` : "",
     document.detail_url ? `detail: ${document.detail_url}` : "",
     document.body_truncated ? `body: ${body}\n\n[本文は ${body.length}/${document.body_full_length} 文字で省略されています。max_body_chars を増やすと取得量を増やせます。]` : `body: ${body}`
   ].filter((value) => String(value || "").trim() !== "").join("\n");
@@ -305,11 +327,21 @@ const searchInputSchema = z.object({
   include_body_highlight: z.boolean().optional().describe("false の場合、本文ハイライト生成を抑制します。")
 });
 
+const hyokaSearchInputSchema = searchInputSchema.omit({
+  start_date: true, end_date: true, start_year: true, end_year: true
+}).extend({
+  fiscal_year: z.number().int().min(1000).max(9999).optional().describe("掲載文書の年度を西暦4桁で指定。完全一致。"),
+  kind: z.enum(["project_evaluation", "policy_evaluation", "external_review", "overview"]).optional()
+    .describe("事務事業評価、施策・政策評価、外部評価、概要・一覧の種別。"),
+  sort: z.enum(["date", "relevance"]).optional().describe("既定は関連度順。date は年度の新しい順。"),
+  page: z.number().int().min(1).default(1).describe("検索結果のページ番号。原典の頁番号とは別。")
+});
+
 // 会議録と例規集で意味を持つフィールドが違い、API側の項目も増えうる。
 // 常に入るものだけ必須にし、残りは任意にして検証で落ちないようにする。
 const documentCommonShape = {
   id: z.string().describe("文書ID。get_municipal_document にそのまま渡せる。"),
-  doc_type: z.string().describe("minutes は会議録、reiki は例規集。"),
+  doc_type: z.string().describe("minutes は会議録、reiki は例規集、hyoka は事務事業評価。"),
   slug: z.string().optional().describe("自治体のcanonical slug。例: 14130-kawasaki-shi。"),
   municipality_code: z.string().optional().describe("全国地方公共団体コード。"),
   pref_code: z.string().optional().describe("都道府県コード。"),
@@ -333,6 +365,18 @@ const documentCommonShape = {
   assembly_name: z.string().optional().describe("議会名。会議録で入る。"),
   meeting_name: z.string().optional().describe("会議名。会議録で入る。"),
   year_label: z.string().optional().describe("年度の表記。"),
+  fiscal_year: z.number().int().optional().describe("事務事業評価の年度。西暦。"),
+  kind: z.string().optional().describe("事務事業評価の種別。project_evaluation / policy_evaluation / external_review / overview。"),
+  link_text: z.string().optional().describe("原典へのリンクの文字。"),
+  heading: z.string().optional().describe("原典リンクの周囲の見出し。"),
+  source_page_url: z.string().optional().describe("原典を見つけた掲載ページのURL。"),
+  page: z.number().int().optional().describe("原典の頁番号。区切りが不明な文書では省略。検索結果のページ番号とは別。"),
+  source_page_link: z.string().optional().describe("原典の該当頁へのURL。頁が不明な文書では原典URL。"),
+  sha256: z.string().optional().describe("取得した原典のSHA-256。"),
+  fetched_at: z.string().optional().describe("原典の取得日時。"),
+  status: z.string().optional().describe("取得元の状態。gone は取得元から消えた保存済み文書。"),
+  text_status: z.string().optional().describe("本文抽出の状態。第1段では ok のみ。"),
+  page_split_reason: z.string().optional().describe("頁分割の根拠、または分割できない理由。"),
   held_on: z.string().optional().describe("開催日。会議録で入る。"),
   ordinance_no: z.string().optional().describe("例規番号。例規集で入る。"),
   category: z.string().optional().describe("分類。例規集で入る。"),
@@ -349,7 +393,7 @@ const facetBucketSchema = z.looseObject({
 const searchOutputSchema = z.looseObject({
   status: z.string().describe("ok または error。"),
   error: z.string().optional().describe("エラーメッセージ。正常時は空文字。"),
-  doc_type: z.string().describe("minutes は会議録、reiki は例規集。"),
+  doc_type: z.string().describe("minutes は会議録、reiki は例規集、hyoka は事務事業評価。"),
   query: z.string().describe("実際に検索へ渡された検索語。"),
   page: z.number().describe("現在のページ番号。"),
   per_page: z.number().describe("1ページあたりの件数。"),
@@ -381,7 +425,7 @@ const documentOutputSchema = z.looseObject({
   }).describe("取得した文書。")
 });
 
-// 3ツールとも公開データを読むだけで、書き込みも削除も行わない。注釈がないと
+// 4ツールとも公開データを読むだけで、書き込みも削除も行わない。注釈がないと
 // クライアントは既定で「書き込みあり・破壊的」とみなすため、明示しておく。
 const READ_ONLY_ANNOTATIONS = {
   readOnlyHint: true,
@@ -443,13 +487,36 @@ function createServer(): McpServer {
   );
 
   server.registerTool(
+    "search_hyoka",
+    {
+      title: "事務事業評価検索",
+      description: "自治体の事務事業評価を検索し、抜粋、年度、種別、原典URL、分かる場合は頁、本文取得用IDを返します。自治体・都道府県・年度・種別で絞れます。抜粋だけで判断せず、get_municipal_document と原典で確かめてください。",
+      inputSchema: hyokaSearchInputSchema,
+      outputSchema: searchOutputSchema,
+      annotations: READ_ONLY_ANNOTATIONS
+    },
+    async (args) => {
+      try {
+        const payload = searchPayloadWithPublicUrls(
+          await callPublicApi("/api/search", buildSearchParams("hyoka", args)));
+        return {
+          content: [{ type: "text" as const, text: formatSearchText(payload) }],
+          structuredContent: payload
+        };
+      } catch (error) {
+        return errorResult(error);
+      }
+    }
+  );
+
+  server.registerTool(
     "get_municipal_document",
     {
       title: "文書本文取得",
-      description: "search_minutes/search_reiki の結果IDから、会議録または例規集の本文を取得します。長文は max_body_chars で返却量を調整できます。",
+      description: "search_minutes/search_reiki/search_hyoka の結果IDから本文を取得します。事務事業評価は頁単位（頁区切りがなければ文書全体）です。長文は max_body_chars で返却量を調整できます。",
       inputSchema: z.object({
         id: z.string().min(1).describe("検索結果の id。"),
-        doc_type: z.enum(["minutes", "reiki"]).default("minutes").describe("minutes は会議録、reiki は例規集。"),
+        doc_type: z.enum(["minutes", "reiki", "hyoka"]).default("minutes").describe("minutes は会議録、reiki は例規集、hyoka は事務事業評価。"),
         max_body_chars: z.number().int().min(0).max(200000).default(20000).describe("返却する本文の最大文字数。最大200000。")
       }),
       outputSchema: documentOutputSchema,

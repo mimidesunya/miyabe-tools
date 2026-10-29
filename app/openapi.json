@@ -3,7 +3,7 @@
   "info": {
     "title": "自治体マップ 検索API",
     "version": "1.0.0",
-    "description": "全国自治体の会議録と例規集を検索する公開APIです。既定では会議録を検索します。AIアシスタント連携にはMCPエンドポイント https://tools.miya.be/mcp を推奨します。このREST APIは互換のため維持されます。"
+    "description": "全国自治体の会議録・例規集・事務事業評価を検索する公開APIです。既定では会議録を検索します。AIアシスタント連携にはMCPエンドポイント https://tools.miya.be/mcp を推奨します。このREST APIは互換のため維持されます。"
   },
   "servers": [
     {
@@ -15,8 +15,8 @@
     "/api/search": {
       "get": {
         "operationId": "searchMunicipalDocuments",
-        "summary": "会議録または例規集を検索する",
-        "description": "検索語、文書種別、都道府県、自治体、日付範囲で絞り込み、該当箇所の抜粋と原典URLを返します。",
+        "summary": "会議録・例規集・事務事業評価を検索する",
+        "description": "検索語、文書種別、都道府県、自治体で絞り込み、抜粋と原典URLを返します。hyoka は年度・種別、それ以外は日付範囲で絞れます。hyoka の1件は頁単位（頁区切りが不明なら文書全体）です。",
         "parameters": [
           {
             "name": "q",
@@ -33,10 +33,10 @@
             "name": "doc_type",
             "in": "query",
             "required": false,
-            "description": "検索対象。省略時は会議録です。",
+            "description": "検索対象。minutes は会議録、reiki は例規集、hyoka は事務事業評価。省略時は会議録です。",
             "schema": {
               "type": "string",
-              "enum": ["minutes", "reiki"],
+              "enum": ["minutes", "reiki", "hyoka"],
               "default": "minutes"
             }
           },
@@ -75,7 +75,7 @@
             "name": "start_date",
             "in": "query",
             "required": false,
-            "description": "検索対象期間の開始日。YYYY-MM-DD形式です。",
+            "description": "検索対象期間の開始日。YYYY-MM-DD形式です。hyoka には適用されません。",
             "schema": {
               "type": "string",
               "format": "date"
@@ -86,7 +86,7 @@
             "name": "end_date",
             "in": "query",
             "required": false,
-            "description": "検索対象期間の終了日。YYYY-MM-DD形式です。",
+            "description": "検索対象期間の終了日。YYYY-MM-DD形式です。hyoka には適用されません。",
             "schema": {
               "type": "string",
               "format": "date"
@@ -97,7 +97,7 @@
             "name": "start_year",
             "in": "query",
             "required": false,
-            "description": "検索対象期間の開始年。start_date が未指定の場合に使われます。",
+            "description": "検索対象期間の開始年。start_date が未指定の場合に使われます。hyoka には適用されません。",
             "schema": {
               "type": "integer",
               "minimum": 1,
@@ -109,7 +109,7 @@
             "name": "end_year",
             "in": "query",
             "required": false,
-            "description": "検索対象期間の終了年。end_date が未指定の場合に使われます。",
+            "description": "検索対象期間の終了年。end_date が未指定の場合に使われます。hyoka には適用されません。",
             "schema": {
               "type": "integer",
               "minimum": 1,
@@ -118,10 +118,37 @@
             "example": 2024
           },
           {
+            "name": "fiscal_year",
+            "in": "query",
+            "required": false,
+            "description": "hyoka の年度を西暦4桁で完全一致指定します。minutes/reiki では使いません。",
+            "schema": {
+              "type": "integer",
+              "minimum": 1000,
+              "maximum": 9999
+            },
+            "example": 2024
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "description": "hyoka の種別。事務事業評価、施策・政策評価、外部評価、概要・一覧。minutes/reiki では使いません。",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "project_evaluation",
+                "policy_evaluation",
+                "external_review",
+                "overview"
+              ]
+            }
+          },
+          {
             "name": "sort",
             "in": "query",
             "required": false,
-            "description": "並び順。dateは新しい順、relevanceは関連度順です。",
+            "description": "並び順。dateは新しい順（hyoka は年度順）、relevanceは関連度順です。",
             "schema": {
               "type": "string",
               "enum": ["date", "relevance"],
@@ -184,7 +211,7 @@
             }
           },
           "422": {
-            "description": "検索語が未指定です。",
+            "description": "検索語が未指定、または検索条件が不正です。hyoka の fiscal_year / kind の不正値も含みます。",
             "content": {
               "application/json": {
                 "schema": {
@@ -220,7 +247,7 @@
       "get": {
         "operationId": "getMunicipalDocument",
         "summary": "文書の全文を取得する",
-        "description": "検索結果のidとdoc_typeを指定して、会議録または例規集の全文テキストを返します。",
+        "description": "検索結果のidとdoc_typeを指定して本文を返します。hyoka は該当頁の本文（頁区切りが不明なら文書全体）と原典URL・頁を返します。",
         "parameters": [
           {
             "name": "id",
@@ -236,10 +263,10 @@
             "name": "doc_type",
             "in": "query",
             "required": false,
-            "description": "文書種別。省略時は会議録です。",
+            "description": "文書種別。minutes は会議録、reiki は例規集、hyoka は事務事業評価。省略時は会議録です。",
             "schema": {
               "type": "string",
-              "enum": ["minutes", "reiki"],
+              "enum": ["minutes", "reiki", "hyoka"],
               "default": "minutes"
             }
           }
@@ -318,7 +345,7 @@
           },
           "doc_type": {
             "type": "string",
-            "enum": ["minutes", "reiki"]
+            "enum": ["minutes", "reiki", "hyoka"]
           },
           "index_alias": {
             "type": "string"
@@ -380,7 +407,7 @@
             "properties": {
               "body": {
                 "type": "string",
-                "description": "文書本文の全文テキストです。"
+                "description": "文書本文の全文テキストです。hyoka は該当頁の本文（頁区切りが不明なら文書全体）です。"
               },
               "indexed_at": {
                 "type": "string"
@@ -411,7 +438,7 @@
           },
           "doc_type": {
             "type": "string",
-            "enum": ["minutes", "reiki"]
+            "enum": ["minutes", "reiki", "hyoka"]
           },
           "slug": {
             "type": "string"
@@ -447,7 +474,7 @@
           },
           "detail_url": {
             "type": "string",
-            "description": "会議録ではサイト内の詳細ページURL、例規集では原サイト等のURLです。"
+            "description": "会議録・事務事業評価ではサイト内の詳細ページURL、例規集では原サイト等のURLです。"
           },
           "api_document_url": {
             "type": "string",
@@ -476,6 +503,66 @@
           },
           "category": {
             "type": "string"
+          },
+          "fiscal_year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "hyoka の年度（西暦）。不明なら null。"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "project_evaluation",
+              "policy_evaluation",
+              "external_review",
+              "overview"
+            ],
+            "description": "hyoka の種別。"
+          },
+          "link_text": {
+            "type": "string",
+            "description": "hyoka の原典リンクの文字。"
+          },
+          "heading": {
+            "type": "string",
+            "description": "hyoka の原典リンクの周囲の見出し。"
+          },
+          "source_page_url": {
+            "type": "string",
+            "description": "hyoka の原典を見つけた掲載ページのURL。"
+          },
+          "page": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "hyoka の原典の頁番号（1から）。頁区切りが不明なら null で文書全体。検索結果のページ番号とは別。"
+          },
+          "source_page_link": {
+            "type": "string",
+            "description": "hyoka の原典の該当頁へのURL。頁不明なら原典URL。"
+          },
+          "sha256": {
+            "type": "string",
+            "description": "hyoka の取得した原典のSHA-256。"
+          },
+          "fetched_at": {
+            "type": "string",
+            "description": "hyoka の原典の取得日時。"
+          },
+          "status": {
+            "type": "string",
+            "description": "hyoka の取得元の状態。gone は取得元から消えた保存済み文書。"
+          },
+          "text_status": {
+            "type": "string",
+            "description": "hyoka の本文抽出の状態。第1段の索引対象は ok のみ。"
+          },
+          "page_split_reason": {
+            "type": "string",
+            "description": "hyoka の頁分割の根拠または分割できない理由。saved_text_no_page_boundaries は保存済み本文に頁区切りが無い。"
           }
         }
       },

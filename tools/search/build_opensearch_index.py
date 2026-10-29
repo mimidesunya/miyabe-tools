@@ -36,6 +36,7 @@ import gijiroku_targets  # type: ignore
 import reiki_targets  # type: ignore
 import build_locks  # type: ignore
 from opensearch_mappings import build_index_body
+import hyoka_source_records
 from parser_generation import PARSER_GENERATION  # type: ignore
 from scraped_source_records import (  # type: ignore
     SOURCE_URL_HEADER_PATTERN,
@@ -136,7 +137,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             " resume は中断した rebuild を --resume-index の途中状態から再開します。"
         ),
     )
-    parser.add_argument("--doc-type", choices=["all", "minutes", "reiki"], default="all")
+    parser.add_argument("--doc-type", choices=["all", "minutes", "reiki", "hyoka"], default="all",
+                        help="all は従来どおり minutes/reiki。hyoka は保存先を確認して明示指定する。")
+    parser.add_argument("--hyoka-root", type=Path,
+                        default=Path(os.environ.get("MIYABE_HYOKA_ROOT", str(hyoka_source_records.DEFAULT_HYOKA_ROOT))),
+                        help="事務事業評価の <slug>/manifest.json が並ぶ保存先")
     parser.add_argument(
         "--slug",
         action="append",
@@ -161,6 +166,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--documents-alias", default=os.environ.get("MIYABE_SEARCH_ALIAS", "miyabe-documents-current"))
     parser.add_argument("--minutes-alias", default=os.environ.get("MIYABE_MINUTES_ALIAS", "miyabe-minutes-current"))
     parser.add_argument("--reiki-alias", default=os.environ.get("MIYABE_REIKI_ALIAS", "miyabe-reiki-current"))
+    parser.add_argument("--hyoka-alias", default=os.environ.get("MIYABE_HYOKA_ALIAS", "miyabe-hyoka-current"))
     parser.add_argument("--shards", type=int, default=int(os.environ.get("MIYABE_OPENSEARCH_SHARDS", "1")))
     parser.add_argument("--replicas", type=int, default=int(os.environ.get("MIYABE_OPENSEARCH_REPLICAS", "0")))
     parser.add_argument(
@@ -220,7 +226,7 @@ class SourceIntegrityAudit:
 
 
 SOURCE_INTEGRITY_AUDITS: dict[tuple[str, str], SourceIntegrityAudit] = {}
-INTENTIONAL_SOURCE_OUTCOMES = frozenset({"toc", "aux", "duplicate_body", "limit"})
+INTENTIONAL_SOURCE_OUTCOMES = frozenset({"toc", "aux", "duplicate_body", "limit", "text_not_ready"})
 # 取得物はあるのに、全部が目次・会議録でない文書（議会だより・日程表・名簿）と
 # 判定された自治体。「取得 dir 欠落・パーサが落とした」の 0 件とは違い、
 # 今の判定で会議録が 1 件も無いと確定している。旧文書を残す理由が無い。
@@ -1018,6 +1024,122 @@ def iter_reiki_documents(
                 return
 
 
+def iter_hyoka_documents(
+    limit: int = 0,
+    slugs: set[str] | None = None,
+    exclude_slugs: set[str] | None = None,
+    strict: bool = False,
+    root: Path = hyoka_source_records.DEFAULT_HYOKA_ROOT,
+) -> Iterator[tuple[str, dict[str, Any]]]:
+    """現在版の保存済み本文を投入する。gone は残し、旧版は読まない。"""
+    emitted = 0
+    for manifest_path in hyoka_source_records.manifest_paths(root, slugs, exclude_slugs):
+        slug = manifest_path.parent.name
+        try:
+            manifest = hyoka_source_records.read_manifest(manifest_path)
+        except (OSError, ValueError) as exc:
+            SKIPPED_SOURCES.append(f"hyoka:{slug}: {exc}")
+            record_source_integrity_outcome("hyoka", slug, manifest_path, "unreadable", reason=str(exc))
+            if strict:
+                raise
+            continue
+        meta = target_metadata({"slug": slug, "code": manifest["jis_code"], "name": manifest["name"]})
+        entries = manifest["documents"]
+        # 監査単位は manifest の原典1文書。1文書から複数頁を出しても1件と数える。
+        source_keys = {key: manifest_path.parent / f"manifest-document-{key}" for key in entries}
+        start_source_integrity_audit("hyoka", slug, source_keys.values())
+        page_reasons: Counter[str] = Counter()
+        indexed_pages = 0
+        for doc_id, entry in sorted(entries.items()):
+            source_key = source_keys[doc_id]
+            try:
+                if not isinstance(entry, dict):
+                    raise ValueError("hyoka document entry must be an object")
+                if entry.get("text_status") != "ok":
+                    record_source_integrity_outcome("hyoka", slug, source_key, "text_not_ready",
+                                                    reason=str(entry.get("text_status") or "pending"))
+                    continue
+                if not re.fullmatch(r"[0-9a-f]{16}", doc_id):
+                    raise ValueError("hyoka manifest doc_id must be a URL hash (16 hex digits)")
+                source_url = str(entry.get("source_url") or "").strip()
+                if not source_url.startswith(("https://", "http://")):
+                    raise ValueError("hyoka source_url is missing")
+                if entry.get("kind") not in hyoka_source_records.KINDS:
+                    raise ValueError("hyoka kind is unknown")
+                if not str(entry.get("page_url") or "").startswith(("https://", "http://")):
+                    raise ValueError("hyoka discovery page URL is missing")
+                if not re.fullmatch(r"[0-9a-f]{64}", str(entry.get("sha256") or "")):
+                    raise ValueError("hyoka source sha256 is missing or invalid")
+                if normalize_datetime(entry.get("fetched_at")) is None:
+                    raise ValueError("hyoka fetched_at is missing or invalid")
+                if entry.get("status") not in {"ok", "gone"}:
+                    raise ValueError("hyoka text_status=ok must have saved status ok or gone")
+                text_path = hyoka_source_records.current_text_path(manifest_path.parent, entry)
+                body = hyoka_source_records.read_body(text_path)
+                pages = hyoka_source_records.split_pages(body, entry)
+                title = str(entry.get("title") or entry.get("link_text") or entry.get("heading") or "").strip()
+                fiscal_year = entry.get("fiscal_year")
+                if fiscal_year is not None and (isinstance(fiscal_year, bool) or not isinstance(fiscal_year, int)):
+                    raise ValueError("hyoka fiscal_year must be an integer or null")
+            except (OSError, ValueError, EOFError) as exc:
+                record_source_integrity_outcome("hyoka", slug, source_key, "unreadable", reason=str(exc))
+                if strict:
+                    raise
+                continue
+            record_source_integrity_outcome("hyoka", slug, source_key, "yielded")
+            page_reasons[pages[0][2]] += 1
+            for page, page_body, reason in pages:
+                local_id = f"{doc_id}:p{page}" if page is not None else doc_id
+                page_link = hyoka_source_records.source_page_link(source_url, page)
+                document = {
+                    **meta,
+                    "doc_type": "hyoka", "local_id": local_id,
+                    "title": title, "title_terms": terms_text(title),
+                    "body": page_body, "body_terms": terms_text(page_body), "body_length": len(page_body),
+                    "source_url": source_url, "detail_url": page_link,
+                    "source_page_url": entry.get("page_url"), "source_page_link": page_link,
+                    "source_file": entry.get("file"), "source_system": "hyoka_manifest",
+                    "indexed_at": utc_now_iso(), "parser_generation": PARSER_GENERATION,
+                    "updated_at": normalize_datetime(manifest.get("updated_at")),
+                    "fiscal_year": fiscal_year, "year_label": entry.get("year_label"),
+                    "kind": entry.get("kind"), "link_text": entry.get("link_text"), "heading": entry.get("heading"),
+                    "page": page, "page_split_reason": reason,
+                    "sha256": entry.get("sha256"), "fetched_at": normalize_datetime(entry.get("fetched_at")),
+                    "status": entry.get("status"), "text_status": "ok",
+                }
+                yield f"hyoka:{slug}:{local_id}", compact_document(document)
+                emitted += 1
+                indexed_pages += 1
+                if limit > 0 and emitted >= limit:
+                    mark_pending_sources_as_limited("hyoka", slug)
+                    return
+        print("[HYOKA] " + json.dumps({"slug": slug, **source_integrity_summary("hyoka", slug),
+                                       "indexed_documents": indexed_pages, "page_split_reasons": dict(page_reasons)},
+                                      ensure_ascii=False), flush=True)
+
+
+def count_hyoka_documents_by_slug(
+    limit: int = 0, slugs: set[str] | None = None, exclude_slugs: set[str] | None = None,
+    root: Path = hyoka_source_records.DEFAULT_HYOKA_ROOT,
+) -> dict[str, int]:
+    # 進捗の概数（原典文書数）。頁区切りの確認のためだけに全本文を二度読まない。
+    counts: dict[str, int] = {}
+    total = 0
+    for path in hyoka_source_records.manifest_paths(root, slugs, exclude_slugs):
+        try:
+            entries = hyoka_source_records.read_manifest(path)["documents"]
+            count = sum(isinstance(entry, dict) and entry.get("text_status") == "ok" for entry in entries.values())
+        except (OSError, ValueError):
+            continue  # 本走査で監査に記録し、公開を止める。
+        if limit > 0:
+            count = min(count, limit - total)
+        counts[path.parent.name] = count
+        total += count
+        if limit > 0 and total >= limit:
+            break
+    return counts
+
+
 def _count_documents_by_slug(
     targets: Iterable[dict[str, Any]],
     count_one: Callable[[dict[str, Any]], int],
@@ -1299,6 +1421,78 @@ def refresh_search_target(client: OpenSearchClient, index_or_alias: str) -> None
     client.request("POST", f"/{quote(index_or_alias)}/_refresh")
 
 
+def alias_members(client: OpenSearchClient, alias: str) -> list[dict[str, Any]]:
+    """変更しない種別の部分公開 filter も統合 alias に引き継ぐ。"""
+    try:
+        response = client.request("GET", f"/_alias/{quote(alias)}")
+    except OpenSearchRequestError as exc:
+        if exc.status == 404:
+            return []
+        raise
+    return [
+        {"index": index, **entry.get("aliases", {}).get(alias, {})}
+        for index, entry in sorted(response.items())
+    ] if isinstance(response, dict) else []
+
+
+def missing_published_hyoka_slugs(client: OpenSearchClient, alias: str, root: Path) -> set[str]:
+    """文書ごとの監査では見えない、自治体ディレクトリ丸ごとの欠落を検出する。"""
+    available = {path.parent.name for path in hyoka_source_records.manifest_paths(root)}
+    try:
+        response = client.request("POST", f"/{quote(alias)}/_search", body={
+            "size": 0,
+            "query": {"term": {"doc_type": "hyoka"}},
+            "aggs": {"slugs": {"terms": {"field": "slug", "size": 10000}}},
+        })
+    except OpenSearchRequestError as exc:
+        if exc.status == 404:  # 初回構築には公開済み自治体がない。
+            return set()
+        raise
+    aggregation = response.get("aggregations", {}).get("slugs", {})
+    if (response.get("timed_out") or response.get("_shards", {}).get("failed", 0)
+            or "buckets" not in aggregation or aggregation.get("sum_other_doc_count", 0)):
+        raise RuntimeError("Could not enumerate all published hyoka slugs; refusing to replace aliases.")
+    return {str(bucket["key"]) for bucket in aggregation["buckets"]} - available
+
+
+def clear_unfinished_hyoka_resume(
+    client: OpenSearchClient, index_name: str, completed_slugs: set[str], slugs: set[str]
+) -> None:
+    """途中投入の古い頁IDを消す。部分公開済み自治体と旧公開indexは触らない。"""
+    # bulk向けの refresh=-1 のまま中断した場合も、全ての旧IDをdelete queryから見えるようにする。
+    refresh_search_target(client, index_name)
+    filters: list[dict[str, Any]] = [{"term": {"doc_type": "hyoka"}}]
+    if slugs:
+        filters.append({"terms": {"slug": sorted(slugs)}})
+    query: dict[str, Any] = {"filter": filters}
+    if completed_slugs:
+        query["must_not"] = [{"terms": {"slug": sorted(completed_slugs)}}]
+    response = client.request(
+        "POST", f"/{quote(index_name)}/_delete_by_query",
+        query={"conflicts": "abort", "refresh": "false"}, body={"query": {"bool": query}},
+    )
+    if response.get("timed_out") or response.get("failures") or response.get("version_conflicts"):
+        raise RuntimeError("Could not clear unfinished hyoka documents; refusing to resume.")
+    print(f"[RESUME-CLEAR] index={index_name} deleted={int(response.get('deleted') or 0)}", flush=True)
+
+
+def replace_document_aliases(
+    client: OpenSearchClient, plans: dict[str, list[dict[str, Any]]], documents_alias: str
+) -> None:
+    actions: list[dict[str, Any]] = []
+    for alias in [*plans, documents_alias]:
+        for index in indices_for_alias(client, alias):
+            actions.append({"remove": {"index": index, "alias": alias}})
+    for alias, members in plans.items():
+        for member in members:
+            actions.append({"add": {**member, "alias": alias}})
+            # 統合検索の alias は書込先指定を引き継がない。
+            combined = {key: value for key, value in member.items() if key != "is_write_index"}
+            actions.append({"add": {**combined, "alias": documents_alias}})
+    if actions:
+        client.request("POST", "/_aliases", body={"actions": actions})
+
+
 def switch_aliases(
     client: OpenSearchClient,
     *,
@@ -1307,28 +1501,15 @@ def switch_aliases(
     minutes_alias: str,
     reiki_alias: str,
     documents_alias: str,
+    hyoka_index: str | None = None,
+    hyoka_alias: str = "miyabe-hyoka-current",
 ) -> None:
-    # alias 切り替えが公開反映の境界になる。
-    # 先に versioned index へ構築し、会議録・例規集 alias と統合 documents alias を
-    # 原子的に差し替えることで、読み手に構築途中の index を見せない。
-    target_minutes = [minutes_index] if minutes_index else indices_for_alias(client, minutes_alias)
-    target_reiki = [reiki_index] if reiki_index else indices_for_alias(client, reiki_alias)
-
-    actions: list[dict[str, Any]] = []
-    for alias in [minutes_alias, reiki_alias, documents_alias]:
-        for index in indices_for_alias(client, alias):
-            actions.append({"remove": {"index": index, "alias": alias}})
-    for index in target_minutes:
-        if index:
-            actions.append({"add": {"index": index, "alias": minutes_alias}})
-    for index in target_reiki:
-        if index:
-            actions.append({"add": {"index": index, "alias": reiki_alias}})
-    for index in target_minutes + target_reiki:
-        if index:
-            actions.append({"add": {"index": index, "alias": documents_alias}})
-    if actions:
-        client.request("POST", "/_aliases", body={"actions": actions})
+    # 未変更の種別は filter を含めて保持し、3種別と統合 alias を原子的に切り替える。
+    plans = {
+        alias: [{"index": index}] if index else alias_members(client, alias)
+        for alias, index in ((minutes_alias, minutes_index), (reiki_alias, reiki_index), (hyoka_alias, hyoka_index))
+    }
+    replace_document_aliases(client, plans, documents_alias)
 
 
 def alias_filter_for_completed_slugs(slugs: set[str]) -> dict[str, Any]:
@@ -1358,77 +1539,33 @@ def publish_partial_aliases(
     minutes_alias: str,
     reiki_alias: str,
     documents_alias: str,
+    hyoka_index: str | None = None,
+    initial_hyoka_indices: list[str] | None = None,
+    completed_hyoka_slugs: set[str] | None = None,
+    hyoka_alias: str = "miyabe-hyoka-current",
+    initial_alias_members: dict[str, list[dict[str, Any]]] | None = None,
 ) -> None:
-    # 長い rebuild 中は、完了済み slug だけを新 index から公開し、
-    # 未完了分は旧 index の alias に残す。alias filter を使うことで、
-    # 旧文書を新 index へコピーしなくても安全に混在公開できる。
-    actions: list[dict[str, Any]] = []
-    for alias in [minutes_alias, reiki_alias, documents_alias]:
-        for index in indices_for_alias(client, alias):
-            actions.append({"remove": {"index": index, "alias": alias}})
-
-    if completed_minutes_slugs and minutes_index:
-        actions.append(
-            add_alias_action(minutes_index, minutes_alias, filter_body=alias_filter_for_completed_slugs(completed_minutes_slugs))
-        )
-    for index in initial_minutes_indices:
-        actions.append(
-            add_alias_action(
-                index,
-                minutes_alias,
-                filter_body=alias_filter_excluding_completed_slugs(completed_minutes_slugs)
-                if completed_minutes_slugs
-                else None,
-            )
-        )
-
-    if completed_reiki_slugs and reiki_index:
-        actions.append(add_alias_action(reiki_index, reiki_alias, filter_body=alias_filter_for_completed_slugs(completed_reiki_slugs)))
-    for index in initial_reiki_indices:
-        actions.append(
-            add_alias_action(
-                index,
-                reiki_alias,
-                filter_body=alias_filter_excluding_completed_slugs(completed_reiki_slugs)
-                if completed_reiki_slugs
-                else None,
-            )
-        )
-
-    if completed_minutes_slugs and minutes_index:
-        actions.append(
-            add_alias_action(
-                minutes_index,
-                documents_alias,
-                filter_body=alias_filter_for_completed_slugs(completed_minutes_slugs),
-            )
-        )
-    for index in initial_minutes_indices:
-        actions.append(
-            add_alias_action(
-                index,
-                documents_alias,
-                filter_body=alias_filter_excluding_completed_slugs(completed_minutes_slugs)
-                if completed_minutes_slugs
-                else None,
-            )
-        )
-
-    if completed_reiki_slugs and reiki_index:
-        actions.append(add_alias_action(reiki_index, documents_alias, filter_body=alias_filter_for_completed_slugs(completed_reiki_slugs)))
-    for index in initial_reiki_indices:
-        actions.append(
-            add_alias_action(
-                index,
-                documents_alias,
-                filter_body=alias_filter_excluding_completed_slugs(completed_reiki_slugs)
-                if completed_reiki_slugs
-                else None,
-            )
-        )
-
-    if actions:
-        client.request("POST", "/_aliases", body={"actions": actions})
+    # 完了した自治体だけ新世代へ移す。別種別の部分公開 filter を消さない。
+    plans: dict[str, list[dict[str, Any]]] = {}
+    snapshots = initial_alias_members if initial_alias_members is not None else {}
+    for alias, index, initial, completed in (
+        (minutes_alias, minutes_index, initial_minutes_indices, completed_minutes_slugs),
+        (reiki_alias, reiki_index, initial_reiki_indices, completed_reiki_slugs),
+        (hyoka_alias, hyoka_index, initial_hyoka_indices or [], completed_hyoka_slugs or set()),
+    ):
+        if not index or not completed:
+            plans[alias] = alias_members(client, alias)
+            continue
+        if alias not in snapshots:
+            snapshots[alias] = [member for member in alias_members(client, alias) if member["index"] in initial]
+        plans[alias] = [{"index": index, "filter": alias_filter_for_completed_slugs(completed)}]
+        for member in snapshots[alias]:
+            previous_filter = member.get("filter")
+            excluded = alias_filter_excluding_completed_slugs(completed)
+            # 以前の中断rebuildが残す「完了したslugだけ／それ以外」の境界を保持する。
+            filter_body = {"bool": {"filter": [previous_filter, excluded]}} if previous_filter else excluded
+            plans[alias].append({**member, "filter": filter_body})
+    replace_document_aliases(client, plans, documents_alias)
 
 
 def publish_completed_slug(
@@ -1446,6 +1583,11 @@ def publish_completed_slug(
     minutes_alias: str,
     reiki_alias: str,
     documents_alias: str,
+    hyoka_index: str | None = None,
+    initial_hyoka_indices: list[str] | None = None,
+    completed_hyoka_slugs: set[str] | None = None,
+    hyoka_alias: str = "miyabe-hyoka-current",
+    initial_alias_members: dict[str, list[dict[str, Any]]] | None = None,
 ) -> None:
     slug = slug.strip()
     if slug == "":
@@ -1454,6 +1596,8 @@ def publish_completed_slug(
         completed_minutes_slugs.add(slug)
     elif doc_type == "reiki":
         completed_reiki_slugs.add(slug)
+    elif doc_type == "hyoka" and completed_hyoka_slugs is not None:
+        completed_hyoka_slugs.add(slug)
     else:
         return
 
@@ -1469,6 +1613,11 @@ def publish_completed_slug(
         minutes_alias=minutes_alias,
         reiki_alias=reiki_alias,
         documents_alias=documents_alias,
+        hyoka_index=hyoka_index,
+        initial_hyoka_indices=initial_hyoka_indices,
+        completed_hyoka_slugs=completed_hyoka_slugs,
+        hyoka_alias=hyoka_alias,
+        initial_alias_members=initial_alias_members,
     )
     print(f"[PUBLISH] doc_type={doc_type} slug={slug} index={index_name}", flush=True)
 
@@ -1532,6 +1681,7 @@ def update_one(
     bulk_concurrency: int,
     switch_alias: bool,
     allow_empty_slug_delete: bool = False,
+    hyoka_alias: str = "miyabe-hyoka-current",
 ) -> int:
     if not slugs:
         raise ValueError("Incremental update requires --slug.")
@@ -1616,9 +1766,11 @@ def update_one(
                         client,
                         minutes_index=index_name if doc_type == "minutes" else None,
                         reiki_index=index_name if doc_type == "reiki" else None,
+                        hyoka_index=index_name if doc_type == "hyoka" else None,
                         minutes_alias=minutes_alias,
                         reiki_alias=reiki_alias,
                         documents_alias=documents_alias,
+                        hyoka_alias=hyoka_alias,
                     )
                     print(f"[ALIAS] {alias}={index_name} {documents_alias}=combined", flush=True)
                 return count
@@ -1700,6 +1852,9 @@ def partial_alias_refusal(args: argparse.Namespace, mode: str, slugs: set[str]) 
 
 def main() -> int:
     args = parse_args()
+    # テストや既存の内部呼出しが作る Namespace とも互換にする。
+    args.hyoka_alias = getattr(args, "hyoka_alias", "miyabe-hyoka-current")
+    args.hyoka_root = getattr(args, "hyoka_root", hyoka_source_records.DEFAULT_HYOKA_ROOT)
     reset_source_integrity_tracking()
     build_id = args.build_id.strip() or default_build_id()
     slugs = parse_slug_filter(args.slug)
@@ -1714,8 +1869,8 @@ def main() -> int:
         if resume_index == "":
             print("[ERROR] --mode resume requires --resume-index.", file=sys.stderr, flush=True)
             return 2
-        if args.doc_type not in {"minutes", "reiki"}:
-            print("[ERROR] --mode resume requires --doc-type minutes or reiki.", file=sys.stderr, flush=True)
+        if args.doc_type not in {"minutes", "reiki", "hyoka"}:
+            print("[ERROR] --mode resume requires --doc-type minutes, reiki or hyoka.", file=sys.stderr, flush=True)
             return 2
 
     client = OpenSearchClient(
@@ -1748,6 +1903,7 @@ def main() -> int:
                 bulk_concurrency=bulk_concurrency,
                 switch_alias=not args.no_switch_alias,
                 allow_empty_slug_delete=bool(args.allow_empty_slug_delete),
+                hyoka_alias=args.hyoka_alias,
             )
         if args.doc_type in {"all", "reiki"}:
             update_one(
@@ -1768,31 +1924,75 @@ def main() -> int:
                 bulk_concurrency=bulk_concurrency,
                 switch_alias=not args.no_switch_alias,
                 allow_empty_slug_delete=bool(args.allow_empty_slug_delete),
+                hyoka_alias=args.hyoka_alias,
+            )
+        if args.doc_type == "hyoka":
+            update_one(
+                client,
+                doc_type="hyoka",
+                index_prefix="miyabe-hyoka",
+                alias=args.hyoka_alias,
+                documents_alias=args.documents_alias,
+                minutes_alias=args.minutes_alias,
+                reiki_alias=args.reiki_alias,
+                build_id=build_id,
+                documents=iter_hyoka_documents(limit=args.limit, slugs=slugs, strict=True, root=args.hyoka_root),
+                slugs=slugs,
+                shards=args.shards,
+                replicas=args.replicas,
+                bulk_size=bulk_size,
+                bulk_bytes=bulk_bytes,
+                bulk_concurrency=bulk_concurrency,
+                switch_alias=not args.no_switch_alias,
+                allow_empty_slug_delete=bool(args.allow_empty_slug_delete),
+                hyoka_alias=args.hyoka_alias,
             )
         return 0
 
     # 0 件の索引を公開に切り替えないための計数。作らなかった側は None のまま。
     minutes_count: int | None = None
     reiki_count: int | None = None
+    hyoka_count: int | None = None
     built_minutes_index: str | None = None
     built_reiki_index: str | None = None
+    built_hyoka_index: str | None = None
     initial_minutes_indices = indices_for_alias(client, args.minutes_alias)
     initial_reiki_indices = indices_for_alias(client, args.reiki_alias)
+    initial_hyoka_indices = indices_for_alias(client, args.hyoka_alias)
     completed_minutes_slugs: set[str] = set()
     completed_reiki_slugs: set[str] = set()
+    completed_hyoka_slugs: set[str] = set()
+    initial_alias_members: dict[str, list[dict[str, Any]]] = {}
     resume_done_slugs: set[str] = set()
+    if args.doc_type == "hyoka" and not args.no_switch_alias and not args.allow_partial_alias:
+        missing_slugs = missing_published_hyoka_slugs(client, args.hyoka_alias, args.hyoka_root)
+        if missing_slugs:
+            print("[ERROR] 公開済みhyoka自治体の保存ディレクトリがありません: " + ",".join(sorted(missing_slugs))
+                  + "。保存先を確認してください。公開aliasは切り替えません。", file=sys.stderr, flush=True)
+            return 2
     if mode == "resume":
         # 構築途中の index が実在することを確かめてから、部分公開 filter の
         # 完了済み slug をそのまま再開時のスキップリストにする。
         client.request("GET", f"/{quote(resume_index)}")
-        resume_alias = args.minutes_alias if args.doc_type == "minutes" else args.reiki_alias
+        resume_alias = {"minutes": args.minutes_alias, "reiki": args.reiki_alias, "hyoka": args.hyoka_alias}[args.doc_type]
         resume_done_slugs = alias_partial_completed_slugs(client, resume_alias, resume_index)
+        if args.doc_type == "hyoka":
+            if not re.fullmatch(r"miyabe-hyoka-v[a-z0-9][a-z0-9._-]*", resume_index):
+                print("[ERROR] hyoka resume requires a miyabe-hyoka-v... index.", file=sys.stderr, flush=True)
+                return 2
+            if resume_index in initial_hyoka_indices and not resume_done_slugs:
+                print("[ERROR] 公開済みhyoka索引をresumeできません。更新には --mode update を使ってください。",
+                      file=sys.stderr, flush=True)
+                return 2
         if args.doc_type == "minutes":
             completed_minutes_slugs = set(resume_done_slugs)
             initial_minutes_indices = [name for name in initial_minutes_indices if name != resume_index]
-        else:
+        elif args.doc_type == "reiki":
             completed_reiki_slugs = set(resume_done_slugs)
             initial_reiki_indices = [name for name in initial_reiki_indices if name != resume_index]
+        else:
+            completed_hyoka_slugs = set(resume_done_slugs)
+            initial_hyoka_indices = [name for name in initial_hyoka_indices if name != resume_index]
         print(
             f"[RESUME] index={resume_index} completed_slugs={len(resume_done_slugs)} "
             f"initial_minutes={initial_minutes_indices} initial_reiki={initial_reiki_indices}",
@@ -1808,8 +2008,12 @@ def main() -> int:
         if args.doc_type in {"all", "reiki"}
         else {}
     )
-    # 進捗表示用の総数は、上の slug 別集計をそのまま合算する（全ファイル走査を二度しない）。
-    total_document_count = sum(minutes_counts_by_slug.values()) + sum(reiki_counts_by_slug.values())
+    hyoka_counts_by_slug = (
+        count_hyoka_documents_by_slug(limit=args.limit, slugs=slugs, exclude_slugs=resume_done_slugs, root=args.hyoka_root)
+        if args.doc_type == "hyoka" else {}
+    )
+    # hyoka は原典文書数の概数。頁に分割する文書があれば投入件数の方が多い。
+    total_document_count = sum(minutes_counts_by_slug.values()) + sum(reiki_counts_by_slug.values()) + sum(hyoka_counts_by_slug.values())
     print(f"[COUNT] doc_type={args.doc_type} total={total_document_count}", flush=True)
     status_state = search_rebuild_status_start(
         build_id=build_id,
@@ -1848,12 +2052,17 @@ def main() -> int:
             minutes_alias=args.minutes_alias,
             reiki_alias=args.reiki_alias,
             documents_alias=args.documents_alias,
+            hyoka_index=built_hyoka_index,
+            initial_hyoka_indices=initial_hyoka_indices,
+            completed_hyoka_slugs=completed_hyoka_slugs,
+            hyoka_alias=args.hyoka_alias,
+            initial_alias_members=initial_alias_members,
         )
         search_rebuild_status_slug_published(
             status_state,
             source=source,
-            published_slug_count=len(completed_minutes_slugs) + len(completed_reiki_slugs),
-            published_municipality_count=len(completed_minutes_slugs | completed_reiki_slugs),
+            published_slug_count=len(completed_minutes_slugs) + len(completed_reiki_slugs) + len(completed_hyoka_slugs),
+            published_municipality_count=len(completed_minutes_slugs | completed_reiki_slugs | completed_hyoka_slugs),
         )
 
     try:
@@ -1918,6 +2127,39 @@ def main() -> int:
             )
             processed_offset += reiki_count
 
+        if args.doc_type == "hyoka":
+            built_hyoka_index = resume_index if mode == "resume" else f"miyabe-hyoka-v{build_id}"
+            if mode == "resume":
+                clear_unfinished_hyoka_resume(client, resume_index, resume_done_slugs, slugs)
+            hyoka_count = build_one(
+                client,
+                index_name=built_hyoka_index,
+                documents=iter_hyoka_documents(limit=args.limit, slugs=slugs, exclude_slugs=resume_done_slugs, root=args.hyoka_root),
+                shards=args.shards,
+                replicas=args.replicas,
+                bulk_size=bulk_size,
+                bulk_bytes=bulk_bytes,
+                bulk_concurrency=bulk_concurrency,
+                create_index=mode != "resume",
+                progress_callback=lambda total, source, slug_current: search_rebuild_status_progress(
+                    status_state,
+                    stage="hyoka",
+                    index_name=built_hyoka_index or "",
+                    processed_count=processed_offset + total,
+                    source=source,
+                    current_slug_processed_count=slug_current,
+                    current_slug_total_count=hyoka_counts_by_slug.get(str(source.get("slug") or "").strip(), 0),
+                ),
+                slug_complete_callback=(
+                    None
+                    if args.no_switch_alias
+                    else lambda slug, source, _total: publish_rebuild_slug(
+                        "hyoka", built_hyoka_index or "", slug, source
+                    )
+                ),
+            )
+            processed_offset += hyoka_count
+
         # 0 件の索引に切り替えると、公開検索が丸ごと空になる。work の
         # マウント漏れやディレクトリ構成の変更で、正常終了したまま起きる。
         empty_builds = [
@@ -1925,6 +2167,7 @@ def main() -> int:
             for name, count, index in (
                 ("会議録", minutes_count, built_minutes_index),
                 ("例規", reiki_count, built_reiki_index),
+                ("事務事業評価", hyoka_count if not resume_done_slugs else max(1, hyoka_count or 0), built_hyoka_index),
             )
             if index and count is not None and count <= 0
         ]
@@ -1990,11 +2233,14 @@ def main() -> int:
                 minutes_alias=args.minutes_alias,
                 reiki_alias=args.reiki_alias,
                 documents_alias=args.documents_alias,
+                hyoka_index=built_hyoka_index,
+                hyoka_alias=args.hyoka_alias,
             )
             print(
                 "[ALIAS] "
                 f"{args.minutes_alias}={built_minutes_index or 'unchanged'} "
                 f"{args.reiki_alias}={built_reiki_index or 'unchanged'} "
+                f"{args.hyoka_alias}={built_hyoka_index or 'unchanged'} "
                 f"{args.documents_alias}=combined",
                 flush=True,
             )

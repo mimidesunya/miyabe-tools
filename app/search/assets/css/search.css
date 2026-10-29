@@ -73,10 +73,21 @@ a {
 
 .topnav {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 4px;
   border: 1px solid var(--line);
   background: var(--panel);
+}
+
+#search-date-fields[hidden],
+#search-hyoka-fields[hidden] {
+  display: none;
+}
+
+#search-hyoka-fields {
+  display: grid;
+  gap: 14px;
 }
 
 .topnav button,
