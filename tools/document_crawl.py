@@ -130,8 +130,19 @@ class Link:
     heading: str
 
 
+BASE_HREF_RE = re.compile(r"""<base\b[^>]*\bhref\s*=\s*["']([^"']+)["']""", re.I)
+
+
 def page_links(base_url: str, html: str) -> list[Link]:
-    """ページのリンクを、直前の見出しと組にして返す。"""
+    """ページのリンクを、直前の見出しと組にして返す。
+
+    `<base href>` があれば、相対リンクはそれを基準に解く（京都市は
+    `/sogo/page/…html` に `<base href=".../sogo/">` と `./cmsfiles/…` を置く。
+    ページの URL を基準にすると `/sogo/page/cmsfiles/…` になり、全部 404 だった）。
+    """
+    declared = BASE_HREF_RE.search(html)
+    if declared:
+        base_url = urljoin(base_url, declared.group(1).strip().replace("&amp;", "&"))
     events: list[tuple[int, str, str, str]] = []
     for found in HEADING_RE.finditer(html):
         events.append((found.start(), "heading", clean_label(found.group(2)), ""))
@@ -283,10 +294,15 @@ def extract_pdf_text(raw: bytes) -> tuple[str, int]:
         raise RuntimeError("PDF の本文抽出には pypdf が必要です。") from exc
     try:
         reader = PdfReader(BytesIO(raw))
+        # 頁の木が壊れた PDF は、頁を辿る所で例外になる（岡崎市の
+        # LimitReachedError「page tree depth」、橿原市の PdfReadError
+        # 「Invalid object in /Pages」）。外へ漏れると自治体ごと止まるので、
+        # その文書だけ読めない扱いにする。
+        pages = list(reader.pages)
     except Exception:
         return "", 0
     parts: list[str] = []
-    for page in reader.pages:
+    for page in pages:
         try:
             text = page.extract_text() or ""
         except Exception:
@@ -295,7 +311,7 @@ def extract_pdf_text(raw: bytes) -> tuple[str, int]:
         if text:
             parts.append(text)
     body = re.sub(r"\n{3,}", "\n\n", "\n\n".join(parts)).strip()
-    return body, len(reader.pages)
+    return body, len(pages)
 
 
 # ─────────────────────────────────────

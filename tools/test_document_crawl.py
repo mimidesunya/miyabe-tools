@@ -121,12 +121,43 @@ class ExtractTest(unittest.TestCase):
         self.assertEqual(dc.extract_xlsx_text(b"PK\x03\x04broken"), ("", 0))
         self.assertEqual(dc.extract_docx_text(b"not a zip"), "")
 
+    def test_pdf_with_a_broken_page_tree_is_unreadable_not_fatal(self) -> None:
+        # 頁を辿る所で例外になる PDF（岡崎市・橿原市）。自治体ごと止めない。
+        class BrokenReader:
+            def __init__(self, _stream) -> None:
+                pass
+
+            @property
+            def pages(self):
+                raise RecursionError("Maximum page tree depth reached")
+
+        from unittest import mock
+
+        with mock.patch("pypdf.PdfReader", BrokenReader):
+            self.assertEqual(dc.extract_pdf_text(b"%PDF-1.4 broken"), ("", 0))
+
     def test_csv_in_shift_jis(self) -> None:
         self.assertEqual(dc.decode_csv("事業名,評価\r\n".encode("cp932")), "事業名,評価")
 
     def test_zip_member_names_read_cp932(self) -> None:
         raw = make_zip({"令和6年度/評価シート.pdf": b"%PDF-"}, cp932_names=True)
         self.assertEqual(dc.zip_member_names(raw), ["令和6年度/評価シート.pdf"])
+
+
+class PageLinksTest(unittest.TestCase):
+    def test_base_href_decides_relative_links(self) -> None:
+        # 京都市の形。ページの URL ではなく <base href> を基準に解く。
+        html = """<html><head><base href="https://www.city.kyoto.lg.jp/sogo/" /></head><body>
+            <h2>評価結果</h2><a href="./cmsfiles/contents/0000317/317431/R5hyokahyo1.pdf">評価票（PDF）</a>
+            <a href="https://other.example.jp/a.pdf">外部</a></body></html>"""
+        links = dc.page_links("https://www.city.kyoto.lg.jp/sogo/page/0000317431.html", html)
+        self.assertEqual(links[0].url, "https://www.city.kyoto.lg.jp/sogo/cmsfiles/contents/0000317/317431/R5hyokahyo1.pdf")
+        self.assertEqual(links[0].heading, "評価結果")
+        self.assertEqual(links[1].url, "https://other.example.jp/a.pdf")
+
+    def test_without_base_the_page_url_is_used(self) -> None:
+        links = dc.page_links("https://x.example.jp/a/b/page.html", '<a href="c.pdf">c</a>')
+        self.assertEqual(links[0].url, "https://x.example.jp/a/b/c.pdf")
 
 
 class FiscalYearSourceTest(unittest.TestCase):
