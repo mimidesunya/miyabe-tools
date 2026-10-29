@@ -1,0 +1,266 @@
+version: 1
+municipality:
+  code: '05000'
+  name: 秋田県
+notes: 様式3の1頁目的設定版と2頁評価版。研究課題等の異なる様式は拒否して報告。
+templates:
+- id: akita-r6-r7-standard-2pages
+  layout: single_project_sheet
+  match:
+  - pattern: 事業評価調書
+  - pattern: 事業実施の背景及び目的
+  - pattern: 事業概要及び財源
+  - pattern: 評価年度:令和[67]年度
+    rect:
+    - 0.495
+    - 0.063
+    - 0.66
+    - 0.079
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.087
+        - 0.118
+        - 0.174
+        - 0.144
+        pattern: 事業名
+      value:
+        rect:
+        - 0.176
+        - 0.118
+        - 0.644
+        - 0.144
+    department:
+      label:
+        rect:
+        - 0.392
+        - 0.145
+        - 0.481
+        - 0.159
+        pattern: 課室名
+      value:
+        rect:
+        - 0.483
+        - 0.145
+        - 0.735
+        - 0.159
+    evaluation_year:
+      label:
+        rect:
+        - 0.495
+        - 0.063
+        - 0.655
+        - 0.078
+        pattern: 評価年度
+      value:
+        rect:
+        - 0.495
+        - 0.063
+        - 0.655
+        - 0.078
+        pattern: (令和[0-9]+年度)
+    future_direction:
+      label:
+        rect:
+        - 0.086
+        - 0.469
+        - 0.4
+        - 0.484
+        pattern: 今後の対応方針
+        page: 1
+      value:
+        rect:
+        - 0.087
+        - 0.484
+        - 0.894
+        - 0.576
+        page: 1
+    issues:
+      label:
+        rect:
+        - 0.086
+        - 0.402
+        - 0.4
+        - 0.417
+        pattern: 事業推進上の課題
+        page: 1
+      value:
+        rect:
+        - 0.087
+        - 0.417
+        - 0.894
+        - 0.468
+        page: 1
+    purpose:
+      label:
+        rect:
+        - 0.087
+        - 0.185
+        - 0.56
+        - 0.199
+        pattern: 事業実施の背景及び目的
+      value:
+        rect:
+        - 0.088
+        - 0.199
+        - 0.893
+        - 0.237
+    target_year:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+    evaluation_actor:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+  pages: 2
+  continuation_match:
+  - page: 1
+    pattern: 事業推進上の課題
+  - page: 1
+    pattern: 今後の対応方針
+  raw_fields:
+  - label:
+      rect:
+      - 0.087
+      - 0.145
+      - 0.174
+      - 0.159
+      pattern: 部局名
+    value:
+      rect:
+      - 0.176
+      - 0.145
+      - 0.391
+      - 0.159
+  - label:
+      rect:
+      - 0.087
+      - 0.251
+      - 0.56
+      - 0.265
+      pattern: 事業概要及び財源
+    value:
+      rect:
+      - 0.087
+      - 0.266
+      - 0.893
+      - 0.573
+  - label:
+      rect:
+      - 0.087
+      - 0.323
+      - 0.3
+      - 0.337
+      pattern: 総合評価
+      page: 1
+    value:
+      rect:
+      - 0.087
+      - 0.337
+      - 0.3
+      - 0.39
+      page: 1
+  next_page_pattern: 事業推進上の課題
+- id: akita-r6-r7-purpose-1page
+  layout: single_project_sheet
+  match:
+  - pattern: 事業評価調書
+  - pattern: 事業実施の背景及び目的
+  - pattern: 事業概要及び財源
+  - pattern: 評価年度:令和[67]年度
+    rect:
+    - 0.495
+    - 0.063
+    - 0.66
+    - 0.079
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.087
+        - 0.118
+        - 0.174
+        - 0.144
+        pattern: 事業名
+      value:
+        rect:
+        - 0.176
+        - 0.118
+        - 0.644
+        - 0.144
+    department:
+      label:
+        rect:
+        - 0.392
+        - 0.145
+        - 0.481
+        - 0.159
+        pattern: 課室名
+      value:
+        rect:
+        - 0.483
+        - 0.145
+        - 0.735
+        - 0.159
+    evaluation_year:
+      label:
+        rect:
+        - 0.495
+        - 0.063
+        - 0.655
+        - 0.078
+        pattern: 評価年度
+      value:
+        rect:
+        - 0.495
+        - 0.063
+        - 0.655
+        - 0.078
+        pattern: (令和[0-9]+年度)
+    future_direction:
+      absent: 目的設定だけの1頁様式で、今後の対応方針欄はない。事業目的を将来方針に読み替えない。
+    purpose:
+      label:
+        rect:
+        - 0.087
+        - 0.185
+        - 0.56
+        - 0.199
+        pattern: 事業実施の背景及び目的
+      value:
+        rect:
+        - 0.088
+        - 0.199
+        - 0.893
+        - 0.237
+    target_year:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+    evaluation_actor:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+  pages: 1
+  raw_fields:
+  - label:
+      rect:
+      - 0.087
+      - 0.145
+      - 0.174
+      - 0.159
+      pattern: 部局名
+    value:
+      rect:
+      - 0.176
+      - 0.145
+      - 0.391
+      - 0.159
+  - label:
+      rect:
+      - 0.087
+      - 0.251
+      - 0.56
+      - 0.265
+      pattern: 事業概要及び財源
+    value:
+      rect:
+      - 0.087
+      - 0.266
+      - 0.893
+      - 0.573
+  next_page_not_pattern: 事業推進上の課題

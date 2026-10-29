@@ -1,0 +1,316 @@
+version: 1
+municipality:
+  code: '26465'
+  name: 京都府 与謝野町
+notes: 二次評価の記録。後日の担当課の回答は raw_fields に分けて残す。名称欄の年度を対象年度と断定しない。
+templates:
+- id: yosano-r7
+  layout: list_only
+  match:
+  - pattern: 令和7年度事務事業
+    rect:
+    - 0.04
+    - 0.065
+    - 0.4
+    - 0.083
+  - pattern: 二次評価意見
+  - pattern: 担当課の事業の見直し及び事業実施方針
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.109
+        - 0.108
+        - 0.187
+        - 0.166
+        pattern: 事務事業名.*事業名称
+      value:
+        rect:
+        - 0.11
+        - row_top
+        - 0.186
+        - row_bottom
+    project_code:
+      label:
+        rect:
+        - 0.052
+        - 0.108
+        - 0.068
+        - 0.166
+        pattern: No\.?
+      value:
+        rect:
+        - 0.053
+        - row_top
+        - 0.067
+        - row_bottom
+    department:
+      label:
+        rect:
+        - 0.068
+        - 0.108
+        - 0.109
+        - 0.166
+        pattern: 所管課
+      value:
+        rect:
+        - 0.069
+        - row_top
+        - 0.108
+        - row_bottom
+    evaluation_year:
+      label:
+        rect:
+        - 0.04
+        - 0.065
+        - 0.4
+        - 0.083
+        pattern: 二次評価における意見・見直しの方向性
+      value:
+        rect:
+        - 0.04
+        - 0.065
+        - 0.4
+        - 0.083
+        pattern: (令和[0-9]+年度)
+    evaluation_actor:
+      label:
+        rect:
+        - 0.265
+        - 0.108
+        - 0.318
+        - 0.166
+        pattern: 二次評価
+      value:
+        rect:
+        - 0.265
+        - 0.108
+        - 0.318
+        - 0.166
+        pattern: (二次評価)
+    future_direction:
+      label:
+        rect:
+        - 0.265
+        - 0.108
+        - 0.318
+        - 0.166
+        pattern: 二次評価方針区分
+      value:
+        rect:
+        - 0.266
+        - row_top
+        - 0.317
+        - row_bottom
+    evaluation_reason:
+      label:
+        rect:
+        - 0.318
+        - 0.108
+        - 0.532
+        - 0.166
+        pattern: 二次評価意見
+      value:
+        rect:
+        - 0.319
+        - row_top
+        - 0.531
+        - row_bottom
+    target_year:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+  raw_fields:
+  - label:
+      rect:
+      - 0.585
+      - 0.108
+      - 0.799
+      - 0.166
+      pattern: 担当課の事業の見直し及び事業実施方針
+    value:
+      rect:
+      - 0.586
+      - row_top
+      - 0.798
+      - row_bottom
+  - label:
+      rect:
+      - 0.532
+      - 0.108
+      - 0.585
+      - 0.166
+      pattern: 担当課事業見直し検討方針区分
+    value:
+      rect:
+      - 0.533
+      - row_top
+      - 0.584
+      - row_bottom
+  table:
+    rule_span:
+    - 0.119
+    - 0.789
+    y_range:
+    - 0.165
+    - 0.94
+    row_test:
+      rect:
+      - 0.053
+      - row_top
+      - 0.067
+      - row_bottom
+      pattern: '[0-9]+'
+- id: yosano-r6
+  layout: list_only
+  match:
+  - pattern: 令和6年度事務事業
+    rect:
+    - 0.04
+    - 0.065
+    - 0.4
+    - 0.083
+  - pattern: 二次評価意見
+  - pattern: 担当課の事業の見直し及び事業実施方針
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.12
+        - 0.104
+        - 0.192
+        - 0.157
+        pattern: 事務事業名.*事業名称
+      value:
+        rect:
+        - 0.121
+        - row_top
+        - 0.191
+        - row_bottom
+    project_code:
+      label:
+        rect:
+        - 0.067
+        - 0.104
+        - 0.081
+        - 0.157
+        pattern: No\.?
+      value:
+        rect:
+        - 0.068
+        - row_top
+        - 0.08
+        - row_bottom
+    department:
+      label:
+        rect:
+        - 0.081
+        - 0.104
+        - 0.12
+        - 0.157
+        pattern: 所管課
+      value:
+        rect:
+        - 0.082
+        - row_top
+        - 0.119
+        - row_bottom
+    evaluation_year:
+      label:
+        rect:
+        - 0.04
+        - 0.065
+        - 0.4
+        - 0.083
+        pattern: 二次評価における意見・見直しの方向性
+      value:
+        rect:
+        - 0.04
+        - 0.065
+        - 0.4
+        - 0.083
+        pattern: (令和[0-9]+年度)
+    evaluation_actor:
+      label:
+        rect:
+        - 0.265
+        - 0.104
+        - 0.314
+        - 0.157
+        pattern: 二次評価
+      value:
+        rect:
+        - 0.265
+        - 0.104
+        - 0.314
+        - 0.157
+        pattern: (二次評価)
+    future_direction:
+      label:
+        rect:
+        - 0.265
+        - 0.104
+        - 0.314
+        - 0.157
+        pattern: 二次評価方針区分
+      value:
+        rect:
+        - 0.266
+        - row_top
+        - 0.313
+        - row_bottom
+    evaluation_reason:
+      label:
+        rect:
+        - 0.314
+        - 0.104
+        - 0.515
+        - 0.157
+        pattern: 二次評価意見
+      value:
+        rect:
+        - 0.315
+        - row_top
+        - 0.514
+        - row_bottom
+    target_year:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+  raw_fields:
+  - label:
+      rect:
+      - 0.564
+      - 0.104
+      - 0.765
+      - 0.157
+      pattern: 担当課の事業の見直し及び事業実施方針
+    value:
+      rect:
+      - 0.565
+      - row_top
+      - 0.764
+      - row_bottom
+  - label:
+      rect:
+      - 0.515
+      - 0.104
+      - 0.564
+      - 0.157
+      pattern: 担当課事業見直し検討方針区分
+    value:
+      rect:
+      - 0.516
+      - row_top
+      - 0.563
+      - row_bottom
+  table:
+    rule_span:
+    - 0.13
+    - 0.755
+    y_range:
+    - 0.156
+    - 0.94
+    row_test:
+      rect:
+      - 0.068
+      - row_top
+      - 0.08
+      - row_bottom
+      pattern: '[0-9]+'

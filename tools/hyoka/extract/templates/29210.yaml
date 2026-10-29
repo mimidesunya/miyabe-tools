@@ -1,0 +1,60 @@
+version: 1
+municipality:
+  code: '29210'
+  name: 奈良県 香芝市
+notes: ''
+templates:
+- id: kashiba-three-views
+  layout: single_project_sheet
+  match:
+  - cell: A1
+    pattern: 行政評価.*3視点評価シート
+  fields:
+    project_name:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+    department:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+    evaluation_year:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+    target_year:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+    future_direction:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+    evaluation_actor:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+  format: xlsx
+  adapter: project_columns
+  columns:
+  - H
+  - I
+  - J
+  - K
+  - L
+  - M
+  - N
+  - O
+  name_row: 10
+  code_row: 9
+  question_rows:
+  - 11
+  - 12
+  - 13
+  - 14
+  - 15
+  - 16
+  - 17
+  - 18
+  - 19
+  - 20
+  - 21
+  - 22
+  - 23
+  - 24
+  - 25
+  - 28
+  - 29
+  - 30
+  label_columns:
+  - B
+  - C
+  year_cell: A1

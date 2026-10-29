@@ -1,0 +1,266 @@
+version: 1
+municipality:
+  code: '20382'
+  name: 長野県 辰野町
+notes: ''
+templates:
+- id: tatsuno-h27
+  layout: single_project_sheet
+  match:
+  - pattern: 辰野町行政評価システム
+  - pattern: 事務事業評価シート\(平成27年度実績分\)
+  - pattern: 一次評価年月日
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.183
+        - 0.067
+        - 0.438
+        - 0.084
+        pattern: 事務事業名
+      value:
+        rect:
+        - 0.183
+        - 0.084
+        - 0.438
+        - 0.115
+    project_code:
+      label:
+        rect:
+        - 0.105
+        - 0.067
+        - 0.181
+        - 0.084
+        pattern: 事務事業コード
+      value:
+        rect:
+        - 0.106
+        - 0.084
+        - 0.181
+        - 0.115
+    department:
+      label:
+        rect:
+        - 0.44
+        - 0.067
+        - 0.541
+        - 0.084
+        pattern: 担当課
+      value:
+        rect:
+        - 0.44
+        - 0.084
+        - 0.643
+        - 0.1
+    evaluation_year:
+      absent: 一次評価年月日は原文欄に保存。暦年と評価年度を同一視せず、専用年度がないため補完しない。
+    target_year:
+      label:
+        rect:
+        - 0.3
+        - 0.029
+        - 0.75
+        - 0.049
+        pattern: 事務事業評価シート
+      value:
+        rect:
+        - 0.3
+        - 0.029
+        - 0.75
+        - 0.049
+        pattern: (平成[0-9]+年度)
+    future_direction:
+      label:
+        rect:
+        - 0.13
+        - 0.531
+        - 0.82
+        - 0.544
+        pattern: 今後の方向性
+        page: 1
+      value:
+        rect:
+        - 0.13
+        - 0.546
+        - 0.82
+        - 0.562
+        page: 1
+      status: unreadable
+      note: チェック印が本文にないため方向性を未読とする。選択肢全文は raw_fields に残す。
+    evaluation_actor:
+      label:
+        rect:
+        - 0.44
+        - 0.1
+        - 0.541
+        - 0.116
+        pattern: 一次評価年月日
+      value:
+        rect:
+        - 0.44
+        - 0.1
+        - 0.541
+        - 0.116
+        pattern: (一次評価)
+    purpose:
+      label:
+        rect:
+        - 0.106
+        - 0.326
+        - 0.875
+        - 0.342
+        pattern: 目的\(意図\)
+      value:
+        rect:
+        - 0.107
+        - 0.343
+        - 0.874
+        - 0.374
+  pages: 2
+  continuation_match:
+  - page: 1
+    pattern: 所属長所見
+  raw_fields:
+  - label:
+      rect:
+      - 0.106
+      - 0.277
+      - 0.874
+      - 0.294
+      pattern: 対象\(誰のために\)
+    value:
+      rect:
+      - 0.107
+      - 0.294
+      - 0.874
+      - 0.326
+  - label:
+      rect:
+      - 0.106
+      - 0.374
+      - 0.875
+      - 0.39
+      pattern: 手段\(事業内容\)
+    value:
+      rect:
+      - 0.131
+      - 0.391
+      - 0.874
+      - 0.455
+  - label:
+      rect:
+      - 0.13
+      - 0.698
+      - 0.618
+      - 0.713
+      pattern: 改革改善案
+      page: 1
+    value:
+      rect:
+      - 0.131
+      - 0.714
+      - 0.617
+      - 0.751
+      page: 1
+  - label:
+      rect:
+      - 0.13
+      - 0.531
+      - 0.82
+      - 0.544
+      pattern: 今後の方向性
+      page: 1
+    value:
+      rect:
+      - 0.13
+      - 0.546
+      - 0.82
+      - 0.562
+      page: 1
+  - label:
+      rect:
+      - 0.44
+      - 0.1
+      - 0.541
+      - 0.116
+      pattern: 一次評価年月日
+    value:
+      rect:
+      - 0.542
+      - 0.1
+      - 0.721
+      - 0.116
+  instances:
+  - id: primary
+  - id: manager
+    fields:
+      evaluation_actor:
+        label:
+          rect:
+          - 0.107
+          - 0.751
+          - 0.6
+          - 0.766
+          pattern: 所属長所見
+          page: 1
+        value:
+          rect:
+          - 0.107
+          - 0.751
+          - 0.6
+          - 0.766
+          pattern: (所属長)
+          page: 1
+      future_direction:
+        label:
+          rect:
+          - 0.13
+          - 0.823
+          - 0.82
+          - 0.839
+          pattern: 今後の方向性
+          page: 1
+        value:
+          rect:
+          - 0.13
+          - 0.839
+          - 0.82
+          - 0.854
+          page: 1
+        status: unreadable
+        note: 所属長のチェック印が本文にないため未読。
+      evaluation_reason:
+        label:
+          rect:
+          - 0.13
+          - 0.766
+          - 0.617
+          - 0.781
+          pattern: 総合的な評価に関する所見
+          page: 1
+        value:
+          rect:
+          - 0.131
+          - 0.781
+          - 0.617
+          - 0.825
+          page: 1
+      evaluation_year:
+        absent: 一次評価年月日を所属長評価の年度へ流用しない。所属長欄に専用日付がない。
+    raw_fields:
+    - label:
+        rect:
+        - 0.13
+        - 0.823
+        - 0.82
+        - 0.839
+        pattern: 今後の方向性
+        page: 1
+      value:
+        rect:
+        - 0.13
+        - 0.839
+        - 0.82
+        - 0.854
+        page: 1

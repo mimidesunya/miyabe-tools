@@ -1,0 +1,264 @@
+version: 1
+municipality:
+  code: '07214'
+  name: 福島県 本宮市
+notes: ''
+templates:
+- id: motomiya-h21
+  layout: single_project_sheet
+  match:
+  - pattern: 本宮市行政評価システム
+  - pattern: 平成21年度実績事務事業評価シート
+  - pattern: Aシート
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.085
+        - 0.082
+        - 0.182
+        - 0.112
+        pattern: 事務事業名
+      value:
+        rect:
+        - 0.183
+        - 0.082
+        - 0.49
+        - 0.112
+    project_code:
+      label:
+        rect:
+        - 0.085
+        - 0.065
+        - 0.18
+        - 0.082
+        pattern: 整理番号
+      value:
+        rect:
+        - 0.181
+        - 0.065
+        - 0.37
+        - 0.082
+    department:
+      label:
+        rect:
+        - 0.56
+        - 0.292
+        - 0.633
+        - 0.306
+        pattern: 担当部課等
+      value:
+        rect:
+        - 0.635
+        - 0.292
+        - 0.921
+        - 0.306
+    evaluation_year:
+      absent: 作成日は原文欄に保存。評価年度専用の表示ではないため標準年度へ読み替えない。
+    target_year:
+      label:
+        rect:
+        - 0.12
+        - 0.042
+        - 0.48
+        - 0.064
+        pattern: 平成[0-9]+年度実績事務事業評価シート
+      value:
+        rect:
+        - 0.12
+        - 0.042
+        - 0.48
+        - 0.064
+        pattern: (平成[0-9]+年度)
+    future_direction:
+      label:
+        rect:
+        - 0.113
+        - 0.635
+        - 0.25
+        - 0.664
+        pattern: 今後の方向性
+        page: 1
+      value:
+        rect:
+        - 0.113
+        - 0.753
+        - 0.25
+        - 0.841
+        page: 1
+      status: unreadable
+      note: 選択肢は文字にあるがチェック印は文字に含まれない。選択結果は推測しない。
+    purpose:
+      label:
+        rect:
+        - 0.113
+        - 0.386
+        - 0.249
+        - 0.439
+        pattern: 意図→目指す成果
+      value:
+        rect:
+        - 0.251
+        - 0.386
+        - 0.611
+        - 0.439
+    evaluation_actor:
+      label:
+        rect:
+        - 0.084
+        - 0.178
+        - 0.172
+        - 0.193
+        pattern: 1次評価
+        page: 1
+      value:
+        rect:
+        - 0.084
+        - 0.178
+        - 0.172
+        - 0.193
+        pattern: (1次評価)
+        page: 1
+    issues:
+      label:
+        rect:
+        - 0.251
+        - 0.635
+        - 0.514
+        - 0.664
+        pattern: 課題と解決方法等
+        page: 1
+      value:
+        rect:
+        - 0.252
+        - 0.753
+        - 0.513
+        - 0.84
+        page: 1
+  pages: 2
+  continuation_match:
+  - page: 1
+    pattern: 評価による行動
+  raw_fields:
+  - label:
+      rect:
+      - 0.085
+      - 0.229
+      - 0.202
+      - 0.292
+      pattern: 事業概要
+    value:
+      rect:
+      - 0.205
+      - 0.229
+      - 0.921
+      - 0.292
+  - label:
+      rect:
+      - 0.085
+      - 0.44
+      - 0.249
+      - 0.493
+      pattern: 手段
+    value:
+      rect:
+      - 0.251
+      - 0.44
+      - 0.611
+      - 0.493
+  - label:
+      rect:
+      - 0.113
+      - 0.363
+      - 0.249
+      - 0.385
+      pattern: 対象
+    value:
+      rect:
+      - 0.251
+      - 0.363
+      - 0.921
+      - 0.385
+  - label:
+      rect:
+      - 0.49
+      - 0.184
+      - 0.586
+      - 0.213
+      pattern: 事務事業の根拠法令等
+    value:
+      rect:
+      - 0.586
+      - 0.184
+      - 0.921
+      - 0.213
+  - label:
+      rect:
+      - 0.683
+      - 0.05
+      - 0.751
+      - 0.068
+      pattern: 作成日
+    value:
+      rect:
+      - 0.753
+      - 0.05
+      - 0.92
+      - 0.068
+  instances:
+  - id: primary
+  - id: secondary
+    fields:
+      evaluation_actor:
+        label:
+          rect:
+          - 0.084
+          - 0.512
+          - 0.172
+          - 0.531
+          pattern: 2次評価
+          page: 1
+        value:
+          rect:
+          - 0.084
+          - 0.512
+          - 0.172
+          - 0.531
+          pattern: (2次評価)
+          page: 1
+      future_direction:
+        label:
+          rect:
+          - 0.516
+          - 0.635
+          - 0.657
+          - 0.664
+          pattern: 今後の方向性
+          page: 1
+        value:
+          rect:
+          - 0.516
+          - 0.753
+          - 0.657
+          - 0.841
+          page: 1
+        status: unreadable
+        note: 二次評価のチェック印を文字から確定できない。空欄との区別も未確定。
+      issues:
+        absent: 二次評価の欄は方針の指示であり、課題専用欄とはしない。
+    raw_fields:
+    - label:
+        rect:
+        - 0.658
+        - 0.635
+        - 0.92
+        - 0.664
+        pattern: 方針の指示
+        page: 1
+      value:
+        rect:
+        - 0.659
+        - 0.753
+        - 0.92
+        - 0.84
+        page: 1

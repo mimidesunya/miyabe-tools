@@ -1,0 +1,90 @@
+version: 1
+municipality:
+  code: '13108'
+  name: 東京都 江東区
+notes: ''
+templates:
+- id: koto-policy-list
+  layout: list_only
+  match:
+  - pattern: 施策別事務事業評価結果一覧
+  - pattern: 事務事業名称
+  - pattern: 改善方向
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.096
+        - 0.138
+        - 0.246
+        - 0.24
+        pattern: 事務事業名称
+      value:
+        rect:
+        - 0.096
+        - row_top
+        - 0.246
+        - row_bottom
+    evaluation_year:
+      label:
+        rect:
+        - 0.02
+        - 0.089
+        - 0.4
+        - 0.116
+        pattern: 施策別事務事業評価結果一覧
+      value:
+        rect:
+        - 0.02
+        - 0.089
+        - 0.4
+        - 0.116
+        pattern: (令和[0-9]+年度)
+    future_direction:
+      label:
+        rect:
+        - 0.454
+        - 0.138
+        - 0.514
+        - 0.24
+        pattern: 改善方向
+      value:
+        rect:
+        - 0.454
+        - row_top
+        - 0.514
+        - row_bottom
+    department:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+    target_year:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+    evaluation_actor:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+  raw_fields:
+  - label:
+      rect:
+      - 0.516
+      - 0.138
+      - 0.974
+      - 0.24
+      pattern: 事業概要
+    value:
+      rect:
+      - 0.516
+      - row_top
+      - 0.974
+      - row_bottom
+  table:
+    rule_span:
+    - 0.1
+    - 0.95
+    y_range:
+    - 0.24
+    - 0.96
+    row_test:
+      rect:
+      - 0.08
+      - row_top
+      - 0.094
+      - row_bottom
+      pattern: '[0-9]+'

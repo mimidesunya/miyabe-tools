@@ -1,0 +1,147 @@
+version: 1
+municipality:
+  code: '14100'
+  name: 神奈川県 横浜市
+notes: 親事業の先頭頁だけを採る。細事業の継続頁は別記録に混ぜず、未対応頁として報告。
+templates:
+- id: yokohama-project-report
+  layout: report
+  match:
+  - pattern: 令和[0-9]+年度事業評価書
+    rect:
+    - 0.07
+    - 0.06
+    - 0.93
+    - 0.09
+  - pattern: 所管区局・課
+  - pattern: 各細事業の分析結果を踏まえた事業改善の検討等
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.081
+        - 0.089
+        - 0.236
+        - 0.108
+        pattern: 令和[0-9]+年度事業名
+      value:
+        rect:
+        - 0.238
+        - 0.089
+        - 0.916
+        - 0.108
+    department:
+      label:
+        rect:
+        - 0.081
+        - 0.108
+        - 0.236
+        - 0.127
+        pattern: 所管区局・課
+      value:
+        rect:
+        - 0.238
+        - 0.108
+        - 0.455
+        - 0.127
+    evaluation_year:
+      label:
+        rect:
+        - 0.081
+        - 0.07
+        - 0.918
+        - 0.088
+        pattern: 事業評価書
+      value:
+        rect:
+        - 0.081
+        - 0.07
+        - 0.918
+        - 0.088
+        pattern: (令和[0-9]+年度)
+    target_year:
+      label:
+        rect:
+        - 0.081
+        - 0.089
+        - 0.236
+        - 0.108
+        pattern: 令和[0-9]+年度事業名
+      value:
+        rect:
+        - 0.081
+        - 0.089
+        - 0.236
+        - 0.108
+        pattern: (令和[0-9]+年度)
+    project_code:
+      label:
+        rect:
+        - 0.63
+        - 0.127
+        - 0.829
+        - 0.147
+        pattern: 評価書番号
+      value:
+        rect:
+        - 0.831
+        - 0.127
+        - 0.916
+        - 0.147
+    future_direction:
+      label:
+        rect:
+        - 0.082
+        - 0.15
+        - 0.916
+        - 0.85
+        pattern: 各細事業の分析結果を踏まえた事業改善の検討等
+      value:
+        rect:
+        - 0.082
+        - 0.15
+        - 0.916
+        - 0.85
+        below_heading: 各細事業の分析結果を踏まえた事業改善の検討等
+        columns:
+        - 0.082
+        - 0.916
+    evaluation_actor:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+  raw_fields:
+  - label:
+      rect:
+      - 0.082
+      - 0.15
+      - 0.916
+      - 0.8
+      pattern: 事業概要
+    value:
+      rect:
+      - 0.082
+      - 0.15
+      - 0.916
+      - 0.8
+      below_heading: 事業概要
+      heading_index: 0
+      columns:
+      - 0.082
+      - 0.916
+  - label:
+      rect:
+      - 0.082
+      - 0.15
+      - 0.916
+      - 0.8
+      pattern: 事業決算額
+    value:
+      rect:
+      - 0.082
+      - 0.15
+      - 0.916
+      - 0.8
+      below_heading: 事業決算額
+      heading_index: 0
+      columns:
+      - 0.082
+      - 0.916

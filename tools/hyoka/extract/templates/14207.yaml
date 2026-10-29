@@ -1,0 +1,123 @@
+version: 1
+municipality:
+  code: '14207'
+  name: 神奈川県 茅ヶ崎市
+notes: ZIP 内 PDF の課別表の先頭頁。ヘッダーを再掲しない継続頁は未対応として報告。
+templates:
+- id: chigasaki-policy-first-page
+  layout: list_only
+  match:
+  - pattern: 事務事業評価
+  - pattern: 政策的事業の実績
+  - pattern: 課名
+  - pattern: 事務事業の指標
+    rect:
+    - 0.554
+    - 0.6
+    - 0.669
+    - 0.654
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.042
+        - 0.605
+        - 0.139
+        - 0.65
+        pattern: 事務事業
+      value:
+        rect:
+        - 0.043
+        - row_top
+        - 0.138
+        - row_bottom
+    department:
+      label:
+        rect:
+        - 0.022
+        - 0.181
+        - 0.111
+        - 0.199
+        pattern: 課名
+      value:
+        rect:
+        - 0.113
+        - 0.181
+        - 0.334
+        - 0.199
+    target_year:
+      label:
+        rect:
+        - 0.02
+        - 0.579
+        - 0.7
+        - 0.604
+        pattern: 政策的事業の実績
+      value:
+        rect:
+        - 0.02
+        - 0.579
+        - 0.7
+        - 0.604
+        pattern: (令和(?:元|[0-9]+)年度)
+    evaluation_rating:
+      label:
+        rect:
+        - 0.864
+        - 0.607
+        - 0.892
+        - 0.651
+        pattern: 評価
+      value:
+        rect:
+        - 0.865
+        - row_top
+        - 0.891
+        - row_bottom
+    future_direction:
+      absent: 表に今後の方針の文章欄はない。Action の事務改善・休廃止の印は原文欄として保存し、時間軸・意味を推測しない。
+    evaluation_year:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+    evaluation_actor:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+  raw_fields:
+  - label:
+      rect:
+      - 0.321
+      - 0.599
+      - 0.555
+      - 0.62
+      pattern: 事務事業の取組結果と成果
+    value:
+      rect:
+      - 0.323
+      - row_top
+      - 0.555
+      - row_bottom
+  - label:
+      rect:
+      - 0.892
+      - 0.599
+      - 0.976
+      - 0.62
+      pattern: Action
+    value:
+      rect:
+      - 0.893
+      - row_top
+      - 0.975
+      - row_bottom
+  table:
+    rule_span:
+    - 0.03
+    - 0.976
+    y_range:
+    - 0.65
+    - 0.94
+    row_test:
+      rect:
+      - 0.022
+      - row_top
+      - 0.041
+      - row_bottom
+      pattern: '[0-9]+'

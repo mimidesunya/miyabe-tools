@@ -1,0 +1,392 @@
+version: 1
+municipality:
+  code: '13116'
+  name: 東京都 豊島区
+notes: 試行16文書には一般・詳細の評価表が含まれない。既存の共通形式設計資料2文書で別途検証。
+templates:
+- id: toshima-r6-general
+  layout: report
+  match:
+  - pattern: 事務事業評価表【一般】
+    rect:
+    - 0.3
+    - 0.061
+    - 0.8
+    - 0.078
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.157
+        - 0.082
+        - 0.234
+        - 0.096
+        pattern: 事務事業名
+      value:
+        rect:
+        - 0.237
+        - 0.082
+        - 0.835
+        - 0.096
+    department:
+      label:
+        rect:
+        - 0.427
+        - 0.096
+        - 0.487
+        - 0.11
+        pattern: 課
+      value:
+        rect:
+        - 0.49
+        - 0.096
+        - 0.835
+        - 0.11
+    evaluation_year:
+      label:
+        rect:
+        - 0.3
+        - 0.061
+        - 0.8
+        - 0.078
+        pattern: 事務事業評価表
+      value:
+        rect:
+        - 0.3
+        - 0.061
+        - 0.8
+        - 0.078
+        pattern: (令和[0-9]+年度実施)
+    target_year:
+      label:
+        rect:
+        - 0.3
+        - 0.061
+        - 0.8
+        - 0.078
+        pattern: 事務事業評価表
+      value:
+        rect:
+        - 0.3
+        - 0.061
+        - 0.8
+        - 0.078
+        pattern: (令和[0-9]+年度)
+    future_direction:
+      absent: 一般の様式には今後の事業の方向性欄がない。指標の「目指す方向性」は別の意味。
+    evaluation_actor:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+  raw_fields: []
+  instances:
+  - id: upper
+    raw_fields:
+    - label:
+        rect:
+        - 0.157
+        - 0.096
+        - 0.234
+        - 0.11
+        pattern: 部
+      value:
+        rect:
+        - 0.237
+        - 0.096
+        - 0.425
+        - 0.11
+    - label:
+        rect:
+        - 0.165
+        - 0.234
+        - 0.234
+        - 0.29
+        pattern: 6年度の実施内容
+      value:
+        rect:
+        - 0.237
+        - 0.234
+        - 0.834
+        - 0.29
+  - id: lower
+    fields:
+      project_name:
+        label:
+          rect:
+          - 0.157
+          - 0.566
+          - 0.234
+          - 0.58
+          pattern: 事務事業名
+        value:
+          rect:
+          - 0.237
+          - 0.566
+          - 0.835
+          - 0.58
+      department:
+        label:
+          rect:
+          - 0.427
+          - 0.58
+          - 0.487
+          - 0.594
+          pattern: 課
+        value:
+          rect:
+          - 0.49
+          - 0.58
+          - 0.835
+          - 0.594
+      evaluation_year:
+        label:
+          rect:
+          - 0.3
+          - 0.5449999999999999
+          - 0.8
+          - 0.5619999999999999
+          pattern: 事務事業評価表
+        value:
+          rect:
+          - 0.3
+          - 0.5449999999999999
+          - 0.8
+          - 0.5619999999999999
+          pattern: (令和[0-9]+年度実施)
+      target_year:
+        label:
+          rect:
+          - 0.3
+          - 0.5449999999999999
+          - 0.8
+          - 0.5619999999999999
+          pattern: 事務事業評価表
+        value:
+          rect:
+          - 0.3
+          - 0.5449999999999999
+          - 0.8
+          - 0.5619999999999999
+          pattern: (令和[0-9]+年度)
+      future_direction:
+        absent: 一般の様式には今後の事業の方向性欄がない。指標の「目指す方向性」は別の意味。
+      evaluation_actor:
+        absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+    raw_fields:
+    - label:
+        rect:
+        - 0.157
+        - 0.58
+        - 0.234
+        - 0.594
+        pattern: 部
+      value:
+        rect:
+        - 0.237
+        - 0.58
+        - 0.425
+        - 0.594
+    - label:
+        rect:
+        - 0.165
+        - 0.718
+        - 0.234
+        - 0.774
+        pattern: 6年度の実施内容
+      value:
+        rect:
+        - 0.237
+        - 0.718
+        - 0.834
+        - 0.774
+- id: toshima-r6-detailed
+  layout: report
+  match:
+  - pattern: 事務事業評価表【詳細】
+    rect:
+    - 0.237
+    - 0.033
+    - 0.8
+    - 0.052
+  - pattern: 事業番号
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.064
+        - 0.079
+        - 0.165
+        - 0.098
+        pattern: 事務事業名
+      value:
+        rect:
+        - 0.167
+        - 0.079
+        - 0.946
+        - 0.098
+    department:
+      label:
+        rect:
+        - 0.413
+        - 0.099
+        - 0.495
+        - 0.118
+        pattern: 課
+      value:
+        rect:
+        - 0.497
+        - 0.099
+        - 0.946
+        - 0.118
+    project_code:
+      label:
+        rect:
+        - 0.72
+        - 0.055
+        - 0.813
+        - 0.074
+        pattern: 事業番号
+      value:
+        rect:
+        - 0.815
+        - 0.055
+        - 0.946
+        - 0.074
+    evaluation_year:
+      label:
+        rect:
+        - 0.237
+        - 0.033
+        - 0.8
+        - 0.052
+        pattern: 事務事業評価表
+      value:
+        rect:
+        - 0.237
+        - 0.033
+        - 0.8
+        - 0.052
+        pattern: (令和[0-9]+年度実施)
+    target_year:
+      label:
+        rect:
+        - 0.237
+        - 0.033
+        - 0.8
+        - 0.052
+        pattern: 事務事業評価表
+      value:
+        rect:
+        - 0.237
+        - 0.033
+        - 0.8
+        - 0.052
+        pattern: (令和[0-9]+年度)
+    future_direction:
+      label:
+        rect:
+        - 0.064
+        - 0.458
+        - 0.361
+        - 0.496
+        pattern: 総合評価
+        page: 2
+      value:
+        rect:
+        - 0.363
+        - 0.458
+        - 0.945
+        - 0.496
+        page: 2
+    evaluation_actor:
+      label:
+        rect:
+        - 0.06
+        - 0.392
+        - 0.95
+        - 0.417
+        pattern: 評価内容を踏まえて管理職が記載してください
+        page: 2
+      value:
+        rect:
+        - 0.06
+        - 0.392
+        - 0.95
+        - 0.417
+        pattern: (管理職)
+        page: 2
+    purpose:
+      label:
+        rect:
+        - 0.073
+        - 0.26
+        - 0.164
+        - 0.29
+        pattern: 事業の目的・期待する効果
+      value:
+        rect:
+        - 0.167
+        - 0.26
+        - 0.946
+        - 0.29
+  pages: 3
+  continuation_match:
+  - page: 2
+    pattern: 管理職が記載してください
+  raw_fields:
+  - label:
+      rect:
+      - 0.064
+      - 0.099
+      - 0.165
+      - 0.118
+      pattern: 部
+    value:
+      rect:
+      - 0.167
+      - 0.099
+      - 0.411
+      - 0.118
+  - label:
+      rect:
+      - 0.063
+      - 0.418
+      - 0.36
+      - 0.45
+      pattern: 予算要望
+      page: 2
+    value:
+      rect:
+      - 0.363
+      - 0.418
+      - 0.946
+      - 0.45
+      page: 2
+  - label:
+      rect:
+      - 0.073
+      - 0.134
+      - 0.946
+      - 0.152
+      pattern: 取り組むべき課題
+      page: 2
+    value:
+      rect:
+      - 0.074
+      - 0.153
+      - 0.945
+      - 0.246
+      page: 2
+  - label:
+      rect:
+      - 0.073
+      - 0.247
+      - 0.946
+      - 0.264
+      pattern: 上記\(2\)に対する取組方針
+      page: 2
+    value:
+      rect:
+      - 0.074
+      - 0.265
+      - 0.945
+      - 0.313
+      page: 2

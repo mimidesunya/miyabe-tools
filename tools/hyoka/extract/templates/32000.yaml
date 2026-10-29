@@ -1,0 +1,202 @@
+version: 1
+municipality:
+  code: '32000'
+  name: 島根県
+notes: 本紙のみ。別紙 KPI の継続頁・施策評価・一覧は別扱い。
+templates:
+- id: shimane-r7
+  layout: single_project_sheet
+  match:
+  - pattern: 事務事業評価シート
+  - pattern: 1事務事業の概要
+  - pattern: 課題分析
+  - pattern: 令和7年度
+    rect:
+    - 0.8
+    - 0.045
+    - 0.94
+    - 0.07
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.074
+        - 0.14
+        - 0.196
+        - 0.166
+        pattern: 事務事業の名称
+      value:
+        rect:
+        - 0.198
+        - 0.14
+        - 0.924
+        - 0.167
+    department:
+      label:
+        rect:
+        - 0.552
+        - 0.108
+        - 0.673
+        - 0.134
+        pattern: 担当課
+      value:
+        rect:
+        - 0.675
+        - 0.108
+        - 0.924
+        - 0.134
+    evaluation_year:
+      label:
+        rect:
+        - 0.35
+        - 0.068
+        - 0.67
+        - 0.094
+        pattern: 事務事業評価シート
+      value:
+        rect:
+        - 0.8
+        - 0.049
+        - 0.925
+        - 0.068
+        pattern: (令和[0-9]+年度)
+    purpose:
+      label:
+        rect:
+        - 0.114
+        - 0.198
+        - 0.196
+        - 0.243
+        pattern: どういう状態を目指すのか
+      value:
+        rect:
+        - 0.198
+        - 0.198
+        - 0.551
+        - 0.243
+    future_direction:
+      label:
+        rect:
+        - 0.094
+        - 0.863
+        - 0.114
+        - 0.941
+        pattern: ③方向性
+      value:
+        rect:
+        - 0.198
+        - 0.864
+        - 0.924
+        - 0.94
+    issues:
+      label:
+        rect:
+        - 0.094
+        - 0.713
+        - 0.114
+        - 0.788
+        pattern: ①課題
+      value:
+        rect:
+        - 0.198
+        - 0.713
+        - 0.924
+        - 0.788
+    evaluation_reason:
+      label:
+        rect:
+        - 0.094
+        - 0.789
+        - 0.114
+        - 0.864
+        pattern: ②原因
+      value:
+        rect:
+        - 0.198
+        - 0.789
+        - 0.924
+        - 0.863
+    performance_result:
+      label:
+        rect:
+        - 0.074
+        - 0.637
+        - 0.094
+        - 0.712
+        pattern: 成果
+      value:
+        rect:
+        - 0.198
+        - 0.637
+        - 0.924
+        - 0.713
+    target_year:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+    evaluation_actor:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+  raw_fields:
+  - label:
+      rect:
+      - 0.114
+      - 0.168
+      - 0.196
+      - 0.198
+      pattern: 誰\(何\)を対象として
+    value:
+      rect:
+      - 0.198
+      - 0.168
+      - 0.551
+      - 0.198
+  - label:
+      rect:
+      - 0.074
+      - 0.244
+      - 0.196
+      - 0.306
+      pattern: 令和[0-9]+年度の取組内容
+    value:
+      rect:
+      - 0.198
+      - 0.244
+      - 0.924
+      - 0.306
+  - label:
+      rect:
+      - 0.074
+      - 0.306
+      - 0.196
+      - 0.338
+      pattern: 見直したこと
+    value:
+      rect:
+      - 0.198
+      - 0.306
+      - 0.924
+      - 0.338
+  - label:
+      rect:
+      - 0.095
+      - 0.419
+      - 0.377
+      - 0.438
+      pattern: KPIの名称
+    value:
+      rect:
+      - 0.095
+      - 0.438
+      - 0.924
+      - 0.529
+  - label:
+      rect:
+      - 0.074
+      - 0.529
+      - 0.196
+      - 0.605
+      pattern: KPIの他に参考とすべきデータや客観的事実
+    value:
+      rect:
+      - 0.198
+      - 0.53
+      - 0.924
+      - 0.604

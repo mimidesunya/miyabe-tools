@@ -1,0 +1,396 @@
+version: 1
+municipality:
+  code: '27205'
+  name: 大阪府 吹田市
+notes: ''
+templates:
+- id: suita-budget-projects
+  layout: report
+  match:
+  - pattern: 管理事業を構成する予算事業の評価シート
+  - pattern: 所管室課
+  - pattern: 今後の実施計画の方向性・内容
+  fields:
+    project_name:
+      label:
+        rect: &id001
+        - 0.467
+        - 0.13
+        - 0.513
+        - 0.85
+        anchor: 事業名
+        anchor_index: 0
+        relative_rect:
+        - -0.002
+        - -0.003
+        - 0.04
+        - 0.014
+        pattern: 事業名
+      value:
+        rect: *id001
+        anchor: 事業名
+        anchor_index: 0
+        relative_rect:
+        - 0.04
+        - -0.008
+        - 0.437
+        - 0.02
+    department:
+      label:
+        rect: *id001
+        anchor: 事業名
+        anchor_index: 0
+        relative_rect:
+        - -0.33
+        - -0.008
+        - -0.289
+        - 0.02
+        pattern: 所管室課
+      value:
+        rect: *id001
+        anchor: 事業名
+        anchor_index: 0
+        relative_rect:
+        - -0.288
+        - -0.008
+        - -0.005
+        - 0.02
+    target_year:
+      label:
+        rect:
+        - 0.678
+        - 0.06
+        - 0.79
+        - 0.084
+        pattern: 評価対象年度
+      value:
+        rect:
+        - 0.792
+        - 0.06
+        - 0.909
+        - 0.084
+    future_direction:
+      label:
+        rect:
+        - 0.08
+        - 0.15
+        - 0.91
+        - 0.84
+        pattern: 今後の実施計画
+      value:
+        rect:
+        - 0.08
+        - 0.15
+        - 0.91
+        - 0.84
+        below_heading: 今後の実施計画
+        heading_index: 0
+        columns:
+        - 0.763
+        - 0.909
+        rule_span:
+        - 0.773
+        - 0.899
+        end_rule: 2
+        bottom_from:
+          rect:
+          - 0.08
+          - 0.15
+          - 0.91
+          - 0.84
+          below_heading: 活動実績
+          heading_index: 0
+          columns:
+          - 0.092
+          - 0.509
+          rule_span:
+          - 0.102
+          - 0.499
+          end_rule: 1
+    issues:
+      label:
+        rect:
+        - 0.08
+        - 0.15
+        - 0.91
+        - 0.84
+        pattern: 事業自体の課題や対応状況・
+      value:
+        rect:
+        - 0.08
+        - 0.15
+        - 0.91
+        - 0.84
+        below_heading: 事業自体の課題や対応状況・
+        heading_index: 0
+        columns:
+        - 0.512
+        - 0.76
+        rule_span:
+        - 0.522
+        - 0.75
+        end_rule: 1
+    performance_result:
+      label:
+        rect:
+        - 0.08
+        - 0.15
+        - 0.91
+        - 0.84
+        pattern: 活動実績
+      value:
+        rect:
+        - 0.08
+        - 0.15
+        - 0.91
+        - 0.84
+        below_heading: 活動実績
+        heading_index: 0
+        columns:
+        - 0.092
+        - 0.509
+        rule_span:
+        - 0.102
+        - 0.499
+        end_rule: 1
+    evaluation_year:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+    evaluation_actor:
+      absent: この様式の事業欄に専用の表示がない。別欄・manifest からは補完しない。
+  raw_fields: []
+  instances:
+  - id: upper
+    raw_fields:
+    - label:
+        rect:
+        - 0.08
+        - 0.15
+        - 0.91
+        - 0.84
+        pattern: 事業概要
+      value:
+        rect:
+        - 0.08
+        - 0.15
+        - 0.91
+        - 0.84
+        below_heading: 事業概要
+        heading_index: 0
+        columns:
+        - 0.092
+        - 0.909
+        rule_span:
+        - 0.102
+        - 0.899
+        end_rule: 1
+    - label:
+        rect:
+        - 0.08
+        - 0.15
+        - 0.91
+        - 0.84
+        pattern: 評価の視点
+      value:
+        rect:
+        - 0.08
+        - 0.15
+        - 0.91
+        - 0.84
+        below_heading: 評価の視点
+        heading_index: 0
+        columns:
+        - 0.763
+        - 0.909
+        rule_span:
+        - 0.773
+        - 0.899
+        end_rule: 1
+  - id: lower
+    fields:
+      project_name:
+        label:
+          rect: &id002
+          - 0.467
+          - 0.13
+          - 0.513
+          - 0.85
+          anchor: 事業名
+          anchor_index: 1
+          relative_rect:
+          - -0.002
+          - -0.003
+          - 0.04
+          - 0.014
+          pattern: 事業名
+        value:
+          rect: *id002
+          anchor: 事業名
+          anchor_index: 1
+          relative_rect:
+          - 0.04
+          - -0.008
+          - 0.437
+          - 0.02
+      department:
+        label:
+          rect: *id002
+          anchor: 事業名
+          anchor_index: 1
+          relative_rect:
+          - -0.33
+          - -0.008
+          - -0.289
+          - 0.02
+          pattern: 所管室課
+        value:
+          rect: *id002
+          anchor: 事業名
+          anchor_index: 1
+          relative_rect:
+          - -0.288
+          - -0.008
+          - -0.005
+          - 0.02
+      target_year:
+        label:
+          rect:
+          - 0.678
+          - 0.06
+          - 0.79
+          - 0.084
+          pattern: 評価対象年度
+        value:
+          rect:
+          - 0.792
+          - 0.06
+          - 0.909
+          - 0.084
+      future_direction:
+        label:
+          rect:
+          - 0.08
+          - 0.15
+          - 0.91
+          - 0.84
+          pattern: 今後の実施計画
+        value:
+          rect:
+          - 0.08
+          - 0.15
+          - 0.91
+          - 0.84
+          below_heading: 今後の実施計画
+          heading_index: 1
+          columns:
+          - 0.763
+          - 0.909
+          rule_span:
+          - 0.773
+          - 0.899
+          end_rule: 2
+          bottom_from:
+            rect:
+            - 0.08
+            - 0.15
+            - 0.91
+            - 0.84
+            below_heading: 活動実績
+            heading_index: 1
+            columns:
+            - 0.092
+            - 0.509
+            rule_span:
+            - 0.102
+            - 0.499
+            end_rule: 1
+      issues:
+        label:
+          rect:
+          - 0.08
+          - 0.15
+          - 0.91
+          - 0.84
+          pattern: 事業自体の課題や対応状況・
+        value:
+          rect:
+          - 0.08
+          - 0.15
+          - 0.91
+          - 0.84
+          below_heading: 事業自体の課題や対応状況・
+          heading_index: 1
+          columns:
+          - 0.512
+          - 0.76
+          rule_span:
+          - 0.522
+          - 0.75
+          end_rule: 1
+      performance_result:
+        label:
+          rect:
+          - 0.08
+          - 0.15
+          - 0.91
+          - 0.84
+          pattern: 活動実績
+        value:
+          rect:
+          - 0.08
+          - 0.15
+          - 0.91
+          - 0.84
+          below_heading: 活動実績
+          heading_index: 1
+          columns:
+          - 0.092
+          - 0.509
+          rule_span:
+          - 0.102
+          - 0.499
+          end_rule: 1
+    raw_fields:
+    - label:
+        rect:
+        - 0.08
+        - 0.15
+        - 0.91
+        - 0.84
+        pattern: 事業概要
+      value:
+        rect:
+        - 0.08
+        - 0.15
+        - 0.91
+        - 0.84
+        below_heading: 事業概要
+        heading_index: 1
+        columns:
+        - 0.092
+        - 0.909
+        rule_span:
+        - 0.102
+        - 0.899
+        end_rule: 1
+    - label:
+        rect:
+        - 0.08
+        - 0.15
+        - 0.91
+        - 0.84
+        pattern: 評価の視点
+      value:
+        rect:
+        - 0.08
+        - 0.15
+        - 0.91
+        - 0.84
+        below_heading: 評価の視点
+        heading_index: 1
+        columns:
+        - 0.763
+        - 0.909
+        rule_span:
+        - 0.773
+        - 0.899
+        end_rule: 1

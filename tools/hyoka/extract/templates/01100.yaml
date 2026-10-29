@@ -1,0 +1,166 @@
+version: 1
+municipality:
+  code: '01100'
+  name: 北海道 札幌市
+notes: ''
+templates:
+- id: sapporo-sheet
+  layout: single_project_sheet
+  match:
+  - pattern: 事業評価調書
+  - pattern: 評価担当課
+  - pattern: 来年度以降の方向性
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.038
+        - 0.073
+        - 0.145
+        - 0.09
+        pattern: 事業名
+      value:
+        rect:
+        - 0.146
+        - 0.073
+        - 0.966
+        - 0.09
+    department:
+      label:
+        rect:
+        - 0.038
+        - 0.089
+        - 0.248
+        - 0.106
+        pattern: 評価担当課所属
+      value:
+        rect:
+        - 0.249
+        - 0.089
+        - 0.63
+        - 0.106
+    project_code:
+      label:
+        rect:
+        - 0.683
+        - 0.055
+        - 0.81
+        - 0.073
+        pattern: 事業コード
+      value:
+        rect:
+        - 0.812
+        - 0.055
+        - 0.965
+        - 0.073
+    target_year:
+      label:
+        rect:
+        - 0.038
+        - 0.055
+        - 0.145
+        - 0.073
+        pattern: 年度
+      value:
+        rect:
+        - 0.146
+        - 0.055
+        - 0.272
+        - 0.073
+    evaluation_year:
+      absent: 基本情報の年度は評価対象の実績年度。評価を行った年度は専用欄がない。
+    evaluation_actor:
+      label:
+        rect:
+        - 0.038
+        - 0.089
+        - 0.145
+        - 0.106
+        pattern: 評価担当課
+      value:
+        rect:
+        - 0.249
+        - 0.089
+        - 0.63
+        - 0.106
+    future_direction:
+      label:
+        rect:
+        - 0.038
+        - 0.923
+        - 0.145
+        - 0.964
+        pattern: 来年度以降の方向性
+      value:
+        rect:
+        - 0.146
+        - 0.925
+        - 0.965
+        - 0.963
+    purpose:
+      label:
+        rect:
+        - 0.064
+        - 0.474
+        - 0.246
+        - 0.512
+        pattern: どのような状態にしたい
+      value:
+        rect:
+        - 0.248
+        - 0.474
+        - 0.965
+        - 0.512
+  raw_fields:
+  - label:
+      rect:
+      - 0.064
+      - 0.173
+      - 0.246
+      - 0.273
+      pattern: 事業の背景
+    value:
+      rect:
+      - 0.248
+      - 0.173
+      - 0.965
+      - 0.273
+  - label:
+      rect:
+      - 0.064
+      - 0.274
+      - 0.246
+      - 0.473
+      pattern: 事業内容
+    value:
+      rect:
+      - 0.248
+      - 0.274
+      - 0.965
+      - 0.473
+  - label:
+      rect:
+      - 0.064
+      - 0.512
+      - 0.246
+      - 0.562
+      pattern: 他都市の状況
+    value:
+      rect:
+      - 0.248
+      - 0.512
+      - 0.965
+      - 0.562
+  - label:
+      rect:
+      - 0.038
+      - 0.898
+      - 0.145
+      - 0.924
+      pattern: 今年度の見直し内容
+    value:
+      rect:
+      - 0.146
+      - 0.9
+      - 0.965
+      - 0.924
