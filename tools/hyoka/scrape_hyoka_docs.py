@@ -40,6 +40,10 @@
   残りは manifest に `pending` で残り、次の回に取る。
 
 取得元から消えた文書は「消えた」（`gone`）と記録し、保存物は消さない。
+取得元で改訂された文書は、前の版（原典と本文）を上書きせず
+`_archive/{日時}_{前の sha256 の頭}/` へ移して残し、manifest の
+`previous_versions` に印を付ける（会議録・例規集と同じく、変更・削除の前の版を
+アーカイブとして蓄積する）。
 
     python tools/hyoka/scrape_hyoka_docs.py --code 01100 --dry-run
     python tools/hyoka/scrape_hyoka_docs.py --all --limit 5 --out-dir /tmp/hyoka
@@ -83,6 +87,7 @@ from document_crawl import (  # noqa: E402
     HostGuard,
     Link,
     Target,
+    archive_previous_version,
     clean_label,
     decode_csv,
     doc_id_for,
@@ -924,6 +929,9 @@ def scrape_one(target: Target, fetcher: Fetcher, work_root: Path, *, max_pages: 
         previous_file = str(entry.get("file") or "")
         relative_file = f"source/{doc_id}{DOCUMENT_EXTENSIONS.get(file_type, '.bin')}"
         relative_text = f"text/{doc_id}.txt.gz"
+        if had_previous:
+            # 改訂された。前の版（原典と本文）は上書きせず _archive へ残す。
+            archive_previous_version(work_dir, entry)
         write_bytes(work_dir / relative_file, raw)
         if previous_file and previous_file != relative_file and (work_dir / previous_file).is_file():
             # 形式が変わった（xls → xlsx など）。古い版は脇へ残す。

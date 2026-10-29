@@ -11,8 +11,10 @@
 - ページ: リンクを直前の見出しと組にして返す `page_links`、同じ組織の判定
 - 判定の部品: 会計年度の読み取り `fiscal_year`
 - 台帳: 自治体マスタと台帳 TSV から取得対象を作る `load_targets`
-- 保存: manifest の読み書き
-- 中身: 取った応答の形式の見分け（`sniff_document_type`）、PDF・Excel（xlsx）・
+- 保存: manifest の読み書き。中身が変わった文書は、上書きする前に前の版を
+  `_archive/` へ移して残す（`archive_previous_version`。会議録・例規集の
+  `_archive` と同じく、変更・削除の前の版をアーカイブとして蓄積する）
+- 中身:取った応答の形式の見分け（`sniff_document_type`）、PDF・Excel（xlsx）・
   Word（docx）の本文抽出。Excel・Word は標準ライブラリの zipfile と XML だけで
   読む（取得イメージに openpyxl などは入っていない）。xls・doc の古い形式は読まない
 
@@ -721,6 +723,43 @@ def note_fetched(entry: dict, fetched: FetchedDocument) -> tuple[str, bool]:
     entry.pop("last_error", None)
     entry.pop("last_error_at", None)
     return sha256, bool(fetched.file_ok and entry.get("sha256") == sha256)
+
+
+ARCHIVE_DIR = "_archive"
+
+
+def archive_previous_version(work_dir: Path, entry: dict) -> dict | None:
+    """中身が変わった文書の前の版を、上書きする前に `_archive/` へ移す。
+
+    取得元で改訂された評価表・報告書も、前の版をアーカイブとして残すため
+    （会議録・例規集の `_archive` と同じ考え）。`work_dir/_archive/{日時}_{前の
+    sha256 の頭 8 字}/` の下に、元と同じ相対パス（`source/…`・`text/…`）で置く。
+    `source/` の外に置くので、文書の列挙や索引には戻ってこない。移した版の印を
+    `entry["previous_versions"]` に足して返す。移す物が無ければ None。
+    """
+    old_sha = str(entry.get("sha256") or "")
+    relatives = [str(entry.get(key) or "") for key in ("file", "text_file")]
+    relatives = [rel for rel in relatives if rel and (work_dir / rel).is_file()]
+    if not old_sha or not relatives:
+        return None
+    stamp = datetime.now(JST).strftime("%Y%m%d_%H%M%S")
+    base = Path(ARCHIVE_DIR) / f"{stamp}_{old_sha[:8]}"
+    moved: list[str] = []
+    for rel in relatives:
+        destination = work_dir / base / rel
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        (work_dir / rel).replace(destination)
+        moved.append((base / rel).as_posix())
+    version = {
+        "sha256": old_sha,
+        "bytes": entry.get("bytes"),
+        "file_type": entry.get("file_type", ""),
+        "fetched_at": entry.get("fetched_at", ""),
+        "archived_at": now_text(),
+        "files": moved,
+    }
+    entry.setdefault("previous_versions", []).append(version)
+    return version
 
 
 def mark_missing(documents: dict[str, dict], listed_ids: set[str]) -> list[str]:

@@ -26,7 +26,9 @@
 - 同じホストで接続を続けて切られたら、そのホストを数時間休む
   （例規の d1-law で弾かれた経験から。記録は自治体をまたいで共有する）。
 
-取得元から消えた文書は「消えた」と記録し、保存物は消さない。
+取得元から消えた文書は「消えた」と記録し、保存物は消さない。改訂された文書は、
+前の版（原典と本文）を上書きせず `_archive/` へ移して残す（manifest の
+`previous_versions`）。
 
     python tools/kansa/scrape_kansa_reports.py --slug 01100-sapporo-shi
     python tools/kansa/scrape_kansa_reports.py --all --limit 5 --out-dir /tmp/kansa
@@ -71,6 +73,7 @@ from document_crawl import (  # noqa: E402,F401
     HostGuard,
     Link,
     Target,
+    archive_previous_version,
     clean_label,
     doc_id_for,
     fetch_document,
@@ -575,6 +578,9 @@ def scrape_one(target: Target, fetcher: Fetcher, work_root: Path, *, max_pages: 
         had_previous = bool(fetched.file_ok and entry.get("sha256"))
         relative_pdf = f"source/{doc_id}.pdf"
         relative_text = f"text/{doc_id}.txt.gz"
+        if had_previous:
+            # 改訂された。前の版（原典と本文）は上書きせず _archive へ残す。
+            archive_previous_version(work_dir, entry)
         write_bytes(work_dir / relative_pdf, raw)
         body, pages = extract_text(raw)
         entry.update({

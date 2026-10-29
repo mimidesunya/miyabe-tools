@@ -443,13 +443,24 @@ class ScrapeOneTest(unittest.TestCase):
 
     def test_changed_file_is_replaced(self) -> None:
         pages, files = site()
-        self.run_once(pages, files)
+        _result, first, _ = self.run_once(pages, files)
+        old_sha = self.documents(first)[SHEET_XLSX]["sha256"]
         files[SHEET_XLSX] = (make_xlsx([["事業名"], ["企画調整事業（改訂）"]]), files[SHEET_XLSX][1])
         result, manifest, _ = self.run_once(pages, files, refresh_days=0)
         self.assertEqual(result.updated, 1)
         entry = self.documents(manifest)[SHEET_XLSX]
         body = gzip.decompress((self.root / TARGET.slug / entry["text_file"]).read_bytes()).decode("utf-8")
         self.assertIn("企画調整事業（改訂）", body)
+        # 前の版は上書きせず _archive に残る（原典と本文の両方）。
+        [version] = entry["previous_versions"]
+        self.assertEqual(version["sha256"], old_sha)
+        self.assertEqual(len(version["files"]), 2)
+        for rel in version["files"]:
+            self.assertTrue(rel.startswith("_archive/"))
+            self.assertTrue((self.root / TARGET.slug / rel).is_file())
+        old_text = next(rel for rel in version["files"] if rel.endswith(".txt.gz"))
+        old_body = gzip.decompress((self.root / TARGET.slug / old_text).read_bytes()).decode("utf-8")
+        self.assertIn("企画調整事業\t1200\t継続", old_body)
 
     def test_removed_document_is_marked_gone_and_kept(self) -> None:
         pages, files = site()

@@ -396,6 +396,12 @@ class ScrapeOneTest(unittest.TestCase):
         entry = next(e for e in manifest["documents"].values() if e["source_url"] == REPORT)
         text = gzip.decompress((self.root / TARGET.slug / entry["text_file"]).read_bytes()).decode("utf-8")
         self.assertIn("Revised report text", text)
+        # 前の版は上書きせず _archive に残る。
+        [version] = entry["previous_versions"]
+        self.assertTrue(version["files"])
+        for rel in version["files"]:
+            self.assertTrue(rel.startswith("_archive/"))
+            self.assertTrue((self.root / TARGET.slug / rel).is_file())
 
     def test_removed_document_is_marked_and_kept(self) -> None:
         pages, files = site()
