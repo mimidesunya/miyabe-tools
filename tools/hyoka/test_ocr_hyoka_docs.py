@@ -32,7 +32,7 @@ def make_municipality(root: Path) -> Path:
     return work_dir
 
 
-def fake_ocr(path: Path):
+def fake_ocr(path: Path, **_options):
     if path.name == "a.pdf":
         return "事業名 防災訓練事業\n今後の方向性 継続", ""
     return "", "OCR の結果が空だった"
@@ -74,6 +74,42 @@ class OcrSweepTest(unittest.TestCase):
     def test_limit_docs(self) -> None:
         result = o.ocr_one_municipality(self.work_dir, limit_docs=1, ocr=fake_ocr)
         self.assertEqual((result.candidates, result.done + result.failed), (2, 1))
+
+    def test_timeout_grows_with_pages(self) -> None:
+        manifest = self.manifest()
+        manifest["documents"]["b"]["pages"] = 400
+        (self.work_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+        seen = {}
+
+        def recording_ocr(path: Path, **options):
+            seen[path.name] = options
+            return fake_ocr(path)
+
+        o.ocr_one_municipality(self.work_dir, ocr=recording_ocr)
+        # 3 頁は既定の 30 分、400 頁は 1 頁 30 秒で 12,000 秒
+        self.assertEqual(seen["a.pdf"]["timeout_seconds"], o.pdf_ocr.DEFAULT_TIMEOUT_SECONDS)
+        self.assertEqual(seen["b.pdf"]["timeout_seconds"], 400 * o.SECONDS_PER_PAGE)
+        self.assertEqual(seen["b.pdf"]["max_pages"], o.MAX_PAGES)
+
+    def test_short_timeout_is_retried_beyond_the_limit(self) -> None:
+        manifest = self.manifest()
+        manifest["documents"]["b"]["pages"] = 400
+        (self.work_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+        digest = o.pdf_ocr.file_digest(self.work_dir / "source" / "b.pdf")
+        for _ in range(2):  # 一律 30 分で 2 回時間切れになった記録
+            o.pdf_ocr.record_attempt(self.work_dir, "b", digest, status="failed", reason="時間切れ（1800秒）")
+        tried = []
+
+        def recording_ocr(path: Path, **options):
+            tried.append(path.name)
+            return fake_ocr(path)
+
+        o.ocr_one_municipality(self.work_dir, ocr=recording_ocr)
+        self.assertIn("b.pdf", tried)
+        # 長い時間でも取れなければ、次からは上限どおり飛ばす
+        tried.clear()
+        o.ocr_one_municipality(self.work_dir, ocr=recording_ocr)
+        self.assertNotIn("b.pdf", tried)
 
 
 if __name__ == "__main__":
