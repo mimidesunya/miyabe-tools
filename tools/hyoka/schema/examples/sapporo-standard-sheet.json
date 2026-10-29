@@ -1,0 +1,943 @@
+{
+  "schema_version": "1.2.0",
+  "record_id": "01100-sapporo-shi:fec2176c124dc534:p1",
+  "municipality": {
+    "slug": "01100-sapporo-shi",
+    "code": "01100",
+    "name": "北海道 札幌市",
+    "identity_source": "sample_manifest"
+  },
+  "project_key": "fec2176c124dc534:p1",
+  "evaluation_instance_key": "fec2176c124dc534:p1:unspecified",
+  "record_status": "provisional",
+  "source_document_ids": [
+    "fec2176c124dc534"
+  ],
+  "record_evidence": [
+    {
+      "doc_id": "fec2176c124dc534",
+      "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+      "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+      "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+      "locator": {
+        "type": "pdf",
+        "page": 1
+      },
+      "quote": "大腸がん検診費",
+      "methods": [
+        "pdf_text",
+        "ai_extraction"
+      ],
+      "confidence": "high",
+      "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+      "review": "codex_visual_checked"
+    }
+  ],
+  "layout": "single_project_sheet",
+  "fields": {
+    "project_name": {
+      "status": "present",
+      "value": "大腸がん検診費",
+      "raw_label": "事業名",
+      "raw_text": "大腸がん検診費",
+      "evidence": [
+        {
+          "doc_id": "fec2176c124dc534",
+          "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+          "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+          "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "大腸がん検診費",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "department": {
+      "status": "present",
+      "value": "保）ウェルネス ウェルネス推進",
+      "raw_label": "評価担当課・所属",
+      "raw_text": "保）ウェルネス ウェルネス推進",
+      "evidence": [
+        {
+          "doc_id": "fec2176c124dc534",
+          "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+          "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+          "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "保）ウェルネス ウェルネス推進",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "evaluation_actor": {
+      "status": "present",
+      "value": "保）ウェルネス ウェルネス推進",
+      "raw_label": "評価担当課",
+      "raw_text": "保）ウェルネス ウェルネス推進",
+      "evidence": [
+        {
+          "doc_id": "fec2176c124dc534",
+          "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+          "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+          "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "保）ウェルネス ウェルネス推進",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "purpose": {
+      "status": "present",
+      "value": "大腸がんの早期発見と市民の健康保持への寄与",
+      "raw_label": "事業内容／目的",
+      "raw_text": "大腸がんの早期発見と市民の健康保持への寄与",
+      "evidence": [
+        {
+          "doc_id": "fec2176c124dc534",
+          "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+          "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+          "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "大腸がんの早期発見と市民の健康保持への寄与",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "description": {
+      "status": "present",
+      "value": "問診、便潜血検査（2日法）",
+      "raw_label": "事業内容／検診項目",
+      "raw_text": "問診、便潜血検査（2日法）",
+      "evidence": [
+        {
+          "doc_id": "fec2176c124dc534",
+          "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+          "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+          "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "問診、便潜血検査（2日法）",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "policy_alignment": {
+      "status": "represented_elsewhere",
+      "value": null,
+      "raw_label": null,
+      "raw_text": null,
+      "evidence": [
+        {
+          "doc_id": "fec2176c124dc534",
+          "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+          "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+          "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "第2次札幌市がん対策推進プラン",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "施策名の専用欄は「－」。計画名は背景欄の文中にあるため、背景欄を全文で保持し、標準の値へ読み替えない。",
+      "field_kind": "embedded",
+      "related_fields": [
+        "raw_fields/raw-3"
+      ]
+    },
+    "performance_result": {
+      "status": "present",
+      "value": "令和6年度実績 54,351人",
+      "raw_label": "アウトプット活動指標1／受診者数",
+      "raw_text": "令和6年度実績 54,351人",
+      "evidence": [
+        {
+          "doc_id": "fec2176c124dc534",
+          "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+          "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+          "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "令和6年度実績 54,351人",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "evaluation_reason": {
+      "status": "present",
+      "value": "受診者数、受診率ともにR6の目標値に未達。引き続き大腸がんの予防及び早期発見と市民の健康保持への取組みを継続する。",
+      "raw_label": "指標1の評価、未達理由、今後の考え方",
+      "raw_text": "受診者数、受診率ともにR6の目標値に未達。引き続き大腸がんの予防及び早期発見と市民の健康保持への取組みを継続する。",
+      "evidence": [
+        {
+          "doc_id": "fec2176c124dc534",
+          "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+          "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+          "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "指標1の評価、未達理由、今後の考え方：受診者数、受診率ともにR6の目標値に未達。引き続き大腸がんの予防及び早期発見と市民の健康保持への取組みを継続する。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "evaluation_year": {
+      "status": "not_recorded",
+      "value": null,
+      "raw_label": "評価年度",
+      "raw_text": null,
+      "evidence": [
+        {
+          "doc_id": "fec2176c124dc534",
+          "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+          "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+          "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "年度 令和6年度",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "実績を評価した年度は記載されていない。調書の対象年度と区別する。",
+      "field_kind": "absent"
+    },
+    "target_year": {
+      "status": "present",
+      "value": 2024,
+      "raw_label": "年度・指標1の評価",
+      "raw_text": "令和6年度",
+      "evidence": [
+        {
+          "doc_id": "fec2176c124dc534",
+          "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+          "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+          "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "年度 令和6年度／受診者数、受診率ともにR6の目標値に未達。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "issues": {
+      "status": "represented_elsewhere",
+      "value": null,
+      "raw_label": null,
+      "raw_text": null,
+      "evidence": [
+        {
+          "doc_id": "fec2176c124dc534",
+          "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+          "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+          "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "受診者数、受診率ともにR6の目標値に未達。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "課題としての値はこの欄から切り出さない。元の複合欄を全文で保持する。",
+      "related_fields": [
+        "raw_fields/raw-4"
+      ],
+      "field_kind": "embedded"
+    },
+    "future_direction": {
+      "status": "present",
+      "value": {
+        "raw_term": "引き続き大腸がんの予防及び早期発見と市民の健康保持への取組みを継続する。",
+        "aspect": "business_content",
+        "normalized": [
+          "continue"
+        ],
+        "mapping_status": "mapped",
+        "mapping_entry_ids": [
+          "01100-sapporo-shi:fec2176c124dc534:p1:vocabulary:1"
+        ],
+        "relation": "single",
+        "decision_stage": "unknown"
+      },
+      "raw_label": "指標1の評価、未達理由、今後の考え方",
+      "raw_text": "引き続き大腸がんの予防及び早期発見と市民の健康保持への取組みを継続する。",
+      "evidence": [
+        {
+          "doc_id": "fec2176c124dc534",
+          "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+          "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+          "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "引き続き大腸がんの予防及び早期発見と市民の健康保持への取組みを継続する。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の方向判断を保持。正規化は明示語のある場合だけ行う。",
+      "field_kind": "dedicated"
+    },
+    "cost": {
+      "status": "present",
+      "value": [
+        {
+          "status": "present",
+          "value": {
+            "amount_yen": "71561000",
+            "original_amount": "71561",
+            "original_unit": "千円",
+            "fiscal_year": {
+              "status": "present",
+              "value": 2024,
+              "raw_label": "金額の年度",
+              "raw_text": "2024",
+              "evidence": [
+                {
+                  "doc_id": "fec2176c124dc534",
+                  "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+                  "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+                  "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+                  "locator": {
+                    "type": "pdf",
+                    "page": 1
+                  },
+                  "quote": "令和6年度決算額 71,561 千円",
+                  "methods": [
+                    "pdf_text",
+                    "ai_extraction"
+                  ],
+                  "confidence": "high",
+                  "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                  "review": "codex_visual_checked"
+                }
+              ],
+              "note": "原典の記載を転記。",
+              "field_kind": "dedicated"
+            },
+            "basis": "settlement",
+            "personnel_cost": "unknown",
+            "accounting_basis": "unknown",
+            "scope": "令和6年度決算額",
+            "conversion": "71561 × 1000 = 71561000 円"
+          },
+          "raw_label": "令和6年度決算額",
+          "raw_text": "71561 千円",
+          "evidence": [
+            {
+              "doc_id": "fec2176c124dc534",
+              "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+              "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+              "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+              "locator": {
+                "type": "pdf",
+                "page": 1
+              },
+              "quote": "令和6年度決算額 71,561 千円",
+              "methods": [
+                "pdf_text",
+                "ai_extraction"
+              ],
+              "confidence": "high",
+              "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+              "review": "codex_visual_checked"
+            }
+          ],
+          "note": "原典の記載を転記。",
+          "field_kind": "dedicated"
+        }
+      ],
+      "raw_label": "令和6年度決算額",
+      "raw_text": "71,561 千円",
+      "evidence": [
+        {
+          "doc_id": "fec2176c124dc534",
+          "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+          "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+          "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "令和6年度決算額 71,561 千円",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "indicators": {
+      "status": "present",
+      "value": [
+        {
+          "name": {
+            "status": "present",
+            "value": "受診者数",
+            "raw_label": "活動指標1",
+            "raw_text": "受診者数",
+            "evidence": [
+              {
+                "doc_id": "fec2176c124dc534",
+                "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+                "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+                "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+                "locator": {
+                  "type": "pdf",
+                  "page": 1
+                },
+                "quote": "受診者数（人） 令和6年度予定60,134／実績54,351",
+                "methods": [
+                  "pdf_text",
+                  "ai_extraction"
+                ],
+                "confidence": "high",
+                "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                "review": "codex_visual_checked"
+              }
+            ],
+            "note": "原典の記載を転記。",
+            "field_kind": "dedicated"
+          },
+          "kind": "activity",
+          "measurements": [
+            {
+              "status": "present",
+              "value": 60134,
+              "unit": {
+                "status": "present",
+                "value": "人",
+                "raw_label": "単位",
+                "raw_text": "人",
+                "evidence": [
+                  {
+                    "doc_id": "fec2176c124dc534",
+                    "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+                    "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+                    "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+                    "locator": {
+                      "type": "pdf",
+                      "page": 1
+                    },
+                    "quote": "受診者数（人） 令和6年度予定60,134／実績54,351",
+                    "methods": [
+                      "pdf_text",
+                      "ai_extraction"
+                    ],
+                    "confidence": "high",
+                    "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                    "review": "codex_visual_checked"
+                  }
+                ],
+                "note": "原典の記載を転記。",
+                "field_kind": "dedicated"
+              },
+              "fiscal_year": {
+                "status": "present",
+                "value": 2024,
+                "raw_label": "令和6年度",
+                "raw_text": "2024",
+                "evidence": [
+                  {
+                    "doc_id": "fec2176c124dc534",
+                    "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+                    "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+                    "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+                    "locator": {
+                      "type": "pdf",
+                      "page": 1
+                    },
+                    "quote": "受診者数（人） 令和6年度予定60,134／実績54,351",
+                    "methods": [
+                      "pdf_text",
+                      "ai_extraction"
+                    ],
+                    "confidence": "high",
+                    "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                    "review": "codex_visual_checked"
+                  }
+                ],
+                "note": "原典の記載を転記。",
+                "field_kind": "dedicated"
+              },
+              "role": "target",
+              "raw_text": "60134",
+              "evidence": [
+                {
+                  "doc_id": "fec2176c124dc534",
+                  "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+                  "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+                  "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+                  "locator": {
+                    "type": "pdf",
+                    "page": 1
+                  },
+                  "quote": "受診者数（人） 令和6年度予定60,134／実績54,351",
+                  "methods": [
+                    "pdf_text",
+                    "ai_extraction"
+                  ],
+                  "confidence": "high",
+                  "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                  "review": "codex_visual_checked"
+                }
+              ],
+              "note": "予定と実績の列位置を画像で確認。"
+            },
+            {
+              "status": "present",
+              "value": 54351,
+              "unit": {
+                "status": "present",
+                "value": "人",
+                "raw_label": "単位",
+                "raw_text": "人",
+                "evidence": [
+                  {
+                    "doc_id": "fec2176c124dc534",
+                    "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+                    "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+                    "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+                    "locator": {
+                      "type": "pdf",
+                      "page": 1
+                    },
+                    "quote": "受診者数（人） 令和6年度予定60,134／実績54,351",
+                    "methods": [
+                      "pdf_text",
+                      "ai_extraction"
+                    ],
+                    "confidence": "high",
+                    "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                    "review": "codex_visual_checked"
+                  }
+                ],
+                "note": "原典の記載を転記。",
+                "field_kind": "dedicated"
+              },
+              "fiscal_year": {
+                "status": "present",
+                "value": 2024,
+                "raw_label": "令和6年度",
+                "raw_text": "2024",
+                "evidence": [
+                  {
+                    "doc_id": "fec2176c124dc534",
+                    "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+                    "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+                    "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+                    "locator": {
+                      "type": "pdf",
+                      "page": 1
+                    },
+                    "quote": "受診者数（人） 令和6年度予定60,134／実績54,351",
+                    "methods": [
+                      "pdf_text",
+                      "ai_extraction"
+                    ],
+                    "confidence": "high",
+                    "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                    "review": "codex_visual_checked"
+                  }
+                ],
+                "note": "原典の記載を転記。",
+                "field_kind": "dedicated"
+              },
+              "role": "actual",
+              "raw_text": "54351",
+              "evidence": [
+                {
+                  "doc_id": "fec2176c124dc534",
+                  "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+                  "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+                  "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+                  "locator": {
+                    "type": "pdf",
+                    "page": 1
+                  },
+                  "quote": "受診者数（人） 令和6年度予定60,134／実績54,351",
+                  "methods": [
+                    "pdf_text",
+                    "ai_extraction"
+                  ],
+                  "confidence": "high",
+                  "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                  "review": "codex_visual_checked"
+                }
+              ],
+              "note": "予定と実績の列位置を画像で確認。"
+            }
+          ]
+        }
+      ],
+      "raw_label": "活動指標1",
+      "raw_text": "受診者数（人）予定60,134／実績54,351",
+      "evidence": [
+        {
+          "doc_id": "fec2176c124dc534",
+          "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+          "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+          "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "受診者数（人） 令和6年度予定60,134／実績54,351",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    }
+  },
+  "raw_fields": [
+    {
+      "field_id": "raw-1",
+      "label": "事業コード",
+      "section_path": [],
+      "occurrence": 1,
+      "canonical_field": "project_code",
+      "content": {
+        "status": "present",
+        "value": "21626",
+        "raw_label": "事業コード",
+        "raw_text": "21626",
+        "evidence": [
+          {
+            "doc_id": "fec2176c124dc534",
+            "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+            "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+            "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+            "locator": {
+              "type": "pdf",
+              "page": 1
+            },
+            "quote": "事業コード 21626",
+            "methods": [
+              "pdf_text",
+              "ai_extraction"
+            ],
+            "confidence": "high",
+            "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+            "review": "codex_visual_checked"
+          }
+        ],
+        "note": "原文の欄を保持。",
+        "field_kind": "dedicated"
+      }
+    },
+    {
+      "field_id": "raw-2",
+      "label": "事業内容／対象者",
+      "section_path": [],
+      "occurrence": 1,
+      "canonical_field": "target_population",
+      "content": {
+        "status": "present",
+        "value": "市内に居住する40歳以上の方",
+        "raw_label": "事業内容／対象者",
+        "raw_text": "市内に居住する40歳以上の方",
+        "evidence": [
+          {
+            "doc_id": "fec2176c124dc534",
+            "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+            "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+            "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+            "locator": {
+              "type": "pdf",
+              "page": 1
+            },
+            "quote": "事業内容／対象者：市内に居住する40歳以上の方",
+            "methods": [
+              "pdf_text",
+              "ai_extraction"
+            ],
+            "confidence": "high",
+            "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+            "review": "codex_visual_checked"
+          }
+        ],
+        "note": "専用欄だが、専用欄の重み付き割合が50%未満のため原文の項目として保持。",
+        "field_kind": "dedicated"
+      }
+    },
+    {
+      "field_id": "raw-3",
+      "label": "事業の背景（現在の状況、社会的課題）",
+      "section_path": [],
+      "occurrence": 1,
+      "canonical_field": null,
+      "content": {
+        "status": "present",
+        "value": "厚生労働省の指針に基づき実施。国の「がん対策推進基本計画」と同様に第2次札幌市がん対策推進プランにて、大腸がん検診受診率60％を目標としている。",
+        "raw_label": "事業の背景（現在の状況、社会的課題）",
+        "raw_text": "厚生労働省の指針に基づき実施。国の「がん対策推進基本計画」と同様に第2次札幌市がん対策推進プランにて、大腸がん検診受診率60％を目標としている。",
+        "evidence": [
+          {
+            "doc_id": "fec2176c124dc534",
+            "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+            "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+            "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+            "locator": {
+              "type": "pdf",
+              "page": 1
+            },
+            "quote": "事業の背景（現在の状況、社会的課題）：厚生労働省の指針に基づき実施。国の「がん対策推進基本計画」と同様に第2次札幌市がん対策推進プランにて、大腸がん検診受診率60％を目標としている。",
+            "methods": [
+              "pdf_text",
+              "ai_extraction"
+            ],
+            "confidence": "high",
+            "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+            "review": "codex_visual_checked"
+          }
+        ],
+        "note": "原文の欄全体を保持。文中から別の標準項目を切り出さない。",
+        "field_kind": "embedded"
+      }
+    },
+    {
+      "field_id": "raw-4",
+      "label": "指標1の評価、未達理由、今後の考え方",
+      "section_path": [],
+      "occurrence": 1,
+      "canonical_field": null,
+      "content": {
+        "status": "present",
+        "value": "受診者数、受診率ともにR6の目標値に未達。引き続き大腸がんの予防及び早期発見と市民の健康保持への取組みを継続する。",
+        "raw_label": "指標1の評価、未達理由、今後の考え方",
+        "raw_text": "受診者数、受診率ともにR6の目標値に未達。引き続き大腸がんの予防及び早期発見と市民の健康保持への取組みを継続する。",
+        "evidence": [
+          {
+            "doc_id": "fec2176c124dc534",
+            "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+            "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+            "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+            "locator": {
+              "type": "pdf",
+              "page": 1
+            },
+            "quote": "指標1の評価、未達理由、今後の考え方：受診者数、受診率ともにR6の目標値に未達。引き続き大腸がんの予防及び早期発見と市民の健康保持への取組みを継続する。",
+            "methods": [
+              "pdf_text",
+              "ai_extraction"
+            ],
+            "confidence": "high",
+            "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+            "review": "codex_visual_checked"
+          }
+        ],
+        "note": "原文の欄全体を保持。文中から別の標準項目を切り出さない。",
+        "field_kind": "embedded"
+      }
+    }
+  ],
+  "vocabulary_tables": [
+    {
+      "schema_version": "1.2.0",
+      "table_id": "01100-sapporo-shi:fec2176c124dc534:p1:vocabulary",
+      "municipality_slug": "01100-sapporo-shi",
+      "scope": {
+        "evaluation_year_from": null,
+        "evaluation_year_to": null,
+        "evaluator": "保）ウェルネス ウェルネス推進",
+        "form_name": "fec2176c124dc534",
+        "version_note": "この例の文書・頁に限る。年度を推定して適用範囲を広げない。"
+      },
+      "entries": [
+        {
+          "entry_id": "01100-sapporo-shi:fec2176c124dc534:p1:vocabulary:1",
+          "dimension": "direction",
+          "aspect": "business_content",
+          "raw_term": "引き続き大腸がんの予防及び早期発見と市民の健康保持への取組みを継続する。",
+          "meaning": {
+            "status": "present",
+            "value": "引き続き大腸がんの予防及び早期発見と市民の健康保持への取組みを継続する。",
+            "raw_label": "原典の語又は凡例",
+            "raw_text": "引き続き大腸がんの予防及び早期発見と市民の健康保持への取組みを継続する。",
+            "evidence": [
+              {
+                "doc_id": "fec2176c124dc534",
+                "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+                "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+                "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+                "locator": {
+                  "type": "pdf",
+                  "page": 1
+                },
+                "quote": "引き続き大腸がんの予防及び早期発見と市民の健康保持への取組みを継続する。",
+                "methods": [
+                  "pdf_text",
+                  "ai_extraction"
+                ],
+                "confidence": "high",
+                "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                "review": "codex_visual_checked"
+              }
+            ],
+            "note": "原典の記載を転記。",
+            "field_kind": "dedicated"
+          },
+          "normalized_direction": [
+            "continue"
+          ],
+          "relation": "single",
+          "basis": "explicit_source_wording",
+          "evidence": [
+            {
+              "doc_id": "fec2176c124dc534",
+              "source_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/documents/20251021626.pdf",
+              "page_url": "https://www.city.sapporo.jp/somu/hyoka/kekka/documents/zikohyouka/r7kyoku/hokennhukusi.html",
+              "sha256": "3792f16520fb2e7b93d54129d0d1fef621b1b2f8c97b15965c679882458bb5d7",
+              "locator": {
+                "type": "pdf",
+                "page": 1
+              },
+              "quote": "引き続き大腸がんの予防及び早期発見と市民の健康保持への取組みを継続する。",
+              "methods": [
+                "pdf_text",
+                "ai_extraction"
+              ],
+              "confidence": "high",
+              "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+              "review": "codex_visual_checked"
+            }
+          ],
+          "note": "自治体・年度・様式・評価主体の範囲内のみ有効。",
+          "source_field_kind": "dedicated",
+          "source_label": "指標1の評価、未達理由、今後の考え方",
+          "application": "dedicated_only"
+        }
+      ],
+      "application_policy": "dedicated_fields_only"
+    }
+  ],
+  "extraction": {
+    "created_by": "Codex; manually transcribed from page images",
+    "human_reviewed": false,
+    "completeness": "partial_example",
+    "note": "画像を見て手で選んだ値の設計検証例。必ず探す項目は確認した。全任意欄・全raw_fieldsの完全転記ではない。 1.1.0で当該頁の見出しと値を再照合。専用欄からのみ標準の値を転記し、別欄の文中の意味はraw_fieldsに欄全体で保持。部分例であり全欄の転記完了を表さない。"
+  }
+}

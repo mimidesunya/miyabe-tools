@@ -1,0 +1,637 @@
+{
+  "schema_version": "1.2.0",
+  "record_id": "05000-akita-ken:8e875c829de01d94:p1",
+  "municipality": {
+    "slug": "05000-akita-ken",
+    "code": "05000",
+    "name": "秋田県",
+    "identity_source": "sample_manifest"
+  },
+  "project_key": "8e875c829de01d94:p1",
+  "evaluation_instance_key": "8e875c829de01d94:p1:unspecified",
+  "record_status": "provisional",
+  "source_document_ids": [
+    "8e875c829de01d94"
+  ],
+  "record_evidence": [
+    {
+      "doc_id": "8e875c829de01d94",
+      "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+      "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+      "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+      "locator": {
+        "type": "pdf",
+        "page": 1
+      },
+      "quote": "地域課題解決ビジネス創出事業",
+      "methods": [
+        "pdf_text",
+        "ai_extraction"
+      ],
+      "confidence": "high",
+      "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+      "review": "codex_visual_checked",
+      "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+    }
+  ],
+  "layout": "single_project_sheet",
+  "fields": {
+    "project_name": {
+      "status": "present",
+      "value": "地域課題解決ビジネス創出事業",
+      "raw_label": "事業名",
+      "raw_text": "地域課題解決ビジネス創出事業",
+      "evidence": [
+        {
+          "doc_id": "8e875c829de01d94",
+          "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+          "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+          "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "地域課題解決ビジネス創出事業",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked",
+          "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "evaluation_year": {
+      "status": "present",
+      "value": 2026,
+      "raw_label": "評価年度",
+      "raw_text": "令和8年度",
+      "evidence": [
+        {
+          "doc_id": "8e875c829de01d94",
+          "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+          "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+          "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "評価年度：令和8年度",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked",
+          "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+        }
+      ],
+      "note": "令和8年度を西暦年度に換算。",
+      "field_kind": "dedicated"
+    },
+    "department": {
+      "status": "present",
+      "value": "人口戦略部 地域づくり推進課",
+      "raw_label": "部局名・課室名",
+      "raw_text": "人口戦略部 地域づくり推進課",
+      "evidence": [
+        {
+          "doc_id": "8e875c829de01d94",
+          "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+          "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+          "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "人口戦略部 地域づくり推進課",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked",
+          "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "purpose": {
+      "status": "present",
+      "value": "人口減少に伴う地域課題の解決のため、構想段階からビジネスモデルの確立に至るまで、多様な主体が一体となって取り組むことにより、持続可能な地域づくりを推進する。",
+      "raw_label": "事業実施の背景及び目的",
+      "raw_text": "人口減少に伴う地域課題の解決のため、構想段階からビジネスモデルの確立に至るまで、多様な主体が一体となって取り組むことにより、持続可能な地域づくりを推進する。",
+      "evidence": [
+        {
+          "doc_id": "8e875c829de01d94",
+          "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+          "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+          "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "人口減少に伴う地域課題の解決のため、構想段階からビジネスモデルの確立に至るまで、多様な主体が一体となって取り組むことにより、持続可能な地域づくりを推進する。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked",
+          "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "description": {
+      "status": "present",
+      "value": "民間専門家の知見を活用し、地域共通の課題や地域資源等の調査を実施するほか、実証調査に向けた対象エリアを選定し、事業計画の策定や実施体制づくり等を行う。",
+      "raw_label": "事業概要及び財源",
+      "raw_text": "民間専門家の知見を活用し、地域共通の課題や地域資源等の調査を実施するほか、実証調査に向けた対象エリアを選定し、事業計画の策定や実施体制づくり等を行う。",
+      "evidence": [
+        {
+          "doc_id": "8e875c829de01d94",
+          "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+          "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+          "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "民間専門家の知見を活用し、地域共通の課題や地域資源等の調査を実施するほか、実証調査に向けた対象エリアを選定し、事業計画の策定や実施体制づくり等を行う。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked",
+          "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "policy_alignment": {
+      "status": "present",
+      "value": "1 未来づくり／3 誰もが自分らしくいられる魅力ある地域社会を構築する／③ 未来につながる地域コミュニティづくり",
+      "raw_label": "政策・施策・方向性",
+      "raw_text": "1 未来づくり／3 誰もが自分らしくいられる魅力ある地域社会を構築する／③ 未来につながる地域コミュニティづくり",
+      "evidence": [
+        {
+          "doc_id": "8e875c829de01d94",
+          "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+          "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+          "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "1 未来づくり／3 誰もが自分らしくいられる魅力ある地域社会を構築する／③ 未来につながる地域コミュニティづくり",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked",
+          "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "issues": {
+      "status": "represented_elsewhere",
+      "value": null,
+      "raw_label": null,
+      "raw_text": null,
+      "evidence": [
+        {
+          "doc_id": "8e875c829de01d94",
+          "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+          "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+          "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "現時点では定量的な指標を設定することが困難である。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked",
+          "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+        }
+      ],
+      "note": "この意味の専用欄はない。参照先に原文の欄全体を保持し、標準の値は埋めない。",
+      "field_kind": "embedded",
+      "related_fields": [
+        "raw_fields/raw-2"
+      ]
+    },
+    "target_year": {
+      "status": "not_applicable",
+      "value": null,
+      "raw_label": "評価対象年度",
+      "raw_text": null,
+      "evidence": [
+        {
+          "doc_id": "8e875c829de01d94",
+          "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+          "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+          "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "事業年度 R8年度～R11年度",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked",
+          "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+        }
+      ],
+      "note": "新規事業の目標設定段階。過年度実績の評価対象は該当しない。予算年度を対象年度に転用しない。",
+      "field_kind": "absent"
+    },
+    "evaluation_actor": {
+      "status": "not_recorded",
+      "value": null,
+      "raw_label": "評価主体・段階",
+      "raw_text": null,
+      "evidence": [
+        {
+          "doc_id": "8e875c829de01d94",
+          "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+          "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+          "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "事業評価調書（目的設定、中間評価、事後評価）",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked",
+          "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+        }
+      ],
+      "note": "この1頁には評価主体を特定する記載がない。担当部署だけでは評価主体としない。",
+      "field_kind": "absent"
+    },
+    "performance_result": {
+      "status": "not_applicable",
+      "value": null,
+      "raw_label": "実施結果・成果",
+      "raw_text": null,
+      "evidence": [
+        {
+          "doc_id": "8e875c829de01d94",
+          "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+          "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+          "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "見込まれる効果及び具体的な把握方法",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked",
+          "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+        }
+      ],
+      "note": "新規事業の目的設定段階であり、事後の実績・所見は該当しない。",
+      "field_kind": "dedicated"
+    },
+    "evaluation_reason": {
+      "status": "not_applicable",
+      "value": null,
+      "raw_label": "評価の理由・所見",
+      "raw_text": null,
+      "evidence": [
+        {
+          "doc_id": "8e875c829de01d94",
+          "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+          "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+          "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "見込まれる効果及び具体的な把握方法",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked",
+          "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+        }
+      ],
+      "note": "新規事業の目的設定段階であり、事後の実績・所見は該当しない。",
+      "field_kind": "absent"
+    },
+    "future_direction": {
+      "status": "represented_elsewhere",
+      "value": null,
+      "raw_label": null,
+      "raw_text": null,
+      "evidence": [
+        {
+          "doc_id": "8e875c829de01d94",
+          "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+          "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+          "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "事業計画に基づき、課題解決プロジェクトの実証に着手し",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked",
+          "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+        }
+      ],
+      "note": "この意味の専用欄はない。参照先に原文の欄全体を保持し、標準の値は埋めない。",
+      "field_kind": "embedded",
+      "related_fields": [
+        "raw_fields/raw-3"
+      ]
+    },
+    "cost": {
+      "status": "present",
+      "value": [
+        {
+          "status": "present",
+          "value": {
+            "amount_yen": "5278000",
+            "original_amount": "5278",
+            "original_unit": "千円",
+            "fiscal_year": {
+              "status": "present",
+              "value": 2026,
+              "raw_label": "金額の年度",
+              "raw_text": "2026",
+              "evidence": [
+                {
+                  "doc_id": "8e875c829de01d94",
+                  "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+                  "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+                  "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+                  "locator": {
+                    "type": "pdf",
+                    "page": 1
+                  },
+                  "quote": "令和8年度予算額 5,278（単位：千円）",
+                  "methods": [
+                    "pdf_text",
+                    "ai_extraction"
+                  ],
+                  "confidence": "high",
+                  "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                  "review": "codex_visual_checked",
+                  "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+                }
+              ],
+              "note": "原典の記載を転記。",
+              "field_kind": "dedicated"
+            },
+            "basis": "budget_unspecified",
+            "personnel_cost": "unknown",
+            "accounting_basis": "unknown",
+            "scope": "令和8年度予算額",
+            "conversion": "5278 × 1000 = 5278000 円"
+          },
+          "raw_label": "令和8年度予算額",
+          "raw_text": "5278 千円",
+          "evidence": [
+            {
+              "doc_id": "8e875c829de01d94",
+              "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+              "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+              "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+              "locator": {
+                "type": "pdf",
+                "page": 1
+              },
+              "quote": "令和8年度予算額 5,278（単位：千円）",
+              "methods": [
+                "pdf_text",
+                "ai_extraction"
+              ],
+              "confidence": "high",
+              "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+              "review": "codex_visual_checked",
+              "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+            }
+          ],
+          "note": "原典の記載を転記。",
+          "field_kind": "dedicated"
+        }
+      ],
+      "raw_label": "事業概要及び財源",
+      "raw_text": "5,278千円",
+      "evidence": [
+        {
+          "doc_id": "8e875c829de01d94",
+          "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+          "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+          "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "令和8年度予算額 5,278（単位：千円）",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked",
+          "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "indicators": {
+      "status": "not_applicable",
+      "value": null,
+      "raw_label": "指標名",
+      "raw_text": null,
+      "evidence": [
+        {
+          "doc_id": "8e875c829de01d94",
+          "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+          "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+          "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "現時点では定量的な指標を設定することが困難である。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked",
+          "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+        }
+      ],
+      "note": "欄はあるが、原典が定量指標を設定できないと説明。",
+      "field_kind": "dedicated"
+    }
+  },
+  "raw_fields": [
+    {
+      "field_id": "raw-1",
+      "label": "事業年度",
+      "section_path": [],
+      "occurrence": 1,
+      "canonical_field": "implementation_period",
+      "content": {
+        "status": "present",
+        "value": "R8年度～R11年度",
+        "raw_label": "事業年度",
+        "raw_text": "R8年度～R11年度",
+        "evidence": [
+          {
+            "doc_id": "8e875c829de01d94",
+            "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+            "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+            "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+            "locator": {
+              "type": "pdf",
+              "page": 1
+            },
+            "quote": "事業年度 R8年度～R11年度",
+            "methods": [
+              "pdf_text",
+              "ai_extraction"
+            ],
+            "confidence": "high",
+            "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+            "review": "codex_visual_checked",
+            "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+          }
+        ],
+        "note": "原文の欄を保持。",
+        "field_kind": "dedicated"
+      }
+    },
+    {
+      "field_id": "raw-2",
+      "label": "①指標を設定することができない理由",
+      "section_path": [],
+      "occurrence": 1,
+      "canonical_field": null,
+      "content": {
+        "status": "present",
+        "value": "令和8年度に実施する事前調査により、具体的な対象エリアの選定や、課題解決に向けたプロジェクトの事業計画を策定することとしており、現時点では定量的な指標を設定することが困難であるため。",
+        "raw_label": "①指標を設定することができない理由",
+        "raw_text": "令和8年度に実施する事前調査により、具体的な対象エリアの選定や、課題解決に向けたプロジェクトの事業計画を策定することとしており、現時点では定量的な指標を設定することが困難であるため。",
+        "evidence": [
+          {
+            "doc_id": "8e875c829de01d94",
+            "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+            "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+            "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+            "locator": {
+              "type": "pdf",
+              "page": 1
+            },
+            "quote": "①指標を設定することができない理由：令和8年度に実施する事前調査により、具体的な対象エリアの選定や、課題解決に向けたプロジェクトの事業計画を策定することとしており、現時点では定量的な指標を設定することが困難であるため。",
+            "methods": [
+              "pdf_text",
+              "ai_extraction"
+            ],
+            "confidence": "high",
+            "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+            "review": "codex_visual_checked",
+            "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+          }
+        ],
+        "note": "原文の欄全体を保持。文中から別の標準項目を切り出さない。",
+        "field_kind": "embedded"
+      }
+    },
+    {
+      "field_id": "raw-3",
+      "label": "②見込まれる効果及び具体的な把握方法（データの出典含む）",
+      "section_path": [],
+      "occurrence": 1,
+      "canonical_field": null,
+      "content": {
+        "status": "present",
+        "value": "事業計画に基づき、課題解決プロジェクトの実証に着手し、ビジネスとして地域に根付くことによる地域課題解決の効果（事業実施エリア数、地域課題解決ビジネスの創出数等により把握）を見込んでいる。",
+        "raw_label": "②見込まれる効果及び具体的な把握方法（データの出典含む）",
+        "raw_text": "事業計画に基づき、課題解決プロジェクトの実証に着手し、ビジネスとして地域に根付くことによる地域課題解決の効果（事業実施エリア数、地域課題解決ビジネスの創出数等により把握）を見込んでいる。",
+        "evidence": [
+          {
+            "doc_id": "8e875c829de01d94",
+            "source_url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9%E8%A3%9C/01_%E4%BA%BA%E5%8F%A3%E6%88%A6%E7%95%A5%E9%83%A8%EF%BC%88%EF%BC%91%E4%BB%B6%EF%BC%89.pdf",
+            "page_url": "https://www.pref.akita.lg.jp/pages/archive/99456",
+            "sha256": "9b23842e21c2a838e23db1c622dbda5a1e623990333034f9039179065fe72b3e",
+            "locator": {
+              "type": "pdf",
+              "page": 1
+            },
+            "quote": "②見込まれる効果及び具体的な把握方法（データの出典含む）：事業計画に基づき、課題解決プロジェクトの実証に着手し、ビジネスとして地域に根付くことによる地域課題解決の効果（事業実施エリア数、地域課題解決ビジネスの創出数等により把握）を見込んでいる。",
+            "methods": [
+              "pdf_text",
+              "ai_extraction"
+            ],
+            "confidence": "high",
+            "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+            "review": "codex_visual_checked",
+            "source_url_original": "https://www.pref.akita.lg.jp/uploads/public/archive_0000099456_00/R8.9補/01_人口戦略部（１件）.pdf"
+          }
+        ],
+        "note": "原文の欄全体を保持。文中から別の標準項目を切り出さない。",
+        "field_kind": "embedded"
+      }
+    }
+  ],
+  "vocabulary_tables": [],
+  "extraction": {
+    "created_by": "Codex; manually transcribed from page images",
+    "human_reviewed": false,
+    "completeness": "partial_example",
+    "note": "画像を見て手で選んだ値の設計検証例。必ず探す項目は確認した。全任意欄・全raw_fieldsの完全転記ではない。 1.1.0で当該頁の見出しと値を再照合。専用欄からのみ標準の値を転記し、別欄の文中の意味はraw_fieldsに欄全体で保持。部分例であり全欄の転記完了を表さない。"
+  }
+}

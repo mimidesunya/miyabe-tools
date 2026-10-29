@@ -1,0 +1,2739 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tools.miya.be/schemas/hyoka/evaluation-record-1.2.0.schema.json",
+  "title": "事務事業評価の共通記録 1.2.0",
+  "description": "1事業×1評価年度×1評価主体・段階。自治体の評価を原典付きで転記する。サイトによる事業評価は生成しない。 標準の値は専用の欄・見出しからのみ転記する。別の自由記述欄に埋め込まれた意味はraw_fieldsに欄ごと保持する。",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1.2.0"
+    },
+    "record_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "municipality": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string",
+          "minLength": 1
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^[0-9]{5}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "identity_source": {
+          "enum": [
+            "sample_manifest",
+            "document_manifest",
+            "municipality_registry"
+          ]
+        }
+      },
+      "required": [
+        "slug",
+        "code",
+        "name",
+        "identity_source"
+      ],
+      "additionalProperties": false
+    },
+    "project_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evaluation_instance_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "record_status": {
+      "enum": [
+        "identified",
+        "provisional"
+      ]
+    },
+    "source_document_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "record_evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidence"
+      },
+      "minItems": 1
+    },
+    "layout": {
+      "enum": [
+        "report",
+        "single_project_sheet",
+        "list_only"
+      ]
+    },
+    "fields": {
+      "$ref": "#/$defs/fields"
+    },
+    "raw_fields": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/raw_field"
+      },
+      "minItems": 0
+    },
+    "vocabulary_tables": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/vocabulary_table"
+      },
+      "minItems": 0
+    },
+    "extraction": {
+      "type": "object",
+      "properties": {
+        "created_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "human_reviewed": {
+          "type": "boolean"
+        },
+        "completeness": {
+          "enum": [
+            "complete_for_record",
+            "partial_example"
+          ]
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "created_by",
+        "human_reviewed",
+        "completeness",
+        "note"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "record_id",
+    "municipality",
+    "project_key",
+    "evaluation_instance_key",
+    "record_status",
+    "source_document_ids",
+    "record_evidence",
+    "layout",
+    "fields",
+    "raw_fields",
+    "vocabulary_tables",
+    "extraction"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "locator": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "pdf"
+            },
+            "page": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "printed_page": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "bbox": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 4,
+              "maxItems": 4
+            }
+          },
+          "required": [
+            "type",
+            "page"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "spreadsheet"
+            },
+            "sheet": {
+              "type": "string",
+              "minLength": 1
+            },
+            "cells": {
+              "type": "string",
+              "pattern": "^[A-Z]+[1-9][0-9]*(:[A-Z]+[1-9][0-9]*)?$"
+            },
+            "rendered_doc_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "rendered_page": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "type",
+            "sheet",
+            "cells",
+            "rendered_doc_id",
+            "rendered_page"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "word"
+            },
+            "paragraph": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "rendered_doc_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "rendered_page": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "type",
+            "paragraph",
+            "rendered_doc_id",
+            "rendered_page"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "doc_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://"
+        },
+        "page_url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "locator": {
+          "$ref": "#/$defs/locator"
+        },
+        "quote": {
+          "type": "string",
+          "minLength": 1
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "excel",
+              "pdf_text",
+              "ocr",
+              "ai_extraction",
+              "manual_transcription"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "confidence_basis": {
+          "type": "string",
+          "minLength": 1
+        },
+        "review": {
+          "enum": [
+            "unreviewed",
+            "codex_text_checked",
+            "codex_visual_checked",
+            "human_checked"
+          ]
+        },
+        "source_url_original": {
+          "type": "string",
+          "pattern": "^https?://"
+        }
+      },
+      "required": [
+        "doc_id",
+        "source_url",
+        "page_url",
+        "sha256",
+        "locator",
+        "quote",
+        "methods",
+        "confidence",
+        "confidence_basis",
+        "review"
+      ],
+      "additionalProperties": false
+    },
+    "field_base": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "enum": [
+            "present",
+            "unreadable",
+            "other_document",
+            "represented_elsewhere",
+            "not_recorded",
+            "not_applicable",
+            "unverified"
+          ],
+          "description": "unverifiedは取り出し途中だけ。確認した原典に記載が無い場合はnot_recorded。"
+        },
+        "value": {},
+        "raw_text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "raw_label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          },
+          "minItems": 1
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1
+        },
+        "related_fields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "other_document_hint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "field_kind": {
+          "enum": [
+            "dedicated",
+            "embedded",
+            "absent",
+            "unverified"
+          ],
+          "description": "dedicated=専用欄・明示した見出し、embedded=別の欄の文中だけ、absent=専用欄なし、unverified=欄未確認。値の有無のstatusとは別。"
+        }
+      },
+      "required": [
+        "status",
+        "value",
+        "raw_text",
+        "raw_label",
+        "evidence",
+        "note",
+        "field_kind"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "present"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "raw_text": {
+                "type": "string",
+                "minLength": 1
+              },
+              "field_kind": {
+                "const": "dedicated"
+              },
+              "raw_label": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "value": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "represented_elsewhere"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "related_fields"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "other_document"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "other_document_hint"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "field_kind": {
+                "const": "embedded"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "const": "represented_elsewhere"
+              },
+              "raw_text": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "text_field": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/field_base"
+        },
+        {
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "year_field": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/field_base"
+        },
+        {
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1800,
+                  "maximum": 2199
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "money_value": {
+      "type": "object",
+      "properties": {
+        "amount_yen": {
+          "type": "string",
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "description": "円単位の十進文字列。桁落ち・丸めを避ける。負数と円未満も原典どおり保持。"
+        },
+        "original_amount": {
+          "type": "string",
+          "minLength": 1
+        },
+        "original_unit": {
+          "enum": [
+            "円",
+            "千円",
+            "万円",
+            "百万円",
+            "億円",
+            "十万円"
+          ]
+        },
+        "fiscal_year": {
+          "$ref": "#/$defs/year_field"
+        },
+        "basis": {
+          "enum": [
+            "budget_initial",
+            "budget_revised",
+            "budget_final",
+            "budget_requested",
+            "budget_unspecified",
+            "settlement",
+            "settlement_estimate",
+            "other",
+            "unknown",
+            "actual",
+            "administrative_cost"
+          ]
+        },
+        "personnel_cost": {
+          "enum": [
+            "included",
+            "excluded",
+            "only",
+            "unknown"
+          ]
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "conversion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "accounting_basis": {
+          "enum": [
+            "cash",
+            "accrual",
+            "mixed",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "amount_yen",
+        "original_amount",
+        "original_unit",
+        "fiscal_year",
+        "basis",
+        "personnel_cost",
+        "scope",
+        "conversion",
+        "accounting_basis"
+      ],
+      "additionalProperties": false
+    },
+    "money_field": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/field_base"
+        },
+        {
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/money_value"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "direction_value": {
+      "type": "object",
+      "properties": {
+        "raw_term": {
+          "type": "string",
+          "minLength": 1
+        },
+        "aspect": {
+          "enum": [
+            "business_content",
+            "budget",
+            "mixed",
+            "unspecified"
+          ]
+        },
+        "normalized": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "expand",
+              "continue",
+              "improve",
+              "reduce",
+              "integrate",
+              "suspend",
+              "abolish",
+              "complete",
+              "end",
+              "new",
+              "other"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "mapping_status": {
+          "enum": [
+            "mapped",
+            "ambiguous",
+            "unmapped"
+          ]
+        },
+        "mapping_entry_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "relation": {
+          "enum": [
+            "single",
+            "combined",
+            "alternatives",
+            "unmapped"
+          ]
+        },
+        "decision_stage": {
+          "enum": [
+            "decided",
+            "proposed",
+            "under_consideration",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "raw_term",
+        "aspect",
+        "normalized",
+        "mapping_status",
+        "mapping_entry_ids",
+        "relation"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mapping_status": {
+                "const": "mapped"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "normalized": {
+                "minItems": 1
+              },
+              "mapping_entry_ids": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mapping_status": {
+                "const": "unmapped"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "normalized": {
+                "maxItems": 0
+              },
+              "mapping_entry_ids": {
+                "maxItems": 0
+              },
+              "relation": {
+                "const": "unmapped"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "relation": {
+                "const": "single"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "normalized": {
+                "minItems": 1,
+                "maxItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "relation": {
+                "enum": [
+                  "combined",
+                  "alternatives"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "normalized": {
+                "minItems": 2
+              }
+            }
+          }
+        }
+      ]
+    },
+    "direction_field": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/field_base"
+        },
+        {
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/direction_value"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "rating_value": {
+      "type": "object",
+      "properties": {
+        "raw_term": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dimension": {
+          "type": "string",
+          "minLength": 1
+        },
+        "meaning": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mapping_status": {
+          "enum": [
+            "mapped",
+            "unmapped",
+            "ambiguous"
+          ]
+        },
+        "mapping_entry_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "raw_term",
+        "dimension",
+        "meaning",
+        "mapping_status",
+        "mapping_entry_ids"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mapping_status": {
+                "const": "mapped"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "meaning": {
+                "type": "string",
+                "minLength": 1
+              },
+              "mapping_entry_ids": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "rating_field": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/field_base"
+        },
+        {
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/rating_value"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "indicator": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/text_field"
+        },
+        "kind": {
+          "enum": [
+            "activity",
+            "outcome",
+            "target_population",
+            "efficiency",
+            "other",
+            "unknown"
+          ]
+        },
+        "measurements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/measurement"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "measurements"
+      ],
+      "additionalProperties": false
+    },
+    "measurement": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "present",
+            "unreadable",
+            "other_document",
+            "represented_elsewhere",
+            "not_recorded",
+            "not_applicable",
+            "unverified"
+          ]
+        },
+        "unit": {
+          "$ref": "#/$defs/text_field"
+        },
+        "fiscal_year": {
+          "$ref": "#/$defs/year_field"
+        },
+        "role": {
+          "enum": [
+            "target",
+            "actual",
+            "estimate",
+            "achievement_rate",
+            "baseline",
+            "unknown"
+          ]
+        },
+        "raw_text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          },
+          "minItems": 1
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1
+        },
+        "related_fields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "other_document_hint": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "value",
+        "status",
+        "unit",
+        "fiscal_year",
+        "role",
+        "raw_text",
+        "evidence",
+        "note"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "present"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "raw_text": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "value": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "represented_elsewhere"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "related_fields"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "other_document"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "other_document_hint"
+            ]
+          }
+        }
+      ]
+    },
+    "indicators_field": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/field_base"
+        },
+        {
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/indicator"
+                  },
+                  "minItems": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "cost_field": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/field_base"
+        },
+        {
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/money_field"
+                  },
+                  "minItems": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "raw_field": {
+      "type": "object",
+      "properties": {
+        "field_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "section_path": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "occurrence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content": {
+          "$ref": "#/$defs/raw_text_field"
+        },
+        "canonical_field": {
+          "enum": [
+            null,
+            "project_name",
+            "project_code",
+            "department",
+            "evaluation_year",
+            "target_year",
+            "purpose",
+            "description",
+            "target_population",
+            "legal_basis",
+            "policy_alignment",
+            "implementation_period",
+            "cost",
+            "funding",
+            "staff",
+            "indicators",
+            "performance_result",
+            "evaluation_rating",
+            "evaluation_reason",
+            "future_direction",
+            "issues",
+            "evaluation_actor",
+            "improvement_history"
+          ],
+          "description": "専用欄で意味が明示されるときだけ項目名を付けられる。embeddedは必ずnull。"
+        },
+        "interpretation": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/rating_value"
+            },
+            {
+              "$ref": "#/$defs/direction_value"
+            }
+          ]
+        }
+      },
+      "required": [
+        "field_id",
+        "label",
+        "section_path",
+        "occurrence",
+        "content",
+        "canonical_field"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "content": {
+                "properties": {
+                  "field_kind": {
+                    "const": "embedded"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "canonical_field": {
+                "type": "null"
+              }
+            },
+            "not": {
+              "required": [
+                "interpretation"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "mapping_entry": {
+      "type": "object",
+      "properties": {
+        "entry_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dimension": {
+          "enum": [
+            "direction",
+            "rating"
+          ]
+        },
+        "aspect": {
+          "enum": [
+            "business_content",
+            "budget",
+            "mixed",
+            "unspecified"
+          ]
+        },
+        "raw_term": {
+          "type": "string",
+          "minLength": 1
+        },
+        "meaning": {
+          "$ref": "#/$defs/text_field",
+          "description": "自治体の凡例又は原文の説明。提案による読み替えはbasisで区別する。"
+        },
+        "normalized_direction": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "expand",
+              "continue",
+              "improve",
+              "reduce",
+              "integrate",
+              "suspend",
+              "abolish",
+              "complete",
+              "end",
+              "new",
+              "other"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "relation": {
+          "enum": [
+            "single",
+            "combined",
+            "alternatives",
+            "unmapped"
+          ]
+        },
+        "basis": {
+          "enum": [
+            "official_legend",
+            "explicit_source_wording",
+            "proposed_interpretation"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          },
+          "minItems": 1
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decision_stage": {
+          "enum": [
+            "decided",
+            "proposed",
+            "under_consideration",
+            "unknown"
+          ]
+        },
+        "source_field_kind": {
+          "const": "dedicated"
+        },
+        "source_label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "application": {
+          "enum": [
+            "dedicated_only",
+            "proposal_only"
+          ]
+        }
+      },
+      "required": [
+        "entry_id",
+        "dimension",
+        "aspect",
+        "raw_term",
+        "meaning",
+        "normalized_direction",
+        "relation",
+        "basis",
+        "evidence",
+        "note",
+        "source_field_kind",
+        "source_label",
+        "application"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "basis": {
+                "const": "proposed_interpretation"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "application": {
+                "const": "proposal_only"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "vocabulary_table": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "1.2.0"
+        },
+        "table_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "municipality_slug": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "type": "object",
+          "properties": {
+            "evaluation_year_from": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "evaluation_year_to": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "evaluator": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "form_name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version_note": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "evaluation_year_from",
+            "evaluation_year_to",
+            "evaluator",
+            "form_name"
+          ],
+          "additionalProperties": false
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/mapping_entry"
+          },
+          "minItems": 1
+        },
+        "application_policy": {
+          "const": "dedicated_fields_only"
+        }
+      },
+      "required": [
+        "schema_version",
+        "table_id",
+        "municipality_slug",
+        "scope",
+        "entries",
+        "application_policy"
+      ],
+      "additionalProperties": false
+    },
+    "target_year_field": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/field_base"
+        },
+        {
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1800,
+                      "maximum": 2199
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "integer",
+                        "minimum": 1800,
+                        "maximum": 2199
+                      },
+                      "minItems": 1,
+                      "uniqueItems": true
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "funding_component": {
+      "type": "object",
+      "properties": {
+        "source_name": {
+          "$ref": "#/$defs/text_field"
+        },
+        "amount": {
+          "$ref": "#/$defs/money_field"
+        }
+      },
+      "required": [
+        "source_name",
+        "amount"
+      ],
+      "additionalProperties": false
+    },
+    "funding_field": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/field_base"
+        },
+        {
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/funding_component"
+                  },
+                  "minItems": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "staff_component": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/text_field"
+        },
+        "quantity": {
+          "$ref": "#/$defs/measurement"
+        },
+        "personnel_cost": {
+          "$ref": "#/$defs/money_field"
+        }
+      },
+      "required": [
+        "category",
+        "quantity"
+      ],
+      "additionalProperties": false
+    },
+    "staff_field": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/field_base"
+        },
+        {
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/staff_component"
+                  },
+                  "minItems": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "fields": {
+      "type": "object",
+      "properties": {
+        "project_name": {
+          "$ref": "#/$defs/text_field",
+          "description": "事業名。毎記録で専用の欄を必ず探し、値又は理由を保持する。記録の識別用として状態は常に必須。",
+          "x-prevalence": {
+            "sample": "20261028b",
+            "review_version": "1.1.0",
+            "classification_basis": "dedicated_only",
+            "dedicated": {
+              "count": 95,
+              "denominator": 95,
+              "crude_pct": 100.0,
+              "crude_ci95": [
+                96.1135146460527,
+                100
+              ],
+              "weighted_pct": 100.0,
+              "weighted_ci95": [
+                95.59491064729073,
+                100
+              ],
+              "by_stratum": {
+                "都道府県": 8,
+                "政令市": 7,
+                "市": 52,
+                "町村": 20,
+                "特別区": 8
+              }
+            },
+            "anywhere": {
+              "count": 95,
+              "denominator": 95,
+              "crude_pct": 100.0,
+              "crude_ci95": [
+                96.1135146460527,
+                100
+              ],
+              "weighted_pct": 100.0,
+              "weighted_ci95": [
+                95.59491064729073,
+                100
+              ],
+              "by_stratum": {
+                "都道府県": 8,
+                "政令市": 7,
+                "市": 52,
+                "町村": 20,
+                "特別区": 8
+              }
+            },
+            "class": "always_seek"
+          }
+        },
+        "project_code": {
+          "$ref": "#/$defs/text_field",
+          "description": "事業番号。標準の任意項目。専用の欄がある場合だけ値を入れる。",
+          "x-prevalence": {
+            "sample": "20261028b",
+            "review_version": "1.1.0",
+            "classification_basis": "dedicated_only",
+            "dedicated": {
+              "count": 81,
+              "denominator": 95,
+              "crude_pct": 85.26315789473684,
+              "crude_ci95": [
+                76.77140150925396,
+                91.01391934638322
+              ],
+              "weighted_pct": 85.85189883453587,
+              "weighted_ci95": [
+                76.78925910519958,
+                91.75592220726368
+              ],
+              "by_stratum": {
+                "都道府県": 6,
+                "政令市": 6,
+                "市": 45,
+                "町村": 17,
+                "特別区": 7
+              }
+            },
+            "anywhere": {
+              "count": 81,
+              "denominator": 95,
+              "crude_pct": 85.26315789473684,
+              "crude_ci95": [
+                76.77140150925396,
+                91.01391934638322
+              ],
+              "weighted_pct": 85.85189883453587,
+              "weighted_ci95": [
+                76.78925910519958,
+                91.75592220726368
+              ],
+              "by_stratum": {
+                "都道府県": 6,
+                "政令市": 6,
+                "市": 45,
+                "町村": 17,
+                "特別区": 7
+              }
+            },
+            "class": "standard_optional"
+          }
+        },
+        "department": {
+          "$ref": "#/$defs/text_field",
+          "description": "担当部署。毎記録で専用の欄を必ず探し、値又は理由を保持する（1.2.0で標準任意から必ず探す項目へ。境目の項目をユーザーの判断で入れた）。",
+          "x-prevalence": {
+            "sample": "20261028b",
+            "review_version": "1.1.0",
+            "classification_basis": "dedicated_only",
+            "dedicated": {
+              "count": 89,
+              "denominator": 95,
+              "crude_pct": 93.6842105263158,
+              "crude_ci95": [
+                86.89934899993075,
+                97.07351116451531
+              ],
+              "weighted_pct": 93.81748989138194,
+              "weighted_ci95": [
+                86.4765229353017,
+                97.29805768380272
+              ],
+              "by_stratum": {
+                "都道府県": 7,
+                "政令市": 7,
+                "市": 48,
+                "町村": 20,
+                "特別区": 7
+              }
+            },
+            "anywhere": {
+              "count": 91,
+              "denominator": 95,
+              "crude_pct": 95.78947368421052,
+              "crude_ci95": [
+                89.66912227790326,
+                98.35062271374501
+              ],
+              "weighted_pct": 96.49250773011974,
+              "weighted_ci95": [
+                90.07373510769963,
+                98.81520733688576
+              ],
+              "by_stratum": {
+                "都道府県": 7,
+                "政令市": 7,
+                "市": 50,
+                "町村": 20,
+                "特別区": 7
+              }
+            },
+            "class": "always_seek",
+            "class_decided_by": "user_decision_1.2.0_borderline_promoted"
+          }
+        },
+        "evaluation_year": {
+          "$ref": "#/$defs/year_field",
+          "description": "評価年度。標準の任意項目。専用の欄がある場合だけ値を入れる。記録の識別用として状態は常に必須。",
+          "x-prevalence": {
+            "sample": "20261028b",
+            "review_version": "1.1.0",
+            "classification_basis": "dedicated_only",
+            "dedicated": {
+              "count": 77,
+              "denominator": 95,
+              "crude_pct": 81.05263157894737,
+              "crude_ci95": [
+                72.02640343034892,
+                87.6651477708838
+              ],
+              "weighted_pct": 77.72139855704444,
+              "weighted_ci95": [
+                67.68172049773496,
+                85.318771863837
+              ],
+              "by_stratum": {
+                "都道府県": 8,
+                "政令市": 6,
+                "市": 38,
+                "町村": 17,
+                "特別区": 8
+              }
+            },
+            "anywhere": {
+              "count": 79,
+              "denominator": 95,
+              "crude_pct": 83.15789473684211,
+              "crude_ci95": [
+                74.37969103145609,
+                89.35874499697886
+              ],
+              "weighted_pct": 80.39641639578225,
+              "weighted_ci95": [
+                70.6182535683273,
+                87.49660061872565
+              ],
+              "by_stratum": {
+                "都道府県": 8,
+                "政令市": 6,
+                "市": 40,
+                "町村": 17,
+                "特別区": 8
+              }
+            },
+            "class": "standard_optional"
+          }
+        },
+        "target_year": {
+          "$ref": "#/$defs/target_year_field",
+          "description": "評価対象年度。標準の任意項目。専用の欄がある場合だけ値を入れる。記録の識別用として状態は常に必須。",
+          "x-prevalence": {
+            "sample": "20261028b",
+            "review_version": "1.1.0",
+            "classification_basis": "dedicated_only",
+            "dedicated": {
+              "count": 60,
+              "denominator": 95,
+              "crude_pct": 63.1578947368421,
+              "crude_ci95": [
+                53.12312475552954,
+                72.16990541448432
+              ],
+              "weighted_pct": 67.74914770474916,
+              "weighted_ci95": [
+                57.12547838951346,
+                76.80908538850778
+              ],
+              "by_stratum": {
+                "都道府県": 1,
+                "政令市": 4,
+                "市": 36,
+                "町村": 15,
+                "特別区": 4
+              }
+            },
+            "anywhere": {
+              "count": 75,
+              "denominator": 95,
+              "crude_pct": 78.94736842105263,
+              "crude_ci95": [
+                69.7068523805465,
+                85.93781399348403
+              ],
+              "weighted_pct": 82.83596289542545,
+              "weighted_ci95": [
+                73.34440106706207,
+                89.43461771305692
+              ],
+              "by_stratum": {
+                "都道府県": 3,
+                "政令市": 5,
+                "市": 45,
+                "町村": 16,
+                "特別区": 6
+              }
+            },
+            "class": "standard_optional"
+          }
+        },
+        "purpose": {
+          "$ref": "#/$defs/text_field",
+          "description": "目的。標準の任意項目。専用の欄がある場合だけ値を入れる。",
+          "x-prevalence": {
+            "sample": "20261028b",
+            "review_version": "1.1.0",
+            "classification_basis": "dedicated_only",
+            "dedicated": {
+              "count": 60,
+              "denominator": 95,
+              "crude_pct": 63.1578947368421,
+              "crude_ci95": [
+                53.12312475552954,
+                72.16990541448432
+              ],
+              "weighted_pct": 61.988424641243256,
+              "weighted_ci95": [
+                51.258606937016516,
+                71.66204071061203
+              ],
+              "by_stratum": {
+                "都道府県": 3,
+                "政令市": 6,
+                "市": 30,
+                "町村": 15,
+                "特別区": 6
+              }
+            },
+            "anywhere": {
+              "count": 94,
+              "denominator": 95,
+              "crude_pct": 98.94736842105263,
+              "crude_ci95": [
+                94.27612985868637,
+                99.8139423737652
+              ],
+              "weighted_pct": 98.6624910806311,
+              "weighted_ci95": [
+                93.29269443273878,
+                99.74503530181144
+              ],
+              "by_stratum": {
+                "都道府県": 8,
+                "政令市": 7,
+                "市": 51,
+                "町村": 20,
+                "特別区": 8
+              }
+            },
+            "class": "standard_optional"
+          }
+        },
+        "description": {
+          "$ref": "#/$defs/text_field",
+          "description": "事業内容。標準の任意項目。専用の欄がある場合だけ値を入れる。",
+          "x-prevalence": {
+            "sample": "20261028b",
+            "review_version": "1.1.0",
+            "classification_basis": "dedicated_only",
+            "dedicated": {
+              "count": 82,
+              "denominator": 95,
+              "crude_pct": 86.31578947368422,
+              "crude_ci95": [
+                77.98355682887076,
+                91.82520644036752
+              ],
+              "weighted_pct": 85.21366843732665,
+              "weighted_ci95": [
+                76.05259842690195,
+                91.2723513296893
+              ],
+              "by_stratum": {
+                "都道府県": 7,
+                "政令市": 7,
+                "市": 44,
+                "町村": 17,
+                "特別区": 7
+              }
+            },
+            "anywhere": {
+              "count": 94,
+              "denominator": 95,
+              "crude_pct": 98.94736842105263,
+              "crude_ci95": [
+                94.27612985868637,
+                99.8139423737652
+              ],
+              "weighted_pct": 98.6624910806311,
+              "weighted_ci95": [
+                93.29269443273878,
+                99.74503530181144
+              ],
+              "by_stratum": {
+                "都道府県": 8,
+                "政令市": 7,
+                "市": 51,
+                "町村": 20,
+                "特別区": 8
+              }
+            },
+            "class": "standard_optional"
+          }
+        },
+        "policy_alignment": {
+          "$ref": "#/$defs/text_field",
+          "description": "上位計画との関係。標準の任意項目。専用の欄がある場合だけ値を入れる。",
+          "x-prevalence": {
+            "sample": "20261028b",
+            "review_version": "1.1.0",
+            "classification_basis": "dedicated_only",
+            "dedicated": {
+              "count": 86,
+              "denominator": 95,
+              "crude_pct": 90.52631578947368,
+              "crude_ci95": [
+                82.96695632641025,
+                94.93557659723247
+              ],
+              "weighted_pct": 91.09569491794186,
+              "weighted_ci95": [
+                83.03968988164418,
+                95.53109579173523
+              ],
+              "by_stratum": {
+                "都道府県": 7,
+                "政令市": 6,
+                "市": 47,
+                "町村": 19,
+                "特別区": 7
+              }
+            },
+            "anywhere": {
+              "count": 90,
+              "denominator": 95,
+              "crude_pct": 94.73684210526315,
+              "crude_ci95": [
+                88.2651138829621,
+                97.73118869508504
+              ],
+              "weighted_pct": 95.54110838024263,
+              "weighted_ci95": [
+                88.76103671220548,
+                98.30892701555207
+              ],
+              "by_stratum": {
+                "都道府県": 7,
+                "政令市": 6,
+                "市": 50,
+                "町村": 19,
+                "特別区": 8
+              }
+            },
+            "class": "standard_optional"
+          }
+        },
+        "implementation_period": {
+          "$ref": "#/$defs/text_field",
+          "description": "事業の期間。標準の任意項目。専用の欄がある場合だけ値を入れる。",
+          "x-prevalence": {
+            "sample": "20261028b",
+            "review_version": "1.1.0",
+            "classification_basis": "dedicated_only",
+            "dedicated": {
+              "count": 53,
+              "denominator": 95,
+              "crude_pct": 55.78947368421052,
+              "crude_ci95": [
+                45.77109695973124,
+                65.35783631507486
+              ],
+              "weighted_pct": 55.91294695948634,
+              "weighted_ci95": [
+                45.22870881307332,
+                66.07624391201202
+              ],
+              "by_stratum": {
+                "都道府県": 5,
+                "政令市": 2,
+                "市": 29,
+                "町村": 11,
+                "特別区": 6
+              }
+            },
+            "anywhere": {
+              "count": 83,
+              "denominator": 95,
+              "crude_pct": 87.36842105263159,
+              "crude_ci95": [
+                79.20785988097695,
+                92.62434580186245
+              ],
+              "weighted_pct": 87.56917466106407,
+              "weighted_ci95": [
+                78.79447232379458,
+                93.03396557254298
+              ],
+              "by_stratum": {
+                "都道府県": 8,
+                "政令市": 4,
+                "市": 45,
+                "町村": 18,
+                "特別区": 8
+              }
+            },
+            "class": "standard_optional"
+          }
+        },
+        "cost": {
+          "$ref": "#/$defs/cost_field",
+          "description": "事業費。標準の任意項目。専用の欄がある場合だけ値を入れる。",
+          "x-prevalence": {
+            "sample": "20261028b",
+            "review_version": "1.1.0",
+            "classification_basis": "dedicated_only",
+            "dedicated": {
+              "count": 86,
+              "denominator": 95,
+              "crude_pct": 90.52631578947368,
+              "crude_ci95": [
+                82.96695632641025,
+                94.93557659723247
+              ],
+              "weighted_pct": 89.15325457860943,
+              "weighted_ci95": [
+                80.67774649253327,
+                94.17929096732264
+              ],
+              "by_stratum": {
+                "都道府県": 7,
+                "政令市": 7,
+                "市": 45,
+                "町村": 19,
+                "特別区": 8
+              }
+            },
+            "anywhere": {
+              "count": 88,
+              "denominator": 95,
+              "crude_pct": 92.63157894736842,
+              "crude_ci95": [
+                85.5643147117504,
+                96.38510303909452
+              ],
+              "weighted_pct": 91.57535875683823,
+              "weighted_ci95": [
+                83.6333668637545,
+                95.85448724602566
+              ],
+              "by_stratum": {
+                "都道府県": 7,
+                "政令市": 7,
+                "市": 46,
+                "町村": 20,
+                "特別区": 8
+              }
+            },
+            "class": "standard_optional"
+          }
+        },
+        "funding": {
+          "$ref": "#/$defs/funding_field",
+          "description": "財源内訳。標準の任意項目。専用の欄がある場合だけ値を入れる。",
+          "x-prevalence": {
+            "sample": "20261028b",
+            "review_version": "1.1.0",
+            "classification_basis": "dedicated_only",
+            "dedicated": {
+              "count": 65,
+              "denominator": 95,
+              "crude_pct": 68.42105263157895,
+              "crude_ci95": [
+                58.51346840006257,
+                76.89677383795684
+              ],
+              "weighted_pct": 67.05304051375576,
+              "weighted_ci95": [
+                56.408342734561636,
+                76.19533494898057
+              ],
+              "by_stratum": {
+                "都道府県": 5,
+                "政令市": 6,
+                "市": 34,
+                "町村": 14,
+                "特別区": 6
+              }
+            },
+            "anywhere": {
+              "count": 78,
+              "denominator": 95,
+              "crude_pct": 82.10526315789474,
+              "crude_ci95": [
+                73.19856818309805,
+                88.5164254317358
+              ],
+              "weighted_pct": 83.17608816300653,
+              "weighted_ci95": [
+                73.72852076257993,
+                89.70078290880504
+              ],
+              "by_stratum": {
+                "都道府県": 5,
+                "政令市": 6,
+                "市": 42,
+                "町村": 19,
+                "特別区": 6
+              }
+            },
+            "class": "standard_optional"
+          }
+        },
+        "staff": {
+          "$ref": "#/$defs/staff_field",
+          "description": "人員・人件費。標準の任意項目。専用の欄がある場合だけ値を入れる。",
+          "x-prevalence": {
+            "sample": "20261028b",
+            "review_version": "1.1.0",
+            "classification_basis": "dedicated_only",
+            "dedicated": {
+              "count": 52,
+              "denominator": 95,
+              "crude_pct": 54.736842105263165,
+              "crude_ci95": [
+                44.738266913924605,
+                64.3672239472804
+              ],
+              "weighted_pct": 54.68167763418704,
+              "weighted_ci95": [
+                44.025361658738134,
+                64.92552944365245
+              ],
+              "by_stratum": {
+                "都道府県": 1,
+                "政令市": 6,
+                "市": 30,
+                "町村": 9,
+                "特別区": 6
+              }
+            },
+            "anywhere": {
+              "count": 74,
+              "denominator": 95,
+              "crude_pct": 77.89473684210526,
+              "crude_ci95": [
+                68.55857690767468,
+                85.06264705275473
+              ],
+              "weighted_pct": 78.1194006184097,
+              "weighted_ci95": [
+                68.11541489103332,
+                85.64601690041161
+              ],
+              "by_stratum": {
+                "都道府県": 3,
+                "政令市": 7,
+                "市": 42,
+                "町村": 14,
+                "特別区": 8
+              }
+            },
+            "class": "standard_optional"
+          }
+        },
+        "indicators": {
+          "$ref": "#/$defs/indicators_field",
+          "description": "指標・目標と実績。標準の任意項目。専用の欄がある場合だけ値を入れる。",
+          "x-prevalence": {
+            "sample": "20261028b",
+            "review_version": "1.1.0",
+            "classification_basis": "dedicated_only",
+            "dedicated": {
+              "count": 84,
+              "denominator": 95,
+              "crude_pct": 88.42105263157895,
+              "crude_ci95": [
+                80.44550567755692,
+                93.41014241888357
+              ],
+              "weighted_pct": 87.66907159280115,
+              "weighted_ci95": [
+                78.91223076295944,
+                93.10719989864504
+              ],
+              "by_stratum": {
+                "都道府県": 6,
+                "政令市": 7,
+                "市": 45,
+                "町村": 18,
+                "特別区": 8
+              }
+            },
+            "anywhere": {
+              "count": 91,
+              "denominator": 95,
+              "crude_pct": 95.78947368421052,
+              "crude_ci95": [
+                89.66912227790326,
+                98.35062271374501
+              ],
+              "weighted_pct": 94.64996432252441,
+              "weighted_ci95": [
+                87.56693258173871,
+                97.79925441459008
+              ],
+              "by_stratum": {
+                "都道府県": 8,
+                "政令市": 7,
+                "市": 48,
+                "町村": 20,
+                "特別区": 8
+              }
+            },
+            "class": "standard_optional"
+          }
+        },
+        "performance_result": {
+          "$ref": "#/$defs/text_field",
+          "description": "実施結果・成果。標準の任意項目。専用の欄がある場合だけ値を入れる。",
+          "x-prevalence": {
+            "sample": "20261028b",
+            "review_version": "1.1.0",
+            "classification_basis": "dedicated_only",
+            "dedicated": {
+              "count": 86,
+              "denominator": 95,
+              "crude_pct": 90.52631578947368,
+              "crude_ci95": [
+                82.96695632641025,
+                94.93557659723247
+              ],
+              "weighted_pct": 90.05787679378425,
+              "weighted_ci95": [
+                81.76983724256158,
+                94.81674581387814
+              ],
+              "by_stratum": {
+                "都道府県": 7,
+                "政令市": 7,
+                "市": 46,
+                "町村": 19,
+                "特別区": 7
+              }
+            },
+            "anywhere": {
+              "count": 94,
+              "denominator": 95,
+              "crude_pct": 98.94736842105263,
+              "crude_ci95": [
+                94.27612985868637,
+                99.8139423737652
+              ],
+              "weighted_pct": 98.6624910806311,
+              "weighted_ci95": [
+                93.29269443273878,
+                99.74503530181144
+              ],
+              "by_stratum": {
+                "都道府県": 8,
+                "政令市": 7,
+                "市": 51,
+                "町村": 20,
+                "特別区": 8
+              }
+            },
+            "class": "standard_optional"
+          }
+        },
+        "evaluation_rating": {
+          "$ref": "#/$defs/rating_field",
+          "description": "評価区分・点数。標準の任意項目。専用の欄がある場合だけ値を入れる。",
+          "x-prevalence": {
+            "sample": "20261028b",
+            "review_version": "1.1.0",
+            "classification_basis": "dedicated_only",
+            "dedicated": {
+              "count": 76,
+              "denominator": 95,
+              "crude_pct": 80.0,
+              "crude_ci95": [
+                70.86265584527133,
+                86.80545294236029
+              ],
+              "weighted_pct": 81.33354475541118,
+              "weighted_ci95": [
+                71.65968569192114,
+                88.2468625312072
+              ],
+              "by_stratum": {
+                "都道府県": 6,
+                "政令市": 6,
+                "市": 46,
+                "町村": 12,
+                "特別区": 6
+              }
+            },
+            "anywhere": {
+              "count": 76,
+              "denominator": 95,
+              "crude_pct": 80.0,
+              "crude_ci95": [
+                70.86265584527133,
+                86.80545294236029
+              ],
+              "weighted_pct": 81.33354475541118,
+              "weighted_ci95": [
+                71.65968569192114,
+                88.2468625312072
+              ],
+              "by_stratum": {
+                "都道府県": 6,
+                "政令市": 6,
+                "市": 46,
+                "町村": 12,
+                "特別区": 6
+              }
+            },
+            "class": "standard_optional"
+          }
+        },
+        "evaluation_reason": {
+          "$ref": "#/$defs/text_field",
+          "description": "評価の理由・所見。標準の任意項目。専用の欄がある場合だけ値を入れる。",
+          "x-prevalence": {
+            "sample": "20261028b",
+            "review_version": "1.1.0",
+            "classification_basis": "dedicated_only",
+            "dedicated": {
+              "count": 71,
+              "denominator": 95,
+              "crude_pct": 74.73684210526315,
+              "crude_ci95": [
+                65.15543870202924,
+                82.39545801759682
+              ],
+              "weighted_pct": 74.42638547530338,
+              "weighted_ci95": [
+                64.13072152805277,
+                82.57004121090536
+              ],
+              "by_stratum": {
+                "都道府県": 5,
+                "政令市": 6,
+                "市": 40,
+                "町村": 13,
+                "特別区": 7
+              }
+            },
+            "anywhere": {
+              "count": 94,
+              "denominator": 95,
+              "crude_pct": 98.94736842105263,
+              "crude_ci95": [
+                94.27612985868637,
+                99.8139423737652
+              ],
+              "weighted_pct": 98.6624910806311,
+              "weighted_ci95": [
+                93.29269443273878,
+                99.74503530181144
+              ],
+              "by_stratum": {
+                "都道府県": 8,
+                "政令市": 7,
+                "市": 51,
+                "町村": 20,
+                "特別区": 8
+              }
+            },
+            "class": "standard_optional"
+          }
+        },
+        "future_direction": {
+          "$ref": "#/$defs/direction_field",
+          "description": "今後の方向性。毎記録で専用の欄を必ず探し、値又は理由を保持する（1.2.0で標準任意から必ず探す項目へ。境目の項目をユーザーの判断で入れた）。",
+          "x-prevalence": {
+            "sample": "20261028b",
+            "review_version": "1.1.0",
+            "classification_basis": "dedicated_only",
+            "dedicated": {
+              "count": 88,
+              "denominator": 95,
+              "crude_pct": 92.63157894736842,
+              "crude_ci95": [
+                85.5643147117504,
+                96.38510303909452
+              ],
+              "weighted_pct": 93.11900420201383,
+              "weighted_ci95": [
+                85.5774540862531,
+                96.86169299158023
+              ],
+              "by_stratum": {
+                "都道府県": 7,
+                "政令市": 6,
+                "市": 49,
+                "町村": 18,
+                "特別区": 8
+              }
+            },
+            "anywhere": {
+              "count": 93,
+              "denominator": 95,
+              "crude_pct": 97.89473684210527,
+              "crude_ci95": [
+                92.64588050529105,
+                99.42074931355944
+              ],
+              "weighted_pct": 97.32498216126221,
+              "weighted_ci95": [
+                91.26353163257156,
+                99.2170171892382
+              ],
+              "by_stratum": {
+                "都道府県": 8,
+                "政令市": 7,
+                "市": 50,
+                "町村": 20,
+                "特別区": 8
+              }
+            },
+            "class": "always_seek",
+            "class_decided_by": "user_decision_1.2.0_borderline_promoted"
+          }
+        },
+        "issues": {
+          "$ref": "#/$defs/text_field",
+          "description": "課題。標準の任意項目。専用の欄がある場合だけ値を入れる。",
+          "x-prevalence": {
+            "sample": "20261028b",
+            "review_version": "1.1.0",
+            "classification_basis": "dedicated_only",
+            "dedicated": {
+              "count": 55,
+              "denominator": 95,
+              "crude_pct": 57.89473684210527,
+              "crude_ci95": [
+                47.84963648984185,
+                67.32618161216648
+              ],
+              "weighted_pct": 59.13977642115287,
+              "weighted_ci95": [
+                48.41197253724082,
+                69.06234966908565
+              ],
+              "by_stratum": {
+                "都道府県": 4,
+                "政令市": 3,
+                "市": 31,
+                "町村": 12,
+                "特別区": 5
+              }
+            },
+            "anywhere": {
+              "count": 94,
+              "denominator": 95,
+              "crude_pct": 98.94736842105263,
+              "crude_ci95": [
+                94.27612985868637,
+                99.8139423737652
+              ],
+              "weighted_pct": 98.6624910806311,
+              "weighted_ci95": [
+                93.29269443273878,
+                99.74503530181144
+              ],
+              "by_stratum": {
+                "都道府県": 8,
+                "政令市": 7,
+                "市": 51,
+                "町村": 20,
+                "特別区": 8
+              }
+            },
+            "class": "standard_optional"
+          }
+        },
+        "evaluation_actor": {
+          "$ref": "#/$defs/text_field",
+          "description": "評価主体・段階。標準の任意項目。専用の欄がある場合だけ値を入れる。記録の識別用として状態は常に必須。",
+          "x-prevalence": {
+            "sample": "20261028b",
+            "review_version": "1.1.0",
+            "classification_basis": "dedicated_only",
+            "dedicated": {
+              "count": 58,
+              "denominator": 95,
+              "crude_pct": 61.05263157894737,
+              "crude_ci95": [
+                51.00024053334903,
+                70.24590480946263
+              ],
+              "weighted_pct": 61.462776500436156,
+              "weighted_ci95": [
+                50.73070399253109,
+                71.18495791405007
+              ],
+              "by_stratum": {
+                "都道府県": 4,
+                "政令市": 4,
+                "市": 33,
+                "町村": 11,
+                "特別区": 6
+              }
+            },
+            "anywhere": {
+              "count": 64,
+              "denominator": 95,
+              "crude_pct": 67.36842105263158,
+              "crude_ci95": [
+                57.42551255842591,
+                75.9612872659924
+              ],
+              "weighted_pct": 66.47427257591384,
+              "weighted_ci95": [
+                55.81385940194379,
+                75.68327289552813
+              ],
+              "by_stratum": {
+                "都道府県": 5,
+                "政令市": 6,
+                "市": 36,
+                "町村": 11,
+                "特別区": 6
+              }
+            },
+            "class": "standard_optional"
+          }
+        }
+      },
+      "required": [
+        "project_name",
+        "evaluation_year",
+        "target_year",
+        "evaluation_actor",
+        "department",
+        "future_direction"
+      ],
+      "additionalProperties": false
+    },
+    "raw_text_base": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "enum": [
+            "present",
+            "unreadable",
+            "other_document",
+            "represented_elsewhere",
+            "not_recorded",
+            "not_applicable",
+            "unverified"
+          ],
+          "description": "unverifiedは取り出し途中だけ。確認した原典に記載が無い場合はnot_recorded。"
+        },
+        "value": {},
+        "raw_text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "raw_label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          },
+          "minItems": 1
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1
+        },
+        "related_fields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "other_document_hint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "field_kind": {
+          "enum": [
+            "dedicated",
+            "embedded",
+            "absent",
+            "unverified"
+          ],
+          "description": "dedicated=専用欄・明示した見出し、embedded=別の欄の文中だけ、absent=専用欄なし、unverified=欄未確認。値の有無のstatusとは別。"
+        }
+      },
+      "required": [
+        "status",
+        "value",
+        "raw_text",
+        "raw_label",
+        "evidence",
+        "note",
+        "field_kind"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "present"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "raw_text": {
+                "type": "string",
+                "minLength": 1
+              },
+              "field_kind": {
+                "enum": [
+                  "dedicated",
+                  "embedded"
+                ]
+              },
+              "raw_label": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "value": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "represented_elsewhere"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "related_fields"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "other_document"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "other_document_hint"
+            ]
+          }
+        }
+      ]
+    },
+    "raw_text_field": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/raw_text_base"
+        },
+        {
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$comment": "1.2.0: ユーザーの判断で、95%の境目に近い担当部署（専用欄の重み付き93.8%）と今後の方向性（93.1%）を「必ず探す」に入れた。 1.1.0: 95自治体・2090判定のうち専用欄の割合で区分。必ず探す1・標準任意18・raw_fields3。embeddedを標準の値又は共通方向性へ転記しない。$idは識別子であり公開済みURLではない。参照整合性・欄判定・原文の完全性はSchemaだけでは検証できず別途照合する。",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "record_status": {
+            "const": "identified"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "fields": {
+            "properties": {
+              "project_name": {
+                "properties": {
+                  "status": {
+                    "const": "present"
+                  }
+                }
+              },
+              "evaluation_year": {
+                "properties": {
+                  "status": {
+                    "const": "present"
+                  }
+                }
+              },
+              "evaluation_actor": {
+                "properties": {
+                  "status": {
+                    "const": "present"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,774 @@
+{
+  "schema_version": "1.2.0",
+  "record_id": "07214-motomiya-shi:0324a44a6e395457:p1",
+  "municipality": {
+    "slug": "07214-motomiya-shi",
+    "code": "07214",
+    "name": "福島県 本宮市",
+    "identity_source": "sample_manifest"
+  },
+  "project_key": "0324a44a6e395457:p1",
+  "evaluation_instance_key": "2010:一次評価（課長等）",
+  "record_status": "identified",
+  "source_document_ids": [
+    "0324a44a6e395457"
+  ],
+  "record_evidence": [
+    {
+      "doc_id": "0324a44a6e395457",
+      "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+      "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+      "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+      "locator": {
+        "type": "pdf",
+        "page": 1
+      },
+      "quote": "資料館管理運営事業",
+      "methods": [
+        "pdf_text",
+        "ai_extraction"
+      ],
+      "confidence": "high",
+      "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+      "review": "codex_visual_checked"
+    },
+    {
+      "doc_id": "0324a44a6e395457",
+      "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+      "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+      "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+      "locator": {
+        "type": "pdf",
+        "page": 2
+      },
+      "quote": "1次評価／評価による行動",
+      "methods": [
+        "pdf_text",
+        "ai_extraction"
+      ],
+      "confidence": "high",
+      "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+      "review": "codex_visual_checked"
+    }
+  ],
+  "layout": "single_project_sheet",
+  "fields": {
+    "project_name": {
+      "status": "present",
+      "value": "資料館管理運営事業",
+      "raw_label": "事業名",
+      "raw_text": "資料館管理運営事業",
+      "evidence": [
+        {
+          "doc_id": "0324a44a6e395457",
+          "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+          "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+          "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "資料館管理運営事業",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "project_code": {
+      "status": "present",
+      "value": "01-100508001-01",
+      "raw_label": "整理番号",
+      "raw_text": "01-100508001-01",
+      "evidence": [
+        {
+          "doc_id": "0324a44a6e395457",
+          "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+          "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+          "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "01-100508001-01",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "department": {
+      "status": "present",
+      "value": "教育部 歴史民俗資料館",
+      "raw_label": "担当部課等",
+      "raw_text": "教育部 歴史民俗資料館",
+      "evidence": [
+        {
+          "doc_id": "0324a44a6e395457",
+          "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+          "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+          "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "教育部 歴史民俗資料館",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "evaluation_actor": {
+      "status": "present",
+      "value": "一次評価（課長等）",
+      "raw_label": "一次評価者（課長等名）",
+      "raw_text": "一次評価（課長等）",
+      "evidence": [
+        {
+          "doc_id": "0324a44a6e395457",
+          "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+          "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+          "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "一次評価（課長等）",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "purpose": {
+      "status": "present",
+      "value": "市内から出土した遺物や寄贈された民俗資料・古文書資料などを展示し市民に郷土の歴史についての理解を深めてもらう。",
+      "raw_label": "意図→目指す成果",
+      "raw_text": "市内から出土した遺物や寄贈された民俗資料・古文書資料などを展示し市民に郷土の歴史についての理解を深めてもらう。",
+      "evidence": [
+        {
+          "doc_id": "0324a44a6e395457",
+          "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+          "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+          "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "市内から出土した遺物や寄贈された民俗資料・古文書資料などを展示し市民に郷土の歴史についての理解を深めてもらう。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "description": {
+      "status": "present",
+      "value": "常設展示や企画展を開催するとともに、各種問い合わせに答える。",
+      "raw_label": "手段",
+      "raw_text": "常設展示や企画展を開催するとともに、各種問い合わせに答える。",
+      "evidence": [
+        {
+          "doc_id": "0324a44a6e395457",
+          "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+          "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+          "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "常設展示や企画展を開催するとともに、各種問い合わせに答える。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "policy_alignment": {
+      "status": "present",
+      "value": "文化財の保存・伝承・公開",
+      "raw_label": "総合計画体系／基本事業",
+      "raw_text": "文化財の保存・伝承・公開",
+      "evidence": [
+        {
+          "doc_id": "0324a44a6e395457",
+          "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+          "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+          "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "文化財の保存・伝承・公開",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "performance_result": {
+      "status": "present",
+      "value": "平成21年度実績600人",
+      "raw_label": "成果指標／入館者数",
+      "raw_text": "平成21年度実績600人",
+      "evidence": [
+        {
+          "doc_id": "0324a44a6e395457",
+          "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+          "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+          "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+          "locator": {
+            "type": "pdf",
+            "page": 2
+          },
+          "quote": "平成21年度実績600人",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "evaluation_reason": {
+      "status": "present",
+      "value": "市民・研究者に歴史的価値を理解してもらうため、資料の展示・保存を実施しており妥当である。",
+      "raw_label": "選択理由の説明",
+      "raw_text": "市民・研究者に歴史的価値を理解してもらうため、資料の展示・保存を実施しており妥当である。",
+      "evidence": [
+        {
+          "doc_id": "0324a44a6e395457",
+          "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+          "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+          "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+          "locator": {
+            "type": "pdf",
+            "page": 2
+          },
+          "quote": "市民・研究者に歴史的価値を理解してもらうため、資料の展示・保存を実施しており妥当である。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "issues": {
+      "status": "present",
+      "value": "職員の減少により担当者の負担増加は考えられるが、市民の要望に応えるためにも、考古資料や歴史史料の展示施設として、引き続き運営を継続していく。",
+      "raw_label": "方向性に対する取り組み（課題と解決方法等）／21年度～／1次評価",
+      "raw_text": "職員の減少により担当者の負担増加は考えられるが、市民の要望に応えるためにも、考古資料や歴史史料の展示施設として、引き続き運営を継続していく。",
+      "evidence": [
+        {
+          "doc_id": "0324a44a6e395457",
+          "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+          "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+          "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+          "locator": {
+            "type": "pdf",
+            "page": 2
+          },
+          "quote": "方向性に対する取り組み（課題と解決方法等）／21年度～／1次評価：職員の減少により担当者の負担増加は考えられるが、市民の要望に応えるためにも、考古資料や歴史史料の展示施設として、引き続き運営を継続していく。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "「課題と解決方法等」を明示した複合欄。別の選択理由の欄から課題を抽出しない。",
+      "field_kind": "dedicated"
+    },
+    "evaluation_year": {
+      "status": "present",
+      "value": 2010,
+      "raw_label": "作成日",
+      "raw_text": "平成22年6月15日",
+      "evidence": [
+        {
+          "doc_id": "0324a44a6e395457",
+          "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+          "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+          "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "作成日：平成22年6月15日",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "調書の作成日から評価実施年度2010年度を確定。見出しの平成21年度実績とは分ける。",
+      "field_kind": "dedicated"
+    },
+    "target_year": {
+      "status": "present",
+      "value": 2009,
+      "raw_label": "平成21年度実績事務事業評価シート",
+      "raw_text": "平成21年度",
+      "evidence": [
+        {
+          "doc_id": "0324a44a6e395457",
+          "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+          "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+          "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "平成21年度実績事務事業評価シート",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "future_direction": {
+      "status": "present",
+      "value": {
+        "raw_term": "現状継続",
+        "aspect": "business_content",
+        "normalized": [
+          "continue"
+        ],
+        "mapping_status": "mapped",
+        "mapping_entry_ids": [
+          "07214-motomiya-shi:0324a44a6e395457:p1:vocabulary:1"
+        ],
+        "relation": "single",
+        "decision_stage": "unknown"
+      },
+      "raw_label": "評価による行動／1次評価",
+      "raw_text": "現状継続",
+      "evidence": [
+        {
+          "doc_id": "0324a44a6e395457",
+          "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+          "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+          "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+          "locator": {
+            "type": "pdf",
+            "page": 2
+          },
+          "quote": "21年度～／1次評価／現状継続（選択）",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の方向判断を保持。正規化は明示語のある場合だけ行う。",
+      "field_kind": "dedicated"
+    },
+    "cost": {
+      "status": "present",
+      "value": [
+        {
+          "status": "present",
+          "value": {
+            "amount_yen": "2976000",
+            "original_amount": "2976",
+            "original_unit": "千円",
+            "fiscal_year": {
+              "status": "present",
+              "value": 2009,
+              "raw_label": "金額の年度",
+              "raw_text": "2009",
+              "evidence": [
+                {
+                  "doc_id": "0324a44a6e395457",
+                  "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+                  "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+                  "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+                  "locator": {
+                    "type": "pdf",
+                    "page": 1
+                  },
+                  "quote": "平成21年度（決算）総事業費2,976千円＝事業費計1,301＋人件費1,675",
+                  "methods": [
+                    "pdf_text",
+                    "ai_extraction"
+                  ],
+                  "confidence": "high",
+                  "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                  "review": "codex_visual_checked"
+                }
+              ],
+              "note": "原典の記載を転記。",
+              "field_kind": "dedicated"
+            },
+            "basis": "settlement",
+            "personnel_cost": "included",
+            "accounting_basis": "unknown",
+            "scope": "総事業費",
+            "conversion": "2976 × 1000 = 2976000 円"
+          },
+          "raw_label": "総事業費",
+          "raw_text": "2976 千円",
+          "evidence": [
+            {
+              "doc_id": "0324a44a6e395457",
+              "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+              "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+              "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+              "locator": {
+                "type": "pdf",
+                "page": 1
+              },
+              "quote": "平成21年度（決算）総事業費2,976千円＝事業費計1,301＋人件費1,675",
+              "methods": [
+                "pdf_text",
+                "ai_extraction"
+              ],
+              "confidence": "high",
+              "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+              "review": "codex_visual_checked"
+            }
+          ],
+          "note": "原典の記載を転記。",
+          "field_kind": "dedicated"
+        }
+      ],
+      "raw_label": "総事業費①＋④",
+      "raw_text": "2,976千円",
+      "evidence": [
+        {
+          "doc_id": "0324a44a6e395457",
+          "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+          "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+          "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "平成21年度（決算）総事業費2,976千円＝事業費計1,301＋人件費1,675",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "funding": {
+      "status": "present",
+      "value": [
+        {
+          "source_name": {
+            "status": "present",
+            "value": "一般財源",
+            "raw_label": "財源内訳",
+            "raw_text": "一般財源",
+            "evidence": [
+              {
+                "doc_id": "0324a44a6e395457",
+                "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+                "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+                "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+                "locator": {
+                  "type": "pdf",
+                  "page": 1
+                },
+                "quote": "平成21年度（決算）一般財源2,976千円",
+                "methods": [
+                  "pdf_text",
+                  "ai_extraction"
+                ],
+                "confidence": "high",
+                "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                "review": "codex_visual_checked"
+              }
+            ],
+            "note": "原典の記載を転記。",
+            "field_kind": "dedicated"
+          },
+          "amount": {
+            "status": "present",
+            "value": {
+              "amount_yen": "2976000",
+              "original_amount": "2976",
+              "original_unit": "千円",
+              "fiscal_year": {
+                "status": "present",
+                "value": 2009,
+                "raw_label": "金額の年度",
+                "raw_text": "2009",
+                "evidence": [
+                  {
+                    "doc_id": "0324a44a6e395457",
+                    "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+                    "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+                    "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+                    "locator": {
+                      "type": "pdf",
+                      "page": 1
+                    },
+                    "quote": "平成21年度（決算）一般財源2,976千円",
+                    "methods": [
+                      "pdf_text",
+                      "ai_extraction"
+                    ],
+                    "confidence": "high",
+                    "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                    "review": "codex_visual_checked"
+                  }
+                ],
+                "note": "原典の記載を転記。",
+                "field_kind": "dedicated"
+              },
+              "basis": "settlement",
+              "personnel_cost": "included",
+              "accounting_basis": "unknown",
+              "scope": "一般財源",
+              "conversion": "2976 × 1000 = 2976000 円"
+            },
+            "raw_label": "一般財源",
+            "raw_text": "2976 千円",
+            "evidence": [
+              {
+                "doc_id": "0324a44a6e395457",
+                "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+                "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+                "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+                "locator": {
+                  "type": "pdf",
+                  "page": 1
+                },
+                "quote": "平成21年度（決算）一般財源2,976千円",
+                "methods": [
+                  "pdf_text",
+                  "ai_extraction"
+                ],
+                "confidence": "high",
+                "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                "review": "codex_visual_checked"
+              }
+            ],
+            "note": "原典の記載を転記。",
+            "field_kind": "dedicated"
+          }
+        }
+      ],
+      "raw_label": "財源内訳",
+      "raw_text": "一般財源2,976千円",
+      "evidence": [
+        {
+          "doc_id": "0324a44a6e395457",
+          "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+          "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+          "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "平成21年度（決算）一般財源2,976千円",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    }
+  },
+  "raw_fields": [
+    {
+      "field_id": "raw-2",
+      "label": "対象（誰を、何を）",
+      "section_path": [],
+      "occurrence": 1,
+      "canonical_field": "target_population",
+      "content": {
+        "status": "present",
+        "value": "市民一般、市内外の見学者。博物館・大学などの研究機関。",
+        "raw_label": "対象（誰を、何を）",
+        "raw_text": "市民一般、市内外の見学者。博物館・大学などの研究機関。",
+        "evidence": [
+          {
+            "doc_id": "0324a44a6e395457",
+            "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+            "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+            "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+            "locator": {
+              "type": "pdf",
+              "page": 1
+            },
+            "quote": "対象（誰を、何を）：市民一般、市内外の見学者。博物館・大学などの研究機関。",
+            "methods": [
+              "pdf_text",
+              "ai_extraction"
+            ],
+            "confidence": "high",
+            "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+            "review": "codex_visual_checked"
+          }
+        ],
+        "note": "専用欄だが、専用欄の重み付き割合が50%未満のため原文の項目として保持。",
+        "field_kind": "dedicated"
+      }
+    }
+  ],
+  "vocabulary_tables": [
+    {
+      "schema_version": "1.2.0",
+      "table_id": "07214-motomiya-shi:0324a44a6e395457:p1:vocabulary",
+      "municipality_slug": "07214-motomiya-shi",
+      "scope": {
+        "evaluation_year_from": 2010,
+        "evaluation_year_to": 2010,
+        "evaluator": "一次評価（課長等）",
+        "form_name": "0324a44a6e395457",
+        "version_note": "この例の文書・頁に限る。年度を推定して適用範囲を広げない。"
+      },
+      "entries": [
+        {
+          "entry_id": "07214-motomiya-shi:0324a44a6e395457:p1:vocabulary:1",
+          "dimension": "direction",
+          "aspect": "business_content",
+          "raw_term": "現状継続",
+          "meaning": {
+            "status": "present",
+            "value": "現状継続",
+            "raw_label": "原典の語又は凡例",
+            "raw_text": "現状継続",
+            "evidence": [
+              {
+                "doc_id": "0324a44a6e395457",
+                "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+                "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+                "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+                "locator": {
+                  "type": "pdf",
+                  "page": 2
+                },
+                "quote": "21年度～／1次評価／現状継続（選択）",
+                "methods": [
+                  "pdf_text",
+                  "ai_extraction"
+                ],
+                "confidence": "high",
+                "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                "review": "codex_visual_checked"
+              }
+            ],
+            "note": "原典の記載を転記。",
+            "field_kind": "dedicated"
+          },
+          "normalized_direction": [
+            "continue"
+          ],
+          "relation": "single",
+          "basis": "explicit_source_wording",
+          "evidence": [
+            {
+              "doc_id": "0324a44a6e395457",
+              "source_url": "https://www.city.motomiya.lg.jp/uploaded/attachment/1733.pdf",
+              "page_url": "https://www.city.motomiya.lg.jp/soshiki/46/jimujigyouhyouka-h21.html",
+              "sha256": "5028462e21af9befca6e08a88158a3b569607fbd2143d05647406209bd851be6",
+              "locator": {
+                "type": "pdf",
+                "page": 2
+              },
+              "quote": "21年度～／1次評価／現状継続（選択）",
+              "methods": [
+                "pdf_text",
+                "ai_extraction"
+              ],
+              "confidence": "high",
+              "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+              "review": "codex_visual_checked"
+            }
+          ],
+          "note": "自治体・年度・様式・評価主体の範囲内のみ有効。",
+          "source_field_kind": "dedicated",
+          "source_label": "評価による行動／1次評価",
+          "application": "dedicated_only"
+        }
+      ],
+      "application_policy": "dedicated_fields_only"
+    }
+  ],
+  "extraction": {
+    "created_by": "Codex; manually transcribed from page images",
+    "human_reviewed": false,
+    "completeness": "partial_example",
+    "note": "画像を見て手で選んだ値の設計検証例。必ず探す項目は確認した。全任意欄・全raw_fieldsの完全転記ではない。 1.1.0で当該頁の見出しと値を再照合。専用欄からのみ標準の値を転記し、別欄の文中の意味はraw_fieldsに欄全体で保持。部分例であり全欄の転記完了を表さない。"
+  }
+}

@@ -1,0 +1,702 @@
+{
+  "schema_version": "1.2.0",
+  "record_id": "32000-shimane-ken:a05ff51be7546d27:p42",
+  "municipality": {
+    "slug": "32000-shimane-ken",
+    "code": "32000",
+    "name": "島根県",
+    "identity_source": "sample_manifest"
+  },
+  "project_key": "a05ff51be7546d27:p42",
+  "evaluation_instance_key": "a05ff51be7546d27:p42:unspecified",
+  "record_status": "provisional",
+  "source_document_ids": [
+    "a05ff51be7546d27"
+  ],
+  "record_evidence": [
+    {
+      "doc_id": "a05ff51be7546d27",
+      "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+      "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+      "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+      "locator": {
+        "type": "pdf",
+        "page": 42,
+        "printed_page": "-38-"
+      },
+      "quote": "農地利用最適化推進支援事業",
+      "methods": [
+        "pdf_text",
+        "ai_extraction"
+      ],
+      "confidence": "high",
+      "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+      "review": "codex_visual_checked"
+    }
+  ],
+  "layout": "report",
+  "fields": {
+    "project_name": {
+      "status": "present",
+      "value": "農地利用最適化推進支援事業",
+      "raw_label": "事業名",
+      "raw_text": "農地利用最適化推進支援事業",
+      "evidence": [
+        {
+          "doc_id": "a05ff51be7546d27",
+          "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+          "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+          "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+          "locator": {
+            "type": "pdf",
+            "page": 42,
+            "printed_page": "-38-"
+          },
+          "quote": "農地利用最適化推進支援事業",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "department": {
+      "status": "present",
+      "value": "農業経営課",
+      "raw_label": "担当課",
+      "raw_text": "農業経営課",
+      "evidence": [
+        {
+          "doc_id": "a05ff51be7546d27",
+          "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+          "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+          "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+          "locator": {
+            "type": "pdf",
+            "page": 42
+          },
+          "quote": "農業経営課",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "purpose": {
+      "status": "present",
+      "value": "農地を効率的かつ安定的に利用できるようにする",
+      "raw_label": "どういう状態を目指すのか",
+      "raw_text": "農地を効率的かつ安定的に利用できるようにする",
+      "evidence": [
+        {
+          "doc_id": "a05ff51be7546d27",
+          "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+          "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+          "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+          "locator": {
+            "type": "pdf",
+            "page": 42
+          },
+          "quote": "農地を効率的かつ安定的に利用できるようにする",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "description": {
+      "status": "present",
+      "value": "県農業会議と連携し、研修会等で求められる活動内容を正確に伝えるとともに、優良事例などの題材を活用して具体的な活動方法を提示する。",
+      "raw_label": "令和7年度の取組内容",
+      "raw_text": "県農業会議と連携し、研修会等で求められる活動内容を正確に伝えるとともに、優良事例などの題材を活用して具体的な活動方法を提示する。",
+      "evidence": [
+        {
+          "doc_id": "a05ff51be7546d27",
+          "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+          "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+          "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+          "locator": {
+            "type": "pdf",
+            "page": 42
+          },
+          "quote": "県農業会議と連携し、研修会等で求められる活動内容を正確に伝えるとともに、優良事例などの題材を活用して具体的な活動方法を提示する。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "policy_alignment": {
+      "status": "present",
+      "value": "Ⅰ－1－(1) 農業の振興",
+      "raw_label": "上位の施策",
+      "raw_text": "Ⅰ－1－(1) 農業の振興",
+      "evidence": [
+        {
+          "doc_id": "a05ff51be7546d27",
+          "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+          "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+          "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+          "locator": {
+            "type": "pdf",
+            "page": 42
+          },
+          "quote": "Ⅰ－1－(1) 農業の振興",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "performance_result": {
+      "status": "present",
+      "value": "販売額1,000万円以上の中核的経営体の育成数：令和6年度707.0経営体",
+      "raw_label": "KPIの名称・実績値",
+      "raw_text": "販売額1,000万円以上の中核的経営体の育成数：令和6年度707.0経営体",
+      "evidence": [
+        {
+          "doc_id": "a05ff51be7546d27",
+          "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+          "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+          "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+          "locator": {
+            "type": "pdf",
+            "page": 42
+          },
+          "quote": "販売額1,000万円以上の中核的経営体の育成数：令和6年度707.0経営体",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "evaluation_reason": {
+      "status": "present",
+      "value": "県内各地域で農業委員会の積極的な関与により作成が進んだ。",
+      "raw_label": "現状に対する評価／成果／「目的」の達成に向けた取組による改善状況",
+      "raw_text": "県内各地域で農業委員会の積極的な関与により作成が進んだ。",
+      "evidence": [
+        {
+          "doc_id": "a05ff51be7546d27",
+          "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+          "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+          "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+          "locator": {
+            "type": "pdf",
+            "page": 42
+          },
+          "quote": "県内各地域で農業委員会の積極的な関与により作成が進んだ。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "issues": {
+      "status": "present",
+      "value": "目標地図が現状維持となっている計画も見受けられる。",
+      "raw_label": "課題",
+      "raw_text": "目標地図が現状維持となっている計画も見受けられる。",
+      "evidence": [
+        {
+          "doc_id": "a05ff51be7546d27",
+          "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+          "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+          "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+          "locator": {
+            "type": "pdf",
+            "page": 42
+          },
+          "quote": "目標地図が現状維持となっている計画も見受けられる。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "evaluation_year": {
+      "status": "present",
+      "value": 2025,
+      "raw_label": "令和7年度",
+      "raw_text": "令和7年度",
+      "evidence": [
+        {
+          "doc_id": "a05ff51be7546d27",
+          "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+          "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+          "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+          "locator": {
+            "type": "pdf",
+            "page": 42
+          },
+          "quote": "令和7年度 事務事業評価シート",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "target_year": {
+      "status": "not_recorded",
+      "value": null,
+      "raw_label": "評価対象年度",
+      "raw_text": null,
+      "evidence": [
+        {
+          "doc_id": "a05ff51be7546d27",
+          "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+          "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+          "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+          "locator": {
+            "type": "pdf",
+            "page": 42
+          },
+          "quote": "事務事業評価シート",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "実績欄は複数年度を比較し、令和7年度の取組計画もある。特定の評価対象年度の記載はない。",
+      "field_kind": "absent"
+    },
+    "evaluation_actor": {
+      "status": "not_recorded",
+      "value": null,
+      "raw_label": "評価主体・段階",
+      "raw_text": null,
+      "evidence": [
+        {
+          "doc_id": "a05ff51be7546d27",
+          "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+          "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+          "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+          "locator": {
+            "type": "pdf",
+            "page": 42
+          },
+          "quote": "事務事業評価シート",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "担当課はあるが評価主体・段階の記載はない。",
+      "field_kind": "absent"
+    },
+    "future_direction": {
+      "status": "present",
+      "value": {
+        "raw_term": "農業委員会サポートシステムの積極的な活用による効率性の向上を図る。",
+        "aspect": "business_content",
+        "normalized": [],
+        "mapping_status": "unmapped",
+        "mapping_entry_ids": [],
+        "relation": "unmapped",
+        "decision_stage": "unknown"
+      },
+      "raw_label": "課題の解決・改善に向けた見直し等の方向性",
+      "raw_text": "農業委員会サポートシステムの積極的な活用による効率性の向上を図る。",
+      "evidence": [
+        {
+          "doc_id": "a05ff51be7546d27",
+          "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+          "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+          "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+          "locator": {
+            "type": "pdf",
+            "page": 42
+          },
+          "quote": "農業委員会サポートシステムの積極的な活用による効率性の向上を図る。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "専用の方向性欄の原文を保持。「効率性の向上」からimproveへの対応は提案段階なので、この記録の読み替え値には適用しない。",
+      "field_kind": "dedicated"
+    },
+    "cost": {
+      "status": "present",
+      "value": [
+        {
+          "status": "present",
+          "value": {
+            "amount_yen": "155790000",
+            "original_amount": "155790",
+            "original_unit": "千円",
+            "fiscal_year": {
+              "status": "present",
+              "value": 2024,
+              "raw_label": "金額の年度",
+              "raw_text": "2024",
+              "evidence": [
+                {
+                  "doc_id": "a05ff51be7546d27",
+                  "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+                  "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+                  "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+                  "locator": {
+                    "type": "pdf",
+                    "page": 42
+                  },
+                  "quote": "事業費（千円） 令和6年度の実績額155,790／令和7年度の当初予算額199,967",
+                  "methods": [
+                    "pdf_text",
+                    "ai_extraction"
+                  ],
+                  "confidence": "high",
+                  "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                  "review": "codex_visual_checked"
+                }
+              ],
+              "note": "原典の記載を転記。",
+              "field_kind": "dedicated"
+            },
+            "basis": "actual",
+            "personnel_cost": "unknown",
+            "accounting_basis": "unknown",
+            "scope": "令和6年度の実績額",
+            "conversion": "155790 × 1000 = 155790000 円"
+          },
+          "raw_label": "令和6年度の実績額",
+          "raw_text": "155790 千円",
+          "evidence": [
+            {
+              "doc_id": "a05ff51be7546d27",
+              "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+              "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+              "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+              "locator": {
+                "type": "pdf",
+                "page": 42
+              },
+              "quote": "事業費（千円） 令和6年度の実績額155,790／令和7年度の当初予算額199,967",
+              "methods": [
+                "pdf_text",
+                "ai_extraction"
+              ],
+              "confidence": "high",
+              "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+              "review": "codex_visual_checked"
+            }
+          ],
+          "note": "原典の記載を転記。",
+          "field_kind": "dedicated"
+        },
+        {
+          "status": "present",
+          "value": {
+            "amount_yen": "199967000",
+            "original_amount": "199967",
+            "original_unit": "千円",
+            "fiscal_year": {
+              "status": "present",
+              "value": 2025,
+              "raw_label": "金額の年度",
+              "raw_text": "2025",
+              "evidence": [
+                {
+                  "doc_id": "a05ff51be7546d27",
+                  "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+                  "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+                  "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+                  "locator": {
+                    "type": "pdf",
+                    "page": 42
+                  },
+                  "quote": "事業費（千円） 令和6年度の実績額155,790／令和7年度の当初予算額199,967",
+                  "methods": [
+                    "pdf_text",
+                    "ai_extraction"
+                  ],
+                  "confidence": "high",
+                  "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                  "review": "codex_visual_checked"
+                }
+              ],
+              "note": "原典の記載を転記。",
+              "field_kind": "dedicated"
+            },
+            "basis": "budget_initial",
+            "personnel_cost": "unknown",
+            "accounting_basis": "unknown",
+            "scope": "令和7年度の当初予算額",
+            "conversion": "199967 × 1000 = 199967000 円"
+          },
+          "raw_label": "令和7年度の当初予算額",
+          "raw_text": "199967 千円",
+          "evidence": [
+            {
+              "doc_id": "a05ff51be7546d27",
+              "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+              "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+              "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+              "locator": {
+                "type": "pdf",
+                "page": 42
+              },
+              "quote": "事業費（千円） 令和6年度の実績額155,790／令和7年度の当初予算額199,967",
+              "methods": [
+                "pdf_text",
+                "ai_extraction"
+              ],
+              "confidence": "high",
+              "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+              "review": "codex_visual_checked"
+            }
+          ],
+          "note": "原典の記載を転記。",
+          "field_kind": "dedicated"
+        }
+      ],
+      "raw_label": "事業費",
+      "raw_text": "155,790千円／199,967千円",
+      "evidence": [
+        {
+          "doc_id": "a05ff51be7546d27",
+          "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+          "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+          "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+          "locator": {
+            "type": "pdf",
+            "page": 42
+          },
+          "quote": "事業費（千円） 令和6年度の実績額155,790／令和7年度の当初予算額199,967",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "実績額と決算額を自動的に同一視しない。",
+      "field_kind": "dedicated"
+    }
+  },
+  "raw_fields": [
+    {
+      "field_id": "raw-1",
+      "label": "令和6年度に行った評価を踏まえて見直したこと",
+      "section_path": [],
+      "occurrence": 1,
+      "canonical_field": "improvement_history",
+      "content": {
+        "status": "present",
+        "value": "農業委員や農地利用最適化推進委員を対象に、タブレットの活用に向けた研修会を開催し周知を図った。",
+        "raw_label": "令和6年度に行った評価を踏まえて見直したこと",
+        "raw_text": "農業委員や農地利用最適化推進委員を対象に、タブレットの活用に向けた研修会を開催し周知を図った。",
+        "evidence": [
+          {
+            "doc_id": "a05ff51be7546d27",
+            "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+            "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+            "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+            "locator": {
+              "type": "pdf",
+              "page": 42
+            },
+            "quote": "令和6年度に行った評価を踏まえて見直したこと",
+            "methods": [
+              "pdf_text",
+              "ai_extraction"
+            ],
+            "confidence": "high",
+            "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+            "review": "codex_visual_checked"
+          }
+        ],
+        "note": "原文の欄を保持。",
+        "field_kind": "dedicated"
+      }
+    },
+    {
+      "field_id": "raw-2",
+      "label": "誰（何）を対象として",
+      "section_path": [],
+      "occurrence": 1,
+      "canonical_field": "target_population",
+      "content": {
+        "status": "present",
+        "value": "市町村農業委員会、島根県農業会議",
+        "raw_label": "誰（何）を対象として",
+        "raw_text": "市町村農業委員会、島根県農業会議",
+        "evidence": [
+          {
+            "doc_id": "a05ff51be7546d27",
+            "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+            "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+            "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+            "locator": {
+              "type": "pdf",
+              "page": 42
+            },
+            "quote": "誰（何）を対象として：市町村農業委員会、島根県農業会議",
+            "methods": [
+              "pdf_text",
+              "ai_extraction"
+            ],
+            "confidence": "high",
+            "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+            "review": "codex_visual_checked"
+          }
+        ],
+        "note": "専用欄だが、専用欄の重み付き割合が50%未満のため原文の項目として保持。",
+        "field_kind": "dedicated"
+      }
+    }
+  ],
+  "vocabulary_tables": [
+    {
+      "schema_version": "1.2.0",
+      "table_id": "32000-shimane-ken:a05ff51be7546d27:p42:vocabulary",
+      "municipality_slug": "32000-shimane-ken",
+      "scope": {
+        "evaluation_year_from": 2025,
+        "evaluation_year_to": 2025,
+        "evaluator": null,
+        "form_name": "a05ff51be7546d27",
+        "version_note": "この例の文書・頁に限る。年度を推定して適用範囲を広げない。"
+      },
+      "entries": [
+        {
+          "entry_id": "32000-shimane-ken:a05ff51be7546d27:p42:vocabulary:1",
+          "dimension": "direction",
+          "aspect": "business_content",
+          "raw_term": "農業委員会サポートシステムの積極的な活用による効率性の向上を図る。",
+          "meaning": {
+            "status": "present",
+            "value": "農業委員会サポートシステムの積極的な活用による効率性の向上を図る。",
+            "raw_label": "原典の語又は凡例",
+            "raw_text": "農業委員会サポートシステムの積極的な活用による効率性の向上を図る。",
+            "evidence": [
+              {
+                "doc_id": "a05ff51be7546d27",
+                "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+                "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+                "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+                "locator": {
+                  "type": "pdf",
+                  "page": 42
+                },
+                "quote": "農業委員会サポートシステムの積極的な活用による効率性の向上を図る。",
+                "methods": [
+                  "pdf_text",
+                  "ai_extraction"
+                ],
+                "confidence": "high",
+                "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                "review": "codex_visual_checked"
+              }
+            ],
+            "note": "原典の記載を転記。",
+            "field_kind": "dedicated"
+          },
+          "normalized_direction": [
+            "improve"
+          ],
+          "relation": "single",
+          "basis": "proposed_interpretation",
+          "evidence": [
+            {
+              "doc_id": "a05ff51be7546d27",
+              "source_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.data/R7allin.pdf",
+              "page_url": "https://www.pref.shimane.lg.jp/admin/seisaku/keikaku/gyosei_hyouka/R7.html",
+              "sha256": "7e016a674d7396a267737397691f01fb2b712eff13ac4d0828f1910b9dd866ff",
+              "locator": {
+                "type": "pdf",
+                "page": 42
+              },
+              "quote": "農業委員会サポートシステムの積極的な活用による効率性の向上を図る。",
+              "methods": [
+                "pdf_text",
+                "ai_extraction"
+              ],
+              "confidence": "high",
+              "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+              "review": "codex_visual_checked"
+            }
+          ],
+          "note": "自治体・年度・様式・評価主体の範囲内のみ有効。",
+          "source_field_kind": "dedicated",
+          "source_label": "課題の解決・改善に向けた見直し等の方向性",
+          "application": "proposal_only"
+        }
+      ],
+      "application_policy": "dedicated_fields_only"
+    }
+  ],
+  "extraction": {
+    "created_by": "Codex; manually transcribed from page images",
+    "human_reviewed": false,
+    "completeness": "partial_example",
+    "note": "画像を見て手で選んだ値の設計検証例。必ず探す項目は確認した。全任意欄・全raw_fieldsの完全転記ではない。 1.1.0で当該頁の見出しと値を再照合。専用欄からのみ標準の値を転記し、別欄の文中の意味はraw_fieldsに欄全体で保持。部分例であり全欄の転記完了を表さない。"
+  }
+}

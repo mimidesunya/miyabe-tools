@@ -1,0 +1,805 @@
+{
+  "schema_version": "1.2.0",
+  "record_id": "26465-yosano-cho:30636b73bcbe5838:p1",
+  "municipality": {
+    "slug": "26465-yosano-cho",
+    "code": "26465",
+    "name": "京都府 与謝野町",
+    "identity_source": "sample_manifest"
+  },
+  "project_key": "30636b73bcbe5838:p1",
+  "evaluation_instance_key": "2025:行政改革推進委員及び行財政経営マネジメントアドバイザーによる二次評価",
+  "record_status": "identified",
+  "source_document_ids": [
+    "30636b73bcbe5838",
+    "49203b442b550617"
+  ],
+  "record_evidence": [
+    {
+      "doc_id": "30636b73bcbe5838",
+      "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+      "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+      "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+      "locator": {
+        "type": "pdf",
+        "page": 1
+      },
+      "quote": "空家等対策事業",
+      "methods": [
+        "pdf_text",
+        "ai_extraction"
+      ],
+      "confidence": "high",
+      "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+      "review": "codex_visual_checked"
+    }
+  ],
+  "layout": "list_only",
+  "fields": {
+    "project_name": {
+      "status": "present",
+      "value": "空家等対策事業",
+      "raw_label": "令和6年度事務事業名【事業名称】",
+      "raw_text": "空家等対策事業",
+      "evidence": [
+        {
+          "doc_id": "30636b73bcbe5838",
+          "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+          "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+          "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "空家等対策事業",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "project_code": {
+      "status": "present",
+      "value": "1",
+      "raw_label": "No.",
+      "raw_text": "1",
+      "evidence": [
+        {
+          "doc_id": "30636b73bcbe5838",
+          "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+          "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+          "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "1",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "department": {
+      "status": "present",
+      "value": "総務課",
+      "raw_label": "所管課",
+      "raw_text": "総務課",
+      "evidence": [
+        {
+          "doc_id": "30636b73bcbe5838",
+          "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+          "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+          "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "総務課",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "description": {
+      "status": "represented_elsewhere",
+      "value": null,
+      "raw_label": null,
+      "raw_text": null,
+      "evidence": [
+        {
+          "doc_id": "30636b73bcbe5838",
+          "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+          "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+          "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "所有者不明の空家について、所有者不明土地・建物管理制度を活用し、適正管理するよう管理人への預託金を計上しています。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "担当課の回答は原文の欄として保持し、二次評価記録の事業内容へ読み替えない。",
+      "field_kind": "embedded",
+      "related_fields": [
+        "raw_fields/raw-1"
+      ]
+    },
+    "evaluation_reason": {
+      "status": "present",
+      "value": "○この事業名では、何をする事業なのかわからないので、事業名を見直すべき。\n○苦情ゼロのKPI達成は不可能ではないか、見直すべき。\n○現地を確認した上で、解体されない空家について、なぜ解体されないのかのヒアリング等を行い、有効な対策を検討するべき。\n〇自治会と連携した調査など、地域連携も検討されたい。また、行政が把握しようとするとハードルがあるため、地域で移転先を把握されている事例もあるので、参考にされたい。\n○解体を促す有効な支援となるよう、無利子融資や利子補給に変更すべきではないか。（そうすることで予算の拡充も可能になるのでは）\n見直すべきすることで解体後の固定資産税の軽減措置の延長などを検討するべき。",
+      "raw_label": "二次評価意見",
+      "raw_text": "○この事業名では、何をする事業なのかわからないので、事業名を見直すべき。\n○苦情ゼロのKPI達成は不可能ではないか、見直すべき。\n○現地を確認した上で、解体されない空家について、なぜ解体されないのかのヒアリング等を行い、有効な対策を検討するべき。\n〇自治会と連携した調査など、地域連携も検討されたい。また、行政が把握しようとするとハードルがあるため、地域で移転先を把握されている事例もあるので、参考にされたい。\n○解体を促す有効な支援となるよう、無利子融資や利子補給に変更すべきではないか。（そうすることで予算の拡充も可能になるのでは）\n見直すべきすることで解体後の固定資産税の軽減措置の延長などを検討するべき。",
+      "evidence": [
+        {
+          "doc_id": "30636b73bcbe5838",
+          "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+          "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+          "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "二次評価意見：○この事業名では、何をする事業なのかわからないので、事業名を見直すべき。\n○苦情ゼロのKPI達成は不可能ではないか、見直すべき。\n○現地を確認した上で、解体されない空家について、なぜ解体されないのかのヒアリング等を行い、有効な対策を検討するべき。\n〇自治会と連携した調査など、地域連携も検討されたい。また、行政が把握しようとするとハードルがあるため、地域で移転先を把握されている事例もあるので、参考にされたい。\n○解体を促す有効な支援となるよう、無利子融資や利子補給に変更すべきではないか。（そうすることで予算の拡充も可能になるのでは）\n見直すべきすることで解体後の固定資産税の軽減措置の延長などを検討するべき。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "issues": {
+      "status": "represented_elsewhere",
+      "value": null,
+      "raw_label": null,
+      "raw_text": null,
+      "evidence": [
+        {
+          "doc_id": "30636b73bcbe5838",
+          "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+          "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+          "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "この事業名では、何をする事業なのかわからないので、事業名を見直すべき。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "二次評価意見の文中から課題の値を切り出さない。",
+      "field_kind": "embedded",
+      "related_fields": [
+        "raw_fields/raw-2"
+      ]
+    },
+    "evaluation_year": {
+      "status": "present",
+      "value": 2025,
+      "raw_label": "令和7年度事務事業二次評価",
+      "raw_text": "令和7年度",
+      "evidence": [
+        {
+          "doc_id": "30636b73bcbe5838",
+          "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+          "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+          "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "令和7年度事務事業 二次評価における意見・見直しの方向性",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "target_year": {
+      "status": "not_recorded",
+      "value": null,
+      "raw_label": null,
+      "raw_text": null,
+      "evidence": [
+        {
+          "doc_id": "30636b73bcbe5838",
+          "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+          "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+          "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "令和6年度事務事業名【事業名称】／二次評価方針区分",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "名称欄の「令和6年度」は事業名称の時点を示す。二次評価の対象年度と断定しない。概要p3の令和6年度実績は一次評価の説明であり、この二次評価に転用しない。",
+      "field_kind": "absent"
+    },
+    "evaluation_actor": {
+      "status": "present",
+      "value": "二次評価",
+      "raw_label": "令和7年度事務事業 二次評価における意見・見直しの方向性",
+      "raw_text": "二次評価",
+      "evidence": [
+        {
+          "doc_id": "30636b73bcbe5838",
+          "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+          "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+          "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "令和7年度事務事業 二次評価における意見・見直しの方向性：二次評価",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "表題に明示された段階のみ転記。担当課の後日の回答と評価主体を混ぜない。",
+      "field_kind": "dedicated"
+    },
+    "purpose": {
+      "status": "not_recorded",
+      "value": null,
+      "raw_label": "目的",
+      "raw_text": null,
+      "evidence": [
+        {
+          "doc_id": "30636b73bcbe5838",
+          "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+          "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+          "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "No.1 空家等対策事業",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "個別事業の当該欄・説明はこの一覧に記載されていない。概要文書にもこの事業の記載はない。",
+      "field_kind": "absent"
+    },
+    "policy_alignment": {
+      "status": "not_recorded",
+      "value": null,
+      "raw_label": "上位計画との関係",
+      "raw_text": null,
+      "evidence": [
+        {
+          "doc_id": "30636b73bcbe5838",
+          "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+          "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+          "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "No.1 空家等対策事業",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "個別事業の当該欄・説明はこの一覧に記載されていない。概要文書にもこの事業の記載はない。",
+      "field_kind": "absent"
+    },
+    "performance_result": {
+      "status": "other_document",
+      "value": null,
+      "raw_label": "実施結果・成果",
+      "raw_text": null,
+      "evidence": [
+        {
+          "doc_id": "49203b442b550617",
+          "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyouka_1.pdf",
+          "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+          "sha256": "47ffab16c615135f0befc310d1cb7946cebe0c9950de21ecfb3052d673f2fed8",
+          "locator": {
+            "type": "pdf",
+            "page": 3
+          },
+          "quote": "担当課で一次評価を行いました。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "この見本の一覧は二次評価意見と予算編成時の対応であり、対象年度の事業実績は別の一次評価シート。",
+      "other_document_hint": "令和7年度事務事業評価シート（一次評価）。見本に未収録。",
+      "field_kind": "absent"
+    },
+    "future_direction": {
+      "status": "present",
+      "value": {
+        "raw_term": "E",
+        "aspect": "business_content",
+        "normalized": [
+          "improve"
+        ],
+        "mapping_status": "mapped",
+        "mapping_entry_ids": [
+          "26465-yosano-cho:30636b73bcbe5838:p1:vocabulary:1"
+        ],
+        "relation": "single",
+        "decision_stage": "unknown"
+      },
+      "raw_label": "二次評価方針区分",
+      "raw_text": "E",
+      "evidence": [
+        {
+          "doc_id": "30636b73bcbe5838",
+          "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+          "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+          "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "E 予算拡充を伴う見直し",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "事業内容の「見直し」をimproveへ対応。予算拡充は別の観点であり、この値から事業規模の拡大を断定しない。",
+      "field_kind": "dedicated"
+    },
+    "cost": {
+      "status": "present",
+      "value": [
+        {
+          "status": "present",
+          "value": {
+            "amount_yen": "568000",
+            "original_amount": "568",
+            "original_unit": "千円",
+            "fiscal_year": {
+              "status": "present",
+              "value": 2024,
+              "raw_label": "金額の年度",
+              "raw_text": "2024",
+              "evidence": [
+                {
+                  "doc_id": "30636b73bcbe5838",
+                  "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+                  "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+                  "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+                  "locator": {
+                    "type": "pdf",
+                    "page": 1
+                  },
+                  "quote": "予算額・決算額（千円）：R6決算568／R7当初1,077／R8当初2,572",
+                  "methods": [
+                    "pdf_text",
+                    "ai_extraction"
+                  ],
+                  "confidence": "high",
+                  "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                  "review": "codex_visual_checked"
+                }
+              ],
+              "note": "原典の記載を転記。",
+              "field_kind": "dedicated"
+            },
+            "basis": "settlement",
+            "personnel_cost": "unknown",
+            "accounting_basis": "unknown",
+            "scope": "R6決算",
+            "conversion": "568 × 1000 = 568000 円"
+          },
+          "raw_label": "R6決算",
+          "raw_text": "568 千円",
+          "evidence": [
+            {
+              "doc_id": "30636b73bcbe5838",
+              "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+              "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+              "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+              "locator": {
+                "type": "pdf",
+                "page": 1
+              },
+              "quote": "予算額・決算額（千円）：R6決算568／R7当初1,077／R8当初2,572",
+              "methods": [
+                "pdf_text",
+                "ai_extraction"
+              ],
+              "confidence": "high",
+              "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+              "review": "codex_visual_checked"
+            }
+          ],
+          "note": "原典の記載を転記。",
+          "field_kind": "dedicated"
+        },
+        {
+          "status": "present",
+          "value": {
+            "amount_yen": "1077000",
+            "original_amount": "1077",
+            "original_unit": "千円",
+            "fiscal_year": {
+              "status": "present",
+              "value": 2025,
+              "raw_label": "金額の年度",
+              "raw_text": "2025",
+              "evidence": [
+                {
+                  "doc_id": "30636b73bcbe5838",
+                  "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+                  "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+                  "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+                  "locator": {
+                    "type": "pdf",
+                    "page": 1
+                  },
+                  "quote": "予算額・決算額（千円）：R6決算568／R7当初1,077／R8当初2,572",
+                  "methods": [
+                    "pdf_text",
+                    "ai_extraction"
+                  ],
+                  "confidence": "high",
+                  "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                  "review": "codex_visual_checked"
+                }
+              ],
+              "note": "原典の記載を転記。",
+              "field_kind": "dedicated"
+            },
+            "basis": "budget_initial",
+            "personnel_cost": "unknown",
+            "accounting_basis": "unknown",
+            "scope": "R7当初",
+            "conversion": "1077 × 1000 = 1077000 円"
+          },
+          "raw_label": "R7当初",
+          "raw_text": "1077 千円",
+          "evidence": [
+            {
+              "doc_id": "30636b73bcbe5838",
+              "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+              "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+              "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+              "locator": {
+                "type": "pdf",
+                "page": 1
+              },
+              "quote": "予算額・決算額（千円）：R6決算568／R7当初1,077／R8当初2,572",
+              "methods": [
+                "pdf_text",
+                "ai_extraction"
+              ],
+              "confidence": "high",
+              "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+              "review": "codex_visual_checked"
+            }
+          ],
+          "note": "原典の記載を転記。",
+          "field_kind": "dedicated"
+        },
+        {
+          "status": "present",
+          "value": {
+            "amount_yen": "2572000",
+            "original_amount": "2572",
+            "original_unit": "千円",
+            "fiscal_year": {
+              "status": "present",
+              "value": 2026,
+              "raw_label": "金額の年度",
+              "raw_text": "2026",
+              "evidence": [
+                {
+                  "doc_id": "30636b73bcbe5838",
+                  "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+                  "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+                  "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+                  "locator": {
+                    "type": "pdf",
+                    "page": 1
+                  },
+                  "quote": "予算額・決算額（千円）：R6決算568／R7当初1,077／R8当初2,572",
+                  "methods": [
+                    "pdf_text",
+                    "ai_extraction"
+                  ],
+                  "confidence": "high",
+                  "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                  "review": "codex_visual_checked"
+                }
+              ],
+              "note": "原典の記載を転記。",
+              "field_kind": "dedicated"
+            },
+            "basis": "budget_initial",
+            "personnel_cost": "unknown",
+            "accounting_basis": "unknown",
+            "scope": "R8当初",
+            "conversion": "2572 × 1000 = 2572000 円"
+          },
+          "raw_label": "R8当初",
+          "raw_text": "2572 千円",
+          "evidence": [
+            {
+              "doc_id": "30636b73bcbe5838",
+              "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+              "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+              "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+              "locator": {
+                "type": "pdf",
+                "page": 1
+              },
+              "quote": "予算額・決算額（千円）：R6決算568／R7当初1,077／R8当初2,572",
+              "methods": [
+                "pdf_text",
+                "ai_extraction"
+              ],
+              "confidence": "high",
+              "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+              "review": "codex_visual_checked"
+            }
+          ],
+          "note": "原典の記載を転記。",
+          "field_kind": "dedicated"
+        }
+      ],
+      "raw_label": "予算額・決算額（千円）",
+      "raw_text": "568／1,077／2,572千円",
+      "evidence": [
+        {
+          "doc_id": "30636b73bcbe5838",
+          "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+          "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+          "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "予算額・決算額（千円）：R6決算568／R7当初1,077／R8当初2,572",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    }
+  },
+  "raw_fields": [
+    {
+      "field_id": "raw-1",
+      "label": "担当課の事業の見直し及び事業実施方針",
+      "section_path": [],
+      "occurrence": 1,
+      "canonical_field": null,
+      "content": {
+        "status": "present",
+        "value": "〇事業名は「老朽空家等対策事業」に変更しました。\n〇KPIについては、危険空家の数に変更しました。\n〇地域連携については、地域の負担感が増すことのないよう一定配慮が必要であることから、令和8年度に有効な手段を検討します。\n〇今年度新たな取り組みとして、所有者不明の空家について、所有者不明土地・建物管理制度を活用し、適正管理するよう管理人への預託金を計上しています。\n〇利子補給制度については、まずは除却費補助制度を複数年実施することとし、利子補給も含め、除却促進のため有効な施策を検討します。\n〇固定資産税の軽減措置の延長については、条例改正の必要の有無も含め、住民税務課と引き続き協議します。",
+        "raw_label": "担当課の事業の見直し及び事業実施方針",
+        "raw_text": "〇事業名は「老朽空家等対策事業」に変更しました。\n〇KPIについては、危険空家の数に変更しました。\n〇地域連携については、地域の負担感が増すことのないよう一定配慮が必要であることから、令和8年度に有効な手段を検討します。\n〇今年度新たな取り組みとして、所有者不明の空家について、所有者不明土地・建物管理制度を活用し、適正管理するよう管理人への預託金を計上しています。\n〇利子補給制度については、まずは除却費補助制度を複数年実施することとし、利子補給も含め、除却促進のため有効な施策を検討します。\n〇固定資産税の軽減措置の延長については、条例改正の必要の有無も含め、住民税務課と引き続き協議します。",
+        "evidence": [
+          {
+            "doc_id": "30636b73bcbe5838",
+            "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+            "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+            "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+            "locator": {
+              "type": "pdf",
+              "page": 1
+            },
+            "quote": "担当課の事業の見直し及び事業実施方針：〇事業名は「老朽空家等対策事業」に変更しました。\n〇KPIについては、危険空家の数に変更しました。\n〇地域連携については、地域の負担感が増すことのないよう一定配慮が必要であることから、令和8年度に有効な手段を検討します。\n〇今年度新たな取り組みとして、所有者不明の空家について、所有者不明土地・建物管理制度を活用し、適正管理するよう管理人への預託金を計上しています。\n〇利子補給制度については、まずは除却費補助制度を複数年実施することとし、利子補給も含め、除却促進のため有効な施策を検討します。\n〇固定資産税の軽減措置の延長については、条例改正の必要の有無も含め、住民税務課と引き続き協議します。",
+            "methods": [
+              "pdf_text",
+              "ai_extraction"
+            ],
+            "confidence": "high",
+            "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+            "review": "codex_visual_checked"
+          }
+        ],
+        "note": "別主体である担当課の回答欄を全文保持。二次評価者の目的・内容・対象・実施結果へ読み替えない。原文の改行を段落単位に整理。",
+        "field_kind": "embedded"
+      }
+    },
+    {
+      "field_id": "raw-2",
+      "label": "二次評価意見",
+      "section_path": [],
+      "occurrence": 1,
+      "canonical_field": null,
+      "content": {
+        "status": "present",
+        "value": "○この事業名では、何をする事業なのかわからないので、事業名を見直すべき。\n○苦情ゼロのKPI達成は不可能ではないか、見直すべき。\n○現地を確認した上で、解体されない空家について、なぜ解体されないのかのヒアリング等を行い、有効な対策を検討するべき。\n〇自治会と連携した調査など、地域連携も検討されたい。また、行政が把握しようとするとハードルがあるため、地域で移転先を把握されている事例もあるので、参考にされたい。\n○解体を促す有効な支援となるよう、無利子融資や利子補給に変更すべきではないか。（そうすることで予算の拡充も可能になるのでは）\n見直すべきすることで解体後の固定資産税の軽減措置の延長などを検討するべき。",
+        "raw_label": "二次評価意見",
+        "raw_text": "○この事業名では、何をする事業なのかわからないので、事業名を見直すべき。\n○苦情ゼロのKPI達成は不可能ではないか、見直すべき。\n○現地を確認した上で、解体されない空家について、なぜ解体されないのかのヒアリング等を行い、有効な対策を検討するべき。\n〇自治会と連携した調査など、地域連携も検討されたい。また、行政が把握しようとするとハードルがあるため、地域で移転先を把握されている事例もあるので、参考にされたい。\n○解体を促す有効な支援となるよう、無利子融資や利子補給に変更すべきではないか。（そうすることで予算の拡充も可能になるのでは）\n見直すべきすることで解体後の固定資産税の軽減措置の延長などを検討するべき。",
+        "evidence": [
+          {
+            "doc_id": "30636b73bcbe5838",
+            "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+            "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+            "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+            "locator": {
+              "type": "pdf",
+              "page": 1
+            },
+            "quote": "二次評価意見：○この事業名では、何をする事業なのかわからないので、事業名を見直すべき。\n○苦情ゼロのKPI達成は不可能ではないか、見直すべき。\n○現地を確認した上で、解体されない空家について、なぜ解体されないのかのヒアリング等を行い、有効な対策を検討するべき。\n〇自治会と連携した調査など、地域連携も検討されたい。また、行政が把握しようとするとハードルがあるため、地域で移転先を把握されている事例もあるので、参考にされたい。\n○解体を促す有効な支援となるよう、無利子融資や利子補給に変更すべきではないか。（そうすることで予算の拡充も可能になるのでは）\n見直すべきすることで解体後の固定資産税の軽減措置の延長などを検討するべき。",
+            "methods": [
+              "pdf_text",
+              "ai_extraction"
+            ],
+            "confidence": "high",
+            "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+            "review": "codex_visual_checked"
+          }
+        ],
+        "note": "課題等を文中から分割しない。原文の不自然な「見直すべきすることで」も補正しない。",
+        "field_kind": "embedded"
+      }
+    }
+  ],
+  "vocabulary_tables": [
+    {
+      "schema_version": "1.2.0",
+      "table_id": "26465-yosano-cho:30636b73bcbe5838:p1:vocabulary",
+      "municipality_slug": "26465-yosano-cho",
+      "scope": {
+        "evaluation_year_from": 2025,
+        "evaluation_year_to": 2025,
+        "evaluator": "二次評価",
+        "form_name": "30636b73bcbe5838",
+        "version_note": "この例の文書・頁に限る。年度を推定して適用範囲を広げない。"
+      },
+      "entries": [
+        {
+          "entry_id": "26465-yosano-cho:30636b73bcbe5838:p1:vocabulary:1",
+          "dimension": "direction",
+          "aspect": "business_content",
+          "raw_term": "E",
+          "meaning": {
+            "status": "present",
+            "value": "予算拡充を伴う見直し",
+            "raw_label": "原典の語又は凡例",
+            "raw_text": "予算拡充を伴う見直し",
+            "evidence": [
+              {
+                "doc_id": "30636b73bcbe5838",
+                "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+                "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+                "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+                "locator": {
+                  "type": "pdf",
+                  "page": 1
+                },
+                "quote": "E 予算拡充を伴う見直し",
+                "methods": [
+                  "pdf_text",
+                  "ai_extraction"
+                ],
+                "confidence": "high",
+                "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                "review": "codex_visual_checked"
+              }
+            ],
+            "note": "原典の記載を転記。",
+            "field_kind": "dedicated"
+          },
+          "normalized_direction": [
+            "improve"
+          ],
+          "relation": "single",
+          "basis": "official_legend",
+          "evidence": [
+            {
+              "doc_id": "30636b73bcbe5838",
+              "source_url": "https://www.town.yosano.lg.jp/assets/R7jimujigyouhyoukaiken.pdf",
+              "page_url": "https://www.town.yosano.lg.jp/administration/plan/administrative-evaluation/535280/",
+              "sha256": "e52a2e7f6c1a2c59c619cac0bcf9ea0bd5db3d10ee4ad1f40f5b02aaaf88a86f",
+              "locator": {
+                "type": "pdf",
+                "page": 1
+              },
+              "quote": "E 予算拡充を伴う見直し",
+              "methods": [
+                "pdf_text",
+                "ai_extraction"
+              ],
+              "confidence": "high",
+              "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+              "review": "codex_visual_checked"
+            }
+          ],
+          "note": "自治体・年度・様式・評価主体の範囲内のみ有効。",
+          "source_field_kind": "dedicated",
+          "source_label": "二次評価方針区分",
+          "application": "dedicated_only"
+        }
+      ],
+      "application_policy": "dedicated_fields_only"
+    }
+  ],
+  "extraction": {
+    "created_by": "Codex; manually transcribed from page images",
+    "human_reviewed": false,
+    "completeness": "partial_example",
+    "note": "画像を見て手で選んだ値の設計検証例。必ず探す項目は確認した。全任意欄・全raw_fieldsの完全転記ではない。 1.1.0で当該頁の見出しと値を再照合。専用欄からのみ標準の値を転記し、別欄の文中の意味はraw_fieldsに欄全体で保持。部分例であり全欄の転記完了を表さない。"
+  }
+}

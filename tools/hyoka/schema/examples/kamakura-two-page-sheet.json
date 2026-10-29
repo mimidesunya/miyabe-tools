@@ -1,0 +1,726 @@
+{
+  "schema_version": "1.2.0",
+  "record_id": "14204-kamakura-shi:0128ef6832db1ee3:p1",
+  "municipality": {
+    "slug": "14204-kamakura-shi",
+    "code": "14204",
+    "name": "神奈川県 鎌倉市",
+    "identity_source": "sample_manifest"
+  },
+  "project_key": "0128ef6832db1ee3:p1",
+  "evaluation_instance_key": "2026:みどり公園課長",
+  "record_status": "identified",
+  "source_document_ids": [
+    "0128ef6832db1ee3"
+  ],
+  "record_evidence": [
+    {
+      "doc_id": "0128ef6832db1ee3",
+      "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+      "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+      "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+      "locator": {
+        "type": "pdf",
+        "page": 1
+      },
+      "quote": "公園維持管理事業",
+      "methods": [
+        "pdf_text",
+        "ai_extraction"
+      ],
+      "confidence": "high",
+      "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+      "review": "codex_visual_checked"
+    },
+    {
+      "doc_id": "0128ef6832db1ee3",
+      "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+      "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+      "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+      "locator": {
+        "type": "pdf",
+        "page": 2
+      },
+      "quote": "評価結果／今後の取組方針",
+      "methods": [
+        "pdf_text",
+        "ai_extraction"
+      ],
+      "confidence": "high",
+      "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+      "review": "codex_visual_checked"
+    }
+  ],
+  "layout": "single_project_sheet",
+  "fields": {
+    "project_name": {
+      "status": "present",
+      "value": "公園維持管理事業",
+      "raw_label": "事業名",
+      "raw_text": "公園維持管理事業",
+      "evidence": [
+        {
+          "doc_id": "0128ef6832db1ee3",
+          "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+          "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+          "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "公園維持管理事業",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "department": {
+      "status": "present",
+      "value": "都市整備部 みどり公園課",
+      "raw_label": "所管課",
+      "raw_text": "都市整備部 みどり公園課",
+      "evidence": [
+        {
+          "doc_id": "0128ef6832db1ee3",
+          "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+          "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+          "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "都市整備部 みどり公園課",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "evaluation_actor": {
+      "status": "present",
+      "value": "みどり公園課長",
+      "raw_label": "評価者",
+      "raw_text": "みどり公園課長",
+      "evidence": [
+        {
+          "doc_id": "0128ef6832db1ee3",
+          "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+          "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+          "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "みどり公園課長",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "purpose": {
+      "status": "present",
+      "value": "公園緑地等の適切な維持管理を図るため。",
+      "raw_label": "意図",
+      "raw_text": "公園緑地等の適切な維持管理を図るため。",
+      "evidence": [
+        {
+          "doc_id": "0128ef6832db1ee3",
+          "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+          "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+          "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "公園緑地等の適切な維持管理を図るため。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "description": {
+      "status": "present",
+      "value": "都市公園管理事業、笛田公園管理事業、広町緑地管理事業、児童遊園管理事業、都市公園等維持修繕事業",
+      "raw_label": "事業工程",
+      "raw_text": "都市公園管理事業、笛田公園管理事業、広町緑地管理事業、児童遊園管理事業、都市公園等維持修繕事業",
+      "evidence": [
+        {
+          "doc_id": "0128ef6832db1ee3",
+          "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+          "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+          "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "都市公園管理事業、笛田公園管理事業、広町緑地管理事業、児童遊園管理事業、都市公園等維持修繕事業",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "policy_alignment": {
+      "status": "present",
+      "value": "分野名：みどり／施策の方針名：都市公園の整備・管理",
+      "raw_label": "総合計画上の位置付け",
+      "raw_text": "分野名：みどり／施策の方針名：都市公園の整備・管理",
+      "evidence": [
+        {
+          "doc_id": "0128ef6832db1ee3",
+          "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+          "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+          "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "分野名：みどり／施策の方針名：都市公園の整備・管理",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "performance_result": {
+      "status": "present",
+      "value": "事業実施により、使用禁止の公園遊具数が減少した。",
+      "raw_label": "本事業実施に伴う成果指標の達成状況に対する評価",
+      "raw_text": "事業実施により、使用禁止の公園遊具数が減少した。",
+      "evidence": [
+        {
+          "doc_id": "0128ef6832db1ee3",
+          "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+          "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+          "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+          "locator": {
+            "type": "pdf",
+            "page": 2
+          },
+          "quote": "事業実施により、使用禁止の公園遊具数が減少した。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "evaluation_reason": {
+      "status": "present",
+      "value": "都市公園の維持管理を行うことで、市民等に利用される公園を維持することができた。",
+      "raw_label": "総評",
+      "raw_text": "都市公園の維持管理を行うことで、市民等に利用される公園を維持することができた。",
+      "evidence": [
+        {
+          "doc_id": "0128ef6832db1ee3",
+          "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+          "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+          "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+          "locator": {
+            "type": "pdf",
+            "page": 2
+          },
+          "quote": "都市公園の維持管理を行うことで、市民等に利用される公園を維持することができた。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "issues": {
+      "status": "present",
+      "value": "新たに認識された課題はなかった",
+      "raw_label": "新たな課題",
+      "raw_text": "新たに認識された課題はなかった",
+      "evidence": [
+        {
+          "doc_id": "0128ef6832db1ee3",
+          "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+          "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+          "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+          "locator": {
+            "type": "pdf",
+            "page": 2
+          },
+          "quote": "新たに認識された課題はなかった",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "evaluation_year": {
+      "status": "present",
+      "value": 2026,
+      "raw_label": "令和8年（2026年）度事業評価シート",
+      "raw_text": "令和8年（2026年）度",
+      "evidence": [
+        {
+          "doc_id": "0128ef6832db1ee3",
+          "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+          "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+          "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "令和8年（2026年）度事業評価シート",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "target_year": {
+      "status": "present",
+      "value": 2025,
+      "raw_label": "令和7年度の事業実施",
+      "raw_text": "令和7年度",
+      "evidence": [
+        {
+          "doc_id": "0128ef6832db1ee3",
+          "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+          "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+          "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+          "locator": {
+            "type": "pdf",
+            "page": 2
+          },
+          "quote": "令和7年度の事業実施による成果は不明である。",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "この文は成2の初期値に関する注記。対象年度のみ根拠とし、全成果が不明とは解釈しない。",
+      "field_kind": "dedicated"
+    },
+    "future_direction": {
+      "status": "present",
+      "value": {
+        "raw_term": "① 事業内容は現状通りとする",
+        "aspect": "business_content",
+        "normalized": [
+          "continue"
+        ],
+        "mapping_status": "mapped",
+        "mapping_entry_ids": [
+          "14204-kamakura-shi:0128ef6832db1ee3:p1:vocabulary:1"
+        ],
+        "relation": "single",
+        "decision_stage": "unknown"
+      },
+      "raw_label": "評価実施翌年度以降の方向性／事業内容",
+      "raw_text": "① 事業内容は現状通りとする",
+      "evidence": [
+        {
+          "doc_id": "0128ef6832db1ee3",
+          "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+          "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+          "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+          "locator": {
+            "type": "pdf",
+            "page": 2
+          },
+          "quote": "■ ① 事業内容は現状通りとする",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の方向判断を保持。正規化は明示語のある場合だけ行う。",
+      "field_kind": "dedicated"
+    },
+    "cost": {
+      "status": "present",
+      "value": [
+        {
+          "status": "present",
+          "value": {
+            "amount_yen": "527985000",
+            "original_amount": "527985",
+            "original_unit": "千円",
+            "fiscal_year": {
+              "status": "present",
+              "value": 2025,
+              "raw_label": "金額の年度",
+              "raw_text": "2025",
+              "evidence": [
+                {
+                  "doc_id": "0128ef6832db1ee3",
+                  "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+                  "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+                  "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+                  "locator": {
+                    "type": "pdf",
+                    "page": 1
+                  },
+                  "quote": "令和7年度 決算額（千円）527,985",
+                  "methods": [
+                    "pdf_text",
+                    "ai_extraction"
+                  ],
+                  "confidence": "high",
+                  "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                  "review": "codex_visual_checked"
+                }
+              ],
+              "note": "原典の記載を転記。",
+              "field_kind": "dedicated"
+            },
+            "basis": "settlement",
+            "personnel_cost": "unknown",
+            "accounting_basis": "unknown",
+            "scope": "令和7年度決算額",
+            "conversion": "527985 × 1000 = 527985000 円"
+          },
+          "raw_label": "令和7年度決算額",
+          "raw_text": "527985 千円",
+          "evidence": [
+            {
+              "doc_id": "0128ef6832db1ee3",
+              "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+              "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+              "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+              "locator": {
+                "type": "pdf",
+                "page": 1
+              },
+              "quote": "令和7年度 決算額（千円）527,985",
+              "methods": [
+                "pdf_text",
+                "ai_extraction"
+              ],
+              "confidence": "high",
+              "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+              "review": "codex_visual_checked"
+            }
+          ],
+          "note": "原典の記載を転記。",
+          "field_kind": "dedicated"
+        }
+      ],
+      "raw_label": "決算額（千円）",
+      "raw_text": "527,985千円",
+      "evidence": [
+        {
+          "doc_id": "0128ef6832db1ee3",
+          "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+          "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+          "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+          "locator": {
+            "type": "pdf",
+            "page": 1
+          },
+          "quote": "令和7年度 決算額（千円）527,985",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "原典の記載を転記。",
+      "field_kind": "dedicated"
+    },
+    "evaluation_rating": {
+      "status": "present",
+      "value": {
+        "raw_term": "A",
+        "dimension": "上位施策への寄与度",
+        "meaning": null,
+        "mapping_status": "unmapped",
+        "mapping_entry_ids": []
+      },
+      "raw_label": "上位施策への寄与度",
+      "raw_text": "A",
+      "evidence": [
+        {
+          "doc_id": "0128ef6832db1ee3",
+          "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+          "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+          "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+          "locator": {
+            "type": "pdf",
+            "page": 2
+          },
+          "quote": "上位施策への寄与度 A",
+          "methods": [
+            "pdf_text",
+            "ai_extraction"
+          ],
+          "confidence": "high",
+          "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+          "review": "codex_visual_checked"
+        }
+      ],
+      "note": "この2頁にはAの意味の凡例がないため、意味や共通の点数を推測しない。",
+      "field_kind": "dedicated"
+    }
+  },
+  "raw_fields": [
+    {
+      "field_id": "raw-1",
+      "label": "評価実施翌年度以降の方向性／予算規模",
+      "section_path": [],
+      "occurrence": 1,
+      "canonical_field": "future_direction",
+      "content": {
+        "status": "present",
+        "value": "Ⓐ 予算規模は現状維持とする",
+        "raw_label": "評価実施翌年度以降の方向性／予算規模",
+        "raw_text": "Ⓐ 予算規模は現状維持とする",
+        "evidence": [
+          {
+            "doc_id": "0128ef6832db1ee3",
+            "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+            "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+            "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+            "locator": {
+              "type": "pdf",
+              "page": 2
+            },
+            "quote": "■ Ⓐ 予算規模は現状維持とする",
+            "methods": [
+              "pdf_text",
+              "ai_extraction"
+            ],
+            "confidence": "high",
+            "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+            "review": "codex_visual_checked"
+          }
+        ],
+        "note": "原文の欄を保持。",
+        "field_kind": "dedicated"
+      }
+    },
+    {
+      "field_id": "raw-2",
+      "label": "前年度の新たな課題への対応結果",
+      "section_path": [],
+      "occurrence": 1,
+      "canonical_field": "improvement_history",
+      "content": {
+        "status": "present",
+        "value": "前年度は新たな課題なし",
+        "raw_label": "前年度の新たな課題への対応結果",
+        "raw_text": "前年度は新たな課題なし",
+        "evidence": [
+          {
+            "doc_id": "0128ef6832db1ee3",
+            "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+            "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+            "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+            "locator": {
+              "type": "pdf",
+              "page": 2
+            },
+            "quote": "前年度は新たな課題なし",
+            "methods": [
+              "pdf_text",
+              "ai_extraction"
+            ],
+            "confidence": "high",
+            "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+            "review": "codex_visual_checked"
+          }
+        ],
+        "note": "原文の欄を保持。",
+        "field_kind": "dedicated"
+      }
+    },
+    {
+      "field_id": "raw-3",
+      "label": "対象",
+      "section_path": [],
+      "occurrence": 1,
+      "canonical_field": "target_population",
+      "content": {
+        "status": "present",
+        "value": "市民等",
+        "raw_label": "対象",
+        "raw_text": "市民等",
+        "evidence": [
+          {
+            "doc_id": "0128ef6832db1ee3",
+            "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+            "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+            "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+            "locator": {
+              "type": "pdf",
+              "page": 1
+            },
+            "quote": "対象：市民等",
+            "methods": [
+              "pdf_text",
+              "ai_extraction"
+            ],
+            "confidence": "high",
+            "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+            "review": "codex_visual_checked"
+          }
+        ],
+        "note": "専用欄だが、専用欄の重み付き割合が50%未満のため原文の項目として保持。",
+        "field_kind": "dedicated"
+      }
+    }
+  ],
+  "vocabulary_tables": [
+    {
+      "schema_version": "1.2.0",
+      "table_id": "14204-kamakura-shi:0128ef6832db1ee3:p1:vocabulary",
+      "municipality_slug": "14204-kamakura-shi",
+      "scope": {
+        "evaluation_year_from": 2026,
+        "evaluation_year_to": 2026,
+        "evaluator": "みどり公園課長",
+        "form_name": "0128ef6832db1ee3",
+        "version_note": "この例の文書・頁に限る。年度を推定して適用範囲を広げない。"
+      },
+      "entries": [
+        {
+          "entry_id": "14204-kamakura-shi:0128ef6832db1ee3:p1:vocabulary:1",
+          "dimension": "direction",
+          "aspect": "business_content",
+          "raw_term": "① 事業内容は現状通りとする",
+          "meaning": {
+            "status": "present",
+            "value": "① 事業内容は現状通りとする",
+            "raw_label": "原典の語又は凡例",
+            "raw_text": "① 事業内容は現状通りとする",
+            "evidence": [
+              {
+                "doc_id": "0128ef6832db1ee3",
+                "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+                "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+                "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+                "locator": {
+                  "type": "pdf",
+                  "page": 2
+                },
+                "quote": "■ ① 事業内容は現状通りとする",
+                "methods": [
+                  "pdf_text",
+                  "ai_extraction"
+                ],
+                "confidence": "high",
+                "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+                "review": "codex_visual_checked"
+              }
+            ],
+            "note": "原典の記載を転記。",
+            "field_kind": "dedicated"
+          },
+          "normalized_direction": [
+            "continue"
+          ],
+          "relation": "single",
+          "basis": "explicit_source_wording",
+          "evidence": [
+            {
+              "doc_id": "0128ef6832db1ee3",
+              "source_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/documents/tosei33r8.pdf",
+              "page_url": "https://www.city.kamakura.kanagawa.jp/keiki/hyouka/r8jigyouhyouka3.html",
+              "sha256": "14f0bcb6cc9130d738037bc9a631fe496fe3d85564a4a3e7f9a40cd4cc5770a1",
+              "locator": {
+                "type": "pdf",
+                "page": 2
+              },
+              "quote": "■ ① 事業内容は現状通りとする",
+              "methods": [
+                "pdf_text",
+                "ai_extraction"
+              ],
+              "confidence": "high",
+              "confidence_basis": "CodexがPDF頁画像で欄・値・列位置を照合。人による確認ではない。",
+              "review": "codex_visual_checked"
+            }
+          ],
+          "note": "自治体・年度・様式・評価主体の範囲内のみ有効。",
+          "source_field_kind": "dedicated",
+          "source_label": "評価実施翌年度以降の方向性／事業内容",
+          "application": "dedicated_only"
+        }
+      ],
+      "application_policy": "dedicated_fields_only"
+    }
+  ],
+  "extraction": {
+    "created_by": "Codex; manually transcribed from page images",
+    "human_reviewed": false,
+    "completeness": "partial_example",
+    "note": "画像を見て手で選んだ値の設計検証例。必ず探す項目は確認した。全任意欄・全raw_fieldsの完全転記ではない。 1.1.0で当該頁の見出しと値を再照合。専用欄からのみ標準の値を転記し、別欄の文中の意味はraw_fieldsに欄全体で保持。部分例であり全欄の転記完了を表さない。"
+  }
+}
