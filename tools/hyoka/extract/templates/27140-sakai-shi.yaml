@@ -1,0 +1,149 @@
+version: 1
+municipality:
+  code: '27140'
+  name: 大阪府 堺市
+notes: 試料の様式を定義。未対応頁・読めない欄は失敗一覧に残す。
+templates:
+- id: sakai-r8
+  layout: single_project_sheet
+  match:
+  - pattern: 令和8年度事務事業評価シート\(1\)
+  - pattern: 担当部署名
+  - pattern: 基本情報
+  fields:
+    project_name:
+      label:
+        rect: &id001
+        - 0.05
+        - 0.09
+        - 0.155
+        - 0.115
+        pattern: 事務事業名
+      value:
+        same_row: 事務事業名
+        columns:
+        - 0.156
+        - 0.646
+        rect: *id001
+        row_span:
+        - 0.17
+        - 0.64
+    department:
+      label:
+        rect:
+        - 0.05
+        - 0.11
+        - 0.155
+        - 0.135
+        pattern: 担当部署名
+      value:
+        rect:
+        - 0.649
+        - 0.112
+        - 0.914
+        - 0.132
+      note: 担当部署名の課欄を転記。部局名はそれぞれ原文欄に保存。
+    evaluation_year:
+      label:
+        rect:
+        - 0.3
+        - 0.03
+        - 0.7
+        - 0.058
+        pattern: 事務事業評価シート
+      value:
+        rect:
+        - 0.3
+        - 0.03
+        - 0.7
+        - 0.058
+        pattern: (令和[0-9]+年度)
+    target_year:
+      label:
+        rect:
+        - 0.35
+        - 0.057
+        - 0.65
+        - 0.078
+        pattern: 事務事業
+      value:
+        rect:
+        - 0.35
+        - 0.057
+        - 0.65
+        - 0.078
+        pattern: (令和[0-9]+年度)
+    future_direction:
+      absent: 今後の方向性の専用欄はない。必要性・有効性の所見を原文欄に残し、文中の意味は標準値へ読み替えない。
+    evaluation_actor:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    purpose:
+      label:
+        rect: &id002
+        - 0.09
+        - 0.35
+        - 0.257
+        - 0.5
+        pattern: 事業の目的
+      value:
+        same_row: 事業の目的
+        columns:
+        - 0.259
+        - 0.935
+        rect: *id002
+        row_span:
+        - 0.27
+        - 0.93
+  pages: 2
+  continuation_match:
+  - page: 1
+    pattern: 事務事業評価シート\(2\)
+  raw_fields:
+  - label:
+      rect:
+      - 0.38
+      - 0.11
+      - 0.403
+      - 0.135
+      pattern: 局
+    value:
+      rect:
+      - 0.155
+      - 0.112
+      - 0.379
+      - 0.132
+  - label:
+      rect:
+      - 0.627
+      - 0.11
+      - 0.648
+      - 0.135
+      pattern: 部
+    value:
+      rect:
+      - 0.403
+      - 0.112
+      - 0.626
+      - 0.132
+  - label:
+      rect:
+      - 0.07
+      - 0.8
+      - 0.94
+      - 0.95
+      pattern: 事業の必要性・有効性に係る所見
+      page: 1
+    value:
+      below_heading: 事業の必要性・有効性に係る所見
+      columns:
+      - 0.176
+      - 0.935
+      rule_span:
+      - 0.2
+      - 0.93
+      rect:
+      - 0.07
+      - 0.8
+      - 0.94
+      - 0.95
+      page: 1

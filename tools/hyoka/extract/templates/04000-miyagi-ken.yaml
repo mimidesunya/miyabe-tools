@@ -1,0 +1,234 @@
+version: 1
+municipality:
+  code: '04000'
+  name: 宮城県
+notes: 事業KPI一覧と大規模事業調書を対象。政策評価の年度を事業評価年度へ流用しない。作成年月は評価年度としない。大規模調書の後続頁・政策報告本文の整理は未対応。
+templates:
+- id: miyagi-kpi-list
+  layout: list_only
+  match:
+  - pattern: KPIの指標と達成状況
+  - pattern: 事業の成果と評価
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.08
+        - 0.05
+        - 0.18
+        - 0.18
+        pattern: 事業名
+      value:
+        rect:
+        - 0.083
+        - row_top
+        - 0.177
+        - row_bottom
+    department:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    evaluation_year:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    target_year:
+      label:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: 政策・施策及び事業について
+        page: first
+      value:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: (令和[0-9]+年度)の政策・施策及び事業について
+        page: first
+    future_direction:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    evaluation_actor:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+  table:
+    rule_span:
+    - 0.085
+    - 0.174
+    y_range:
+    - 0.08
+    - 0.92
+    min_height: 0.02
+    row_test:
+      rect:
+      - 0.063
+      - row_top
+      - 0.082
+      - row_bottom
+      pattern: '[0-9]+'
+  raw_fields:
+  - label:
+      rect:
+      - 0.7
+      - 0.05
+      - 0.94
+      - 0.17
+      pattern: 事業の成果と評価
+    value:
+      rect:
+      - 0.704
+      - row_top
+      - 0.936
+      - row_bottom
+    embedded_fields:
+    - future_direction
+- id: miyagi-large-summary
+  layout: single_project_sheet
+  match:
+  - pattern: 大規模事業評価調書の要旨
+  - pattern: 対象事業名
+  - pattern: 県の評価
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.1
+        - 0.22
+        - 0.4
+        - 0.27
+        pattern: 対象事業名
+      value:
+        rect:
+        - 0.14
+        - 0.26
+        - 0.89
+        - 0.283
+    department:
+      label:
+        rect:
+        - 0.15
+        - 0.05
+        - 0.9
+        - 0.09
+        pattern: 大規模事業評価調書の要旨
+      value:
+        rect:
+        - 0.6
+        - 0.11
+        - 0.9
+        - 0.128
+    evaluation_year:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    target_year:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    future_direction:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    evaluation_actor:
+      label:
+        rect:
+        - 0.1
+        - 0.75
+        - 0.4
+        - 0.81
+        pattern: 県の評価
+      value:
+        rect:
+        - 0.1
+        - 0.75
+        - 0.4
+        - 0.81
+        pattern: (県)の評価
+  raw_fields:
+  - label:
+      rect:
+      - 0.1
+      - 0.75
+      - 0.4
+      - 0.81
+      pattern: 県の評価
+    value:
+      rect:
+      - 0.12
+      - 0.797
+      - 0.895
+      - 0.9
+    embedded_fields:
+    - future_direction
+- id: miyagi-large-report
+  layout: single_project_sheet
+  match:
+  - pattern: 大規模事業評価調書
+  - pattern: 事業の名称
+  fields:
+    project_name:
+      label:
+        rect: &id001
+        - 0.15
+        - 0.21
+        - 0.35
+        - 0.26
+        pattern: 事業の名称
+      value:
+        same_row: 事業の名称
+        columns:
+        - 0.354
+        - 0.867
+        rect: *id001
+        row_span:
+        - 0.36
+        - 0.86
+    department:
+      label:
+        rect:
+        - 0.3
+        - 0.13
+        - 0.7
+        - 0.17
+        pattern: 大規模事業評価調書
+      value:
+        rect:
+        - 0.65
+        - 0.17
+        - 0.86
+        - 0.185
+    evaluation_year:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    target_year:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    future_direction:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    evaluation_actor:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+  raw_fields:
+  - label:
+      rect:
+      - 0.15
+      - 0.25
+      - 0.35
+      - 0.28
+      pattern: 事業の概要
+    value:
+      rect:
+      - 0.354
+      - 0.25
+      - 0.867
+      - 0.895
+- id: miyagi-contents
+  action: exclude
+  category: contents
+  match:
+  - pattern: 目次
+    rect:
+    - 0
+    - 0
+    - 1
+    - 0.2
+- id: miyagi-report-cover
+  action: exclude
+  category: cover
+  match:
+  - pattern: 新・宮城の将来ビジョン成果と評価
+  - pattern: 政策・施策及び事業について
+- id: miyagi-reform-plan
+  action: exclude
+  category: administrative_plan
+  match:
+  - pattern: みやぎ行政運営・働き方改革推進プラン

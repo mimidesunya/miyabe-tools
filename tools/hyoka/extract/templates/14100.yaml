@@ -2,7 +2,7 @@ version: 1
 municipality:
   code: '14100'
   name: 神奈川県 横浜市
-notes: 親事業の先頭頁だけを採る。細事業の継続頁は別記録に混ぜず、未対応頁として報告。
+notes: 親事業と細事業の様式を別に読む。細事業で表示されない部署・年度・方向性を親から補完しない。
 templates:
 - id: yokohama-project-report
   layout: report
@@ -145,3 +145,91 @@ templates:
       columns:
       - 0.082
       - 0.916
+- id: yokohama-subproject
+  layout: report
+  match:
+  - pattern: 細事業名称
+  - pattern: 客観的指標に基づく分析
+  exclude:
+  - pattern: 所管区局・課
+  repeat:
+    anchor: 細事業名称
+    rect:
+    - 0.12
+    - 0.05
+    - 0.236
+    - 0.94
+    bottom: 0.94
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.12
+        - var: anchor_y
+          offset: -0.002
+        - 0.236
+        - var: anchor_y
+          offset: 0.013
+        pattern: 細事業名称
+      value:
+        rect:
+        - 0.12
+        - var: anchor_y
+          offset: -0.002
+        - 0.236
+        - var: anchor_y
+          offset: 0.013
+        same_row: 細事業名称
+        columns:
+        - 0.238
+        - 0.916
+        row_span:
+        - 0.24
+        - 0.91
+    department:
+      absent: 細事業の欄に専用表示なし。親事業の部署・年度・総合方針をこの細事業の値へ補完しない。
+    evaluation_year:
+      absent: 細事業の欄に専用表示なし。親事業の部署・年度・総合方針をこの細事業の値へ補完しない。
+    target_year:
+      absent: 細事業の欄に専用表示なし。親事業の部署・年度・総合方針をこの細事業の値へ補完しない。
+    future_direction:
+      absent: 細事業の欄に専用表示なし。親事業の部署・年度・総合方針をこの細事業の値へ補完しない。
+    evaluation_actor:
+      absent: 細事業の欄に専用表示なし。親事業の部署・年度・総合方針をこの細事業の値へ補完しない。
+  raw_fields:
+  - label:
+      rect:
+      - 0.12
+      - var: anchor_y
+        offset: -0.002
+      - 0.236
+      - var: anchor_y
+        offset: 0.013
+      pattern: 細事業名称
+    value:
+      rect:
+      - 0.081
+      - var: anchor_y
+        offset: -0.002
+      - 0.918
+      - anchor_bottom
+- id: 14100-contents
+  action: exclude
+  category: contents
+  match:
+  - pattern: 目次
+    rect:
+    - 0
+    - 0
+    - 1
+    - 0.3
+- id: yokohama-contents-full
+  action: exclude
+  category: contents
+  match:
+  - pattern: 事業評価書目次
+- id: yokohama-rating-guide
+  action: exclude
+  category: vocabulary_guide
+  match:
+  - pattern: 客観的指標自己分析自己分析の説明

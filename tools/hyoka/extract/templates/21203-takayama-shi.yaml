@@ -1,0 +1,311 @@
+version: 1
+municipality:
+  code: '21203'
+  name: 岐阜県 高山市
+notes: 試料の様式を定義。未対応頁・読めない欄は失敗一覧に残す。
+templates:
+- id: takayama-two-years
+  layout: single_project_sheet
+  match:
+  - pattern: 事業シート
+  - pattern: 次年度以降の考え方
+  - pattern: 事業実績、評価等
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.02
+        - 0.05
+        - 0.058
+        - 0.1
+        pattern: 事業名
+      value:
+        rect:
+        - 0.09
+        - 0.052
+        - 0.253
+        - 0.1
+    department:
+      label:
+        rect: &id001
+        - 0.02
+        - 0.098
+        - 0.058
+        - 0.118
+        pattern: 担当課
+      value:
+        same_row: 担当課
+        columns:
+        - 0.058
+        - 0.187
+        rect: *id001
+        row_span:
+        - 0.065
+        - 0.18
+    evaluation_year:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    target_year:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    future_direction:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    evaluation_actor:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+  instances:
+  - id: previous
+    fields:
+      target_year:
+        label:
+          rect: &id002
+          - 0.02
+          - 0.59
+          - 0.355
+          - 0.62
+          pattern: 事業実績
+        value:
+          rect: *id002
+          pattern: (令和[0-9]+年度)事業実績
+      future_direction:
+        label:
+          rect:
+          - 0.019000000000000003
+          - 0.85
+          - 0.057
+          - 0.96
+          pattern: 次年度以降の考え方
+        value:
+          choices:
+          - text:
+              rect: &id003
+              - 0.288
+              - 0.855
+              - 0.353
+              - 0.957
+              pattern: '[□☑](維持・改善)'
+            mark:
+              anchor: '[□☑]維持・改善'
+              relative_rect:
+              - 0
+              - -0.001
+              - 0.008
+              - 0.012
+              rect: *id003
+            frame_required: false
+          - text:
+              rect: *id003
+              pattern: '[□☑](拡大)'
+            mark:
+              anchor: '[□☑]拡大'
+              relative_rect:
+              - 0
+              - -0.001
+              - 0.008
+              - 0.012
+              rect: *id003
+            frame_required: false
+          - text:
+              rect: *id003
+              pattern: '[□☑](縮小)'
+            mark:
+              anchor: '[□☑]縮小'
+              relative_rect:
+              - 0
+              - -0.001
+              - 0.008
+              - 0.012
+              rect: *id003
+            frame_required: false
+          - text:
+              rect: *id003
+              pattern: '[□☑](廃止検討)'
+            mark:
+              anchor: '[□☑]廃止検討'
+              relative_rect:
+              - 0
+              - -0.001
+              - 0.008
+              - 0.012
+              rect: *id003
+            frame_required: false
+          - text:
+              rect: *id003
+              pattern: '[□☑](R[0-9]+完了(?!予定))'
+            mark:
+              anchor: '[□☑]R[0-9]+完了(?!予定)'
+              relative_rect:
+              - 0
+              - -0.001
+              - 0.008
+              - 0.012
+              rect: *id003
+            frame_required: false
+          - text:
+              rect: *id003
+              pattern: '[□☑](R[0-9]+完了予定)'
+            mark:
+              anchor: '[□☑]R[0-9]+完了予定'
+              relative_rect:
+              - 0
+              - -0.001
+              - 0.008
+              - 0.012
+              rect: *id003
+            frame_required: false
+          rect: *id003
+      evaluation_actor:
+        label:
+          rect:
+          - 0.019000000000000003
+          - 0.85
+          - 0.057
+          - 0.96
+          pattern: 担当課
+        value:
+          rect:
+          - 0.019000000000000003
+          - 0.85
+          - 0.057
+          - 0.96
+          pattern: 担当課
+    raw_fields:
+    - label:
+        rect:
+        - 0.019000000000000003
+        - 0.85
+        - 0.057
+        - 0.96
+        pattern: 次年度以降の考え方
+      value:
+        rect:
+        - 0.057
+        - 0.859
+        - 0.287
+        - 0.954
+  - id: current
+    fields:
+      target_year:
+        label:
+          rect: &id004
+          - 0.368
+          - 0.59
+          - 0.7
+          - 0.62
+          pattern: 事業実績
+        value:
+          rect: *id004
+          pattern: (令和[0-9]+年度)事業実績
+      future_direction:
+        label:
+          rect:
+          - 0.36600000000000005
+          - 0.85
+          - 0.404
+          - 0.96
+          pattern: 次年度以降の考え方
+        value:
+          choices:
+          - text:
+              rect: &id005
+              - 0.636
+              - 0.855
+              - 0.699
+              - 0.957
+              pattern: '[□☑](維持・改善)'
+            mark:
+              anchor: '[□☑]維持・改善'
+              relative_rect:
+              - 0
+              - -0.001
+              - 0.008
+              - 0.012
+              rect: *id005
+            frame_required: false
+          - text:
+              rect: *id005
+              pattern: '[□☑](拡大)'
+            mark:
+              anchor: '[□☑]拡大'
+              relative_rect:
+              - 0
+              - -0.001
+              - 0.008
+              - 0.012
+              rect: *id005
+            frame_required: false
+          - text:
+              rect: *id005
+              pattern: '[□☑](縮小)'
+            mark:
+              anchor: '[□☑]縮小'
+              relative_rect:
+              - 0
+              - -0.001
+              - 0.008
+              - 0.012
+              rect: *id005
+            frame_required: false
+          - text:
+              rect: *id005
+              pattern: '[□☑](廃止検討)'
+            mark:
+              anchor: '[□☑]廃止検討'
+              relative_rect:
+              - 0
+              - -0.001
+              - 0.008
+              - 0.012
+              rect: *id005
+            frame_required: false
+          - text:
+              rect: *id005
+              pattern: '[□☑](R[0-9]+完了(?!予定))'
+            mark:
+              anchor: '[□☑]R[0-9]+完了(?!予定)'
+              relative_rect:
+              - 0
+              - -0.001
+              - 0.008
+              - 0.012
+              rect: *id005
+            frame_required: false
+          - text:
+              rect: *id005
+              pattern: '[□☑](R[0-9]+完了予定)'
+            mark:
+              anchor: '[□☑]R[0-9]+完了予定'
+              relative_rect:
+              - 0
+              - -0.001
+              - 0.008
+              - 0.012
+              rect: *id005
+            frame_required: false
+          rect: *id005
+      evaluation_actor:
+        label:
+          rect:
+          - 0.36600000000000005
+          - 0.85
+          - 0.404
+          - 0.96
+          pattern: 担当課
+        value:
+          rect:
+          - 0.36600000000000005
+          - 0.85
+          - 0.404
+          - 0.96
+          pattern: 担当課
+    raw_fields:
+    - label:
+        rect:
+        - 0.36600000000000005
+        - 0.85
+        - 0.404
+        - 0.96
+        pattern: 次年度以降の考え方
+      value:
+        rect:
+        - 0.404
+        - 0.859
+        - 0.635
+        - 0.954

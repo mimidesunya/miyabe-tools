@@ -1,0 +1,148 @@
+version: 1
+municipality:
+  code: '15227'
+  name: 新潟県 胎内市
+notes: 評価対象年度と方向性の第3列に令和6年度が明記された様式。丸数字は展開せず、凡例も原文の欄として保存。旧年度の異なる配置・二次評価委員会所見の独立記録化は未対応。
+templates:
+- id: tainai-evaluation
+  layout: single_project_sheet
+  match:
+  - pattern: 事務事業評価シート
+  - pattern: 評価対象年度
+  - pattern: 今後の方向性
+  - pattern: 事務事業名
+  - pattern: 令和6年度
+    rect:
+    - 0.705
+    - 0.657
+    - 0.764
+    - 0.674
+  fields:
+    project_name:
+      label:
+        rect: &id001
+        - 0.075
+        - 0.075
+        - 0.138
+        - 0.1
+        pattern: 事務事業名
+      value:
+        same_row: 事務事業名
+        columns:
+        - 0.139
+        - 0.41
+        rect: *id001
+        row_span:
+        - 0.15
+        - 0.4
+    department:
+      label:
+        rect: &id002
+        - 0.413
+        - 0.07
+        - 0.473
+        - 0.091
+        pattern: 担当課
+      value:
+        same_row: 担当課
+        columns:
+        - 0.474
+        - 0.59
+        rect: *id002
+        row_span:
+        - 0.48
+        - 0.58
+    evaluation_year:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    target_year:
+      label:
+        rect:
+        - 0.07
+        - 0.03
+        - 0.55
+        - 0.055
+        pattern: 評価対象年度
+      value:
+        rect:
+        - 0.07
+        - 0.03
+        - 0.55
+        - 0.055
+        pattern: 評価対象年度:(令和[0-9]+年度)事業
+    future_direction:
+      label:
+        rect:
+        - 0.49
+        - 0.665
+        - 0.59
+        - 0.71
+        pattern: 今後の方向性
+      value:
+        rect:
+        - 0.705
+        - 0.673
+        - 0.764
+        - 0.707
+    evaluation_actor:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    purpose:
+      label:
+        rect: &id003
+        - 0.077
+        - 0.21
+        - 0.135
+        - 0.27
+        pattern: 目的・概要
+      value:
+        same_row: 目的・概要
+        columns:
+        - 0.138
+        - 0.471
+        max_height: 0.2
+        rect: *id003
+        row_span:
+        - 0.15
+        - 0.46
+  raw_fields:
+  - label:
+      rect: &id004
+      - 0.59
+      - 0.07
+      - 0.634
+      - 0.091
+      pattern: 担当係
+    value:
+      same_row: 担当係
+      columns:
+      - 0.635
+      - 0.747
+      rect: *id004
+      row_span:
+      - 0.64
+      - 0.74
+  - label:
+      rect:
+      - 0.49
+      - 0.708
+      - 0.89
+      - 0.724
+      pattern: 課題解決に向けた今後の取組
+    value:
+      rect:
+      - 0.493
+      - 0.723
+      - 0.886
+      - 0.84
+  - label:
+      rect:
+      - 0.745
+      - 0.851
+      - 0.888
+      - 0.878
+      pattern: 今後の方向性
+    value:
+      rect:
+      - 0.745
+      - 0.851
+      - 0.888
+      - 0.953

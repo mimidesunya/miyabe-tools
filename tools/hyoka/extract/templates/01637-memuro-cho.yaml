@@ -1,0 +1,196 @@
+version: 1
+municipality:
+  code: '01637'
+  name: 北海道 芽室町
+notes: 試料の様式を定義。未対応頁・読めない欄は失敗一覧に残す。
+templates:
+- id: memuro-simple
+  layout: single_project_sheet
+  match:
+  - pattern: 事務事業マネジメントシート\(簡易\)
+  - pattern: 所属部門
+  fields:
+    project_name:
+      label:
+        rect: &id001
+        - 0.04
+        - 0.14
+        - 0.13
+        - 0.23
+        pattern: 事務事業名
+      value:
+        same_row: 事務事業名
+        columns:
+        - 0.117
+        - 0.303
+        rect: *id001
+        row_span:
+        - 0.14
+        - 0.3
+    department:
+      label:
+        rect: &id002
+        - 0.304
+        - 0.14
+        - 0.34
+        - 0.24
+        pattern: 部門
+      value:
+        same_row: 部門
+        columns:
+        - 0.341
+        - 0.493
+        rect: *id002
+        row_span:
+        - 0.35
+        - 0.48
+    evaluation_year:
+      label:
+        rect: &id003
+        - 0.05
+        - 0.08
+        - 0.5
+        - 0.15
+        pattern: 事務事業マネジメントシート
+      value:
+        rect: *id003
+        pattern: ([0-9]{4}年度)\(
+    target_year:
+      label:
+        rect: *id003
+        pattern: 事務事業マネジメントシート
+      value:
+        rect: *id003
+        pattern: \(([0-9]{4}年度)実績\)
+    future_direction:
+      label:
+        rect:
+        - 0.5
+        - 0.22
+        - 0.95
+        - 0.28
+        pattern: 方向性・課題の解決方法
+      value:
+        below_heading: 方向性・課題の解決方法
+        columns:
+        - 0.506
+        - 0.949
+        rule_span:
+        - 0.52
+        - 0.94
+        rect:
+        - 0.5
+        - 0.22
+        - 0.95
+        - 0.28
+    evaluation_actor:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+  raw_fields:
+  - label:
+      rect:
+      - 0.05
+      - 0.4
+      - 0.49
+      - 0.48
+      pattern: 事業の概要・現状・課題
+    value:
+      below_heading: 事業の概要・現状・課題
+      columns:
+      - 0.05
+      - 0.493
+      rule_span:
+      - 0.06
+      - 0.48
+      rect:
+      - 0.05
+      - 0.4
+      - 0.49
+      - 0.48
+- id: memuro-normal
+  layout: single_project_sheet
+  match:
+  - pattern: 事務事業マネジメントシート\(通常\)
+  - pattern: 所属部門
+  fields:
+    project_name:
+      label:
+        rect: &id004
+        - 0.04
+        - 0.15
+        - 0.13
+        - 0.23
+        pattern: 事務事業名
+      value:
+        same_row: 事務事業名
+        columns:
+        - 0.127
+        - 0.309
+        rect: *id004
+        row_span:
+        - 0.14
+        - 0.3
+    department:
+      label:
+        rect: &id005
+        - 0.304
+        - 0.14
+        - 0.34
+        - 0.24
+        pattern: 部門
+      value:
+        same_row: 部門
+        columns:
+        - 0.341
+        - 0.493
+        rect: *id005
+        row_span:
+        - 0.35
+        - 0.48
+    evaluation_year:
+      label:
+        rect: &id006
+        - 0.05
+        - 0.08
+        - 0.5
+        - 0.15
+        pattern: 事務事業マネジメントシート
+      value:
+        rect: *id006
+        pattern: ([0-9]{4}年度)\(
+    target_year:
+      label:
+        rect: *id006
+        pattern: 事務事業マネジメントシート
+      value:
+        rect: *id006
+        pattern: \(([0-9]{4}年度)実績\)
+    future_direction:
+      label:
+        rect:
+        - 0.72
+        - 0.135
+        - 0.94
+        - 0.18
+        pattern: 2.今後の取組
+      value:
+        rect:
+        - 0.724
+        - 0.164
+        - 0.936
+        - 0.419
+    evaluation_actor:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+  raw_fields:
+  - label:
+      rect:
+      - 0.5
+      - 0.135
+      - 0.72
+      - 0.18
+      pattern: 1.事務事業の現状と課題
+    value:
+      rect:
+      - 0.507
+      - 0.163
+      - 0.72
+      - 0.419

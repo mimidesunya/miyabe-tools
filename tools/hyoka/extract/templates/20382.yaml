@@ -80,14 +80,58 @@ templates:
         pattern: 今後の方向性
         page: 1
       value:
-        rect:
-        - 0.13
-        - 0.546
-        - 0.82
-        - 0.562
         page: 1
-      status: unreadable
-      note: チェック印が本文にないため方向性を未読とする。選択肢全文は raw_fields に残す。
+        choices:
+        - text:
+            rect: &id001
+            - 0.13
+            - 0.546
+            - 0.82
+            - 0.562
+            pattern: 現状のまま継続する
+          mark:
+            rect:
+            - 0.14056
+            - 0.55113
+            - 0.147606
+            - 0.556109
+        - text:
+            rect: *id001
+            pattern: 見直しのうえで継続する
+          mark:
+            rect:
+            - 0.346161
+            - 0.550236
+            - 0.353207
+            - 0.555215
+        - text:
+            rect: *id001
+            pattern: 終期設定
+          mark:
+            rect:
+            - 0.555375
+            - 0.550492
+            - 0.562421
+            - 0.555598
+        - text:
+            rect: *id001
+            pattern: 廃止
+          mark:
+            rect:
+            - 0.655104
+            - 0.550875
+            - 0.66215
+            - 0.555853
+        - text:
+            rect: *id001
+            pattern: 休止
+          mark:
+            rect:
+            - 0.731888
+            - 0.550875
+            - 0.738934
+            - 0.555853
+      note: 選択された選択肢を原文のまま転記。全て未選択なら空欄。
     evaluation_actor:
       label:
         rect:
@@ -222,14 +266,58 @@ templates:
           pattern: 今後の方向性
           page: 1
         value:
-          rect:
-          - 0.13
-          - 0.839
-          - 0.82
-          - 0.854
           page: 1
-        status: unreadable
-        note: 所属長のチェック印が本文にないため未読。
+          choices:
+          - text:
+              rect: &id002
+              - 0.13
+              - 0.839
+              - 0.82
+              - 0.854
+              pattern: 現状維持
+            mark:
+              rect:
+              - 0.140018
+              - 0.841695
+              - 0.147064
+              - 0.846674
+          - text:
+              rect: *id002
+              pattern: 見直しのうえで継続する
+            mark:
+              rect:
+              - 0.269738
+              - 0.841823
+              - 0.276784
+              - 0.846802
+          - text:
+              rect: *id002
+              pattern: 終期設定
+            mark:
+              rect:
+              - 0.476423
+              - 0.842206
+              - 0.483469
+              - 0.847185
+          - text:
+              rect: *id002
+              pattern: 廃止
+            mark:
+              rect:
+              - 0.578862
+              - 0.84144
+              - 0.585908
+              - 0.846547
+          - text:
+              rect: *id002
+              pattern: 休止
+            mark:
+              rect:
+              - 0.680759
+              - 0.84144
+              - 0.687805
+              - 0.846547
+        note: 選択された選択肢を原文のまま転記。全て未選択なら空欄。
       evaluation_reason:
         label:
           rect:

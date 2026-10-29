@@ -1,0 +1,418 @@
+version: 1
+municipality:
+  code: '14361'
+  name: 神奈川県 中井町
+notes: 作製日を評価年度とみなさない。主担当課・班を原文転記。二次評価がダッシュの場合はその段階の記録を作らない。
+templates:
+- id: nakai-primary
+  layout: single_project_sheet
+  match:
+  - pattern: 事務事業評価シート兼総合計画実施計画書
+  - pattern: 一次評価
+  - pattern: 二次評価
+  - &id007
+    pattern: ^[-―ー]*$
+    rect:
+    - 0.764
+    - 0.891
+    - 0.95
+    - 0.952
+  fields:
+    project_name:
+      label:
+        rect: &id001
+        - 0.06
+        - 0.125
+        - 0.113
+        - 0.17
+        pattern: 事業名
+      value:
+        same_row: 事業名
+        columns:
+        - 0.113
+        - 0.471
+        rect: *id001
+        row_span:
+        - 0.12
+        - 0.46
+    department:
+      label:
+        rect:
+        - 0.83
+        - 0.085
+        - 0.866
+        - 0.11
+        pattern: 課名
+      value:
+        rect:
+        - 0.867
+        - 0.087
+        - 0.95
+        - 0.129
+    evaluation_year:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    target_year:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    future_direction:
+      label:
+        rect: &id002
+        - 0.47
+        - 0.885
+        - 0.524
+        - 0.955
+        pattern: 一次評価
+      value:
+        same_row: 一次評価
+        columns:
+        - 0.525
+        - 0.71
+        rect: *id002
+        row_span:
+        - 0.53
+        - 0.7
+    evaluation_actor:
+      label:
+        rect:
+        - 0.47
+        - 0.885
+        - 0.524
+        - 0.955
+        pattern: 主管課
+      value:
+        rect:
+        - 0.47
+        - 0.885
+        - 0.524
+        - 0.955
+        pattern: 主管課
+  raw_fields:
+  - label:
+      rect: &id003
+      - 0.47
+      - 0.82
+      - 0.524
+      - 0.89
+      pattern: 方針
+    value:
+      same_row: 方針
+      columns:
+      - 0.525
+      - 0.95
+      rect: *id003
+      row_span:
+      - 0.53
+      - 0.94
+- id: nakai-two-stages
+  layout: single_project_sheet
+  match:
+  - pattern: 事務事業評価シート兼総合計画実施計画書
+  - pattern: 一次評価
+  - pattern: 二次評価
+  fields:
+    project_name:
+      label:
+        rect: &id004
+        - 0.06
+        - 0.125
+        - 0.113
+        - 0.17
+        pattern: 事業名
+      value:
+        same_row: 事業名
+        columns:
+        - 0.113
+        - 0.471
+        rect: *id004
+        row_span:
+        - 0.12
+        - 0.46
+    department:
+      label:
+        rect:
+        - 0.83
+        - 0.085
+        - 0.866
+        - 0.11
+        pattern: 課名
+      value:
+        rect:
+        - 0.867
+        - 0.087
+        - 0.95
+        - 0.129
+    evaluation_year:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    target_year:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    future_direction:
+      label:
+        rect: &id005
+        - 0.47
+        - 0.885
+        - 0.524
+        - 0.955
+        pattern: 一次評価
+      value:
+        same_row: 一次評価
+        columns:
+        - 0.525
+        - 0.71
+        rect: *id005
+        row_span:
+        - 0.53
+        - 0.7
+    evaluation_actor:
+      label:
+        rect:
+        - 0.47
+        - 0.885
+        - 0.524
+        - 0.955
+        pattern: 主管課
+      value:
+        rect:
+        - 0.47
+        - 0.885
+        - 0.524
+        - 0.955
+        pattern: 主管課
+  raw_fields:
+  - label:
+      rect: &id006
+      - 0.47
+      - 0.82
+      - 0.524
+      - 0.89
+      pattern: 方針
+    value:
+      same_row: 方針
+      columns:
+      - 0.525
+      - 0.95
+      rect: *id006
+      row_span:
+      - 0.53
+      - 0.94
+  exclude:
+  - *id007
+  instances:
+  - id: primary
+  - id: secondary
+    fields:
+      future_direction:
+        label:
+          rect: &id008
+          - 0.71
+          - 0.885
+          - 0.764
+          - 0.955
+          pattern: 二次評価
+        value:
+          same_row: 二次評価
+          columns:
+          - 0.765
+          - 0.95
+          rect: *id008
+          row_span:
+          - 0.77
+          - 0.94
+      evaluation_actor:
+        absent: 二次評価の欄名は内部評価であり、具体的な評価主体の専用記載はない。
+- id: nakai-list-r5
+  layout: list_only
+  match:
+  - pattern: 令和5年度事務事業調査
+  - pattern: 短期方針
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.153
+        - 0
+        - 0.384
+        - 0.18
+        pattern: 事務事業名
+      value:
+        rect:
+        - 0.153
+        - row_top
+        - 0.384
+        - row_bottom
+    department:
+      label:
+        rect:
+        - 0.068
+        - 0
+        - 0.115
+        - 0.18
+        pattern: 所属
+      value:
+        merged_row: true
+        columns:
+        - 0.068
+        - 0.115
+        rule_span:
+        - 0.07100000000000001
+        - 0.112
+    evaluation_year:
+      label:
+        rect: &id009
+        - 0
+        - 0
+        - 1
+        - 0.18
+        pattern: 事務事業調査
+      value:
+        rect: *id009
+        pattern: (令和[0-9]+年度)事務事業調査
+    target_year:
+      label:
+        rect: *id009
+        pattern: 対象
+      value:
+        rect: *id009
+        pattern: 対象:(令和[0-9]+年度)
+    future_direction:
+      label:
+        rect:
+        - 0.875
+        - 0
+        - 0.94
+        - 0.18
+        pattern: 短期方針
+      value:
+        rect:
+        - 0.875
+        - row_top
+        - 0.94
+        - row_bottom
+    evaluation_actor:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+  table:
+    rule_span:
+    - 0.158
+    - 0.379
+    y_range:
+    - 0.08
+    - 0.98
+    min_height: 0.005
+    row_test:
+      rect:
+      - 0.116
+      - row_top
+      - 0.152
+      - row_bottom
+      pattern: '[0-9]+'
+  raw_fields:
+  - label:
+      rect:
+      - 0.384
+      - 0
+      - 0.875
+      - 0.18
+      pattern: 予算書記載事業名
+    value:
+      rect:
+      - 0.386
+      - row_top
+      - 0.549
+      - row_bottom
+- id: nakai-list-r4
+  layout: list_only
+  match:
+  - pattern: 令和4年度事務事業調査
+  - pattern: 短期方針
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.205
+        - 0
+        - 0.515
+        - 0.18
+        pattern: 事務事業名
+      value:
+        rect:
+        - 0.205
+        - row_top
+        - 0.515
+        - row_bottom
+    department:
+      label:
+        rect:
+        - 0.096
+        - 0
+        - 0.17
+        - 0.18
+        pattern: 所属
+      value:
+        merged_row: true
+        columns:
+        - 0.096
+        - 0.17
+        rule_span:
+        - 0.099
+        - 0.167
+    evaluation_year:
+      label:
+        rect: &id010
+        - 0
+        - 0
+        - 1
+        - 0.18
+        pattern: 事務事業調査
+      value:
+        rect: *id010
+        pattern: (令和[0-9]+年度)事務事業調査
+    target_year:
+      label:
+        rect: *id010
+        pattern: 対象
+      value:
+        rect: *id010
+        pattern: 対象:(令和[0-9]+年度)
+    future_direction:
+      label:
+        rect:
+        - 0.85
+        - 0
+        - 0.909
+        - 0.18
+        pattern: 短期方針
+      value:
+        rect:
+        - 0.85
+        - row_top
+        - 0.909
+        - row_bottom
+    evaluation_actor:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+  table:
+    rule_span:
+    - 0.21
+    - 0.51
+    y_range:
+    - 0.08
+    - 0.98
+    min_height: 0.005
+    row_test:
+      rect:
+      - 0.171
+      - row_top
+      - 0.204
+      - row_bottom
+      pattern: '[0-9]+'
+  raw_fields:
+  - label:
+      rect:
+      - 0.515
+      - 0
+      - 0.85
+      - 0.18
+      pattern: 予算書記載事業名
+    value:
+      rect:
+      - 0.517
+      - row_top
+      - 0.802
+      - row_bottom

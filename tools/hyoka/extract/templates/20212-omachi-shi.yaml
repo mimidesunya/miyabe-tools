@@ -1,0 +1,226 @@
+version: 1
+municipality:
+  code: '20212'
+  name: 長野県 大町市
+notes: 試料の様式を定義。未対応頁・読めない欄は失敗一覧に残す。
+templates:
+- id: omachi-review-blocks
+  layout: single_project_sheet
+  match:
+  - pattern: 事務事業No.
+  - pattern: 事務事業名
+  - pattern: 今後の方向性
+  fields:
+    project_name:
+      label:
+        rect: &id001
+        - 0.3
+        - var: anchor_y
+          offset: -0.025
+        - 0.505
+        - anchor_bottom
+        pattern: 事務事業名
+      value:
+        same_row: 事務事業名
+        columns:
+        - 0.506
+        - 0.903
+        rect: *id001
+        row_span:
+        - 0.52
+        - 0.89
+    department:
+      label:
+        rect: &id002
+        - 0.3
+        - var: anchor_y
+          offset: -0.028
+        - 0.505
+        - var: anchor_y
+          offset: -0.001
+        pattern: 担当課
+      value:
+        same_row: 担当課
+        columns:
+        - 0.506
+        - 0.903
+        rect: *id002
+        row_span:
+        - 0.52
+        - 0.89
+    evaluation_year:
+      label:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: 行政評価
+        page: first
+      value:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: (令和[0-9]+年度)行政評価
+        page: first
+    target_year:
+      label:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: '対象:'
+        page: first
+      value:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: 対象:(令和[0-9]+年度)事業分
+        page: first
+    future_direction:
+      label:
+        rect: &id003
+        - 0.085
+        - anchor_y
+        - 0.205
+        - anchor_bottom
+        pattern: 今後の方向性
+      value:
+        below_heading: 方向性
+        columns:
+        - 0.087
+        - 0.204
+        rule_span:
+        - 0.09
+        - 0.2
+        rect: *id003
+    evaluation_actor:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+  repeat:
+    anchor: 事務事業名
+    rect:
+    - 0.3
+    - 0.04
+    - 0.505
+    - 0.95
+    bottom: 0.94
+  raw_fields:
+  - label:
+      rect: *id003
+      pattern: 現状把握と具体的な対応方針
+    value:
+      same_row: 対応方針
+      columns:
+      - 0.207
+      - 0.903
+      max_height: 0.6
+      rect: *id003
+      row_span:
+      - 0.22
+      - 0.89
+  exclude:
+  - pattern: 様式第2号
+- id: omachi-full-form
+  layout: single_project_sheet
+  match:
+  - pattern: 様式第2号
+  - pattern: 事務事業評価票
+  - pattern: 今後の方向性
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.09
+        - 0.07
+        - 0.24
+        - 0.1
+        pattern: 事務事業名
+      value:
+        rect:
+        - 0.241
+        - 0.077
+        - 0.671
+        - 0.1
+    department:
+      label:
+        rect:
+        - 0.09
+        - 0.052
+        - 0.24
+        - 0.08
+        pattern: 担当課
+      value:
+        rect:
+        - 0.24
+        - 0.052
+        - 0.671
+        - 0.077
+    evaluation_year:
+      label:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: 行政評価
+        page: first
+      value:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: (令和[0-9]+年度)行政評価
+        page: first
+    target_year:
+      label:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: '対象:'
+        page: first
+      value:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: 対象:(令和[0-9]+年度)事業分
+        page: first
+    future_direction:
+      label:
+        rect:
+        - 0.78
+        - 0.6
+        - 0.91
+        - 0.65
+        pattern: 今後の方向性
+      value:
+        rect:
+        - 0.79
+        - 0.635
+        - 0.906
+        - 0.665
+    evaluation_actor:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+  raw_fields:
+  - label:
+      rect:
+      - 0.09
+      - 0.73
+      - 0.125
+      - 0.94
+      pattern: 現状把握と具体的な対応方針
+    value:
+      rect:
+      - 0.125
+      - 0.742
+      - 0.906
+      - 0.931

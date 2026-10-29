@@ -18,7 +18,7 @@ from tools.hyoka.extract.engine import Context, ExtractionError, extract_pdf, lo
 from tools.hyoka.extract.readers import Source, PDFPage, ReadError, archive_sources, normalize, normalized_match, pdf_document, read_xlsx
 from tools.hyoka.extract.validation import SCHEMA_PATH, ValidationError, check_schema_keywords, validate
 from tools.hyoka.extract.run_extract import process_source, run_municipality, source_path
-from tools.hyoka.extract.audit_output import audit_municipality, check_field_values
+from tools.hyoka.extract.audit_output import audit_municipality, check_field_values, check_source_records
 
 
 MUNI={'slug':'99999-example-shi','code':'99999','name':'例市','identity_source':'document_manifest'}
@@ -33,7 +33,7 @@ def zip_bytes(files):
     return data.getvalue()
 
 
-def sample_pdf(blank=False):
+def sample_pdf(blank=False,marks=None,outlined=False,framed=False,thick_rules=False):
     from reportlab.pdfgen.canvas import Canvas
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.cidfonts import UnicodeCIDFont
@@ -57,6 +57,25 @@ def sample_pdf(blank=False):
         c.rect(50,390,500,15,stroke=0,fill=1)  # セルの背景は罫線ではない。
         path=c.beginPath();path.rect(50,360,500,.5);path.rect(50,400,500,.5)
         c.drawPath(path,stroke=0,fill=1)  # 複数の罫線をまとめた塗りパス。
+        if marks is not None:
+            c.setFillColorRGB(0,0,0);c.setFont('Helvetica',12)
+            for i,selected in enumerate(marks):
+                x=150+i*150;c.rect(x,300,10,10,stroke=1,fill=0)
+                c.drawString(x+16,300,['Continue','Stop'][i])
+                if selected:
+                    if outlined:
+                        text_width=pdfmetrics.stringWidth(['Continue','Stop'][i],'Helvetica',12)
+                        c.rect(x+14,298,text_width+4,14,stroke=1,fill=0)
+                    else:c.rect(x+3,303,4,4,stroke=0,fill=1)
+        if framed:
+            c.setFillColorRGB(0,0,0)
+            path=c.beginPath()
+            path.rect(40,600,520,30)
+            path.rect(42,602,516,26)
+            c.drawPath(path,stroke=0,fill=1,fillMode=0)
+        if thick_rules:
+            c.setFillColorRGB(0,0,0)
+            for y in (600,630):c.rect(40,y,520,3,stroke=0,fill=1)
     c.showPage();c.save();return data.getvalue()
 
 
@@ -155,10 +174,167 @@ class ExtractTest(unittest.TestCase):
         self.assertEqual(result['records'],[])
         self.assertEqual(result['failures'][0]['reason'],'ambiguous_template')
 
+    def test_serialized_locator_must_still_contain_quote(self):
+        original = PDFPage.locator
+        def misplaced(page, rect=None):
+            locator = original(page, rect)
+            locator['bbox'] = [0, 0, 1, 1]
+            return locator
+        with patch.object(PDFPage, 'locator', misplaced):
+            result = extract_pdf(self.source, MUNI, [self.template])
+        self.assertEqual(result['records'], [])
+        self.assertIn('serialized_source_mismatch', result['failures'][0]['detail'])
+
+    def test_merged_department_cell_is_bounded_by_its_own_rules(self):
+        from reportlab.pdfgen.canvas import Canvas
+        stream = BytesIO()
+        canvas = Canvas(stream, pagesize=(600,800), invariant=1)
+        canvas.setFont('Helvetica',12)
+        for y in (400,500,600,700):
+            canvas.line(200,y,550,y)
+        for y in (400,500,700):
+            canvas.line(50,y,200,y)
+        canvas.drawString(60,590,'Shared department')
+        canvas.drawString(60,440,'Other department')
+        canvas.save()
+        source = Source('merged',stream.getvalue(),'pdf',META)
+        with pdf_document(source.data) as pdf:
+            page = PDFPage(pdf[0],1)
+            try:
+                values = []
+                for top,bottom in ((.126,.249),(.251,.374),(.376,.499)):
+                    ctx = Context(source,[page],0,{'row_top':top,'row_bottom':bottom})
+                    values.append(ctx.read({'merged_row':True,'columns':[.085,.332]})[0])
+                self.assertEqual([normalize(v) for v in values],
+                                 ['Shareddepartment','Shareddepartment','Otherdepartment'])
+            finally:
+                page.close()
+
+    def test_table_continuation_keeps_previous_heading_page(self):
+        from pypdf import PdfReader, PdfWriter
+        writer = PdfWriter()
+        for _ in range(2):
+            writer.add_page(PdfReader(BytesIO(sample_pdf())).pages[0])
+        stream = BytesIO()
+        writer.write(stream)
+        first = deepcopy(self.template)
+        first['first_page_only'] = True
+        continued = deepcopy(self.template)
+        continued.update(id='continued',not_first_page=True,lookback_pages=1,
+                         previous_match=[{'page':-1,'pattern':'Projectevaluation'}])
+        continued['fields']['project_name']['label']['page'] = -1
+        source = Source('continued',stream.getvalue(),'pdf',META)
+        result = extract_pdf(source,MUNI,[first,continued])
+        self.assertEqual(result['failures'],[])
+        self.assertEqual(len(result['records']),2)
+        evidence = result['records'][1]['fields']['project_name']['evidence']
+        self.assertEqual({e['locator']['page'] for e in evidence},{1,2})
+        check_source_records(source,result['records'])
+        continued['previous_match'][0]['pattern'] = 'Wrong heading'
+        result = extract_pdf(source,MUNI,[first,continued])
+        self.assertEqual(len(result['records']),1)
+        self.assertEqual(result['failures'][0]['detail'],'previous_heading_mismatch')
+
+    def test_field_with_filled_outline_frame(self):
+        source=Source('framed',sample_pdf(framed=True),'pdf',META)
+        template=deepcopy(self.template)
+        template['fields']['future_direction']['value']={
+            'same_row':'Direction','rect':[.08,.22,.24,.255],
+            'columns':[.25,.92],'enclosing_frame':True}
+        result=extract_pdf(source,MUNI,[template])
+        self.assertEqual(result['failures'],[])
+        self.assertEqual(result['records'][0]['fields']['future_direction']['raw_text'],'Continue')
+
+    def test_separate_thick_filled_rules_preserve_whole_cell(self):
+        source=Source('thick',sample_pdf(thick_rules=True),'pdf',META)
+        template=deepcopy(self.template)
+        value={'same_row':'Direction','rect':[.08,.22,.24,.255],
+               'columns':[.25,.92],'row_span':[.1,.9],'rule_thickness':4}
+        template['fields']['future_direction']['value']=value
+        result=extract_pdf(source,MUNI,[template])
+        self.assertEqual(result['failures'],[])
+        self.assertEqual(result['records'][0]['fields']['future_direction']['raw_text'],'Continue')
+        check_source_records(source,result['records'])
+        del value['rule_thickness']
+        result=extract_pdf(source,MUNI,[template])
+        self.assertEqual(result['records'],[])
+        self.assertIn('field_border_not_found',result['failures'][0]['detail'])
+
     def test_blank_page_needs_ocr_without_guessing(self):
         result=extract_pdf(Source('empty',sample_pdf(True),'pdf',META),MUNI,[self.template])
         self.assertEqual(result['records'],[])
         self.assertEqual(result['failures'][0]['reason'],'needs_ocr')
+
+    def test_exclusion_is_separate_and_evaluation_template_takes_priority(self):
+        exclusion={'id':'cover','action':'exclude','category':'cover','match':[{'pattern':'Projectevaluation'}]}
+        result=extract_pdf(self.source,MUNI,[exclusion])
+        self.assertEqual(result['failures'],[])
+        self.assertEqual(len(result['excluded_pages']),1)
+        result=extract_pdf(self.source,MUNI,[exclusion,self.template])
+        self.assertEqual(len(result['records']),1)
+        self.assertEqual(result['excluded_pages'],[])
+
+    def test_checkbox_graphics_select_blank_reject_multiple_and_reaudit(self):
+        choices=[]
+        for x,term in [(150,'Continue'),(300,'Stop')]:
+            choices.append({'text':{'rect':[(x+16)/600,.605,(x+130)/600,.635],'pattern':term},
+                            'mark':{'rect':[x/600,.6125,(x+10)/600,.625]}})
+        self.template['fields']['future_direction']['value']={'choices':choices}
+        for marks,expected in [([True,False],'Continue'),([False,True],'Stop'),([False,False],None)]:
+            source=Source('marks',sample_pdf(marks=marks),'pdf',META)
+            result=extract_pdf(source,MUNI,[self.template])
+            self.assertEqual(result['failures'],[])
+            self.assertEqual(result['records'][0]['fields']['future_direction']['raw_text'],expected)
+            self.assertGreater(check_source_records(source,result['records'],result['selection_checks']),0)
+            with self.assertRaisesRegex(ValueError,'selection_proof_missing'):
+                check_source_records(source,result['records'])
+            modified=deepcopy(result['selection_checks']);modified[0]['choices'][0]['state']='unknown'
+            with self.assertRaisesRegex(ValueError,'selection_mark_mismatch'):
+                check_source_records(source,result['records'],modified)
+        result=extract_pdf(Source('marks',sample_pdf(marks=[True,True]),'pdf',META),MUNI,[self.template])
+        self.assertEqual(result['records'],[])
+        self.assertIn('checkbox_multiple_selected',result['failures'][0]['detail'])
+
+    def test_document_first_page_uses_physical_page_and_same_row(self):
+        with pdf_document(self.source.data) as pdf:
+            first=PDFPage(pdf[0],1)
+            try:
+                context=Context(self.source,[],0,first_page=first)
+                text,page,rect=context.read({'page':'first','same_row':'Department','columns':[.25,.94]})
+                self.assertEqual(normalize(text),'Roaddivision')
+                self.assertEqual(context.evidence(text,page,rect)['locator']['page'],1)
+                with self.assertRaisesRegex(ExtractionError,'anchor_missing'):
+                    context.read({'page':'first','same_row':'Unknown','columns':[.25,.94]})
+            finally:first.close()
+
+    def test_rotated_pdf_coordinates_match_display_and_reaudit(self):
+        from pypdf import PdfReader,PdfWriter,Transformation
+        from pypdf.generic import RectangleObject
+        writer=PdfWriter();writer.add_page(PdfReader(BytesIO(sample_pdf())).pages[0]);page=writer.pages[0]
+        page.add_transformation(Transformation().rotate(90).translate(tx=800,ty=0))
+        page.mediabox=RectangleObject([0,0,800,600]);page.rotate(90)
+        data=BytesIO();writer.write(data)
+        source=Source('rotated',data.getvalue(),'pdf',META)
+        result=extract_pdf(source,MUNI,[self.template])
+        self.assertEqual(result['failures'],[])
+        self.assertEqual(normalize(result['records'][0]['fields']['project_name']['raw_text']),'Roadmaintenance')
+        self.assertGreater(check_source_records(source,result['records']),0)
+
+    def test_option_enclosing_rectangle_requires_four_visible_edges(self):
+        choices=[]
+        for term in ['Continue','Stop']:
+            choices.append({'text':{'rect':[.25,.60,.94,.64],'pattern':term},
+                            'mark':{'rect':[.25,.60,.94,.64],'glyph_box':term},'enclosing_text':True})
+        self.template['fields']['future_direction']['value']={'choices':choices,'require_selection':True}
+        source=Source('outline',sample_pdf(marks=[False,True],outlined=True),'pdf',META)
+        result=extract_pdf(source,MUNI,[self.template])
+        self.assertEqual(result['failures'],[])
+        self.assertEqual(result['records'][0]['fields']['future_direction']['raw_text'],'Stop')
+        self.assertGreater(check_source_records(source,result['records'],result['selection_checks']),0)
+        source=Source('outline',sample_pdf(marks=[False,False],outlined=True),'pdf',META)
+        result=extract_pdf(source,MUNI,[self.template])
+        self.assertEqual(result['records'],[])
+        self.assertIn('checkbox_no_selected',result['failures'][0]['detail'])
 
     def test_cannot_put_embedded_text_in_present_field(self):
         record=extract_pdf(self.source,MUNI,[self.template])['records'][0]
@@ -198,6 +374,9 @@ class ExtractTest(unittest.TestCase):
                 second=run_municipality(folder,manifest,definition,out)
             self.assertEqual(first,second)
             self.assertEqual(result_bytes,(out/MUNI['slug']/'records.jsonl').read_bytes())
+            rebuilt=run_municipality(folder,manifest,definition,out,force=True)
+            self.assertEqual(first,rebuilt)
+            self.assertEqual(result_bytes,(out/MUNI['slug']/'records.jsonl').read_bytes())
             self.assertTrue(audit_municipality(folder,manifest,out)['ok'])
             # 様式を変えればキャッシュを無効化する。
             definition=deepcopy(definition);definition['templates'][0]['fields']['project_name']['label']['pattern']='Unknown'
@@ -213,8 +392,8 @@ class ExtractTest(unittest.TestCase):
 
 
 class DefinitionTest(unittest.TestCase):
-    def test_all_13_definitions_and_required_fields(self):
-        self.assertEqual(len(load_templates()),13)
+    def test_all_38_definitions_and_required_fields(self):
+        self.assertEqual(len(load_templates()),38)
 
     def test_schema_keywords_are_supported_and_unknown_constraints_stop(self):
         check_schema_keywords(json.loads(SCHEMA_PATH.read_text(encoding='utf-8')))

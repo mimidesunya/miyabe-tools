@@ -1,0 +1,210 @@
+version: 1
+municipality:
+  code: '34214'
+  name: 広島県 安芸高田市
+notes: 試料の様式を定義。未対応頁・読めない欄は失敗一覧に残す。
+templates:
+- id: akitakata-action-sheet
+  layout: single_project_sheet
+  match:
+  - pattern: 安芸高田市事務事業評価シート
+  - pattern: 資源配分の方向性
+  - pattern: 主務課長氏名
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.025
+        - 0.085
+        - 0.079
+        - 0.118
+        pattern: 事務事業名
+      value:
+        rect:
+        - 0.079
+        - 0.085
+        - 0.249
+        - 0.116
+    department:
+      label:
+        rect:
+        - 0.25
+        - 0.083
+        - 0.3
+        - 0.102
+        pattern: 担当部課
+      value:
+        rect:
+        - 0.301
+        - 0.085
+        - 0.41
+        - 0.1
+    evaluation_year:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    target_year:
+      label:
+        rect:
+        - 0.84
+        - 0.02
+        - 0.985
+        - 0.05
+        pattern: 年度事務事業
+      value:
+        rect:
+        - 0.84
+        - 0.02
+        - 0.985
+        - 0.05
+        pattern: (平成[0-9]+年度)事務事業
+    future_direction:
+      label:
+        rect:
+        - 0.53
+        - 0.71
+        - 0.598
+        - 0.745
+        pattern: 資源配分の方向性
+      value:
+        choices:
+        - text:
+            glyph_box: 優先的に継続する
+            rect: &id001
+            - 0.607
+            - 0.713
+            - 0.671
+            - 0.745
+          mark:
+            same_row: 優先的に継続する
+            columns:
+            - 0.598
+            - 0.604
+            rect: *id001
+            top_offset: 0
+            bottom_offset: 0
+          frame_required: false
+        - text:
+            glyph_box: 継続する
+            rect: &id002
+            - 0.684
+            - 0.713
+            - 0.75
+            - 0.745
+          mark:
+            same_row: 継続する
+            columns:
+            - 0.675
+            - 0.681
+            rect: *id002
+            top_offset: 0
+            bottom_offset: 0
+          frame_required: false
+        - text:
+            glyph_box: 縮小して継続する
+            rect: &id003
+            - 0.762
+            - 0.713
+            - 0.823
+            - 0.745
+          mark:
+            same_row: 縮小して継続する
+            columns:
+            - 0.753
+            - 0.759
+            rect: *id003
+            top_offset: 0
+            bottom_offset: 0
+          frame_required: false
+        - text:
+            glyph_box: 他事業と統合する
+            rect: &id004
+            - 0.607
+            - 0.713
+            - 0.671
+            - 0.745
+          mark:
+            same_row: 他事業と統合する
+            columns:
+            - 0.598
+            - 0.604
+            rect: *id004
+            top_offset: 0
+            bottom_offset: 0
+          frame_required: false
+        - text:
+            glyph_box: 休止、廃止をする
+            rect: &id005
+            - 0.684
+            - 0.713
+            - 0.75
+            - 0.745
+          mark:
+            same_row: 休止、廃止をする
+            columns:
+            - 0.675
+            - 0.681
+            rect: *id005
+            top_offset: 0
+            bottom_offset: 0
+          frame_required: false
+        - text:
+            glyph_box: 完了した
+            rect: &id006
+            - 0.762
+            - 0.713
+            - 0.823
+            - 0.745
+          mark:
+            same_row: 完了した
+            columns:
+            - 0.753
+            - 0.759
+            rect: *id006
+            top_offset: 0
+            bottom_offset: 0
+          frame_required: false
+        rect:
+        - 0.598
+        - 0.713
+        - 0.823
+        - 0.745
+    evaluation_actor:
+      label:
+        rect:
+        - 0.823
+        - 0.713
+        - 0.86
+        - 0.745
+        pattern: 主務課長氏名
+      value:
+        rect:
+        - 0.86
+        - 0.713
+        - 0.984
+        - 0.743
+  raw_fields:
+  - label:
+      rect:
+      - 0.53
+      - 0.74
+      - 0.751
+      - 0.765
+      pattern: 今年度までに実施した改善内容
+    value:
+      rect:
+      - 0.534
+      - 0.762
+      - 0.75
+      - 0.839
+  - label:
+      rect:
+      - 0.75
+      - 0.74
+      - 0.986
+      - 0.765
+      pattern: 解決できていない課題
+    value:
+      rect:
+      - 0.752
+      - 0.762
+      - 0.985
+      - 0.839

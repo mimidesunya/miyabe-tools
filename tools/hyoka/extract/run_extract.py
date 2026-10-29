@@ -72,7 +72,7 @@ def process_source(source,municipality,templates,out_dir):
         entry.update(parent_doc_id=source.parent_doc_id,archive_member=source.member)
     documents=[entry]
     if source.file_type=="zip":
-        combined={"records":[],"failures":[],"warnings":[],"recognized":[],"template_records":{},"pages":0}
+        combined={"records":[],"failures":[],"warnings":[],"recognized":[],"excluded_pages":[],"selection_checks":[],"template_records":{},"pages":0}
         counts=Counter()
         for child in archive_sources(source):
             if child.file_type=="zip":
@@ -82,8 +82,8 @@ def process_source(source,municipality,templates,out_dir):
                 result,children=process_source(child,municipality,templates,out_dir)
             documents.extend(children)
             combined["records"].extend(result["records"])
-            for key in ("failures","warnings","recognized"):
-                combined[key].extend({"doc_id":child.doc_id,**r} for r in result[key])
+            for key in ("failures","warnings","recognized","excluded_pages","selection_checks"):
+                combined[key].extend({"doc_id":child.doc_id,**r} for r in result.get(key,[]))
             combined["pages"]+=result["pages"]
             counts.update(result["template_records"])
         combined["template_records"]=dict(counts)
@@ -137,6 +137,8 @@ def run_municipality(directory,manifest_path,definition,out,force=False,limit=No
             summary={"doc_id":doc_id,"kind":metadata.get("kind"),"pages":result["pages"],
                      "recognized":bool(result["recognized"]),"templates":sorted({x["template"] for x in result["recognized"]}),
                      "records":len(result["records"]),"failures":dict(reasons),"warnings":len(result["warnings"]),
+                     "excluded_pages":len(result.get('excluded_pages',[])),
+                     "selection_checks":len(result.get('selection_checks',[])),
                      "detail_file":"documents/"+doc_id+".json"}
         except Exception as exc:
             # 文書間を分離し、壊れた一文書で他の自治体を巻き戻さない。
@@ -158,6 +160,8 @@ def run_municipality(directory,manifest_path,definition,out,force=False,limit=No
             "documents_with_records":sum(s["records"]>0 for s in summaries),
             "records":len(all_records),"field_status_counts":statuses,"field_kind_counts":field_kinds,
             "failure_counts":dict(counts),"warning_count":sum(s["warnings"] for s in summaries),
+            "excluded_pages":sum(s.get('excluded_pages',0) for s in summaries),
+            "selection_checks":sum(s.get('selection_checks',0) for s in summaries),
             "source_mismatch_count":sum("source_mismatch" in f.get("detail","") for s in summaries if "detail_file" in s
                                         for f in json.loads((out_dir/s["detail_file"]).read_text(encoding="utf-8"))["failures"]),
             "revision":revision,"limited":limit is not None}

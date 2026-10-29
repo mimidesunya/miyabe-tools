@@ -1,0 +1,286 @@
+version: 1
+municipality:
+  code: '45401'
+  name: 宮崎県 高鍋町
+notes: 試料の様式を定義。未対応頁・読めない欄は失敗一覧に残す。
+templates:
+- id: takanabe-two-stages
+  layout: single_project_sheet
+  match:
+  - pattern: 高鍋町総合計画施策別実施計画及び事務事業評価表
+  - pattern: 記入対象年度
+  - pattern: 事務事業名
+  fields:
+    project_name:
+      label:
+        rect: &id001
+        - 0.1
+        - 0.095
+        - 0.2
+        - 0.12
+        pattern: 事務事業名
+      value:
+        same_row: 事務事業名
+        columns:
+        - 0.202
+        - 0.896
+        rect: *id001
+        row_span:
+        - 0.22
+        - 0.89
+    department:
+      label:
+        rect: &id002
+        - 0.1
+        - 0.115
+        - 0.2
+        - 0.14
+        pattern: 担当課\(局\).係
+      value:
+        same_row: 担当課\(局\).係
+        columns:
+        - 0.202
+        - 0.518
+        rect: *id002
+        row_span:
+        - 0.22
+        - 0.5
+    evaluation_year:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    target_year:
+      label:
+        rect:
+        - 0.59
+        - 0.075
+        - 0.68
+        - 0.096
+        pattern: 記入対象年度
+      value:
+        rect:
+        - 0.68
+        - 0.08
+        - 0.722
+        - 0.096
+      status: unreadable
+      note: 原文は年度の数字だけで元号がない。年度を推測せず未確定とする。
+    future_direction:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    evaluation_actor:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+  pages: 2
+  continuation_match:
+  - page: 1
+    pattern: 主管課\(局\)による評価
+  instances:
+  - id: department
+    fields:
+      future_direction:
+        label:
+          rect:
+          - 0.75
+          - 0.65
+          - 0.9
+          - 0.68
+          pattern: 今後の方針
+          page: 1
+        value:
+          rect:
+          - 0.754
+          - 0.69
+          - 0.823
+          - 0.749
+          page: 1
+      evaluation_actor:
+        label:
+          rect:
+          - 0.1
+          - 0.63
+          - 0.9
+          - 0.67
+          pattern: 主管課\(局\)による評価
+          page: 1
+        value:
+          rect:
+          - 0.1
+          - 0.63
+          - 0.9
+          - 0.67
+          pattern: (主管課\(局\))による評価
+          page: 1
+    raw_fields:
+    - label:
+        rect:
+        - 0.824
+        - 0.67
+        - 0.9
+        - 0.7
+        pattern: コスト
+        page: 1
+      value:
+        rect:
+        - 0.825
+        - 0.69
+        - 0.896
+        - 0.749
+        page: 1
+  - id: internal
+    fields:
+      future_direction:
+        label:
+          rect:
+          - 0.14
+          - 0.75
+          - 0.29
+          - 0.78
+          pattern: 判定結果
+          page: 1
+        value:
+          rect:
+          - 0.141
+          - 0.832
+          - 0.213
+          - 0.875
+          page: 1
+    raw_fields:
+    - label:
+        rect:
+        - 0.21
+        - 0.8
+        - 0.29
+        - 0.84
+        pattern: コスト
+        page: 1
+      value:
+        rect:
+        - 0.216
+        - 0.832
+        - 0.285
+        - 0.875
+        page: 1
+- id: takanabe-external-a
+  layout: single_project_sheet
+  match:
+  - pattern: 高鍋町事務事業評価表A
+  - pattern: 外部評価委員会評価判定欄
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.125
+        - 0.09
+        - 0.213
+        - 0.11
+        pattern: 事務事業名
+      value:
+        rect:
+        - 0.214
+        - 0.091
+        - 0.528
+        - 0.11
+    department:
+      label:
+        rect:
+        - 0.125
+        - 0.11
+        - 0.213
+        - 0.13
+        pattern: 担当課
+      value:
+        rect:
+        - 0.215
+        - 0.11
+        - 0.459
+        - 0.129
+    evaluation_year:
+      label:
+        rect:
+        - 0.3
+        - 0.05
+        - 0.75
+        - 0.08
+        pattern: 事務事業評価表A
+      value:
+        rect:
+        - 0.3
+        - 0.05
+        - 0.75
+        - 0.08
+        pattern: (平成[0-9]+年度)高鍋町
+    target_year:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    future_direction:
+      label:
+        rect:
+        - 0.763
+        - 0.78
+        - 0.87
+        - 0.805
+        pattern: 今後の方向性
+      value:
+        rect:
+        - 0.763
+        - 0.806
+        - 0.87
+        - 0.842
+    evaluation_actor:
+      label:
+        rect:
+        - 0.125
+        - 0.75
+        - 0.4
+        - 0.778
+        pattern: 主管課
+      value:
+        rect:
+        - 0.125
+        - 0.75
+        - 0.4
+        - 0.778
+        pattern: 主管課
+  instances:
+  - id: self
+  - id: external
+    fields:
+      future_direction:
+        label:
+          rect:
+          - 0.13
+          - 0.86
+          - 0.24
+          - 0.89
+          pattern: 事務事業評価委員会評価欄
+        value:
+          rect:
+          - 0.13
+          - 0.891
+          - 0.24
+          - 0.942
+      evaluation_actor:
+        label:
+          rect:
+          - 0.76
+          - 0.86
+          - 0.87
+          - 0.89
+          pattern: 外部評価委員会
+        value:
+          rect:
+          - 0.76
+          - 0.86
+          - 0.87
+          - 0.89
+          pattern: 外部評価委員会
+  raw_fields:
+  - label:
+      rect:
+      - 0.125
+      - 0.155
+      - 0.213
+      - 0.194
+      pattern: 事業の内容
+    value:
+      rect:
+      - 0.215
+      - 0.158
+      - 0.87
+      - 0.193

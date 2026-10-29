@@ -80,14 +80,83 @@ templates:
         pattern: 今後の方向性
         page: 1
       value:
-        rect:
-        - 0.113
-        - 0.753
-        - 0.25
-        - 0.841
         page: 1
-      status: unreadable
-      note: 選択肢は文字にあるがチェック印は文字に含まれない。選択結果は推測しない。
+        choices:
+        - text:
+            rect: &id001
+            - 0.13
+            - 0.64
+            - 0.25
+            - 0.93
+            anchor: 拡大・重点化
+            anchor_index: 1
+            relative_rect:
+            - -0.0005
+            - -0.0005
+            - 0.12
+            - 0.012
+            pattern: 拡大・重点化
+          mark:
+            rect: *id001
+            mark_box_left: 拡大・重点化
+            anchor_index: 1
+        - text:
+            rect: *id001
+            anchor: 手段等の見直し
+            anchor_index: 1
+            relative_rect:
+            - -0.0005
+            - -0.0005
+            - 0.12
+            - 0.012
+            pattern: 手段等の見直し
+          mark:
+            rect: *id001
+            mark_box_left: 手段等の見直し
+            anchor_index: 1
+        - text:
+            rect: *id001
+            anchor: 現状継続
+            anchor_index: 1
+            relative_rect:
+            - -0.0005
+            - -0.0005
+            - 0.12
+            - 0.012
+            pattern: 現状継続
+          mark:
+            rect: *id001
+            mark_box_left: 現状継続
+            anchor_index: 1
+        - text:
+            rect: *id001
+            anchor: 廃止・休止
+            anchor_index: 1
+            relative_rect:
+            - -0.0005
+            - -0.0005
+            - 0.12
+            - 0.012
+            pattern: 廃止・休止
+          mark:
+            rect: *id001
+            mark_box_left: 廃止・休止
+            anchor_index: 1
+        - text:
+            rect: *id001
+            anchor: 完了・終了
+            anchor_index: 1
+            relative_rect:
+            - -0.0005
+            - -0.0005
+            - 0.12
+            - 0.012
+            pattern: 完了・終了
+          mark:
+            rect: *id001
+            mark_box_left: 完了・終了
+            anchor_index: 1
+      note: 選択された選択肢を原文のまま転記。全て未選択なら空欄。
     purpose:
       label:
         rect:
@@ -236,14 +305,83 @@ templates:
           pattern: 今後の方向性
           page: 1
         value:
-          rect:
-          - 0.516
-          - 0.753
-          - 0.657
-          - 0.841
           page: 1
-        status: unreadable
-        note: 二次評価のチェック印を文字から確定できない。空欄との区別も未確定。
+          choices:
+          - text:
+              rect: &id002
+              - 0.53
+              - 0.64
+              - 0.66
+              - 0.93
+              anchor: 拡大・重点化
+              anchor_index: 1
+              relative_rect:
+              - -0.0005
+              - -0.0005
+              - 0.12
+              - 0.012
+              pattern: 拡大・重点化
+            mark:
+              rect: *id002
+              mark_box_left: 拡大・重点化
+              anchor_index: 1
+          - text:
+              rect: *id002
+              anchor: 手段等の見直し
+              anchor_index: 1
+              relative_rect:
+              - -0.0005
+              - -0.0005
+              - 0.12
+              - 0.012
+              pattern: 手段等の見直し
+            mark:
+              rect: *id002
+              mark_box_left: 手段等の見直し
+              anchor_index: 1
+          - text:
+              rect: *id002
+              anchor: 現状継続
+              anchor_index: 1
+              relative_rect:
+              - -0.0005
+              - -0.0005
+              - 0.12
+              - 0.012
+              pattern: 現状継続
+            mark:
+              rect: *id002
+              mark_box_left: 現状継続
+              anchor_index: 1
+          - text:
+              rect: *id002
+              anchor: 廃止・休止
+              anchor_index: 1
+              relative_rect:
+              - -0.0005
+              - -0.0005
+              - 0.12
+              - 0.012
+              pattern: 廃止・休止
+            mark:
+              rect: *id002
+              mark_box_left: 廃止・休止
+              anchor_index: 1
+          - text:
+              rect: *id002
+              anchor: 完了・終了
+              anchor_index: 1
+              relative_rect:
+              - -0.0005
+              - -0.0005
+              - 0.12
+              - 0.012
+              pattern: 完了・終了
+            mark:
+              rect: *id002
+              mark_box_left: 完了・終了
+              anchor_index: 1
+        note: 選択された選択肢を原文のまま転記。全て未選択なら空欄。
       issues:
         absent: 二次評価の欄は方針の指示であり、課題専用欄とはしない。
     raw_fields:

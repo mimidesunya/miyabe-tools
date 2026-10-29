@@ -1,0 +1,182 @@
+version: 1
+municipality:
+  code: '13223'
+  name: 東京都 武蔵村山市
+notes: 試料の様式を定義。未対応頁・読めない欄は失敗一覧に残す。
+templates:
+- id: musashimurayama-evaluation
+  layout: single_project_sheet
+  match:
+  - pattern: 武蔵村山市
+  - pattern: 事務事業評価調書
+    rect:
+    - 0.25
+    - 0
+    - 0.85
+    - 0.05
+  - pattern: 今後の方向性
+  fields:
+    project_name:
+      label:
+        rect: &id001
+        - 0.13
+        - 0.036
+        - 0.23
+        - 0.056
+        pattern: 事務事業名
+      value:
+        same_row: 事務事業名
+        columns:
+        - 0.23
+        - 0.923
+        rect: *id001
+        row_span:
+        - 0.24
+        - 0.91
+    department:
+      label:
+        rect: &id002
+        - 0.13
+        - 0.065
+        - 0.23
+        - 0.085
+        pattern: 所管部署
+      value:
+        same_row: 所管部署
+        columns:
+        - 0.23
+        - 0.79
+        rect: *id002
+        row_span:
+        - 0.24
+        - 0.78
+    evaluation_year:
+      label:
+        rect:
+        - 0.3
+        - 0.015
+        - 0.77
+        - 0.04
+        pattern: 事務事業評価調書
+      value:
+        rect:
+        - 0.3
+        - 0.015
+        - 0.77
+        - 0.04
+        pattern: (令和[0-9]+年度)
+    target_year:
+      label:
+        rect:
+        - 0.13
+        - 0.59
+        - 0.53
+        - 0.62
+        pattern: 年度の実績
+      value:
+        rect:
+        - 0.13
+        - 0.59
+        - 0.53
+        - 0.62
+        pattern: (令和[0-9]+年度)の実績
+    future_direction:
+      label:
+        rect:
+        - 0.13
+        - 0.77
+        - 0.3
+        - 0.795
+        pattern: 今後の方向性
+      value:
+        choices:
+        - text:
+            rect:
+            - 0.25
+            - 0.77
+            - 0.85
+            - 0.795
+            pattern: 拡充
+          mark:
+            rect:
+            - 0.3
+            - 0.774
+            - 0.316
+            - 0.788
+          frame_required: true
+        - text:
+            rect:
+            - 0.25
+            - 0.77
+            - 0.85
+            - 0.795
+            pattern: 現状維持
+          mark:
+            rect:
+            - 0.393
+            - 0.774
+            - 0.409
+            - 0.788
+          frame_required: true
+        - text:
+            rect:
+            - 0.25
+            - 0.77
+            - 0.85
+            - 0.795
+            pattern: 縮小・見直し
+          mark:
+            rect:
+            - 0.509
+            - 0.774
+            - 0.525
+            - 0.788
+          frame_required: true
+        - text:
+            rect:
+            - 0.25
+            - 0.77
+            - 0.85
+            - 0.795
+            pattern: 廃止・休止・終了
+          mark:
+            rect:
+            - 0.649
+            - 0.774
+            - 0.665
+            - 0.788
+          frame_required: true
+        rect:
+        - 0.25
+        - 0.77
+        - 0.85
+        - 0.795
+    evaluation_actor:
+      label:
+        rect:
+        - 0.1
+        - 0.61
+        - 0.13
+        - 0.76
+        pattern: 所管課の評価
+      value:
+        rect:
+        - 0.1
+        - 0.61
+        - 0.13
+        - 0.76
+        pattern: 所管課
+  raw_fields:
+  - label:
+      rect:
+      - 0.13
+      - 0.77
+      - 0.3
+      - 0.795
+      pattern: 今後の方向性
+    value:
+      rect:
+      - 0.135
+      - 0.793
+      - 0.737
+      - 0.946

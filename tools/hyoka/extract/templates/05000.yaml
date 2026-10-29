@@ -2,7 +2,7 @@ version: 1
 municipality:
   code: '05000'
   name: 秋田県
-notes: 様式3の1頁目的設定版と2頁評価版。研究課題等の異なる様式は拒否して報告。
+notes: 様式3の年度表記を令和8年度まで検証。研究課題などは別定義。
 templates:
 - id: akita-r6-r7-standard-2pages
   layout: single_project_sheet
@@ -10,7 +10,7 @@ templates:
   - pattern: 事業評価調書
   - pattern: 事業実施の背景及び目的
   - pattern: 事業概要及び財源
-  - pattern: 評価年度:令和[67]年度
+  - pattern: 評価年度:令和[678]年度
     rect:
     - 0.495
     - 0.063
@@ -165,7 +165,7 @@ templates:
   - pattern: 事業評価調書
   - pattern: 事業実施の背景及び目的
   - pattern: 事業概要及び財源
-  - pattern: 評価年度:令和[67]年度
+  - pattern: 評価年度:令和[678]年度
     rect:
     - 0.495
     - 0.063
@@ -264,3 +264,242 @@ templates:
       - 0.893
       - 0.573
   next_page_not_pattern: 事業推進上の課題
+- id: akita-research-objectives
+  layout: report
+  match:
+  - pattern: 研究課題評価調書
+  - pattern: 担当\(チーム\)名
+  - pattern: ■目的設定
+  exclude:
+  - pattern: 研究課題評価調書別紙
+  pages: 3
+  continuation_match:
+  - page: 1
+    pattern: 外部有識者等の主な意見及び対応方針
+  - page: 2
+    pattern: 研究課題評価調書別紙
+  fields:
+    project_name:
+      label:
+        rect: &id001
+        - 0.08
+        - 0.07
+        - 0.3
+        - 0.2
+        pattern: 課題名
+        page: 0
+      value:
+        rect: *id001
+        same_row: 課題名
+        columns:
+        - 0.23
+        - 0.93
+        row_span:
+        - 0.28
+        - 0.9
+        page: 0
+    department:
+      label:
+        rect: &id002
+        - 0.08
+        - 0.07
+        - 0.31
+        - 0.21
+        pattern: 担当\(チーム\)名
+        page: 0
+      value:
+        rect: *id002
+        same_row: 担当\(チーム\)名
+        columns:
+        - 0.23
+        - 0.93
+        row_span:
+        - 0.28
+        - 0.9
+        page: 0
+    evaluation_year:
+      label:
+        rect:
+        - 0.05
+        - 0.02
+        - 0.95
+        - 0.1
+        pattern: 研究課題評価調書
+      value:
+        rect:
+        - 0.05
+        - 0.02
+        - 0.95
+        - 0.1
+        pattern: (令和[0-9]+年度)
+    target_year:
+      absent: 事業年度は複数年の研究期間であり、単一の評価対象年度へ補完しない。
+    future_direction:
+      absent: 個別の外部意見への対応方針は原文欄全体に保存。総括した今後の方向性へ合成しない。
+    evaluation_actor:
+      label:
+        page: 1
+        pattern: 外部有識者等の主な意見及び対応方針
+      value:
+        page: 1
+        pattern: (外部有識者等)
+  raw_fields:
+  - label:
+      page: 1
+      pattern: 外部有識者等の主な意見及び対応方針
+    value:
+      page: 1
+    embedded_fields:
+    - future_direction
+  - label:
+      page: 2
+      pattern: 研究課題評価調書別紙
+    value:
+      page: 2
+- id: 05000-contents
+  action: exclude
+  category: contents
+  match:
+  - pattern: 目次
+    rect:
+    - 0
+    - 0
+    - 1
+    - 0.3
+- id: akita-instructions-document
+  action: exclude
+  category: instructions
+  match:
+  - pattern: .
+  document_match:
+  - pattern: 知事が行う政策等の評価に関する実施計画
+- id: akita-policy-form
+  action: exclude
+  category: policy_evaluation
+  match:
+  - pattern: 政策評価調書|施策評価調書
+- id: akita-results-overview
+  action: exclude
+  category: aggregate
+  match:
+  - pattern: 対象.*実施時期.*評価に用いたデータ等
+- id: akita-blank-template
+  action: exclude
+  category: blank_form
+  match:
+  - pattern: 評価年度:令和○年度
+- id: akita-interim-results-list
+  layout: list_only
+  match:
+  - pattern: 事業\(中間\)評価結果一覧表
+  - pattern: 部局名課室名
+    rect:
+    - 0.411
+    - 0.11
+    - 0.636
+    - 0.19
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.164
+        - 0.11
+        - 0.411
+        - 0.19
+        pattern: 事業名
+      value:
+        rect:
+        - 0.166
+        - row_top
+        - 0.41
+        - row_bottom
+    department:
+      label:
+        rect:
+        - 0.509
+        - 0.11
+        - 0.636
+        - 0.19
+        pattern: 課室名
+      value:
+        rect:
+        - 0.509
+        - row_top
+        - 0.635
+        - row_bottom
+    evaluation_year:
+      label:
+        rect:
+        - 0.05
+        - 0.07
+        - 0.95
+        - 0.11
+        pattern: 評価結果一覧表
+      value:
+        rect:
+        - 0.05
+        - 0.07
+        - 0.95
+        - 0.11
+        pattern: (令和[0-9]+年度)
+    target_year:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    future_direction:
+      absent: 左端の「方向性」は政策・施策の体系番号。事業の今後の方向性専用欄ではない。
+    evaluation_actor:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    evaluation_rating:
+      label:
+        rect:
+        - 0.934
+        - 0.13
+        - 0.97
+        - 0.19
+        pattern: 総合評価
+      value:
+        rect:
+        - 0.935
+        - row_top
+        - 0.969
+        - row_bottom
+  table:
+    rule_span:
+    - 0.18
+    - 0.4
+    y_range:
+    - 0.18
+    - 0.94
+    row_test:
+      rect:
+      - 0.03
+      - row_top
+      - 0.06
+      - row_bottom
+      pattern: '[0-9]+'
+  raw_fields:
+  - label:
+      rect:
+      - 0.411
+      - 0.11
+      - 0.508
+      - 0.19
+      pattern: 部局名
+    value:
+      rect:
+      - 0.413
+      - row_top
+      - 0.508
+      - row_bottom
+- id: akita-public-criteria
+  action: exclude
+  category: instructions
+  document_match:
+  - pattern: 公共事業箇所評価基準
+  match:
+  - pattern: .
+- id: akita-report-cover
+  action: exclude
+  category: cover
+  first_page_only: true
+  match:
+  - pattern: 政策等の評価の実施状況及び評価結果の政策等への反映状況に関する報告書

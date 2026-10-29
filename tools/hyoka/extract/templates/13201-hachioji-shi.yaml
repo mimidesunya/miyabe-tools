@@ -1,0 +1,343 @@
+version: 1
+municipality:
+  code: '13201'
+  name: 東京都 八王子市
+notes: 今回の材料は点検結果一覧と掲載一覧。個別評価シート本体は含まれない。表の原語だけを転記する。
+templates:
+- id: hachioji-check-list
+  layout: list_only
+  match:
+  - pattern: 通し番号
+  - pattern: 事務事業名
+  - pattern: 年度目標
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.2
+        - 0
+        - 0.303
+        - 0.17
+        pattern: 事務事業名
+      value:
+        rect:
+        - 0.203
+        - row_top
+        - 0.302
+        - row_bottom
+    department:
+      label:
+        rect:
+        - 0.09
+        - 0
+        - 0.203
+        - 0.17
+        pattern: 部名課名
+      value:
+        rect:
+        - 0.093
+        - row_top
+        - 0.201
+        - row_bottom
+    evaluation_year:
+      label:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 0.13
+        pattern: 事務事業点検結果一覧
+        page: first
+      value:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 0.13
+        pattern: (令和[0-9]+年度)\([0-9]+年度\)事務事業点検
+        page: first
+    target_year:
+      label:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 0.13
+        pattern: 事務事業点検結果一覧
+        page: first
+      value:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 0.13
+        pattern: 一覧\((令和[0-9]+年度)\([0-9]+年度\)事業
+        page: first
+    future_direction:
+      label:
+        rect:
+        - 0.85
+        - 0
+        - 0.91
+        - 0.17
+        pattern: 方向性
+      value:
+        rect:
+        - 0.861
+        - row_top
+        - 0.905
+        - row_bottom
+    evaluation_actor:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    purpose:
+      label:
+        rect:
+        - 0.35
+        - 0
+        - 0.49
+        - 0.17
+        pattern: 目的
+      value:
+        rect:
+        - 0.35
+        - row_top
+        - 0.488
+        - row_bottom
+  table:
+    rule_span:
+    - 0.204
+    - 0.3
+    y_range:
+    - 0.04
+    - 0.95
+    row_test:
+      rect:
+      - 0.062
+      - row_top
+      - 0.09
+      - row_bottom
+      pattern: '[0-9]+'
+  raw_fields:
+  - label:
+      rect:
+      - 0.49
+      - 0
+      - 0.63
+      - 0.17
+      pattern: 事業概要
+    value:
+      rect:
+      - 0.49
+      - row_top
+      - 0.629
+      - row_bottom
+- id: hachioji-result-list
+  layout: list_only
+  match:
+  - pattern: 掲載ページ
+  - pattern: 担当部課
+  - pattern: 今後の方向性
+  - pattern: 事務事業名
+    rect:
+    - 0.15
+    - 0.08
+    - 0.4
+    - 0.15
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.15
+        - 0.08
+        - 0.386
+        - 0.15
+        pattern: 事務事業名
+      value:
+        rect:
+        - 0.158
+        - row_top
+        - 0.385
+        - row_bottom
+    department:
+      label:
+        rect:
+        - 0.38
+        - 0.08
+        - 0.76
+        - 0.15
+        pattern: 担当部課
+      value:
+        rect:
+        - 0.387
+        - row_top
+        - 0.755
+        - row_bottom
+    evaluation_year:
+      label:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: 事務事業評価結果
+        page: first
+      value:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: (令和[0-9]+年度)\([0-9]+年度\)事務事業評価結果
+        page: first
+    target_year:
+      label:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: 事務事業評価結果
+        page: first
+      value:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: 事務事業評価結果\((令和[0-9]+年度)
+        page: first
+    future_direction:
+      label:
+        rect:
+        - 0.85
+        - 0.08
+        - 0.94
+        - 0.15
+        pattern: 今後の方向性
+      value:
+        rect:
+        - 0.851
+        - row_top
+        - 0.936
+        - row_bottom
+    evaluation_actor:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+  table:
+    rule_span:
+    - 0.16
+    - 0.38
+    y_range:
+    - 0.13
+    - 0.9
+    row_test:
+      rect:
+      - 0.063
+      - row_top
+      - 0.154
+      - row_bottom
+      pattern: '[0-9]+'
+- id: hachioji-manpower-list
+  layout: list_only
+  match:
+  - pattern: 掲載ページ
+  - pattern: 担当部課
+  - pattern: 今後の方向性
+  - pattern: マンパワー事業名
+    rect:
+    - 0.15
+    - 0.08
+    - 0.4
+    - 0.15
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.15
+        - 0.08
+        - 0.386
+        - 0.15
+        pattern: マンパワー事業名
+      value:
+        rect:
+        - 0.158
+        - row_top
+        - 0.391
+        - row_bottom
+    department:
+      label:
+        rect:
+        - 0.38
+        - 0.08
+        - 0.76
+        - 0.15
+        pattern: 担当部課
+      value:
+        rect:
+        - 0.394
+        - row_top
+        - 0.755
+        - row_bottom
+    evaluation_year:
+      label:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: 事務事業評価結果
+        page: first
+      value:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: (令和[0-9]+年度)\([0-9]+年度\)事務事業評価結果
+        page: first
+    target_year:
+      label:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: 事務事業評価結果
+        page: first
+      value:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: 事務事業評価結果\((令和[0-9]+年度)
+        page: first
+    future_direction:
+      label:
+        rect:
+        - 0.85
+        - 0.08
+        - 0.94
+        - 0.15
+        pattern: 今後の方向性
+      value:
+        rect:
+        - 0.851
+        - row_top
+        - 0.936
+        - row_bottom
+    evaluation_actor:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+  table:
+    rule_span:
+    - 0.16
+    - 0.38
+    y_range:
+    - 0.13
+    - 0.9
+    row_test:
+      rect:
+      - 0.063
+      - row_top
+      - 0.154
+      - row_bottom
+      pattern: '[0-9]+'

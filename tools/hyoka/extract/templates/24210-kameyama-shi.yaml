@@ -1,0 +1,150 @@
+version: 1
+municipality:
+  code: '24210'
+  name: 三重県 亀山市
+notes: 試料の様式を定義。未対応頁・読めない欄は失敗一覧に残す。
+templates:
+- id: kameyama-major
+  layout: single_project_sheet
+  match:
+  - pattern: 主要事業評価シート
+  - pattern: 担当部署
+  - pattern: 事業名
+  fields:
+    project_name:
+      label:
+        rect: &id001
+        - 0.265
+        - 0.09
+        - 0.355
+        - 0.12
+        pattern: 事業名
+      value:
+        same_row: 事業名
+        columns:
+        - 0.356
+        - 0.765
+        rect: *id001
+        row_span:
+        - 0.36
+        - 0.75
+    department:
+      label:
+        rect:
+        - 0.78
+        - 0.13
+        - 0.945
+        - 0.16
+        pattern: 担当部署
+      value:
+        rect:
+        - 0.819
+        - 0.16
+        - 0.943
+        - 0.239
+    evaluation_year:
+      label:
+        rect:
+        - 0.03
+        - 0.06
+        - 0.3
+        - 0.1
+        pattern: 主要事業評価シート
+      value:
+        rect:
+        - 0.03
+        - 0.06
+        - 0.3
+        - 0.1
+        pattern: (令和[0-9]+年度)
+    target_year:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    future_direction:
+      label:
+        rect:
+        - 0.05
+        - 0.65
+        - 0.52
+        - 0.72
+        pattern: 方向性
+        page: 1
+      value:
+        rect:
+        - 0.054
+        - 0.701
+        - 0.14
+        - 0.74
+        page: 1
+    evaluation_actor:
+      label:
+        rect: &id002
+        - 0.53
+        - 0.88
+        - 0.624
+        - 0.92
+        pattern: 最終評価者
+        page: 1
+      value:
+        same_row: 最終評価者
+        columns:
+        - 0.624
+        - 0.943
+        rect: *id002
+        page: 1
+        row_span:
+        - 0.63
+        - 0.93
+    purpose:
+      label:
+        rect:
+        - 0.44
+        - 0.24
+        - 0.66
+        - 0.27
+        pattern: 事業の目的
+      value:
+        rect:
+        - 0.446
+        - 0.27
+        - 0.658
+        - 0.388
+  pages: 2
+  continuation_match:
+  - page: 1
+    pattern: 最終評価者
+  - page: 1
+    pattern: 方向性
+  raw_fields:
+  - label:
+      rect: &id003
+      - 0.53
+      - 0.84
+      - 0.624
+      - 0.9
+      pattern: 1次評価者
+      page: 1
+    value:
+      same_row: 1次評価者
+      columns:
+      - 0.624
+      - 0.943
+      rect: *id003
+      page: 1
+      row_span:
+      - 0.63
+      - 0.93
+  - label:
+      rect:
+      - 0.05
+      - 0.74
+      - 0.52
+      - 0.77
+      pattern: 改善・見直し内容
+      page: 1
+    value:
+      rect:
+      - 0.054
+      - 0.76
+      - 0.515
+      - 0.919
+      page: 1

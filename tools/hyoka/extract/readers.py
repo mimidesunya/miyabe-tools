@@ -8,6 +8,7 @@ from functools import cached_property
 from io import BytesIO
 from pathlib import Path, PurePosixPath
 import posixpath
+import math
 import re
 import unicodedata
 import zipfile
@@ -132,8 +133,11 @@ class PDFPage:
         result = {"type": "pdf", "page": self.number}
         if rect is not None:
             l, t, r, b = rect
-            result["bbox"] = [round(l * self.width, 3), round(t * self.height, 3),
-                              round(r * self.width, 3), round(b * self.height, 3)]
+            # 丸めで境界上の文字を落とさないよう、領域を外側へ丸める。
+            result["bbox"] = [math.floor(l * self.width * 1000) / 1000,
+                              math.floor(t * self.height * 1000) / 1000,
+                              math.ceil(r * self.width * 1000) / 1000,
+                              math.ceil(b * self.height * 1000) / 1000]
         return result
 
     def glyphs(self):
@@ -152,10 +156,22 @@ class PDFPage:
             ox,oy=ctypes.c_double(),ctypes.c_double()
             if not raw.FPDFText_GetCharOrigin(self.textpage,i,ox,oy):
                 raise ReadError("character_origin_missing")
+            points=[self.display_point(x,y) for x,y in [(l,b),(l,t),(r,b),(r,t)]]
+            l,b=min(x for x,y in points),min(y for x,y in points)
+            r,t=max(x for x,y in points),max(y for x,y in points)
+            _,baseline=self.display_point(ox.value,oy.value)
             result.append((char, l/self.width, 1-t/self.height, r/self.width, 1-b/self.height, i,
-                           1-oy.value/self.height))
+                           1-baseline/self.height))
         self._glyphs = result
         return result
+
+    def display_point(self,x,y):
+        """PDF の回転前座標を、PDFium が表示する向きの左下原点へ変換。"""
+        rotation=self.page.get_rotation()
+        if rotation==90:return y,self.height-x
+        if rotation==180:return self.width-x,self.height-y
+        if rotation==270:return self.width-y,x
+        return x,y
 
     @staticmethod
     def _lines(glyphs):
@@ -199,7 +215,7 @@ class PDFPage:
     def mark_fraction(self, rect):
         """既知のチェック枠の内側だけを測る。文字認識や欄外の画像解析はしない。"""
         if self._mark_image is None:
-            bitmap=self.page.render(scale=2)
+            bitmap=self.page.render(scale=4)
             try:self._mark_image=bitmap.to_pil().convert("L").copy()
             finally:bitmap.close()
         w,h=self._mark_image.size
@@ -209,7 +225,116 @@ class PDFPage:
         histogram=crop.histogram()
         return sum(histogram[:90])/(crop.width*crop.height)
 
-    def horizontal_rules(self, left, right, top=0, bottom=1):
+    def mark_state(self, rect, frame_required=True, enclosing_text=False):
+        """既知の選択印領域を判定。枠の中を測り、灰色域・枠不明は保留する。"""
+        if not (len(rect)==4 and 0<=rect[0]<rect[2]<=1 and 0<=rect[1]<rect[3]<=1):
+            raise ReadError('invalid_mark_rect')
+        if enclosing_text:
+            import ctypes
+            import pypdfium2.raw as raw
+            boxes=[]
+            for obj in self.page.get_objects(filter=[raw.FPDF_PAGEOBJ_PATH]):
+                if obj.level:continue
+                coords=[ctypes.c_float() for _ in range(4)]
+                if not raw.FPDFPageObj_GetBounds(obj,*coords):continue
+                l,b,r,t=[c.value for c in coords]
+                points=[self.display_point(x,y) for x,y in [(l,b),(r,t),(l,t),(r,b)]]
+                box=[min(x for x,y in points)/self.width,1-max(y for x,y in points)/self.height,
+                     max(x for x,y in points)/self.width,1-min(y for x,y in points)/self.height]
+                if all(0<=delta<limit for delta,limit in [(rect[0]-box[0],.018),(rect[1]-box[1],.012),(box[2]-rect[2],.018),(box[3]-rect[3],.012)]):
+                    # 四隅を持つ枠だけ。大きなセル背景、下線、隣の欄は採らない。
+                    if self.has_rectangle_edges(box):boxes.append(box)
+            return {'state':'selected' if boxes else 'empty','method':'enclosing_box',
+                    'boxes':[list(b) for b in sorted({tuple(round(v,6) for v in b) for b in boxes})]}
+        text=normalize(self.region(rect))
+        selected=set('■☑●✔✓')
+        empty=set('□☐○')
+        if text and set(text)<=selected|empty:
+            state='selected' if set(text)<=selected else 'empty' if set(text)<=empty else 'unknown'
+            return {'state':state,'method':'text_symbol','text':text}
+        # 文字や表罫線をチェック印と誤認しないよう、様式側で狭い枠範囲を指定する。
+        if text:return {'state':'unknown','method':'unexpected_text','text':text}
+        l,t,r,b=rect
+        outer=self.mark_fraction(rect)
+        inset=.24 if frame_required else 0
+        inner=[l+(r-l)*inset,t+(b-t)*inset,r-(r-l)*inset,b-(b-t)*inset]
+        ink=self.mark_fraction(inner)
+        state='unknown'
+        if not frame_required or outer>=.035:
+            if ink<=.005:state='empty'
+            elif ink>=.025:state='selected'
+        return {'state':state,'method':'rendered_mark','outer_ink':round(outer,6),'inner_ink':round(ink,6)}
+
+    def has_rectangle_edges(self,rect):
+        """囲み文字の四辺が実際に描かれていることを画像でも確認する。"""
+        self.mark_fraction(rect)  # 同じ PDFium 画像を再利用。
+        w,h=self._mark_image.size
+        l,t,r,b=[round(v*(w if i%2==0 else h)) for i,v in enumerate(rect)]
+        xs=range(l+max(2,(r-l)//10),r-max(2,(r-l)//10))
+        ys=range(t+max(2,(b-t)//10),b-max(2,(b-t)//10))
+        if not xs or not ys:return False
+        def horizontal(y):
+            return max(sum(self._mark_image.getpixel((x,yy))<90 for x in xs)/len(xs)
+                       for yy in range(max(0,y-3),min(h,y+4)))
+        def vertical(x):
+            return max(sum(self._mark_image.getpixel((xx,y))<90 for y in ys)/len(ys)
+                       for xx in range(max(0,x-3),min(w,x+4)))
+        return min(horizontal(t),horizontal(b),vertical(l),vertical(r))>=.65
+
+    def box_left_of(self, anchor):
+        """選択肢の直前に実在する小さい正方形の描画枠だけを返す。"""
+        import ctypes
+        import pypdfium2.raw as raw
+        boxes={}
+        for obj in self.page.get_objects(filter=[raw.FPDF_PAGEOBJ_PATH]):
+            if obj.level:continue
+            coords=[ctypes.c_float() for _ in range(4)]
+            if not raw.FPDFPageObj_GetBounds(obj,*coords):continue
+            l,b,r,t=[v.value for v in coords]
+            points=[self.display_point(x,y) for x,y in [(l,b),(l,t),(r,b),(r,t)]]
+            l,b=min(x for x,y in points),min(y for x,y in points)
+            r,t=max(x for x,y in points),max(y for x,y in points)
+            w,h=r-l,t-b
+            if not (5<=w<=16 and 5<=h<=16 and .8<=w/h<=1.2):continue
+            rect=[l/self.width,1-t/self.height,r/self.width,1-b/self.height]
+            if 0<=anchor[0]-rect[2]<=.018 and abs((rect[1]+rect[3]-anchor[1]-anchor[3])/2)<.006:
+                key=tuple(round(v,3) for v in rect)
+                boxes[key]=rect
+        # 同じ枠の重複描画・内外輪郭は中心が同じなら外周へまとめる。
+        groups=[]
+        for rect in boxes.values():
+            group=next((g for g in groups if abs((g[0]+g[2]-rect[0]-rect[2])/2)<.002 and abs((g[1]+g[3]-rect[1]-rect[3])/2)<.002),None)
+            if group:
+                group[:]=[min(group[0],rect[0]),min(group[1],rect[1]),max(group[2],rect[2]),max(group[3],rect[3])]
+            else:groups.append(rect)
+        if len(groups)!=1:raise ReadError('checkbox_frame_missing_or_ambiguous')
+        return groups[0]
+
+    def enclosing_frame(self, anchor, columns):
+        """見出しを囲む実在の枠。塗りつぶした中抜きパスの太枠も確認する。"""
+        import ctypes
+        import pypdfium2.raw as raw
+        candidates=[]
+        for obj in self.page.get_objects(filter=[raw.FPDF_PAGEOBJ_PATH]):
+            if obj.level:continue
+            coords=[ctypes.c_float() for _ in range(4)]
+            if not raw.FPDFPageObj_GetBounds(obj,*coords):continue
+            l,b,r,t=[v.value for v in coords]
+            points=[self.display_point(x,y) for x,y in [(l,b),(l,t),(r,b),(r,t)]]
+            rect=[min(x for x,y in points)/self.width,1-max(y for x,y in points)/self.height,
+                  max(x for x,y in points)/self.width,1-min(y for x,y in points)/self.height]
+            if not (0<=rect[0]<rect[2]<=1 and 0<=rect[1]<rect[3]<=1):continue
+            if not (rect[0]<=anchor[0] and rect[2]>=max(anchor[2],columns[1])-.005
+                    and rect[1]<=anchor[1] and rect[3]>=anchor[3]
+                    and .01<rect[3]-rect[1]<.20):continue
+            if self.has_rectangle_edges(rect):
+                inside=[rect[0]+.005,rect[1]+.005,rect[2]-.005,rect[3]-.005]
+                if self.mark_fraction(inside)<.6:candidates.append(rect)
+        if not candidates:raise ReadError('enclosing_frame_not_found')
+        candidates.sort(key=lambda r:(r[3]-r[1])*(r[2]-r[0]))
+        return candidates[0]
+
+    def horizontal_rules(self, left, right, top=0, bottom=1, max_thickness=1.5):
         """表の横罫線（PDF の線分）。位置を推定せず、指定した列を横切る線だけ。"""
         import ctypes
         import pypdfium2.raw as raw
@@ -226,7 +351,7 @@ class PDFPage:
             path_segments=[];points=[]
             def append_subpath():
                 # 複数の細い罫線を1個のPDFパスにまとめる作成ソフトにも対応する。
-                if stroke.value or (points and max(y for _,y in points)-min(y for _,y in points)<=1.5):
+                if stroke.value or (points and max(y for _,y in points)-min(y for _,y in points)<=max_thickness):
                     segments.extend(path_segments)
             for i in range(raw.FPDFPath_CountSegments(obj)):
                 seg = raw.FPDFPath_GetPathSegment(obj, i)
@@ -234,7 +359,7 @@ class PDFPage:
                 if not raw.FPDFPathSegment_GetPoint(seg, x,y):
                     previous = None
                     continue
-                current = matrix.on_point(x.value,y.value)
+                current = self.display_point(*matrix.on_point(x.value,y.value))
                 if raw.FPDFPathSegment_GetType(seg)==raw.FPDF_SEGMENT_MOVETO:
                     append_subpath();path_segments=[];points=[];previous=None
                 points.append(current)

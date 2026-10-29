@@ -1,0 +1,319 @@
+version: 1
+municipality:
+  code: '18000'
+  name: 福井県
+notes: 課別総括表の評価年度を同一文書の調書に付ける。課名を部署、部局名は原文欄に保存。事業評価の9選択肢を全て点検。対象年度と評価主体は専用欄がない。
+templates:
+- id: fukui-evaluation
+  layout: single_project_sheet
+  match:
+  - pattern: 事業目的
+  - pattern: 部局名
+  - pattern: 課名
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.09
+        - 0.07
+        - 0.92
+        - 0.11
+        pattern: .+
+      value:
+        rect:
+        - 0.09
+        - 0.07
+        - 0.92
+        - 0.11
+    department:
+      label:
+        rect: &id001
+        - 0.63
+        - 0.13
+        - 0.68
+        - 0.16
+        pattern: 課名
+      value:
+        same_row: 課名
+        columns:
+        - 0.678
+        - 0.788
+        rect: *id001
+        row_span:
+        - 0.68
+        - 0.78
+    evaluation_year:
+      label:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: 事業評価結果\(課・室\)総括表
+        page: first
+      value:
+        rect:
+        - 0
+        - 0
+        - 1
+        - 1
+        pattern: (令和[0-9]+年度)事業評価結果
+        page: first
+    target_year:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    future_direction:
+      label:
+        rect:
+        - 0.6
+        - 0.5
+        - 0.93
+        - 0.98
+        pattern: 事業評価
+        page: 1
+      value:
+        choices:
+        - text:
+            rect:
+            - 0.6
+            - 0.5
+            - 0.94
+            - 0.98
+            pattern: '[□■](拡充)'
+          mark:
+            anchor: '[□■]拡充'
+            relative_rect:
+            - 0
+            - -0.002
+            - 0.012
+            - 0.017
+            rect:
+            - 0.6
+            - 0.5
+            - 0.94
+            - 0.98
+          frame_required: false
+        - text:
+            rect:
+            - 0.6
+            - 0.5
+            - 0.94
+            - 0.98
+            pattern: '[□■](縮減)'
+          mark:
+            anchor: '[□■]縮減'
+            relative_rect:
+            - 0
+            - -0.002
+            - 0.012
+            - 0.017
+            rect:
+            - 0.6
+            - 0.5
+            - 0.94
+            - 0.98
+          frame_required: false
+        - text:
+            rect:
+            - 0.6
+            - 0.5
+            - 0.94
+            - 0.98
+            pattern: '[□■](終期の見直し)'
+          mark:
+            anchor: '[□■]終期の見直し'
+            relative_rect:
+            - 0
+            - -0.002
+            - 0.012
+            - 0.017
+            rect:
+            - 0.6
+            - 0.5
+            - 0.94
+            - 0.98
+          frame_required: false
+        - text:
+            rect:
+            - 0.6
+            - 0.5
+            - 0.94
+            - 0.98
+            pattern: '[□■](継続)'
+          mark:
+            anchor: '[□■]継続'
+            relative_rect:
+            - 0
+            - -0.002
+            - 0.012
+            - 0.017
+            rect:
+            - 0.6
+            - 0.5
+            - 0.94
+            - 0.98
+          frame_required: false
+        - text:
+            rect:
+            - 0.6
+            - 0.5
+            - 0.94
+            - 0.98
+            pattern: '[□■](休止)'
+          mark:
+            anchor: '[□■]休止'
+            relative_rect:
+            - 0
+            - -0.002
+            - 0.012
+            - 0.017
+            rect:
+            - 0.6
+            - 0.5
+            - 0.94
+            - 0.98
+          frame_required: false
+        - text:
+            rect:
+            - 0.6
+            - 0.5
+            - 0.94
+            - 0.98
+            pattern: '[□■](完了)'
+          mark:
+            anchor: '[□■]完了'
+            relative_rect:
+            - 0
+            - -0.002
+            - 0.012
+            - 0.017
+            rect:
+            - 0.6
+            - 0.5
+            - 0.94
+            - 0.98
+          frame_required: false
+        - text:
+            rect:
+            - 0.6
+            - 0.5
+            - 0.94
+            - 0.98
+            pattern: '[□■](整理統合)'
+          mark:
+            anchor: '[□■]整理統合'
+            relative_rect:
+            - 0
+            - -0.002
+            - 0.012
+            - 0.017
+            rect:
+            - 0.6
+            - 0.5
+            - 0.94
+            - 0.98
+          frame_required: false
+        - text:
+            rect:
+            - 0.6
+            - 0.5
+            - 0.94
+            - 0.98
+            pattern: '[□■](廃止)'
+          mark:
+            anchor: '[□■]廃止'
+            relative_rect:
+            - 0
+            - -0.002
+            - 0.012
+            - 0.017
+            rect:
+            - 0.6
+            - 0.5
+            - 0.94
+            - 0.98
+          frame_required: false
+        - text:
+            rect:
+            - 0.6
+            - 0.5
+            - 0.94
+            - 0.98
+            pattern: '[□■](その他)'
+          mark:
+            anchor: '[□■]その他'
+            relative_rect:
+            - 0
+            - -0.002
+            - 0.012
+            - 0.017
+            rect:
+            - 0.6
+            - 0.5
+            - 0.94
+            - 0.98
+          frame_required: false
+        rect:
+        - 0.635
+        - 0.75
+        - 0.916
+        - 0.86
+        page: 1
+    evaluation_actor:
+      absent: この様式に専用の欄がない。本文や別年度から補完しない。
+    purpose:
+      label:
+        rect:
+        - 0.09
+        - 0.32
+        - 0.3
+        - 0.36
+        pattern: 事業目的
+      value:
+        rect:
+        - 0.091
+        - 0.355
+        - 0.915
+        - 0.4
+  pages: 2
+  continuation_match:
+  - page: 1
+    pattern: 事業の評価
+  raw_fields:
+  - label:
+      rect: &id002
+      - 0.49
+      - 0.13
+      - 0.55
+      - 0.16
+      pattern: 部局名
+    value:
+      same_row: 部局名
+      columns:
+      - 0.543
+      - 0.63
+      rect: *id002
+      row_span:
+      - 0.55
+      - 0.62
+  - label:
+      rect:
+      - 0.38
+      - 0.5
+      - 0.65
+      - 0.95
+      pattern: 実績を踏まえた令和[0-9]+年度の変更点
+      page: 1
+    value:
+      below_heading: 実績を踏まえた令和[0-9]+年度の変更点
+      columns:
+      - 0.386
+      - 0.631
+      rule_span:
+      - 0.4
+      - 0.62
+      rect:
+      - 0.38
+      - 0.5
+      - 0.65
+      - 0.95
+      page: 1

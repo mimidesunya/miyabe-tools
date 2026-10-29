@@ -11,7 +11,7 @@ import unicodedata
 
 import yaml
 
-from .readers import PDFPage, normalize, normalized_match, pdf_document
+from .readers import PDFPage, ReadError, normalize, normalized_match, pdf_document
 from .validation import validate, ValidationError
 
 REQUIRED = ("project_name", "department", "evaluation_year", "target_year", "future_direction", "evaluation_actor")
@@ -36,6 +36,7 @@ def load_templates(directory=TEMPLATE_DIR):
         for template in document["templates"]:
             if not template.get("match") or not template.get("id"):
                 raise ExtractionError("template_needs_match_and_id")
+            if template.get('action')=='exclude':continue
             for instance in template.get("instances",[{}]):
                 field_names = set(template.get("fields",{})) | set(instance.get("fields",{}))
                 if set(REQUIRED) - field_names:
@@ -60,39 +61,86 @@ def resolve_rect(spec, variables):
     rect = spec.get("rect")
     if rect is None:
         return None
-    result = [variables[x] if isinstance(x,str) else x for x in rect]
+    result = [variables[x] if isinstance(x,str) else variables[x['var']]+x.get('offset',0) if isinstance(x,dict) else x for x in rect]
     if len(result)!=4 or not (0<=result[0]<result[2]<=1 and 0<=result[1]<result[3]<=1):
         raise ExtractionError("invalid_rect")
     return result
 
 
 class Context:
-    def __init__(self, source, pages, start, variables=None):
+    def __init__(self, source, pages, start, variables=None, first_page=None):
         self.source, self.pages, self.start = source, pages, start
         self.variables = variables or {}
         self.proofs = []
         self.warnings = []
         self.selections = []
+        self.first_page = first_page
+        self.current_field = None
 
     def read(self, spec):
         offset = spec.get("page",0)
-        index = self.start + offset
-        if not 0 <= index < len(self.pages):
-            raise ExtractionError("missing_continuation_page")
-        page = self.pages[index]
+        if offset=='first':
+            if self.first_page is None:raise ExtractionError('missing_document_first_page')
+            page=self.first_page
+        else:
+            index = self.start + offset
+            if not 0 <= index < len(self.pages):
+                raise ExtractionError("missing_continuation_page")
+            page = self.pages[index]
         if "choices" in spec:
-            marked=[]
+            marked=[];checks=[]
             for choice in spec["choices"]:
-                fraction=page.mark_fraction(choice["mark_rect"])
-                if 0.02 < fraction < 0.06:
-                    raise ExtractionError("checkbox_ambiguous")
-                if fraction >= 0.06:
-                    marked.append(choice)
-                self.selections.append({"page":page.number,"mark_rect":choice["mark_rect"],"dark_fraction":round(fraction,6)})
+                text,tp,tr=self.read({'page':offset,**choice['text']})
+                if not normalize(text):raise ExtractionError('checkbox_option_empty')
+                _,mp,mr=self.read({'page':offset,**choice['mark']})
+                state=mp.mark_state(mr,choice.get('frame_required',True),choice.get('enclosing_text',False))
+                checks.append({'page':mp.number,'mark_rect':mr,'frame_required':choice.get('frame_required',True),
+                               'enclosing_text':choice.get('enclosing_text',False),
+                               'option':text,'text_rect':tr,'text_page':tp.number,**state})
+                if state['state']=='unknown':raise ExtractionError('checkbox_unreadable')
+                if state['state']=='selected':marked.append((text,tp,tr))
             if len(marked)>1:raise ExtractionError("checkbox_multiple_selected")
+            if not marked and spec.get('require_selection'):raise ExtractionError('checkbox_no_selected')
+            self.selections.append({'field':self.current_field,'doc_id':self.source.doc_id,'sha256':self.source.digest,
+                                    'choices':checks,'selected':marked[0][0] if marked else None})
             if not marked:return "",page,resolve_rect(spec,self.variables)
-            return self.read({"page":offset,**marked[0]["text"]})
+            return marked[0]
         rect = resolve_rect(spec,self.variables)
+        if 'merged_row' in spec:
+            # 一覧の所属など、複数の事業行にまたがる結合セル。
+            left,right=spec['columns']
+            mid=(self.variables['row_top']+self.variables['row_bottom'])/2
+            rules=page.horizontal_rules(*spec.get('rule_span',[left,right]))
+            above=[y for y in rules if y<mid];below=[y for y in rules if y>mid]
+            if not above or not below:raise ExtractionError('merged_cell_border_not_found')
+            rect=[left,above[-1]+.001,right,below[0]-.001]
+        if 'between_headings' in spec:
+            start_pattern,end_pattern=spec['between_headings']
+            starts=page.anchor_rects(start_pattern,rect)
+            if len(starts)!=1:raise ExtractionError('anchor_missing_or_ambiguous:'+start_pattern)
+            ends=[a for a in page.anchor_rects(end_pattern,rect) if a[1]>starts[0][3]]
+            if not ends:raise ExtractionError('end_heading_missing:'+end_pattern)
+            left,right=spec.get('columns',[0,1])
+            rect=[left,starts[0][1],right,min(a[1] for a in ends)-.001]
+        if 'same_row' in spec:
+            found=page.anchor_rects(spec['same_row'],rect)
+            if 'anchor_index' in spec:found=found[spec['anchor_index']:spec['anchor_index']+1]
+            if len(found)!=1:raise ExtractionError('anchor_missing_or_ambiguous:'+spec['same_row'])
+            a=found[0];left,right=spec['columns']
+            if left=='anchor_right':left=a[2]+.002
+            if spec.get('enclosing_frame'):
+                frame=page.enclosing_frame(a,[left,right])
+                top,bottom=frame[1]+.001,frame[3]-.001
+            elif 'row_span' in spec:
+                rules=page.horizontal_rules(*spec['row_span'],max_thickness=spec.get('rule_thickness',1.5))
+                above=[y for y in rules if y<a[1]];below=[y for y in rules if y>a[3]]
+                if not above or not below:raise ExtractionError('field_border_not_found')
+                top,bottom=above[-1]+.001,below[0]-.001
+                if bottom-top>spec.get('max_height',.15):raise ExtractionError('field_border_too_far')
+            else:
+                top=a[1]+spec.get('top_offset',-.002)
+                bottom=a[3]+spec.get('bottom_offset',.002)
+            rect=[left,top,right,bottom]
         if "below_heading" in spec:
             found=page.anchor_rects(spec["below_heading"],rect)
             if "heading_index" in spec:
@@ -111,15 +159,19 @@ class Context:
                 bottom=rules[end]-.001
             rect=[l,rules[0]+.001,r,bottom]
             if rect[1]>=rect[3]:raise ExtractionError('invalid_field_borders')
-        if "anchor" in spec:
-            found = page.anchor_rects(spec["anchor"],rect)
+        if "anchor" in spec or 'mark_box_left' in spec or 'glyph_box' in spec:
+            found = page.anchor_rects(spec.get('anchor',spec.get('mark_box_left',spec.get('glyph_box'))),rect)
             if "anchor_index" in spec:
                 found=found[spec["anchor_index"]:spec["anchor_index"]+1]
             if len(found) != 1:
                 raise ExtractionError("anchor_missing_or_ambiguous")
             anchor = found[0]
-            delta = spec["relative_rect"]
-            rect = [anchor[0]+delta[0],anchor[1]+delta[1],anchor[0]+delta[2],anchor[1]+delta[3]]
+            if 'mark_box_left' in spec:
+                rect=page.box_left_of(anchor)
+            elif 'glyph_box' in spec:rect=anchor
+            else:
+                delta = spec["relative_rect"]
+                rect = [anchor[0]+delta[0],anchor[1]+delta[1],anchor[0]+delta[2],anchor[1]+delta[3]]
         text = page.region(rect)
         if "pattern" in spec:
             text = normalized_match(text,spec["pattern"])
@@ -133,14 +185,21 @@ class Context:
         # 別の読み出しで再確認。曖昧一致・編集距離・単語の寄せ集めは禁止。
         if normalize(text) not in normalize(page.region(rect)):
             raise ExtractionError("source_mismatch")
+        locator = page.locator(rect)
+        box = locator.get("bbox")
+        stored_rect = [box[0]/page.width, box[1]/page.height,
+                       box[2]/page.width, box[3]/page.height] if box else None
+        if normalize(text) not in normalize(page.region(stored_rect)):
+            raise ExtractionError("serialized_source_mismatch")
         self.proofs.append((text,page,rect))
         return {"doc_id":self.source.doc_id, "source_url":self.source.metadata["source_url"],
                 "page_url":self.source.metadata["page_url"], "sha256":self.source.digest,
-                "locator":page.locator(rect), "quote":text, "methods":["pdf_text"],
+                "locator":locator, "quote":text, "methods":["pdf_text"],
                 "confidence":"medium", "confidence_basis":"様式の見出し・領域を照合し、原典頁の同じ領域に正規化した原文が完全一致。意味の正しさは別途目視点検。",
                 "review":"unreviewed"}
 
     def field(self, name, spec, record_evidence):
+        self.current_field=name
         try:
             return self._field(name,spec,record_evidence)
         except ExtractionError as exc:
@@ -163,6 +222,8 @@ class Context:
         result = {"status":status,"field_kind":"dedicated","value":value if status=="present" else None,
                   "raw_text":value if value else None, "raw_label":label, "evidence":ev,
                   "note":spec.get("note","専用の欄から原文を転記。" if status=="present" else "専用の欄はあるが空欄。")}
+        if 'choices' in spec.get('value',{}):
+            result['note']+=' 選択印を検証。文書結果の selection_checks に判定根拠を保存。'
         if status == "present":
             if name in ("evaluation_year","target_year"):
                 result["value"] = year_value(value)
@@ -217,6 +278,15 @@ def record_from_context(context, municipality, template, instance, row_key):
                           "related_fields":[field_id]}
             content["field_kind"]="embedded"
             raw_fields[-1]["canonical_field"]=None
+    attachment=template.get('continuation_attachment')
+    if attachment and len(context.pages)>template.get('pages',1):
+        offset=template.get('pages',1)
+        attached_name,_,_=context.read({'page':offset,**attachment['project_name']})
+        if normalize(attached_name)!=normalize(fields['project_name']['raw_text']):
+            raise ExtractionError('attachment_project_mismatch')
+        content=context.field('attachment',{'label':{'page':offset,**attachment['label']},'value':{'page':offset}},record_evidence)
+        raw_fields.append({'field_id':'attachment-1','label':content['raw_label'],'section_path':[],
+                           'occurrence':1,'content':content,'canonical_field':None})
     context.verify()
     identity = "\x1f".join((municipality["slug"],context.source.doc_id,str(context.start+1),str(row_key),instance.get("id","default")))
     key = sha256(identity.encode()).hexdigest()[:24]
@@ -238,6 +308,11 @@ def record_from_context(context, municipality, template, instance, row_key):
 
 
 def row_ranges(template,page):
+    if 'repeat' in template:
+        spec=template['repeat'];anchors=page.anchor_rects(spec['anchor'],spec.get('rect'))
+        if not anchors:raise ExtractionError('repeat_anchor_missing')
+        return [(str(i+1),{'anchor_y':a[1],
+                           'anchor_bottom':anchors[i+1][1]-.004 if i+1<len(anchors) else spec.get('bottom',.97)}) for i,a in enumerate(anchors)]
     table=template.get("table")
     if not table:
         return [("single",{})]
@@ -256,8 +331,9 @@ def row_ranges(template,page):
 
 
 def extract_pdf(source, municipality, templates):
-    records=[]; failures=[]; warnings=[]; recognized=[]; counts=Counter()
+    records=[]; failures=[]; warnings=[]; recognized=[]; counts=Counter();excluded=[];selections=[]
     with pdf_document(source.data) as doc:
+        first=PDFPage(doc[0],1) if len(doc) else None
         # 少数頁の窓で処理し、長い報告書を全頁保持しない。
         start=0
         while start<len(doc):
@@ -267,7 +343,16 @@ def extract_pdf(source, municipality, templates):
                 if len(normalize(page.text))<20:
                     failures.append({"page":start+1,"reason":"needs_ocr","detail":"頁の文字が無い、又は短すぎる。OCR は未実施。"})
                     start+=1;continue
-                matched=[t for t in templates if template_matches(t,page)]
+                matched=[t for t in templates if template_matches(t,page)
+                         and (not t.get('first_page_only') or start==0)
+                         and (not t.get('not_first_page') or start>0)
+                         and (not t.get('document_match') or template_matches({'match':t['document_match']},first))]
+                active=[t for t in matched if t.get('action')!='exclude']
+                if not active and matched:
+                    excluded.append({'page':start+1,'templates':[t['id'] for t in matched],
+                                     'categories':sorted({t.get('category','non_project') for t in matched})})
+                    start+=1;continue
+                matched=active
                 if any('next_page_pattern' in t or 'next_page_not_pattern' in t for t in matched):
                     following=''
                     if start+1<len(doc):
@@ -288,13 +373,28 @@ def extract_pdf(source, municipality, templates):
                 for offset in range(1,span):
                     if start+offset>=len(doc): raise ExtractionError("missing_continuation_page")
                     pages.append(PDFPage(doc[start+offset],start+offset+1))
+                if template.get('continuation_attachment') and start+span<len(doc):
+                    candidate=PDFPage(doc[start+span],start+span+1)
+                    if template_matches(template['continuation_attachment'],candidate):
+                        pages.append(candidate);span+=1
+                    else:candidate.close()
                 for match in template.get("continuation_match",[]):
                     p=pages[match["page"]]
                     if not re.search(match["pattern"],normalize(p.region(match.get("rect")))):
                         raise ExtractionError("continuation_mismatch")
+                lookback = template.get('lookback_pages',0)
+                if lookback:
+                    if not isinstance(lookback,int) or not 1<=lookback<=3:
+                        raise ExtractionError('invalid_lookback_pages')
+                    if start<lookback:raise ExtractionError('missing_previous_page')
+                    pages[:0]=[PDFPage(doc[i],i+1) for i in range(start-lookback,start)]
+                    for match in template.get('previous_match',[]):
+                        prior=pages[lookback+match['page']]
+                        if not re.search(match['pattern'],normalize(prior.region(match.get('rect')))):
+                            raise ExtractionError('previous_heading_mismatch')
                 for row_key,variables in row_ranges(template,page):
                     for instance in template.get("instances",[{}]):
-                        context=Context(source,pages,0,variables)
+                        context=Context(source,pages,lookback,variables,first_page=first)
                         try:
                             record=record_from_context(context,municipality,template,instance,row_key)
                             # 窓の位置ではなく原典の物理頁で一意にする。
@@ -303,8 +403,9 @@ def extract_pdf(source, municipality, templates):
                             record["record_id"]="hyoka:"+key
                             record["evaluation_instance_key"]="source:"+key
                             records.append(record);counts[template["id"]]+=1
+                            selections.extend({'record_id':record['record_id'],**s} for s in context.selections)
                             warnings.extend({"page":start+1,"record_id":record["record_id"],**w} for w in context.warnings)
-                        except (ExtractionError,ValidationError) as exc:
+                        except (ExtractionError,ValidationError,ReadError) as exc:
                             failures.append({"page":start+1,"row":row_key,"instance":instance.get("id","default"),
                                              "template":template["id"],"reason":"candidate_rejected","detail":str(exc)})
                 start+=span
@@ -313,5 +414,6 @@ def extract_pdf(source, municipality, templates):
                 start+=1
             finally:
                 for p in pages:p.close()
+        if first:first.close()
     return {"records":records,"failures":failures,"warnings":warnings,"recognized":recognized,
-            "template_records":dict(counts),"pages":start}
+            "excluded_pages":excluded,'selection_checks':selections,"template_records":dict(counts),"pages":start}

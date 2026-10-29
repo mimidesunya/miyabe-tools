@@ -92,17 +92,30 @@ templates:
     purpose:
       label:
         rect:
-        - 0.499
-        - 0.215
-        - 0.528
-        - 0.248
+        - 0.47
+        - 0.18
+        - 0.53
+        - 0.36
         pattern: 意図
+        anchor: 意
+        relative_rect:
+        - 0
+        - -0.001
+        - 0.014
+        - 0.035
       value:
         rect:
+        - 0.47
+        - 0.18
         - 0.53
-        - 0.215
+        - 0.36
+        same_row: 意
+        columns:
+        - anchor_right
         - 0.919
-        - 0.248
+        row_span:
+        - 0.54
+        - 0.91
     future_direction:
       label:
         rect:
@@ -135,29 +148,43 @@ templates:
   - label:
       rect:
       - 0.079
-      - 0.215
-      - 0.107
-      - 0.248
+      - 0.18
+      - 0.109
+      - 0.4
       pattern: 対象
     value:
       rect:
+      - 0.079
+      - 0.18
       - 0.109
-      - 0.215
+      - 0.4
+      same_row: 対
+      columns:
+      - 0.109
       - 0.499
-      - 0.248
+      row_span:
+      - 0.12
+      - 0.489
   - label:
       rect:
       - 0.079
-      - 0.249
-      - 0.107
-      - 0.28
+      - 0.18
+      - 0.109
+      - 0.4
       pattern: 効果
     value:
       rect:
+      - 0.079
+      - 0.18
       - 0.109
-      - 0.249
+      - 0.4
+      same_row: 効
+      columns:
+      - 0.109
       - 0.919
-      - 0.28
+      row_span:
+      - 0.12
+      - 0.909
 - id: kamakura-r8-3pages
   layout: report
   match:
@@ -246,17 +273,30 @@ templates:
     purpose:
       label:
         rect:
-        - 0.499
-        - 0.215
-        - 0.528
-        - 0.248
+        - 0.47
+        - 0.18
+        - 0.53
+        - 0.36
         pattern: 意図
+        anchor: 意
+        relative_rect:
+        - 0
+        - -0.001
+        - 0.014
+        - 0.035
       value:
         rect:
+        - 0.47
+        - 0.18
         - 0.53
-        - 0.215
+        - 0.36
+        same_row: 意
+        columns:
+        - anchor_right
         - 0.919
-        - 0.248
+        row_span:
+        - 0.54
+        - 0.91
     future_direction:
       label:
         rect:
@@ -289,26 +329,281 @@ templates:
   - label:
       rect:
       - 0.079
-      - 0.215
-      - 0.107
-      - 0.248
+      - 0.18
+      - 0.109
+      - 0.4
       pattern: 対象
     value:
       rect:
+      - 0.079
+      - 0.18
       - 0.109
-      - 0.215
+      - 0.4
+      same_row: 対
+      columns:
+      - 0.109
       - 0.499
-      - 0.248
+      row_span:
+      - 0.12
+      - 0.489
   - label:
       rect:
       - 0.079
-      - 0.249
-      - 0.107
-      - 0.28
+      - 0.18
+      - 0.109
+      - 0.4
       pattern: 効果
     value:
       rect:
+      - 0.079
+      - 0.18
       - 0.109
-      - 0.249
+      - 0.4
+      same_row: 効
+      columns:
+      - 0.109
       - 0.919
-      - 0.28
+      row_span:
+      - 0.12
+      - 0.909
+- id: 14204-contents
+  action: exclude
+  category: contents
+  match:
+  - pattern: 目次
+    rect:
+    - 0
+    - 0
+    - 1
+    - 0.3
+- id: kamakura-policy-text
+  action: exclude
+  category: policy_evaluation
+  match:
+  - pattern: 施策の方針の成果指標|施策の達成状況の分析|施策評価シート
+  exclude:
+  - pattern: 整理番号事業名|評価対象事業|事業費\(千円\)人件費
+- id: kamakura-project-results-in-policy
+  layout: list_only
+  match:
+  - pattern: 施策の方針にひもづく事務事業とその評価結果
+  - rect:
+    - 0.81
+    - 0.1
+    - 0.878
+    - 0.94
+    pattern: 最終評価
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.214
+        - 0.12
+        - 0.385
+        - 0.94
+        pattern: 事業名
+      value:
+        rect:
+        - 0.214
+        - row_top
+        - 0.385
+        - row_bottom
+    project_code:
+      label:
+        rect:
+        - 0.143
+        - 0.12
+        - 0.213
+        - 0.94
+        pattern: 整理番号
+      value:
+        rect:
+        - 0.144
+        - row_top
+        - 0.214
+        - row_bottom
+    future_direction:
+      absent: 最終評価欄の方針語を、今後の方向性の専用欄へ読み替えない。
+    department:
+      absent: 施策に付された情報を、一覧内の各事務事業の専用欄へ読み替えない。
+    evaluation_year:
+      absent: 施策に付された情報を、一覧内の各事務事業の専用欄へ読み替えない。
+    target_year:
+      absent: 施策に付された情報を、一覧内の各事務事業の専用欄へ読み替えない。
+    evaluation_actor:
+      absent: 施策に付された情報を、一覧内の各事務事業の専用欄へ読み替えない。
+    evaluation_rating:
+      label:
+        rect:
+        - 0.81
+        - 0.12
+        - 0.878
+        - 0.94
+        pattern: 最終評価
+      value:
+        rect:
+        - 0.812
+        - row_top
+        - 0.877
+        - row_bottom
+  table:
+    rule_span:
+    - 0.23
+    - 0.375
+    y_range:
+    - 0.16
+    - 0.94
+    row_test:
+      rect:
+      - 0.144
+      - row_top
+      - 0.214
+      - row_bottom
+      pattern: '[一-龥A-Za-z]+[-‐－ー][0-9]+'
+  raw_fields:
+  - label:
+      rect:
+      - 0.695
+      - 0.1
+      - 0.766
+      - 0.94
+      pattern: 事業評価
+    value:
+      rect:
+      - 0.696
+      - row_top
+      - 0.765
+      - row_bottom
+  - label:
+      rect:
+      - 0.81
+      - 0.12
+      - 0.878
+      - 0.94
+      pattern: 最終評価
+    value:
+      rect:
+      - 0.812
+      - row_top
+      - 0.877
+      - row_bottom
+    embedded_fields:
+    - future_direction
+- id: kamakura-project-results-continuation
+  layout: list_only
+  match:
+  - pattern: '[一-龥]+[-‐－ー][0-9]+'
+    rect:
+    - 0.14
+    - 0.05
+    - 0.224
+    - 0.95
+  fields:
+    project_name:
+      label:
+        rect:
+        - 0.214
+        - 0.12
+        - 0.385
+        - 0.94
+        pattern: 事業名
+        page: -1
+      value:
+        rect:
+        - 0.214
+        - row_top
+        - 0.385
+        - row_bottom
+    project_code:
+      label:
+        rect:
+        - 0.143
+        - 0.12
+        - 0.213
+        - 0.94
+        pattern: 整理番号
+        page: -1
+      value:
+        rect:
+        - 0.144
+        - row_top
+        - 0.214
+        - row_bottom
+    future_direction:
+      absent: 最終評価欄の方針語を、今後の方向性の専用欄へ読み替えない。
+    department:
+      absent: 施策に付された情報を、一覧内の各事務事業の専用欄へ読み替えない。
+    evaluation_year:
+      absent: 施策に付された情報を、一覧内の各事務事業の専用欄へ読み替えない。
+    target_year:
+      absent: 施策に付された情報を、一覧内の各事務事業の専用欄へ読み替えない。
+    evaluation_actor:
+      absent: 施策に付された情報を、一覧内の各事務事業の専用欄へ読み替えない。
+    evaluation_rating:
+      label:
+        rect:
+        - 0.81
+        - 0.12
+        - 0.878
+        - 0.94
+        pattern: 最終評価
+        page: -1
+      value:
+        rect:
+        - 0.812
+        - row_top
+        - 0.877
+        - row_bottom
+  table:
+    rule_span:
+    - 0.23
+    - 0.375
+    y_range:
+    - 0.05
+    - 0.94
+    row_test:
+      rect:
+      - 0.144
+      - row_top
+      - 0.214
+      - row_bottom
+      pattern: '[一-龥A-Za-z]+[-‐－ー][0-9]+'
+  raw_fields:
+  - label:
+      rect:
+      - 0.695
+      - 0.1
+      - 0.766
+      - 0.94
+      pattern: 事業評価
+      page: -1
+    value:
+      rect:
+      - 0.696
+      - row_top
+      - 0.765
+      - row_bottom
+  - label:
+      rect:
+      - 0.81
+      - 0.12
+      - 0.878
+      - 0.94
+      pattern: 最終評価
+      page: -1
+    value:
+      rect:
+      - 0.812
+      - row_top
+      - 0.877
+      - row_bottom
+    embedded_fields:
+    - future_direction
+  lookback_pages: 1
+  exclude:
+  - pattern: 施策の方針にひもづく事務事業とその評価結果
+  document_match:
+  - pattern: 鎌倉市行政評価結果報告書
+  previous_match:
+  - page: -1
+    pattern: 施策の方針にひもづく事務事業とその評価結果
