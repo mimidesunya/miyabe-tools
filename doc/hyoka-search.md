@@ -139,7 +139,10 @@ updateは現行世代を変えるため、戻す必要がある運用では先�
 
 ## 次の段との境界
 
-- OCR待ちは今回対象外。将来、保存済み本文が `ok` になった自治体をupdateする。
+- OCR待ちは今回対象外。`tools/hyoka/ocr_hyoka_docs.py`（NDLOCR-Lite、会議録の OCR と同じ部品）で
+  本文にした自治体を、そのあと update する。OCR は取得器・全量の索引づくりと同時に走らせない
+  （どちらも manifest を書く・読むため）。
+  取得の容器で `python3 tools/hyoka/ocr_hyoka_docs.py --all`（数えるだけなら `--dry-run`）。
 - 頁区切りを持たない既存PDFを頁単位へ移すには、別作業で物理頁を保つ再抽出が必要。
 - 項目の記録は [共通形式](hyoka-common-format.md) と別作業の `tools/hyoka/extract/` が担当。
   この全文検索はそれに依存せず、事業名・費用・評価結果等を解釈して補わない。
