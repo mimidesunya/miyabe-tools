@@ -9,6 +9,13 @@ function search_h(?string $value): string
     return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+// クエリの値は配列でも来る（?q[]=x）。そのまま (string) にすると Warning が画面に出るので、文字列だけを受ける。
+function search_query_param(string $key, string $default = ''): string
+{
+    $value = $_GET[$key] ?? $default;
+    return is_scalar($value) ? trim((string)$value) : $default;
+}
+
 function search_asset_url(string $relativePath): string
 {
     $normalized = trim(str_replace('\\', '/', $relativePath), '/');
@@ -107,11 +114,17 @@ foreach (municipality_prefecture_names() as $code => $name) {
     $prefectures[] = ['code' => (string)$code, 'name' => (string)$name];
 }
 
-$requestedSlug = trim((string)($_GET['slug'] ?? ''));
+// コード（14130）・名前（川崎市）・古い slug でも来るので、正規の slug にそろえて渡す。
+// そろえないと自治体の選択肢に無い値になり、画面は「全国」と出して次の検索で絞り込みを落とす。
+$requestedSlug = search_query_param('slug');
+$resolvedSlug = $requestedSlug !== '' ? resolve_municipality_slug($requestedSlug) : '';
+if ($resolvedSlug !== '') {
+    $requestedSlug = municipality_public_slug($resolvedSlug);
+}
 
-$requestedDocType = strtolower(trim((string)($_GET['doc_type'] ?? ($_GET['type'] ?? 'minutes'))));
+$requestedDocType = strtolower(search_query_param('doc_type', search_query_param('type', 'minutes')));
 $selectedDocType = in_array($requestedDocType, ['reiki', 'hyoka'], true) ? $requestedDocType : 'minutes';
-$requestedFiscalYear = trim((string)($_GET['fiscal_year'] ?? ''));
+$requestedFiscalYear = search_query_param('fiscal_year');
 $requestedFiscalYear = preg_match('/^[1-9]\d{3}$/', $requestedFiscalYear) === 1 ? $requestedFiscalYear : '';
 $hyokaKinds = [
     'project_evaluation' => '事務事業評価',
@@ -119,32 +132,32 @@ $hyokaKinds = [
     'external_review' => '外部評価',
     'overview' => '概要・一覧',
 ];
-$requestedKind = trim((string)($_GET['kind'] ?? ''));
+$requestedKind = search_query_param('kind');
 $requestedKind = isset($hyokaKinds[$requestedKind]) ? $requestedKind : '';
-$requestedStartDate = search_normalize_date_input((string)($_GET['start_date'] ?? ''));
-$requestedEndDate = search_normalize_date_input((string)($_GET['end_date'] ?? ''));
+$requestedStartDate = search_normalize_date_input(search_query_param('start_date'));
+$requestedEndDate = search_normalize_date_input(search_query_param('end_date'));
 $requestedStartYear = $requestedStartDate !== ''
     ? substr($requestedStartDate, 0, 4)
-    : search_normalize_year_input((string)($_GET['start_year'] ?? ''));
+    : search_normalize_year_input(search_query_param('start_year'));
 $requestedEndYear = $requestedEndDate !== ''
     ? substr($requestedEndDate, 0, 4)
-    : search_normalize_year_input((string)($_GET['end_year'] ?? ''));
+    : search_normalize_year_input(search_query_param('end_year'));
 $yearOptions = search_year_options([$requestedStartYear, $requestedEndYear]);
 
 $boot = [
     'apiUrl' => '/api/search',
     'municipalitiesApiUrl' => '/api/municipalities.php',
-    'query' => trim((string)($_GET['q'] ?? '')),
+    'query' => search_query_param('q'),
     'docType' => $selectedDocType,
     'slug' => $requestedSlug,
-    'prefCode' => trim((string)($_GET['pref_code'] ?? ($_GET['pref'] ?? ''))),
+    'prefCode' => search_query_param('pref_code', search_query_param('pref')),
     'startDate' => $requestedStartDate,
     'endDate' => $requestedEndDate,
     'startYear' => $requestedStartYear,
     'endYear' => $requestedEndYear,
     'fiscalYear' => $requestedFiscalYear,
     'kind' => $requestedKind,
-    'sort' => trim((string)($_GET['sort'] ?? 'date')),
+    'sort' => search_query_param('sort', 'date'),
     'prefectures' => $prefectures,
     'municipalities' => [],
 ];
@@ -330,12 +343,13 @@ $boot = [
                 <dt>組み合わせ</dt>
                 <dd><code>(盛土 OR メガソーラー) 条例</code><span>括弧で条件をまとめられます。</span></dd>
             </dl>
-            <p>記号をそのまま探したいときは、引用符で囲んでください。</p>
+            <p>記号（括弧・| など）は検索の対象になりません。OR・NOT を語として探したいときは、引用符で囲んでください。</p>
         </div>
     </section>
 </div>
 
-<script id="search-boot" type="application/json"><?php echo json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE); ?></script>
+<?php /* 検索語など URL の値が入るので、< > & ' " を Unicode の逃がしにして </script> で抜け出せないようにする */ ?>
+<script id="search-boot" type="application/json"><?php echo json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?></script>
 <?php /* 地図はトップと同じ Leaflet と地理院タイル。座標は自治体コードで引く */ ?>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="<?php echo search_h(site_asset_url('assets/js/municipality-coordinates.js')); ?>"></script>

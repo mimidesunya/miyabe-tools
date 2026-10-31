@@ -34,9 +34,10 @@ function search_detail_display_date(array $document): string
     return '';
 }
 
-$id = trim((string)($_GET['id'] ?? ''));
-$docType = miyabe_search_normalize_doc_type((string)($_GET['doc_type'] ?? ($_GET['type'] ?? 'minutes')));
-$query = trim((string)($_GET['q'] ?? ''));
+// 値が配列で来ても Warning を出さないよう、文字列だけを受ける部品で読む。
+$id = miyabe_search_request_string('id');
+$docType = miyabe_search_normalize_doc_type(miyabe_search_request_string('doc_type', miyabe_search_request_string('type', 'minutes')));
+$query = miyabe_search_request_string('q');
 $document = null;
 $error = '';
 
@@ -47,8 +48,9 @@ try {
         $error = $id === '' ? '詳細表示に必要な ID がありません。' : '文書が見つかりませんでした。';
     }
 } catch (MiyabeOpenSearchException $exception) {
+    error_log('[search/detail] ' . $exception->getMessage());
     http_response_code($exception->httpStatus);
-    $error = 'OpenSearch search is unavailable.';
+    $error = '検索の仕組みにつながりませんでした。時間をおいてもう一度開いてください。';
 } catch (Throwable $exception) {
     error_log('[search/detail] ' . $exception->getMessage());
     http_response_code(500);
