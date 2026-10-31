@@ -865,6 +865,219 @@ mark {
   box-shadow: 0 0 0 2px rgba(255, 191, 71, 0.35);
 }
 
+/* 事務事業評価：文書から取り出した事業の一覧 */
+.detail-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  font-size: 14px;
+}
+
+.detail-toc a,
+.hyoka-record-source a {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.detail-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.detail-section-title {
+  margin: 8px 0 -4px;
+  font-size: 17px;
+}
+
+.hyoka-records {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.hyoka-records-head {
+  display: grid;
+  gap: 10px;
+}
+
+.hyoka-records-head h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.hyoka-records-total {
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.hyoka-records-note,
+.hyoka-records-count {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.hyoka-record-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hyoka-record details {
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.hyoka-record details[open] {
+  border-color: var(--line-strong);
+}
+
+.hyoka-record summary {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px 12px 36px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.hyoka-record summary::-webkit-details-marker {
+  display: none;
+}
+
+.hyoka-record summary::before {
+  content: "▸";
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  color: var(--accent);
+}
+
+.hyoka-record details[open] > summary::before {
+  content: "▾";
+}
+
+.hyoka-record summary:hover .hyoka-record-name {
+  color: var(--accent);
+}
+
+.hyoka-record-name {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.hyoka-record-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hyoka-record-tags span {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+}
+
+.hyoka-record-tags .is-direction {
+  border-color: var(--accent);
+  background: var(--accent-weak);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.hyoka-record-tags .is-rating {
+  border-color: var(--line-strong);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.hyoka-record-tags .is-page {
+  border-style: dashed;
+  background: transparent;
+}
+
+.hyoka-record-fields {
+  display: grid;
+  margin: 0;
+  padding: 0 14px;
+}
+
+.hyoka-record-fields > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 220px) minmax(0, 1fr);
+  gap: 14px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.hyoka-record-fields dt {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.hyoka-record-fields dt small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.hyoka-record-fields dd {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.8;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.hyoka-record-fields.is-raw dt {
+  font-weight: 400;
+}
+
+.hyoka-record-subhead {
+  margin: 8px 14px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.hyoka-record-body[data-pending],
+.hyoka-record-body > .detail-note {
+  padding: 10px 14px 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.hyoka-record-source {
+  margin: 0;
+  padding: 10px 14px 14px;
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 900px) {
+  .hyoka-records {
+    padding: 14px;
+  }
+
+  .hyoka-record-fields > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
 @media (max-width: 900px) {
   .app-shell {
     padding: 12px;

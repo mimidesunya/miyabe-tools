@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'opensearch_search.php';
 require_once dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'site_assets.php';
+require_once dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'hyoka_display.php';
 
 function search_detail_h(?string $value): string
 {
@@ -83,6 +84,11 @@ $meta = array_values(array_filter([
 
 $docTypeLabel = match ($docType) { 'reiki' => '例規', 'hyoka' => '事務事業評価', default => '会議録' };
 $bodyLabel = $pageNumber > 0 ? (string)$pageNumber . '頁の本文' : '全文';
+// 抽出済みの自治体の文書だけ、事業ごとの欄を先に出す。本文は PDF の文字の並びのままで読みにくい。
+$hyokaDisplay = ($docType === 'hyoka' && $document !== null) ? miyabe_hyoka_display_document($id) : ['records' => [], 'source_url' => ''];
+$hyokaRecords = $hyokaDisplay['records'];
+$hyokaRecordSource = $sourceUrl !== '' ? $sourceUrl : $hyokaDisplay['source_url'];
+$hyokaLazy = count($hyokaRecords) > MIYABE_HYOKA_INLINE_RECORDS;
 
 $boot = [
     'query' => $query,
@@ -139,7 +145,68 @@ $boot = [
                 <?php if ($docType === 'hyoka' && $sourcePageUrl !== ''): ?>
                     <p><a href="<?php echo search_detail_h($sourcePageUrl); ?>" target="_blank" rel="noopener noreferrer">文書を見つけた掲載ページ</a></p>
                 <?php endif; ?>
+                <?php if ($hyokaRecords !== []): ?>
+                    <nav class="detail-toc" aria-label="この頁の中">
+                        <a href="#hyoka-records">事業の一覧（<?php echo number_format(count($hyokaRecords)); ?>件）</a>
+                        <a href="#detail-text">本文（原典から取り出した文字）</a>
+                    </nav>
+                <?php elseif ($docType === 'hyoka'): ?>
+                    <p class="detail-note">この文書はまだ事業ごとの欄に分けていないため、原典から取り出した文字をそのまま表示しています。表の読み順が崩れていることがあります。</p>
+                <?php endif; ?>
             </section>
+
+            <?php if ($hyokaRecords !== []): ?>
+                <section class="hyoka-records" id="hyoka-records" aria-labelledby="hyoka-records-title"<?php echo $hyokaLazy ? ' data-detail-id="' . search_detail_h($id) . '"' : ''; ?>>
+                    <div class="hyoka-records-head">
+                        <h2 id="hyoka-records-title">この文書の事業<span class="hyoka-records-total"><?php echo number_format(count($hyokaRecords)); ?>件</span></h2>
+                        <p class="hyoka-records-note">原典の表の欄から機械で書き写した記録です。人の確認はまだです。欄名は原典のまま、欄の中の折り返しは詰めています。数字や言い回しは、各事業の「原典」の頁で確かめてください。</p>
+                        <?php if (count($hyokaRecords) > 5): ?>
+                            <label class="field hyoka-records-filter" for="hyoka-record-filter">
+                                <span>事業を絞り込む</span>
+                                <input id="hyoka-record-filter" type="search" autocomplete="off" placeholder="事業名・部署・方向性など">
+                            </label>
+                            <p class="hyoka-records-count" id="hyoka-record-count" aria-live="polite"></p>
+                        <?php endif; ?>
+                    </div>
+                    <ol class="hyoka-record-list">
+                        <?php foreach ($hyokaRecords as $record): ?>
+                            <?php
+                            $recordName = miyabe_hyoka_display_field($record, 'project_name');
+                            $recordTags = array_values(array_filter([
+                                ['', miyabe_hyoka_display_field($record, 'department')],
+                                ['', miyabe_hyoka_display_field($record, 'target_year') ?: miyabe_hyoka_display_field($record, 'evaluation_year')],
+                                ['is-rating', miyabe_hyoka_display_field($record, 'evaluation_rating')],
+                                ['is-direction', miyabe_hyoka_display_field($record, 'future_direction')],
+                                ['is-page', miyabe_hyoka_display_location_label($record)],
+                            ], static fn(array $tag): bool => $tag[1] !== ''));
+                            ?>
+                            <li class="hyoka-record">
+                                <details<?php echo $hyokaLazy ? ' data-record-id="' . search_detail_h((string)($record['id'] ?? '')) . '"' : ''; ?>>
+                                    <summary>
+                                        <span class="hyoka-record-name"><?php echo search_detail_h($recordName !== '' ? $recordName : '（事業名なし）'); ?></span>
+                                        <?php if ($recordTags !== []): ?>
+                                            <span class="hyoka-record-tags">
+                                                <?php foreach ($recordTags as [$tagClass, $tagText]): ?>
+                                                    <span<?php echo $tagClass !== '' ? ' class="' . $tagClass . '"' : ''; ?>><?php echo search_detail_h(miyabe_hyoka_display_short($tagText)); ?></span>
+                                                <?php endforeach; ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </summary>
+                                    <?php if ($hyokaLazy): ?>
+                                        <div class="hyoka-record-body" data-pending>開くと読み込みます。</div>
+                                    <?php else: ?>
+                                        <div class="hyoka-record-body"><?php echo miyabe_hyoka_display_record_body_html($record, $hyokaRecordSource); ?></div>
+                                    <?php endif; ?>
+                                </details>
+                            </li>
+                        <?php endforeach; ?>
+                    </ol>
+                </section>
+            <?php endif; ?>
+
+            <?php if ($docType === 'hyoka'): ?>
+                <h2 class="detail-section-title" id="detail-text">本文（原典から取り出した文字）</h2>
+            <?php endif; ?>
 
             <section class="detail-search" aria-label="ページ内検索">
                 <label class="field" for="detail-search-input">

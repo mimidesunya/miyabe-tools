@@ -136,3 +136,63 @@
     refs.next.addEventListener('click', () => setActiveMatch(state.active + 1));
     renderBody(true);
 })();
+
+// 事務事業評価の「この文書の事業」を語で絞る。語は空白で区切り、すべてを含む事業だけ残す。
+(() => {
+    const input = document.getElementById('hyoka-record-filter');
+    const list = document.querySelector('.hyoka-record-list');
+    if (!input || !list) {
+        return;
+    }
+    const count = document.getElementById('hyoka-record-count');
+    const items = Array.from(list.querySelectorAll('.hyoka-record'));
+    const texts = items.map((item) => item.textContent.replace(/\s+/g, ' ').toLocaleLowerCase());
+
+    function apply() {
+        const terms = input.value.replace(/　/g, ' ').trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+        let shown = 0;
+        items.forEach((item, index) => {
+            const matched = terms.every((term) => texts[index].includes(term));
+            item.hidden = !matched;
+            if (matched) {
+                shown += 1;
+            }
+        });
+        if (count) {
+            count.textContent = terms.length ? `${shown} / ${items.length}件` : `${items.length}件`;
+        }
+    }
+
+    input.addEventListener('input', apply);
+    apply();
+})();
+
+// 事業の多い文書は見出しだけを先に出してあるので、開いたときに中身を読む。
+(() => {
+    const section = document.querySelector('.hyoka-records[data-detail-id]');
+    if (!section) {
+        return;
+    }
+    const detailId = section.getAttribute('data-detail-id') || '';
+    section.querySelectorAll('details[data-record-id]').forEach((details) => {
+        details.addEventListener('toggle', () => {
+            const body = details.querySelector('.hyoka-record-body[data-pending]');
+            if (!details.open || !body) {
+                return;
+            }
+            body.removeAttribute('data-pending');
+            body.textContent = '読み込んでいます。';
+            const params = new URLSearchParams({ id: detailId, record: details.getAttribute('data-record-id') || '' });
+            fetch(`/api/hyoka-record.php?${params.toString()}`)
+                .then((response) => (response.ok ? response.text() : Promise.reject(new Error(String(response.status)))))
+                .then((html) => {
+                    // 中身はサーバーで文字を逃がして組んだ HTML。
+                    body.innerHTML = html;
+                })
+                .catch(() => {
+                    body.setAttribute('data-pending', '');
+                    body.textContent = '読み込めませんでした。閉じてもう一度開いてください。';
+                });
+        });
+    });
+})();

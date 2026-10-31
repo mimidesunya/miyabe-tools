@@ -10,6 +10,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'municipalities.php';
 require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'site_assets.php';
+require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'hyoka_display.php';
 
 function municipalities_h(?string $value): string
 {
@@ -55,6 +56,27 @@ function municipalities_source_cell(array $entry): string
         . municipalities_h($host !== '' ? $host : $url) . '</a>' . $note;
 }
 
+/** 事務事業評価をこちらで取り込んだ分。検索に載った本数と、事業ごとの欄に分けた件数。 */
+function municipalities_hyoka_note(?array $row): string
+{
+    $indexed = (int)($row['indexed_documents'] ?? 0);
+    if ($row === null || $indexed <= 0) {
+        return '';
+    }
+    $href = '/search/?' . http_build_query(['doc_type' => 'hyoka', 'slug' => (string)($row['slug'] ?? '')]);
+    $note = '<a class="source-note" href="' . municipalities_h($href) . '" title="こちらで取り込み、検索できる文書">検索 '
+        . number_format($indexed) . '本</a>';
+    $records = (int)($row['records'] ?? 0);
+    if ($records > 0) {
+        $note .= '<span class="source-note" title="原典の表の欄から書き写した事業の記録">事業 ' . number_format($records) . '件</span>';
+    }
+    return $note;
+}
+
+$hyokaByCode = [];
+foreach (miyabe_hyoka_display_status_by_slug() as $row) {
+    $hyokaByCode[(string)($row['code'] ?? '')] = $row;
+}
 $master = load_municipality_master_index();
 $prefectureNames = municipality_prefecture_names();
 $regionNames = municipality_region_names();
@@ -148,6 +170,7 @@ $generatedAt = app_now_tokyo('Y-m-d');
             「未特定」は、いまの調べ方では公開先を見つけられなかった、という意味です。
             公開していないと決まったわけではありません。事務事業評価の「要確認」は、
             入口は見つかったものの、中身をまだ確かめていないものです。
+            事務事業評価の「検索 N本」はこちらで取り込んで検索できる文書の数、「事業 N件」は事業ごとの欄に分けた記録の数です。
             調べ方は<a href="/status/">収集・公開状況</a>と各調査文書に書いています。
         </p>
 
@@ -185,7 +208,7 @@ $generatedAt = app_now_tokyo('Y-m-d');
                                     <th scope="row" class="col-name"><?php echo municipalities_h((string)($master[$code]['name'] ?? '')); ?></th>
                                     <td><?php echo municipalities_source_cell($sources['gijiroku'][$code] ?? []); ?></td>
                                     <td><?php echo municipalities_source_cell($sources['reiki'][$code] ?? []); ?></td>
-                                    <td><?php echo municipalities_source_cell($sources['hyoka'][$code] ?? []); ?></td>
+                                    <td><?php echo municipalities_source_cell($sources['hyoka'][$code] ?? []); ?><?php echo municipalities_hyoka_note($hyokaByCode[$code] ?? null); ?></td>
                                 </tr>
                             <?php endforeach; ?>
                             </tbody>
