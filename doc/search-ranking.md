@@ -153,6 +153,25 @@ TTL の判定は読むときにしか働かず、ファイル自体は残り続�
 近接はクエリごとに決まるのでインデックス時に持てない。`index_phrases` は `slop=0` 専用で
 今回は効かない。
 
+### 直したバグ: OR・NOT が効いていなかった
+
+画面と API の案内は「`盛土 OR 土砂`」「`メガソーラー NOT 促進`」だが、OpenSearch へ移ってから
+（2026-05）ずっと効いていなかった。`simple_query_string` は語の `OR`・`NOT` を演算子として読まず、
+ただの語として探す（演算子は `|` と `-`）。そのうえ語単位の `multi_match` は語を全部 AND で並べる
+だけで、`should` のどちらかに当たれば出すので、次のようになっていた（2026-10-31、事務事業評価）。
+
+| クエリ | 件数 | 本来 |
+| --- | --- | --- |
+| 同和 OR 部落 | 603（AND と同じ） | 1,992 |
+| 同和 NOT 部落 | 1,708（何も外れない） | 1,105 |
+| 同和 -部落 | 1,707（記号でも外れない） | 1,105 |
+
+`miyabe_search_simple_query_syntax()` で `OR` を `|`、`NOT` を次の語の頭の `-` に直し、`AND` は
+既定の結合なので外す（引用符の中は触らない、大文字・小文字は問わない）。演算子があるときは
+語単位の句を足さない（`miyabe_search_query_has_operators()`）。これを足すと NOT で外した文書が
+語単位の側から戻ってくる。代わりに、演算子つきの検索では表記の揺れ（正規形）でだけ当たる文書は
+拾わない。本番の例規で「同和 NOT 部落」が引き算の値より 41 件（約 1%）少ないのがその分。
+
 ### 調べ直すとき
 
 `work/proximity-sort/` に調査用のプローブを置いてある。いずれも読み取り専用。
@@ -178,4 +197,5 @@ python3 deploy/remote_exec.py --script-file work/proximity-sort/probe9.py --pyth
 ```
 php tests/proximity_ranking_test.php
 php tests/query_cache_test.php
+php tests/search_operators_test.php
 ```

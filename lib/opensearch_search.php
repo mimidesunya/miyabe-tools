@@ -233,6 +233,43 @@ function miyabe_search_sort_date_range_filter(
     return $range === [] ? null : ['range' => ['sort_date' => $range]];
 }
 
+/**
+ * 画面と API の案内どおりの書き方（OR・NOT・AND）を simple_query_string の記号に直す。
+ *
+ * simple_query_string は語の OR・NOT を演算子として読まず、ただの語として探す。
+ * そのままだと「同和 OR 部落」が「同和」「OR」「部落」の AND になり、OR 検索にならない。
+ * OR は `|`、NOT は次の語の頭の `-` にし、AND は既定の結合（default_operator=and）なので外す。
+ * 引用符の中は語句なので触らない。大文字・小文字は問わない（ほかの語の切り分けと同じ）。
+ */
+function miyabe_search_simple_query_syntax(string $query): string
+{
+    $converted = preg_replace_callback(
+        '/"[^"]*"|(?<![^\s(])(?:AND|OR|NOT)(?![^\s()"])\s*/iu',
+        static function (array $matches): string {
+            $token = $matches[0];
+            if (str_starts_with($token, '"')) {
+                return $token;
+            }
+            return match (strtoupper(trim($token))) {
+                'OR' => '| ',
+                'NOT' => '-',
+                default => '',
+            };
+        },
+        $query
+    );
+    return trim($converted ?? $query);
+}
+
+/**
+ * OR・NOT・括弧などの演算子を含むか。引用符の中は語句なので見ない。
+ */
+function miyabe_search_query_has_operators(string $query): bool
+{
+    $unquoted = preg_replace('/"[^"]*"/u', ' ', $query) ?? $query;
+    return preg_match('/[()|]|(?:^|\s)[+\-]|(?<![^\s(])(?:AND|OR|NOT|NEAR(?:\/\d+)?)(?![^\s()"])/iu', $unquoted) === 1;
+}
+
 function miyabe_search_build_query_clause(string $query, string $docType = 'minutes'): array
 {
     $prepared = japanese_search_prepare_query($query);
@@ -240,13 +277,19 @@ function miyabe_search_build_query_clause(string $query, string $docType = 'minu
     $highlightTerms = is_array($prepared['highlight_terms'] ?? null) ? $prepared['highlight_terms'] : [];
     $termQuery = trim(implode(' ', array_filter(array_map('strval', $highlightTerms))));
     $exactPhrases = japanese_search_exact_phrases_from_prepared($prepared);
+    // 語単位の句（title_terms / body_terms）は語を全部 AND で並べるだけなので、OR・NOT を
+    // 表せない。演算子があるときにこれを足すと、NOT で外したはずの文書がこちらから戻ってくる。
+    // そのときは simple_query_string の句だけで探す。
+    if (miyabe_search_query_has_operators($rawQuery)) {
+        $termQuery = '';
+    }
 
     $must = [];
     $should = [];
     if ($rawQuery !== '') {
         $should[] = [
             'simple_query_string' => [
-                'query' => $rawQuery,
+                'query' => miyabe_search_simple_query_syntax($rawQuery),
                 'fields' => array_merge([
                     'title^4',
                     'title.ngram^1.4',
