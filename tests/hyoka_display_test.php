@@ -60,6 +60,17 @@ check('原典の頁へ飛ぶ（元の # は外す）', str_contains($html, 'href
 check('一覧の札は長い文を切る', miyabe_hyoka_display_short(str_repeat('あ', 40), 30) === str_repeat('あ', 30) . '…');
 check('取得の状態の名前', miyabe_hyoka_display_fetch_label('entry_unreachable') === '入口に届かない');
 
+// --- 検索結果の一覧に添える事業
+$found = miyabe_hyoka_display_search_records("hyoka:{$slug}:{$docId}", ['訓練']);
+check('検索結果に事業の数を添える', $found['total'] === 2);
+check('検索語を含む事業を先にする', array_column($found['records'], 'id') === ['r2', 'r1']);
+check('検索語を含むかの印', $found['records'][0]['matched'] === true && $found['records'][1]['matched'] === false);
+check('事業名と方向性を短い形に入れる', $found['records'][0]['project_name'] === '防災<script>' && $found['records'][0]['future_direction'] === '継続');
+check('語が無ければ原典の順', array_column(miyabe_hyoka_display_search_records("hyoka:{$slug}:{$docId}", [])['records'], 'id') === ['r1', 'r2']);
+check('件数の上限で切る', count(miyabe_hyoka_display_search_records("hyoka:{$slug}:{$docId}", [], 1)['records']) === 1);
+check('頁で分けた結果ならその頁の事業だけ', miyabe_hyoka_display_search_records("hyoka:{$slug}:{$docId}:p1", ['訓練'])['total'] === 1);
+check('控えの無い文書は空', miyabe_hyoka_display_search_records("hyoka:{$slug}:" . str_repeat('b', 16), ['訓練']) === ['records' => [], 'total' => 0]);
+
 array_map('unlink', glob($dir . '/records/' . $slug . '/*.json') ?: []);
 rmdir($dir . '/records/' . $slug);
 rmdir($dir . '/records');

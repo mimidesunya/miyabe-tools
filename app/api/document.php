@@ -27,10 +27,11 @@ try {
         'document' => $document,
     ]);
 } catch (MiyabeOpenSearchException $error) {
+    // OpenSearch の生のエラーには索引の世代名やノードの ID が入るので、公開の応答には出さずログへ。
+    error_log('[api/document] ' . $error->getMessage());
     miyabe_search_respond_json([
         'status' => $error->errorCode,
         'error' => 'OpenSearch search is unavailable.',
-        'detail' => $error->getMessage(),
     ], $error->httpStatus);
 } catch (Throwable $error) {
     error_log('[api/document] ' . $error->getMessage());

@@ -24,7 +24,8 @@ def api(tmp_path):
     # コピーし、既存config・work・background_tasksには触れない。
     for name in (
         "app/api/search.php", "app/api/document.php", "lib/opensearch_search.php",
-        "lib/japanese_search.php", "lib/municipalities.php", "lib/python/japanese_search_tokenizer.py",
+        "lib/japanese_search.php", "lib/municipalities.php", "lib/hyoka_display.php",
+        "lib/python/japanese_search_tokenizer.py",
         "data/municipalities/municipality_master.tsv",
         "data/municipalities/assembly_minutes_system_urls.tsv", "data/municipalities/reiki_system_urls.tsv",
     ):

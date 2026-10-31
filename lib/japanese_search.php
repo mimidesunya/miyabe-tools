@@ -5,6 +5,32 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . 'municipalities.php';
 
 // Python 側の SudachiPy を呼び、PHP の検索リクエストでも同じ分かち書きを使う。
 
+// 検索語の下ごしらえのキャッシュの形。tokenizer の返り値や組み立てを変えたら上げる（古いものは読まない）。
+// v8: 演算子どおりの語単位の問い合わせ term_query を足し、全角の演算子をそろえるようにした。
+const JAPANESE_SEARCH_QUERY_CACHE_SCHEMA = 'phrase-v8';
+
+/**
+ * 検索語の表記をそろえる。全角の英数字・記号は半角に、全角空白は空白に、曲がった二重引用符は " にする。
+ * 全角で打った ＯＲ・ＮＯＴ・（ ）・｜・－・“ ” が演算子として読まれず、ＮＯＴ は外すはずの語を含む
+ * 文書を返していた。本文の解析（cjk）は全角と半角を同じに見るので、語の当たり方は変わらない。
+ */
+function japanese_search_normalize_query_text(string $query): string
+{
+    $folded = preg_replace_callback(
+        '/[\x{FF01}-\x{FF5E}]/u',
+        static fn(array $matches): string => mb_chr(mb_ord($matches[0], 'UTF-8') - 0xFEE0, 'UTF-8'),
+        $query
+    ) ?? $query;
+    $folded = strtr($folded, ["\u{3000}" => ' ', "\u{201C}" => '"', "\u{201D}" => '"']);
+    return trim(preg_replace('/\s+/u', ' ', $folded) ?? $folded);
+}
+
+// NEAR は語として丸ごと一致したときだけ演算子と見る（NEARBY のような語を捨てない）。
+function japanese_search_is_near_operator(string $upper): bool
+{
+    return preg_match('/^NEAR(?:\/\d+)?$/', $upper) === 1;
+}
+
 function japanese_search_python_script_path(): string
 {
     return __DIR__ . DIRECTORY_SEPARATOR . 'python' . DIRECTORY_SEPARATOR . 'japanese_search_tokenizer.py';
@@ -115,7 +141,7 @@ function japanese_search_run_tokenizer(string $mode, string $text): ?array
 
 function japanese_search_query_cache_path(string $query): string
 {
-    return data_path('background_tasks/japanese_search_query_cache/' . sha1('phrase-v7:' . $query) . '.json');
+    return data_path('background_tasks/japanese_search_query_cache/' . sha1(JAPANESE_SEARCH_QUERY_CACHE_SCHEMA . ':' . $query) . '.json');
 }
 
 function japanese_search_query_cache_ttl_seconds(): int
@@ -209,7 +235,7 @@ function japanese_search_fallback_terms(string $query): array
             $skipNext = true;
             continue;
         }
-        if (in_array($upper, ['AND', 'OR'], true) || str_starts_with($upper, 'NEAR')) {
+        if (in_array($upper, ['AND', 'OR'], true) || japanese_search_is_near_operator($upper)) {
             continue;
         }
         if (!preg_match('/[\p{Han}\p{Hiragana}\p{Katakana}]/u', $token) && strlen($token) < 2) {
@@ -235,10 +261,11 @@ function japanese_search_extract_quoted_phrases(string $query): array
     foreach ($matches[0] ?? [] as $token) {
         $token = (string)$token;
         $upper = strtoupper($token);
-        if ($upper === 'OR' || str_starts_with($upper, 'NEAR')) {
+        if ($upper === 'OR' || $token === '|' || japanese_search_is_near_operator($upper)) {
             $hasDisjunction = true;
         }
-        if ($upper === 'NOT') {
+        // `-"語句"` の - は語句と別の塊になる。NOT と同じく、外す語句を拾わない。
+        if ($upper === 'NOT' || $token === '-') {
             $skipNextQuoted = true;
             continue;
         }
@@ -256,7 +283,7 @@ function japanese_search_extract_quoted_phrases(string $query): array
             continue;
         }
 
-        if ($token === '(' || $token === ')' || $upper === 'AND' || $upper === 'OR' || str_starts_with($upper, 'NEAR')) {
+        if ($token === '(' || $token === ')' || $upper === 'AND' || $upper === 'OR' || japanese_search_is_near_operator($upper)) {
             continue;
         }
         $skipNextQuoted = false;
@@ -308,7 +335,7 @@ function japanese_search_prepare_query(string $query): array
 {
     static $cache = [];
 
-    $normalized = trim(preg_replace('/[\s　]+/u', ' ', $query) ?? $query);
+    $normalized = japanese_search_normalize_query_text($query);
     if (isset($cache[$normalized])) {
         return $cache[$normalized];
     }
@@ -322,7 +349,7 @@ function japanese_search_prepare_query(string $query): array
         if (is_array($cachedPayload)) {
             $cachedTokenizer = trim((string)($cachedPayload['tokenizer'] ?? ''));
             $cachedSchema = trim((string)($cachedPayload['query_cache_schema'] ?? ''));
-            if ($cachedTokenizer !== 'fallback' && $cachedSchema === 'phrase-v7') {
+            if ($cachedTokenizer !== 'fallback' && $cachedSchema === JAPANESE_SEARCH_QUERY_CACHE_SCHEMA) {
                 $payload = $cachedPayload;
                 // 保存してあるのは下で組み立てた後の形なので、語は highlight_terms の名前で入って
                 // いる。tokenizer の生の返り値と同じ名前に戻しておかないと、下の surface_terms が
@@ -336,6 +363,7 @@ function japanese_search_prepare_query(string $query): array
         }
     }
 
+    $fromCache = $payload !== null;
     if ($payload === null) {
         $payload = $normalized !== '' ? japanese_search_run_tokenizer('query', $normalized) : null;
     }
@@ -391,11 +419,14 @@ function japanese_search_prepare_query(string $query): array
         'raw_query' => $normalized,
         'highlight_terms' => array_values($surfaceTerms),
         'exact_phrases' => array_values($exactPhrases),
-        'query_cache_schema' => 'phrase-v7',
+        // 演算子つきの検索で語単位の項目を引く問い合わせ。tokenizer が無いときは空で、語単位の句を使わない。
+        'term_query' => is_scalar($payload['term_query'] ?? null) ? trim((string)$payload['term_query']) : '',
+        'query_cache_schema' => JAPANESE_SEARCH_QUERY_CACHE_SCHEMA,
         'tokenizer' => $payload === null ? 'fallback' : 'sudachi',
     ];
 
-    if ($normalized !== '') {
+    // 読めたキャッシュを毎回書き直すと mtime が進み、よく使う語では TTL が切れなくなる。作り直したときだけ書く。
+    if ($normalized !== '' && !$fromCache) {
         write_json_cache_file(japanese_search_query_cache_path($normalized), $prepared);
         japanese_search_maybe_prune_query_cache();
     }

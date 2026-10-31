@@ -205,7 +205,9 @@ function displayDate(item: any): string {
 function formatSearchText(payload: any): string {
   const items = Array.isArray(payload?.items) ? payload.items : [];
   const label = payload?.doc_type === "hyoka" ? "事務事業評価" : payload?.doc_type === "reiki" ? "例規集" : "会議録";
-  const header = `${label}検索: "${payload?.query || ""}" / ${payload?.total ?? 0}件`;
+  // total_relation が gte のときの total は下限（既定では 10000 で数えるのを止める）。
+  const totalText = `${payload?.total ?? 0}件${payload?.total_relation === "gte" ? "以上" : ""}`;
+  const header = `${label}検索: "${payload?.query || ""}" / ${totalText}`;
   if (items.length === 0) {
     return `${header}\n該当する結果はありませんでした。`;
   }
@@ -220,6 +222,17 @@ function formatSearchText(payload: any): string {
       ...hyokaMetadata(item)
     ].filter((value) => String(value || "").trim() !== "").join(" / ");
     const excerpt = String(item.excerpt || "").replace(/\s+/g, " ").trim();
+    // 事務事業評価で事業ごとの欄に分けてある文書は、その頁の事業（検索語を含むものから最大5件）を添える。
+    const records = Array.isArray(item.records) ? item.records : [];
+    const recordLines = records.map((record: any) => "   事業: " + [
+      record.project_name || "(事業名なし)",
+      record.department,
+      record.evaluation_rating ? `評価 ${record.evaluation_rating}` : "",
+      record.future_direction ? `方向性 ${record.future_direction}` : ""
+    ].filter((value) => String(value || "").trim() !== "").join(" / ").replace(/\s+/g, " "));
+    if (Number(item.records_total || 0) > records.length) {
+      recordLines.push(`   （この${item.page ? "頁" : "文書"}の事業 ${item.records_total}件のうち${records.length}件）`);
+    }
     const urls = [
       item.detail_url ? `detail: ${item.detail_url}` : "",
       item.source_url ? `source: ${item.source_url}` : "",
@@ -230,6 +243,7 @@ function formatSearchText(payload: any): string {
       meta !== "" ? `   ${meta}` : "",
       item.id ? `   id: ${item.id}` : "",
       excerpt !== "" ? `   excerpt: ${excerpt}` : "",
+      ...recordLines,
       urls !== "" ? `   ${urls}` : ""
     ].filter(Boolean).join("\n");
   });
@@ -315,13 +329,13 @@ const searchInputSchema = z.object({
   q: z.string().min(1).describe("検索語。空白区切りはAND検索、引用符で完全一致、OR/NOT/括弧も利用できます。"),
   pref_code: z.string().optional().describe("都道府県コード。例: 神奈川県は 14。"),
   slug: z.string().optional().describe("自治体を1つに絞るcanonical slug。例: 14130-kawasaki-shi。"),
-  municipality_code: z.string().optional().describe("全国地方公共団体コード。"),
-  start_date: z.string().optional().describe("検索対象期間の開始日。YYYY-MM-DD形式。"),
-  end_date: z.string().optional().describe("検索対象期間の終了日。YYYY-MM-DD形式。"),
-  start_year: z.number().int().min(1).max(9999).optional().describe("検索対象期間の開始年。"),
-  end_year: z.number().int().min(1).max(9999).optional().describe("検索対象期間の終了年。"),
-  sort: z.enum(["date", "relevance"]).optional().describe("date は新しい順、relevance は関連度順。既定は会議録が date、例規集が relevance。date で演算子なしの AND 検索をすると、語が近くに現れた文書がまとまって先頭に来て、その中と外がそれぞれ新しい順になる。"),
-  page: z.number().int().min(1).default(1).describe("ページ番号。"),
+  municipality_code: z.string().optional().describe("全国地方公共団体コード（検査数字なしの5桁。例: 座間市は 14216）。検査数字つきの6桁も受け付ける。"),
+  start_date: z.string().optional().describe("検索対象期間の開始日。YYYY-MM-DD形式。会議録は開催日、例規集は公布日で絞る。"),
+  end_date: z.string().optional().describe("検索対象期間の終了日。YYYY-MM-DD形式。会議録は開催日、例規集は公布日で絞る。"),
+  start_year: z.number().int().min(1).max(9999).optional().describe("検索対象期間の開始年。start_date が無いときに使う。"),
+  end_year: z.number().int().min(1).max(9999).optional().describe("検索対象期間の終了年。end_date が無いときに使う。"),
+  sort: z.enum(["date", "relevance"]).optional().describe("date は新しい順、relevance は関連度順。既定は会議録が date、例規集が relevance。date で演算子なしの AND 検索をすると、語が近くに現れた文書がまとまって先頭に来て、その中と外がそれぞれ新しい順になる。語は形態素で数えるので、「ふるさと納税」のような複合語 1 つでも働く。"),
+  page: z.number().int().min(1).default(1).describe("ページ番号。先頭から10000件目までしか取れない（page × per_page が 10000 以下）。"),
   per_page: z.number().int().min(1).max(50).default(10).describe("1ページあたりの件数。MCPでは最大50件。"),
   include_facets: z.boolean().optional().describe("true の場合、文書種別・都道府県・自治体の集計も返します。"),
   include_body_highlight: z.boolean().optional().describe("false の場合、本文ハイライト生成を抑制します。")
@@ -334,7 +348,7 @@ const hyokaSearchInputSchema = searchInputSchema.omit({
   kind: z.enum(["project_evaluation", "policy_evaluation", "external_review", "overview"]).optional()
     .describe("事務事業評価、施策・政策評価、外部評価、概要・一覧の種別。"),
   sort: z.enum(["date", "relevance"]).optional().describe("既定は関連度順。date は年度の新しい順。"),
-  page: z.number().int().min(1).default(1).describe("検索結果のページ番号。原典の頁番号とは別。")
+  page: z.number().int().min(1).default(1).describe("検索結果のページ番号。原典の頁番号とは別。先頭から10000件目までしか取れない（page × per_page が 10000 以下）。")
 });
 
 // 会議録と例規集で意味を持つフィールドが違い、API側の項目も増えうる。
@@ -350,7 +364,7 @@ const documentCommonShape = {
   title: z.string().optional().describe("文書のタイトル。"),
   title_highlight: z.string().optional().describe("タイトル中の一致箇所を示した文字列。"),
   excerpt: z.string().optional().describe("本文中の該当箇所の抜粋。[[[ ]]] で囲まれた部分が一致箇所。"),
-  score: z.number().nullable().optional().describe("検索スコア。関連度順のときの並び順に対応する。日付順のときは null。"),
+  score: z.number().nullable().optional().describe("検索スコア。関連度順（sort=relevance）のときだけ入り、並び順に対応する。日付順と、get_municipal_document では null。"),
   proximity: z.boolean().nullable().optional().describe("検索語が本文中で近く（おおむね同じ文の中）に現れたか。日付順の AND 検索でだけ入る。true の文書は false の文書より前に並ぶ。"),
   body_length: z.number().optional().describe("本文全体の文字数。"),
   source_url: z.string().optional().describe("取得元（自治体側）のURL。"),
@@ -377,6 +391,17 @@ const documentCommonShape = {
   status: z.string().optional().describe("取得元の状態。gone は取得元から消えた保存済み文書。"),
   text_status: z.string().optional().describe("本文抽出の状態。第1段では ok のみ。"),
   page_split_reason: z.string().optional().describe("頁分割の根拠、または分割できない理由。"),
+  records: z.array(z.looseObject({
+    id: z.string().optional().describe("事業の記録のID。"),
+    project_name: z.string().optional().describe("事業名。"),
+    department: z.string().optional().describe("担当部署。"),
+    year: z.string().optional().describe("対象年度・評価年度の記載。"),
+    evaluation_rating: z.string().optional().describe("評価区分の記載。"),
+    future_direction: z.string().optional().describe("今後の方向性の記載。"),
+    location: z.string().optional().describe("原典の頁など。"),
+    matched: z.boolean().optional().describe("検索語を含む事業か。")
+  })).optional().describe("事務事業評価で、事業ごとの欄に分けてある文書の事業。検索語を含むものを先に最大5件。値は原典の表の欄を機械で書き写したもので、人の確認はまだ。"),
+  records_total: z.number().optional().describe("この頁（頁区切りが無ければ文書全体）の事業の数。"),
   held_on: z.string().optional().describe("開催日。会議録で入る。"),
   ordinance_no: z.string().optional().describe("例規番号。例規集で入る。"),
   category: z.string().optional().describe("分類。例規集で入る。"),
@@ -408,7 +433,7 @@ const searchOutputSchema = z.looseObject({
     doc_types: z.array(facetBucketSchema).optional().describe("文書種別ごとの件数。"),
     prefectures: z.array(facetBucketSchema).optional().describe("都道府県ごとの件数。key は都道府県コード。"),
     municipalities: z.array(facetBucketSchema).optional().describe("自治体ごとの件数。key は canonical slug。")
-  }).optional().describe("include_facets が true のときだけ返る集計結果。")
+  }).optional().describe("集計結果。include_facets が true のときだけ中身が入り、それ以外は空の配列。")
 });
 
 const documentOutputSchema = z.looseObject({
@@ -444,7 +469,7 @@ function createServer(): McpServer {
     "search_minutes",
     {
       title: "会議録検索",
-      description: "全国自治体の会議録を検索し、該当箇所の抜粋、自治体、開催日、原典URL、全文取得用IDを返します。複数語を空白で区切ると AND 検索になり、日付順のときは語が近くに現れた文書を先に返します。",
+      description: "全国自治体の会議録を検索し、該当箇所の抜粋、自治体、開催日、原典URL、全文取得用IDを返します。複数語を空白で区切ると AND 検索、OR・NOT・括弧も使えます。日付順の AND 検索では語が近くに現れた文書を先に返します。",
       inputSchema: searchInputSchema,
       outputSchema: searchOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS
@@ -467,7 +492,7 @@ function createServer(): McpServer {
     "search_reiki",
     {
       title: "例規集検索",
-      description: "全国自治体の条例・規則などの例規集を検索し、該当箇所の抜粋、自治体、公布日等、原典URL、全文取得用IDを返します。複数語を空白で区切ると AND 検索になり、日付順のときは語が近くに現れた文書を先に返します。",
+      description: "全国自治体の条例・規則などの例規集を検索し、該当箇所の抜粋、自治体、公布日等、原典URL、全文取得用IDを返します。複数語を空白で区切ると AND 検索、OR・NOT・括弧も使えます。既定は関連度順で、日付順（公布日）の AND 検索では語が近くに現れた文書を先に返します。",
       inputSchema: searchInputSchema,
       outputSchema: searchOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS
@@ -516,7 +541,7 @@ function createServer(): McpServer {
       description: "search_minutes/search_reiki/search_hyoka の結果IDから本文を取得します。事務事業評価は頁単位（頁区切りがなければ文書全体）です。長文は max_body_chars で返却量を調整できます。",
       inputSchema: z.object({
         id: z.string().min(1).describe("検索結果の id。"),
-        doc_type: z.enum(["minutes", "reiki", "hyoka"]).default("minutes").describe("minutes は会議録、reiki は例規集、hyoka は事務事業評価。"),
+        doc_type: z.enum(["minutes", "reiki", "hyoka"]).default("minutes").describe("minutes は会議録、reiki は例規集、hyoka は事務事業評価。id の頭（minutes: / reiki: / hyoka:）が優先されるので、省いてもよい。"),
         max_body_chars: z.number().int().min(0).max(200000).default(20000).describe("返却する本文の最大文字数。最大200000。")
       }),
       outputSchema: documentOutputSchema,

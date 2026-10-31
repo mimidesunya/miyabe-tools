@@ -316,15 +316,21 @@ OpenAPI JSON: https://tools.miya.be/openapi.json
 OpenAPI YAML: https://tools.miya.be/openapi.yaml</code></pre>
             <dl class="docs-params">
                 <dt><code>q</code></dt>
-                <dd>必須。検索語です。空白区切りはAND、<code>"..."</code> は完全一致、<code>OR</code>・<code>NOT</code>・括弧も使えます。</dd>
+                <dd>
+                    検索語です。空白区切りはAND、<code>"..."</code> は完全一致、<code>OR</code>・<code>NOT</code>・括弧も使えます（全角で書いても同じです）。
+                    <code>OR</code> は左右の語のまとまりを分けるので、<code>条例 (盛土 OR 土砂)</code> のように範囲を括弧で示してください。200字までです。
+                    <code>slug</code> か <code>municipality_code</code> で自治体を1つに絞るときは省けます（新しい順の一覧になります）。
+                </dd>
                 <dt><code>doc_type</code></dt>
                 <dd><code>minutes</code>（会議録）、<code>reiki</code>（例規集）、<code>hyoka</code>（事務事業評価）。省略すると <code>minutes</code> です。</dd>
                 <dt><code>pref_code</code></dt>
                 <dd>都道府県コード。例: 神奈川県は <code>14</code>。</dd>
                 <dt><code>slug</code></dt>
-                <dd>自治体を1つに絞るID。検索結果や検索画面のURLに含まれます。</dd>
+                <dd>自治体を1つに絞るID。検索結果や検索画面のURLに含まれます。自治体コード（<code>14130</code>）や名前（<code>川崎市</code>）でも引けます。見つからないときは 422 です。</dd>
+                <dt><code>municipality_code</code></dt>
+                <dd>全国地方公共団体コード。検査数字なしの5桁（座間市なら <code>14216</code>）で、検査数字つきの6桁も受け付けます。</dd>
                 <dt><code>start_date</code> / <code>end_date</code></dt>
-                <dd>会議録・例規集の対象日を絞ります。例: <code>start_date=2020-01-01&amp;end_date=2024-12-31</code>。事務事業評価には適用されません。</dd>
+                <dd>会議録は開催日、例規集は公布日で絞ります。例: <code>start_date=2020-01-01&amp;end_date=2024-12-31</code>。年だけなら <code>start_year</code> / <code>end_year</code>。事務事業評価には適用されません。</dd>
                 <dt><code>fiscal_year</code> / <code>kind</code></dt>
                 <dd>
                     事務事業評価専用。年度は西暦4桁の完全一致です。
@@ -335,16 +341,18 @@ OpenAPI YAML: https://tools.miya.be/openapi.yaml</code></pre>
                 <dt><code>sort</code></dt>
                 <dd>
                     <code>date</code>（新しい順）または <code>relevance</code>（関連度順）。
-                    事務事業評価の <code>date</code> は年度順です。REST API の既定は <code>date</code>、MCP の <code>search_hyoka</code> は <code>relevance</code> です。
+                    事務事業評価の <code>date</code> は年度順です。REST API と検索画面の既定はどの種類も <code>date</code>、
+                    MCP の既定は会議録が <code>date</code>、例規集（<code>search_reiki</code>）と事務事業評価（<code>search_hyoka</code>）が <code>relevance</code> です。
                     <code>date</code> で演算子を使わないAND検索をすると、検索語が本文中で近くに現れた文書が
                     まとまって先頭に並び、その中と外がそれぞれ新しい順になります。近さ順に整列するのではなく、
                     近いかどうかで前後に分けます。働いたときは応答の <code>proximity_ranked</code> が
-                    <code>true</code> になり、各件の <code>proximity</code> でどちらの側かが分かります。
+                    <code>true</code> になり、各件の <code>proximity</code> でどちらの側かが分かります。語は形態素で数えるので、
+                    「ふるさと納税」のような複合語 1 つでも働きます。各件の <code>score</code> は <code>relevance</code> のときだけ入ります。
                 </dd>
                 <dt><code>page</code> / <code>per_page</code></dt>
-                <dd>検索結果のページ番号と1ページあたりの件数。<code>per_page</code> は最大100件です。結果の各文書が持つ <code>page</code>（原典の頁番号）とは別です。</dd>
+                <dd>検索結果のページ番号と1ページあたりの件数。<code>per_page</code> は最大100件です。先頭から10,000件目までしか取れません（<code>page</code> × <code>per_page</code> が 10000 以下、超えると 422）。それより先は条件を足して絞ってください。結果の各文書が持つ <code>page</code>（原典の頁番号）とは別です。</dd>
                 <dt><code>include_facets</code></dt>
-                <dd><code>true</code> にすると、文書種別・都道府県・自治体ごとの件数を <code>aggregations</code> に返します。</dd>
+                <dd><code>true</code> にすると、文書種別・都道府県・自治体ごとの件数を <code>aggregations</code> に返します（それ以外は空の配列）。</dd>
                 <dt><code>include_body_highlight</code></dt>
                 <dd><code>false</code> にすると本文中の該当箇所を探しません。<code>excerpt</code> には件名・会議名に当たった箇所だけが入り、無ければ空です。件数だけ知りたいときに速くなります。</dd>
             </dl>
@@ -360,6 +368,12 @@ OpenAPI YAML: https://tools.miya.be/openapi.yaml</code></pre>
                 <code>fiscal_year</code>・<code>year_label</code>・<code>kind</code>、リンク文字 <code>link_text</code>、見出し <code>heading</code>、
                 原典の <code>sha256</code>・取得日時 <code>fetched_at</code>・状態 <code>status</code>・本文抽出状態 <code>text_status</code> も返します。
                 <code>status=gone</code> は取得元から消えた文書です。改訂前の版とOCR待ちの文書は検索対象に含めません。
+            </p>
+            <p>
+                事業ごとの欄に分けてある事務事業評価の文書では、検索結果の各件に <code>records</code>（その頁の事業。
+                検索語を含むものを先に最大5件で、事業名 <code>project_name</code>・担当 <code>department</code>・評価 <code>evaluation_rating</code>・
+                今後の方向性 <code>future_direction</code> など）と、事業の数 <code>records_total</code> が入ります。原典の表の欄を機械で書き写したもので、
+                人の確認はまだです。条件が不正なときは 422 で、<code>error</code> に理由が入ります。
             </p>
         </section>
     </main>

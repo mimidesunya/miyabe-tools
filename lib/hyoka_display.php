@@ -95,6 +95,67 @@ function miyabe_hyoka_display_find_record(string $id, string $recordId): ?array
     return null;
 }
 
+// 検索結果の一覧に添える事業の数。全文の頁 1 つに数百件ある文書もあるので、検索語を含むものから絞る。
+const MIYABE_HYOKA_SEARCH_RECORDS = 5;
+
+// 一覧や MCP に出す、事業 1 件の短い形。値は控えの専用欄の原文のまま（切らない）。
+function miyabe_hyoka_display_record_summary(array $record): array
+{
+    return [
+        'id' => (string)($record['id'] ?? ''),
+        'project_name' => miyabe_hyoka_display_field($record, 'project_name'),
+        'department' => miyabe_hyoka_display_field($record, 'department'),
+        'year' => miyabe_hyoka_display_field($record, 'target_year') ?: miyabe_hyoka_display_field($record, 'evaluation_year'),
+        'evaluation_rating' => miyabe_hyoka_display_field($record, 'evaluation_rating'),
+        'future_direction' => miyabe_hyoka_display_field($record, 'future_direction'),
+        'location' => miyabe_hyoka_display_location_label($record),
+    ];
+}
+
+/**
+ * 検索結果 1 件（文書、または頁）に載っている事業を、検索語を含むものから最大 $limit 件。
+ * 語は欄の文字（標準の欄とそのほかの欄）に含まれるかで数え、事業名に含むものを先にする。
+ * 返すのは ['records' => [...], 'total' => 事業の数]。控えの無い文書は空。
+ */
+function miyabe_hyoka_display_search_records(string $id, array $terms, int $limit = MIYABE_HYOKA_SEARCH_RECORDS): array
+{
+    $records = miyabe_hyoka_display_records($id);
+    if ($records === []) {
+        return ['records' => [], 'total' => 0];
+    }
+    $terms = array_values(array_filter(array_map(
+        static fn($term): string => mb_strtolower(trim((string)$term), 'UTF-8'),
+        $terms
+    ), static fn(string $term): bool => $term !== ''));
+    $scored = [];
+    foreach ($records as $index => $record) {
+        $name = mb_strtolower(miyabe_hyoka_display_field($record, 'project_name'), 'UTF-8');
+        $texts = [];
+        foreach (array_merge($record['fields'] ?? [], $record['raw_fields'] ?? []) as $field) {
+            if (is_array($field)) {
+                $texts[] = (string)($field['text'] ?? '');
+            }
+        }
+        $haystack = mb_strtolower(implode("\n", $texts), 'UTF-8');
+        $score = 0;
+        foreach ($terms as $term) {
+            if ($name !== '' && str_contains($name, $term)) {
+                $score += 2;
+            } elseif (str_contains($haystack, $term)) {
+                $score += 1;
+            }
+        }
+        $scored[] = ['score' => $score, 'index' => $index, 'record' => $record];
+    }
+    // 語を含むものを先に、同じなら原典の順。
+    usort($scored, static fn(array $a, array $b): int => [$b['score'], $a['index']] <=> [$a['score'], $b['index']]);
+    $picked = [];
+    foreach (array_slice($scored, 0, max(0, $limit)) as $row) {
+        $picked[] = miyabe_hyoka_display_record_summary($row['record']) + ['matched' => $row['score'] > 0];
+    }
+    return ['records' => $picked, 'total' => count($records)];
+}
+
 function miyabe_hyoka_display_h(string $value): string
 {
     return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');

@@ -77,7 +77,7 @@
         kind: normalizeHyokaKind(boot.kind),
         sort: normalizeSort(boot.sort),
         municipalityFilter: '',
-        page: 1,
+        page: normalizePage(boot.page),
         perPage: 20,
         loading: false,
         lastPayload: null,
@@ -162,6 +162,26 @@
 
     function normalizeSort(value) {
         return String(value || '') === 'relevance' ? 'relevance' : 'date';
+    }
+
+    /* API は 10,000 件目までしか返さない（20 件ずつで 500 頁） */
+    function normalizePage(value) {
+        const page = Math.floor(Number(value || 1));
+        return Number.isFinite(page) ? Math.min(500, Math.max(1, page)) : 1;
+    }
+
+    /* 取り込んだ原典の URL をそのまま href に入れない。http(s) とサイト内だけ通す */
+    function safeUrl(value) {
+        const text = String(value || '').trim();
+        if (/^https?:\/\//i.test(text) || /^\/(?!\/)/.test(text)) {
+            return text;
+        }
+        return '';
+    }
+
+    /* 検索語が無くても、自治体を 1 つに絞っていれば新しい順の一覧として引ける */
+    function canSearch() {
+        return Boolean(state.query || state.slug);
     }
 
     function normalizeFilterText(value) {
@@ -300,22 +320,29 @@
         }
     }
 
-    function syncControls() {
-        refs.query.value = state.query;
-        refs.pref.value = state.prefCode;
+    /**
+     * 入力欄を state に合わせる。values が false のときは欄の値を書き戻さない。
+     * 検索の応答や自治体一覧の読み込みのたびに書き戻すと、その間に打った語や選んだ条件が
+     * 送ったときの値へ戻ってしまう。書き戻すのは最初と「戻る」で表示を復元するときだけ。
+     */
+    function syncControls({ values = false } = {}) {
+        if (values) {
+            refs.query.value = state.query;
+            refs.pref.value = state.prefCode;
+            refs.startYear.value = state.startYear;
+            refs.endYear.value = state.endYear;
+            refs.startDate.value = state.startDate;
+            refs.endDate.value = state.endDate;
+            refs.fiscalYear.value = state.fiscalYear;
+            refs.kind.value = state.kind;
+            refs.sort.value = state.sort;
+        }
         renderMunicipalityOptions();
-        refs.startYear.value = state.startYear;
-        refs.endYear.value = state.endYear;
-        refs.startDate.value = state.startDate;
-        refs.endDate.value = state.endDate;
-        refs.fiscalYear.value = state.fiscalYear;
-        refs.kind.value = state.kind;
         const isHyoka = state.docType === 'hyoka';
         refs.dateFields.hidden = isHyoka;
         refs.hyokaFields.hidden = !isHyoka;
         [refs.startYear, refs.endYear, refs.startDate, refs.endDate].forEach((control) => { control.disabled = isHyoka; });
         [refs.fiscalYear, refs.kind].forEach((control) => { control.disabled = !isHyoka; });
-        refs.sort.value = state.sort;
         renderDateStatus(refs.startDateStatus, state.startDate, 'start');
         renderDateStatus(refs.endDateStatus, state.endDate, 'end');
         refs.tabs.forEach((button) => {
@@ -333,6 +360,7 @@
         if (state.prefCode) params.set('pref_code', state.prefCode);
         addTypeFilters(params);
         if (state.sort !== 'date') params.set('sort', state.sort);
+        if (state.page > 1) params.set('page', String(state.page));
         return `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
     }
 
@@ -398,7 +426,7 @@
             fiscalYear: normalizeFiscalYear(params.get('fiscal_year')),
             kind: normalizeHyokaKind(params.get('kind')),
             sort: normalizeSort(params.get('sort')),
-            page: 1,
+            page: normalizePage(params.get('page')),
             mapView: null,
             mapCollapsed: hitMapCollapsed,
         };
@@ -439,7 +467,7 @@
         pendingMapView = snapshot.mapView || null;
         setHitMapCollapsed(Boolean(snapshot.mapCollapsed));
         historyEntry = { ...searchSnapshot(), mapView: null, mapCollapsed: hitMapCollapsed };
-        syncControls();
+        syncControls({ values: true });
         runSearch(state.page, { history: 'none' });
     }
 
@@ -478,15 +506,29 @@
         if (!payload || payload.status !== 'ok') {
             refs.stats.innerHTML = [
                 { label: '検索範囲', value: docTypeLabel(state.docType) },
-                { label: '結果', value: state.loading ? '検索中' : '未検索' },
+                { label: '結果', value: state.loading ? '検索中' : (payload ? '検索できませんでした' : '未検索') },
             ].map(renderStat).join('');
             return;
         }
         refs.stats.innerHTML = [
             { label: '検索範囲', value: docTypeLabel(payload.doc_type || state.docType) },
-            { label: 'ヒット', value: `${Number(payload.total || 0)}${payload.total_relation === 'gte' ? '+' : ''}` },
+            { label: 'ヒット', value: hitCountLabel(payload) },
             { label: '応答', value: `${Number(payload.took_ms || 0)} ms` },
         ].map(renderStat).join('');
+    }
+
+    /* 件数は 10,000 で数えるのを止める（total_relation が gte）。そのときは、種類ごとの集計（1 種類だけを
+       引いているので総数と同じ・数え切る）があればそれを出し、内訳の数とそろえる */
+    function hitCountLabel(payload) {
+        const total = Number(payload.total || 0);
+        if (payload.total_relation !== 'gte') {
+            return total.toLocaleString('ja-JP');
+        }
+        const buckets = Array.isArray(payload.aggregations?.doc_types) ? payload.aggregations.doc_types : [];
+        const bucket = buckets.find((item) => String(item.key || '') === String(payload.doc_type || ''));
+        return bucket && Number(bucket.count) >= total
+            ? Number(bucket.count).toLocaleString('ja-JP')
+            : `${total.toLocaleString('ja-JP')}+`;
     }
 
     function renderStat(item) {
@@ -495,7 +537,9 @@
 
     function renderFacets(payload = state.lastPayload) {
         if (!payload || payload.status !== 'ok') {
-            refs.facets.innerHTML = '<div class="facet-row"><span>結果</span><strong>まだ検索していません</strong></div>';
+            refs.facets.innerHTML = payload
+                ? '<div class="facet-row"><span>内訳</span><strong>—</strong></div>'
+                : '<div class="facet-row"><span>結果</span><strong>まだ検索していません</strong></div>';
             return;
         }
         const aggs = payload.aggregations || {};
@@ -511,11 +555,59 @@
             : '<div class="facet-row"><span>内訳</span><strong>該当なし</strong></div>';
     }
 
-    function renderExcerpt(value) {
-        return escapeHtml(value)
+    /* joinLines: 事務事業評価の抜粋は表の升目ごとに改行が入り、1 字ずつの行が縦に続くので詰める */
+    function renderExcerpt(value, { joinLines = false } = {}) {
+        const text = joinLines ? String(value ?? '').replace(/\s*\n\s*/g, ' ') : value;
+        return escapeHtml(text)
             .replace(/\[\[\[/g, '<mark>')
             .replace(/\]\]\]/g, '</mark>')
             .replace(/\n/g, '<br>');
+    }
+
+    function shortText(value, chars = 40) {
+        const text = String(value || '').replace(/\s+/g, ' ').trim();
+        const parts = Array.from(text);
+        return parts.length > chars ? `${parts.slice(0, chars).join('')}…` : text;
+    }
+
+    /* 詳細画面の事業の行の id（record- と記録の ID の英数字） */
+    function recordAnchor(id) {
+        return `record-${String(id || '').replace(/[^0-9A-Za-z_-]/g, '-')}`;
+    }
+
+    /**
+     * 事務事業評価で、事業ごとの欄に分けてある文書なら、その頁の事業を表で出す。
+     * API が検索語を含む事業を先に最大 5 件と、事業の数を返す。各行から詳細画面のその事業へ飛べる。
+     */
+    function renderHyokaRecords(item, detailUrl) {
+        const records = Array.isArray(item.records) ? item.records : [];
+        if (records.length === 0) {
+            return '';
+        }
+        const total = Math.max(records.length, Number(item.records_total || 0));
+        const scope = item.page ? 'この頁' : 'この文書';
+        const rows = records.map((record) => {
+            const href = `${detailUrl}#${recordAnchor(record.id)}`;
+            return `
+                <tr${record.matched ? ' class="is-match"' : ''}>
+                    <th scope="row"><a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(record.project_name || '（事業名なし）')}</a></th>
+                    <td data-label="担当">${escapeHtml(shortText(record.department, 24) || '—')}</td>
+                    <td data-label="評価">${escapeHtml(shortText(record.evaluation_rating, 24) || '—')}</td>
+                    <td data-label="今後の方向性">${escapeHtml(shortText(record.future_direction) || '—')}</td>
+                </tr>`;
+        }).join('');
+        const rest = total - records.length;
+        const note = rest > 0
+            ? `${scope}の事業 ${total.toLocaleString('ja-JP')}件のうち、検索語を含むものから ${records.length}件。残りは「詳細」で。`
+            : `${scope}の事業 ${total.toLocaleString('ja-JP')}件。`;
+        return `
+            <div class="result-records">
+                <table>
+                    <thead><tr><th scope="col">事業</th><th scope="col">担当</th><th scope="col">評価</th><th scope="col">今後の方向性</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                <p class="result-records-note">${escapeHtml(note)}原典の表の欄を機械で書き写したもので、人の確認はまだです。</p>
+            </div>`;
     }
 
     function displayDate(item) {
@@ -558,7 +650,8 @@
             item.year_label,
             item.source_system,
         ];
-        return parts.map((part) => String(part || '').trim()).filter(Boolean);
+        // 会議名と年の表記が同じ会議録（「令和8年」が 2 つ並ぶ）があるので、同じ値は 1 つにする。
+        return [...new Set(parts.map((part) => String(part || '').trim()).filter(Boolean))];
     }
 
     function renderResults(payload = state.lastPayload) {
@@ -568,7 +661,7 @@
             renderMessage('検索中です。');
             return;
         }
-        if (!state.query) {
+        if (!canSearch()) {
             refs.results.innerHTML = '';
             refs.pager.innerHTML = '';
             renderMessage('キーワードを入力してください。');
@@ -591,8 +684,9 @@
         renderMessage('');
         refs.results.innerHTML = items.map((item) => {
             const meta = resultMeta(item);
-            const detailUrl = buildDetailUrl(item);
-            const sourceUrl = (item.doc_type === 'hyoka' ? item.source_page_link : '') || item.source_url || '';
+            const detailUrl = safeUrl(buildDetailUrl(item));
+            const sourceUrl = safeUrl((item.doc_type === 'hyoka' ? item.source_page_link : '') || item.source_url || '');
+            const isHyoka = item.doc_type === 'hyoka';
             const sourceLabel = item.doc_type === 'hyoka' ? (item.page ? `原典 ${item.page}頁` : '原典') : '原サイト';
             return `
                 <article class="result-item">
@@ -602,9 +696,10 @@
                     </div>
                     <h2 class="result-title">${renderExcerpt(item.title_highlight || item.title || '')}</h2>
                     ${meta.length ? `<div class="result-meta">${meta.map((value) => `<span>${escapeHtml(value)}</span>`).join('')}</div>` : ''}
-                    ${item.excerpt ? `<p class="result-excerpt">${renderExcerpt(item.excerpt)}</p>` : ''}
+                    ${isHyoka ? renderHyokaRecords(item, detailUrl) : ''}
+                    ${item.excerpt ? `<p class="result-excerpt${isHyoka ? ' is-joined' : ''}">${renderExcerpt(item.excerpt, { joinLines: isHyoka })}</p>` : ''}
                     <div class="result-actions">
-                        <a class="result-link" href="${escapeHtml(detailUrl)}" target="_blank" rel="noopener noreferrer">詳細</a>
+                        ${detailUrl ? `<a class="result-link" href="${escapeHtml(detailUrl)}" target="_blank" rel="noopener noreferrer">詳細</a>` : ''}
                         ${sourceUrl ? `<a class="result-link" href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(sourceLabel)}</a>` : ''}
                     </div>
                 </article>
@@ -730,11 +825,13 @@
                 sticky: true,
             });
             /* 押したらその自治体だけに絞って引き直す。地図から掘り下げられるように */
+            /* 都道府県や絞り込み語で選択肢から隠れている自治体でも絞れるよう、都道府県を合わせて
+               選択肢を作り直してから引く（runSearch はフォームの値を読む） */
             marker.on('click', () => {
                 state.slug = bucket.slug;
-                if (refs.slug) {
-                    refs.slug.value = bucket.slug;
-                }
+                state.prefCode = normalizePrefCode(municipality.prefCode);
+                refs.pref.value = state.prefCode;
+                renderMunicipalityOptions();
                 runSearch(1);
             });
             marker.addTo(hitMarkerLayer);
@@ -860,7 +957,7 @@
         if (state.abortController) {
             state.abortController.abort();
         }
-        if (!state.query) {
+        if (!canSearch()) {
             state.lastPayload = null;
             state.loading = false;
             renderAll();
@@ -1008,11 +1105,11 @@
         restoreSnapshot(snapshot);
     });
 
-    syncControls();
+    syncControls({ values: true });
     renderAll();
     loadMunicipalities();
-    if (state.query) {
-        runSearch(1);
+    if (canSearch()) {
+        runSearch(state.page);
     } else {
         /* 検索前でも最初の項目に写しを持たせ、戻ってきたときに URL を読み直さずに済ませる */
         historyEntry = { ...searchSnapshot(), mapView: null, mapCollapsed: hitMapCollapsed };

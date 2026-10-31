@@ -13,7 +13,7 @@
 ## ディレクトリ構成
 
 - `domains/` — 独立した業務領域。`election_poster_boards/` が選挙ポスター掲示場のHTTP実装、認証、SQLite、保守ツールを所有
-- `app/` — 公開 Web 入口と API（PHP）。`app/boards/`・`app/line/` はURL互換アダプター、`app/api/` は会議録・例規集の公開 API
+- `app/` — 公開 Web 入口と API（PHP）。`app/boards/`・`app/line/` はURL互換アダプター、`app/api/` は会議録・例規集・事務事業評価の公開 API
 - `lib/` — PHP 共通ライブラリ（自治体レジストリ、OpenSearch 検索、実行状態管理など）。`lib/python/` は PHP から呼ぶ補助 Python
 - `tools/` — 本番系 Python パイプライン。`tools/gijiroku/`・`tools/reiki/` がスクレイパ、`tools/hyoka/` が事務事業評価、`tools/kansa/` が包括外部監査の報告書の調査と取得、`tools/search/` が OpenSearch index 構築、`tools/tasks/` がバッチ実行基盤。直下の `municipality_slugs.py` などは各パイプライン共通のモジュール
 - `dev/` — 開発・単発作業用スクリプト。`dev/boards/data/` は掲示場の入力TSV
@@ -54,7 +54,7 @@ OpenSearch の index はスクレイピング済みファイルから再構築�
 - トップ: https://tools.miya.be/
 - 川崎市ポスター掲示場: https://tools.miya.be/boards/14130-kawasaki-shi/
 - 川崎市例規集: https://tools.miya.be/reiki/?slug=14130-kawasaki-shi
-- 会議録・例規集 統合検索: https://tools.miya.be/search/
+- 会議録・例規集・事務事業評価 統合検索: https://tools.miya.be/search/
 - 川崎市議会 会議録 全文検索: https://tools.miya.be/search/?doc_type=minutes&slug=14130-kawasaki-shi
 
 ## トップページ
@@ -65,7 +65,7 @@ OpenSearch の index はスクレイピング済みファイルから再構築�
 
 - 公開検索 API は `/api/search` です
 - `/api/search` は OpenSearch alias だけを検索します
-- MCP エンドポイントは `/mcp` です。会議録検索、例規集検索、検索結果IDからの本文取得を読み取り専用ツールとして公開します
+- MCP エンドポイントは `/mcp` です。会議録検索、例規集検索、事務事業評価検索、検索結果IDからの本文取得を読み取り専用ツールとして公開します（`search_minutes`・`search_reiki`・`search_hyoka`・`get_municipal_document`）
 - OpenSearch が利用できない場合、検索 API は 503 を返します
 - SQLite FTS5 への検索フォールバックはありません
 - `minutes.sqlite` / `ordinances.sqlite` は公開検索には不要です。削除されていても、スクレイピング済みファイルから OpenSearch index を作れます
@@ -96,6 +96,7 @@ python tools/search/build_opensearch_index.py --mode update --doc-type minutes -
 
 - `miyabe-minutes-current`
 - `miyabe-reiki-current`
+- `miyabe-hyoka-current`（事務事業評価）
 - `miyabe-documents-current`
 
 ## テスト

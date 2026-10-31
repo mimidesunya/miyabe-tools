@@ -18,6 +18,8 @@ QUERY_TOKEN_PATTERN = re.compile(
     re.IGNORECASE,
 )
 NON_WORD_PATTERN = re.compile(r"^[\W_]+$", re.UNICODE)
+# NEAR は語として丸ごと一致したときだけ演算子にする。NEARBY のような語を捨てない。
+NEAR_OPERATOR_PATTERN = re.compile(r"NEAR(?:/\d+)?", re.IGNORECASE)
 TOKENIZER_SPLIT_PATTERN = re.compile(r"(\n+|[。．！？?!])")
 MAX_SUDACHI_INPUT_BYTES = 40000
 
@@ -187,23 +189,96 @@ def append_unique(items: list[str], values: list[str]) -> None:
         items.append(value)
 
 
+def term_query_unit(token: str) -> str:
+    """語 1 つを、語単位の項目（title_terms / body_terms）向けの simple_query_string の 1 単位にする。
+
+    Sudachi で割れる語は括弧でまとめた AND にする（素の検索の multi_match と同じ当たり方）。
+    `盛土|土砂` のように | でつないだ語は、それぞれをまとめた OR にする。
+    """
+    groups: list[str] = []
+    for alternative in token.split("|"):
+        surfaces = surface_terms_from_morphemes(searchable_morphemes(alternative))
+        if not surfaces:
+            continue
+        groups.append(surfaces[0] if len(surfaces) == 1 else "(" + " ".join(surfaces) + ")")
+    if not groups:
+        return ""
+    return groups[0] if len(groups) == 1 else "(" + " | ".join(groups) + ")"
+
+
+def build_term_query(tokens: list[str]) -> str:
+    """演算子（OR・NOT・括弧・| ・頭の -）を保ったまま、語を Sudachi の語に置き換えた問い合わせを作る。
+
+    演算子つきの検索では、語を全部 AND で並べる multi_match を使えない（NOT で外した文書が戻る）。
+    かといって語単位の句を外すと、複合語の当たり方が素の検索と大きく変わる（「同和団体」で 1,490 件と 42 件）。
+    そこで語単位の句にも同じ演算子を効かせる。引用符の語句は語単位の項目では位置を表せないので、
+    語句があるときは空を返し、文字単位の句だけで探させる。
+    """
+    parts: list[str] = []
+    negate = False
+    for token in tokens:
+        if token == "(":
+            parts.append("-(" if negate else "(")
+            negate = False
+            continue
+        if token == ")":
+            parts.append(")")
+            continue
+        upper = token.upper()
+        if upper == "AND" or NEAR_OPERATOR_PATTERN.fullmatch(upper):
+            continue
+        if upper == "OR":
+            parts.append("|")
+            negate = False
+            continue
+        if upper == "NOT":
+            negate = True
+            continue
+        if token.startswith('"'):
+            return ""
+        body = token
+        while body[:1] in {"+", "-"}:
+            if body[:1] == "-":
+                negate = True
+            body = body[1:]
+        if body == "":
+            continue
+        unit = term_query_unit(body)
+        if unit == "":
+            if body.strip("|") == "":
+                parts.append("|")
+            negate = False
+            continue
+        parts.append(("-" if negate else "") + unit)
+        negate = False
+    return " ".join(parts)
+
+
 def build_query_payload(text: str) -> dict[str, object]:
     highlight_terms: list[str] = []
     exact_phrases: list[str] = []
     exact_phrases_supported = True
     skip_highlight = False
-    for token in QUERY_TOKEN_PATTERN.findall(text or ""):
+    tokens = QUERY_TOKEN_PATTERN.findall(text or "")
+    for token in tokens:
         if token in {"", "(", ")"}:
             continue
 
         upper = token.upper()
-        if upper in {"AND", "OR", "NOT"} or upper.startswith("NEAR"):
-            if upper == "OR" or upper.startswith("NEAR"):
+        is_near = NEAR_OPERATOR_PATTERN.fullmatch(upper) is not None
+        if upper in {"AND", "OR", "NOT"} or is_near:
+            if upper == "OR" or is_near:
                 exact_phrases_supported = False
             if upper == "NOT":
                 skip_highlight = True
             continue
 
+        # 頭の - は simple_query_string の除外。外す語は光らせない。`-"語句"` は - と語句が別の塊になる。
+        if token.startswith("-"):
+            skip_highlight = True
+            token = token.lstrip("-")
+            if token == "":
+                continue
         is_negated = skip_highlight
         quoted = token.startswith('"') and token.endswith('"') and len(token) >= 2
         term = normalize_fragment(token[1:-1] if quoted else token)
@@ -221,6 +296,7 @@ def build_query_payload(text: str) -> dict[str, object]:
     return {
         "surface_terms": highlight_terms,
         "exact_phrases": exact_phrases if exact_phrases_supported else [],
+        "term_query": build_term_query(tokens),
     }
 
 

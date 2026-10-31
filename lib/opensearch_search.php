@@ -16,6 +16,9 @@ const MIYABE_SEARCH_PROXIMITY_SLOP = 25;
 // slop がそのまま「2 語の間隔の文字数」になる。語単位の 25 トークンに対応する幅。
 const MIYABE_SEARCH_PROXIMITY_CHAR_SLOP = 40;
 
+// OpenSearch の index.max_result_window（既定 10,000）。from + size がこれを超える頁は取れない。
+const MIYABE_SEARCH_MAX_RESULT_WINDOW = 10000;
+
 final class MiyabeOpenSearchException extends RuntimeException
 {
     public function __construct(
@@ -179,6 +182,22 @@ function miyabe_search_normalize_pref_code(string $value): string
     return preg_match('/^\d{2}$/', $value) === 1 ? $value : '';
 }
 
+/**
+ * 全国地方公共団体コードを索引の形（5 桁）にそろえる。検査数字つきの 6 桁は先頭 5 桁にする。
+ * 空なら空、数字 5・6 桁でなければ null（呼び出し側で不正な条件として断る）。
+ */
+function miyabe_search_normalize_municipality_code(string $value): ?string
+{
+    $value = trim($value);
+    if ($value === '') {
+        return '';
+    }
+    if (preg_match('/^\d{5,6}$/', $value) !== 1) {
+        return null;
+    }
+    return substr($value, 0, 5);
+}
+
 function miyabe_search_normalize_date(string $value): string
 {
     $value = trim($value);
@@ -212,16 +231,17 @@ function miyabe_search_sort_date_range_filter(
     string $startYear = '',
     string $endYear = ''
 ): ?array {
-    $start = miyabe_search_normalize_date($startDate);
-    $end = miyabe_search_normalize_date($endDate);
-    if ($start === '') {
-        $start = miyabe_search_date_from_year($startYear, 'start');
-    }
-    if ($end === '') {
-        $end = miyabe_search_date_from_year($endYear, 'end');
-    }
+    $startDay = miyabe_search_normalize_date($startDate);
+    $endDay = miyabe_search_normalize_date($endDate);
+    $start = $startDay !== '' ? $startDay : miyabe_search_date_from_year($startYear, 'start');
+    $end = $endDay !== '' ? $endDay : miyabe_search_date_from_year($endYear, 'end');
     if ($start !== '' && $end !== '' && $start > $end) {
-        [$start, $end] = [$end, $start];
+        // 逆に指定されたら入れ替える。年で指定された側は、入れ替えた先の端（年の初め・終わり）で
+        // 取り直す。日付にしてから入れ替えると、2024 年〜2020 年が 2020-12-31〜2024-01-01 に縮む。
+        [$start, $end] = [
+            $endDay !== '' ? $endDay : miyabe_search_date_from_year($endYear, 'start'),
+            $startDay !== '' ? $startDay : miyabe_search_date_from_year($startYear, 'end'),
+        ];
     }
     $range = [];
     if ($start !== '') {
@@ -239,12 +259,14 @@ function miyabe_search_sort_date_range_filter(
  * simple_query_string は語の OR・NOT を演算子として読まず、ただの語として探す。
  * そのままだと「同和 OR 部落」が「同和」「OR」「部落」の AND になり、OR 検索にならない。
  * OR は `|`、NOT は次の語の頭の `-` にし、AND は既定の結合（default_operator=and）なので外す。
+ * NEAR（SQLite FTS 時代の近接演算子）は OpenSearch のこの書き方に無いので、AND として外す。
+ * 外さないと「near」という語を探して、ほとんど当たらない。
  * 引用符の中は語句なので触らない。大文字・小文字は問わない（ほかの語の切り分けと同じ）。
  */
 function miyabe_search_simple_query_syntax(string $query): string
 {
     $converted = preg_replace_callback(
-        '/"[^"]*"|(?<![^\s(])(?:AND|OR|NOT)(?![^\s()"])\s*/iu',
+        '/"[^"]*"|(?<![^\s()"])(?:AND|OR|NOT|NEAR(?:\/\d+)?)(?![^\s()"])\s*/iu',
         static function (array $matches): string {
             $token = $matches[0];
             if (str_starts_with($token, '"')) {
@@ -261,13 +283,21 @@ function miyabe_search_simple_query_syntax(string $query): string
     return trim($converted ?? $query);
 }
 
+// simple_query_string に読ませる記号。あいまい検索（~）と語句の距離（"…"~N）は外す。
+// 「令和5年～6年」の ～ が半角の ~ になると、後ろの語が距離として読まれて黙って捨てられていた。
+const MIYABE_SEARCH_QUERY_FLAGS = 'AND|OR|NOT|PHRASE|PRECEDENCE|PREFIX|WHITESPACE';
+
+// 検索語の長さの上限。文字 2 つずつの組の数だけ句が増え、330 字前後で OpenSearch の句の上限
+// （maxClauseCount 1024）を超えて 500 になっていた。
+const MIYABE_SEARCH_MAX_QUERY_CHARS = 200;
+
 /**
  * OR・NOT・括弧などの演算子を含むか。引用符の中は語句なので見ない。
  */
 function miyabe_search_query_has_operators(string $query): bool
 {
     $unquoted = preg_replace('/"[^"]*"/u', ' ', $query) ?? $query;
-    return preg_match('/[()|]|(?:^|\s)[+\-]|(?<![^\s(])(?:AND|OR|NOT|NEAR(?:\/\d+)?)(?![^\s()"])/iu', $unquoted) === 1;
+    return preg_match('/[()|]|(?:^|\s)[+\-]|(?<![^\s()"])(?:AND|OR|NOT|NEAR(?:\/\d+)?)(?![^\s()"])/iu', $unquoted) === 1;
 }
 
 function miyabe_search_build_query_clause(string $query, string $docType = 'minutes'): array
@@ -277,11 +307,17 @@ function miyabe_search_build_query_clause(string $query, string $docType = 'minu
     $highlightTerms = is_array($prepared['highlight_terms'] ?? null) ? $prepared['highlight_terms'] : [];
     $termQuery = trim(implode(' ', array_filter(array_map('strval', $highlightTerms))));
     $exactPhrases = japanese_search_exact_phrases_from_prepared($prepared);
-    // 語単位の句（title_terms / body_terms）は語を全部 AND で並べるだけなので、OR・NOT を
-    // 表せない。演算子があるときにこれを足すと、NOT で外したはずの文書がこちらから戻ってくる。
-    // そのときは simple_query_string の句だけで探す。
+    // 語単位の句の multi_match は語を全部 AND で並べるだけなので、OR・NOT を表せない（足すと NOT で
+    // 外した文書が戻る）。演算子があるときは、tokenizer が演算子を保ったまま語を Sudachi の語に
+    // 置き換えた問い合わせ（term_query）を simple_query_string で引く。外すと複合語の当たり方が
+    // 素の検索と大きく変わる（「同和団体」は 1,490 件、語単位を外すと 42 件）。
+    // 引用符の語句も simple_query_string が自分で扱えるので、語句の must は足さない。足すと
+    // `-"語句"` が「必ず含む」になって 0 件、`"語句" | 語` は OR が効かなくなる。
+    $termOperatorQuery = '';
     if (miyabe_search_query_has_operators($rawQuery)) {
         $termQuery = '';
+        $exactPhrases = [];
+        $termOperatorQuery = trim((string)($prepared['term_query'] ?? ''));
     }
 
     $must = [];
@@ -290,14 +326,28 @@ function miyabe_search_build_query_clause(string $query, string $docType = 'minu
         $should[] = [
             'simple_query_string' => [
                 'query' => miyabe_search_simple_query_syntax($rawQuery),
+                // body.ngram は索引の定義に無い（title.ngram だけ）。
                 'fields' => array_merge([
                     'title^4',
                     'title.ngram^1.4',
                     'meeting_name^2',
                     'body^1.5',
-                    'body.ngram',
                 ], $docType === 'hyoka' ? ['link_text^2', 'heading^2'] : []),
                 'default_operator' => 'and',
+                'flags' => MIYABE_SEARCH_QUERY_FLAGS,
+            ],
+        ];
+    }
+    if ($termOperatorQuery !== '') {
+        $should[] = [
+            'simple_query_string' => [
+                'query' => $termOperatorQuery,
+                'fields' => [
+                    'title_terms^3',
+                    'body_terms',
+                ],
+                'default_operator' => 'and',
+                'flags' => MIYABE_SEARCH_QUERY_FLAGS,
             ],
         ];
     }
@@ -416,11 +466,16 @@ function miyabe_search_proximity_clauses(
 
 function miyabe_search_build_request(array $params): array
 {
-    $query = trim((string)($params['q'] ?? ''));
-    $docType = miyabe_search_normalize_doc_type((string)($params['doc_type'] ?? ($params['type'] ?? 'minutes')));
+    // 全角空白だけの q を空として断れるよう、ここで表記をそろえる（trim は全角空白を削らない）。
+    $query = japanese_search_normalize_query_text((string)($params['q'] ?? ''));
+    $docTypeRaw = strtolower(trim((string)($params['doc_type'] ?? ($params['type'] ?? 'minutes'))));
+    $docType = miyabe_search_normalize_doc_type($docTypeRaw);
     $page = max(1, (int)($params['page'] ?? 1));
     $perPage = max(1, min(100, (int)($params['per_page'] ?? 20)));
     $sort = trim((string)($params['sort'] ?? 'date'));
+    if ($sort === '') {
+        $sort = 'date';
+    }
     $includeFacets = miyabe_search_truthy($params['include_facets'] ?? '');
     $requestedSlug = trim((string)($params['slug'] ?? ''));
     $resolvedSlug = $requestedSlug !== '' ? resolve_municipality_slug($requestedSlug) : '';
@@ -432,13 +487,20 @@ function miyabe_search_build_request(array $params): array
         ? true
         : miyabe_search_truthy($includeBodyHighlightRaw);
     $trackTotalHits = max(1, min(100000, (int)($params['track_total_hits_limit'] ?? 10000)));
-    $municipalityCode = trim((string)($params['municipality_code'] ?? ($params['code'] ?? '')));
-    $prefCode = miyabe_search_normalize_pref_code((string)($params['pref_code'] ?? ($params['pref'] ?? '')));
+    $municipalityCode = miyabe_search_normalize_municipality_code(
+        (string)($params['municipality_code'] ?? ($params['code'] ?? ''))
+    );
+    $prefCodeRaw = trim((string)($params['pref_code'] ?? ($params['pref'] ?? '')));
+    $prefCode = miyabe_search_normalize_pref_code($prefCodeRaw);
+    $dateParams = [];
+    foreach (['start_date', 'end_date', 'start_year', 'end_year'] as $key) {
+        $dateParams[$key] = trim((string)($params[$key] ?? ''));
+    }
     $yearFilter = miyabe_search_sort_date_range_filter(
-        trim((string)($params['start_date'] ?? '')),
-        trim((string)($params['end_date'] ?? '')),
-        trim((string)($params['start_year'] ?? '')),
-        trim((string)($params['end_year'] ?? ''))
+        $dateParams['start_date'],
+        $dateParams['end_date'],
+        $dateParams['start_year'],
+        $dateParams['end_year']
     );
 
     $queryClause = miyabe_search_build_query_clause($query, $docType);
@@ -447,7 +509,7 @@ function miyabe_search_build_request(array $params): array
     if ($slug !== '') {
         $filters[] = ['term' => ['slug' => $slug]];
     }
-    if ($municipalityCode !== '') {
+    if ($municipalityCode !== null && $municipalityCode !== '') {
         $filters[] = ['term' => ['municipality_code' => $municipalityCode]];
     }
     if ($prefCode !== '') {
@@ -456,7 +518,47 @@ function miyabe_search_build_request(array $params): array
     if ($docType !== 'hyoka' && $yearFilter !== null) {
         $filters[] = $yearFilter;
     }
+    // 打ち間違いを黙って無視すると、絞ったつもりで全体を見てしまう。fiscal_year・kind と同じく断る。
     $queryError = '';
+    if ($docTypeRaw !== '' && !in_array($docTypeRaw, ['minutes', 'reiki', 'hyoka'], true)) {
+        $queryError = 'doc_type は minutes / reiki / hyoka を指定してください。';
+    }
+    if ($requestedSlug !== '' && $resolvedSlug === '') {
+        $queryError = 'slug に当たる自治体が見つかりません。';
+    }
+    if (mb_strlen($query, 'UTF-8') > MIYABE_SEARCH_MAX_QUERY_CHARS) {
+        $queryError = sprintf('検索語は%d字までにしてください。', MIYABE_SEARCH_MAX_QUERY_CHARS);
+    }
+    if (!in_array($sort, ['date', 'relevance'], true)) {
+        $queryError = 'sort は date か relevance を指定してください。';
+    }
+    if ($prefCodeRaw !== '' && ($prefCode === '' || (int)$prefCode < 1 || (int)$prefCode > 47)) {
+        $queryError = 'pref_code は都道府県コード（1〜47）を指定してください。';
+    }
+    if ($municipalityCode === null) {
+        $queryError = 'municipality_code は5桁の全国地方公共団体コード（検査数字つきの6桁も可）を指定してください。';
+    }
+    if ($docType !== 'hyoka') {
+        foreach (['start_date', 'end_date'] as $key) {
+            if ($dateParams[$key] !== '' && miyabe_search_normalize_date($dateParams[$key]) === '') {
+                $queryError = "{$key} は YYYY-MM-DD 形式の日付を指定してください。";
+            }
+        }
+        foreach (['start_year', 'end_year'] as $key) {
+            if ($dateParams[$key] !== ''
+                && (preg_match('/^\d{1,4}$/', $dateParams[$key]) !== 1 || (int)$dateParams[$key] < 1)) {
+                $queryError = "{$key} は西暦の年（1〜9999）を指定してください。";
+            }
+        }
+    }
+    // OpenSearch は from + size が上限を超える要求を 400 で断る。そのまま返すと「検索が使えない」
+    // と読まれるので、条件の誤りとして先に断る。
+    if ($page * $perPage > MIYABE_SEARCH_MAX_RESULT_WINDOW) {
+        $queryError = sprintf(
+            '検索結果は先頭から%s件目までしか表示できません。条件を足して絞り込んでください。',
+            number_format(MIYABE_SEARCH_MAX_RESULT_WINDOW)
+        );
+    }
     if ($docType === 'hyoka') {
         $fiscalYear = trim((string)($params['fiscal_year'] ?? ''));
         $kind = trim((string)($params['kind'] ?? ''));
@@ -605,6 +707,10 @@ function miyabe_search_build_request(array $params): array
         'page' => $page,
         'per_page' => $perPage,
         'proximity_ranked' => $proximityRanked,
+        'relevance_sorted' => $sort === 'relevance',
+        // 自治体を 1 つに絞っていれば、検索語が無くても新しい順の一覧として返す
+        // （自治体一覧・収集状況の「検索 N本」から来たときに空の頁にしない）。
+        'scoped' => $slug !== '' || ($municipalityCode !== null && $municipalityCode !== ''),
         'query_error' => $queryError,
         'body' => $body,
     ];
@@ -656,17 +762,23 @@ function miyabe_search_api_document_url(array $hit, array $source): string
     ]);
 }
 
-function miyabe_search_hit_to_item(array $hit, string $query = '', bool $proximityRanked = false): array
-{
+function miyabe_search_hit_to_item(
+    array $hit,
+    string $query = '',
+    bool $proximityRanked = false,
+    bool $relevanceSorted = true
+): array {
     $source = is_array($hit['_source'] ?? null) ? $hit['_source'] : [];
     $titleHighlight = miyabe_search_first_highlight($hit, 'title');
     $meetingHighlight = miyabe_search_first_highlight($hit, 'meeting_name');
     $bodyHighlight = miyabe_search_first_highlight($hit, 'body');
     // 近接優先のときの _score は関連度ではなく 0/1 の判定結果なので、
     // 関連度として読まれないよう score には載せず proximity で返す。
+    // 日付順でも並べ替えの 2 段目に _score を置くので値は返ってくるが、並びとは合わないので載せない
+    // （API の説明は「日付順のときは null」）。
     $item = [
         'id' => (string)($hit['_id'] ?? ''),
-        'score' => (!$proximityRanked && isset($hit['_score'])) ? (float)$hit['_score'] : null,
+        'score' => ($relevanceSorted && !$proximityRanked && isset($hit['_score'])) ? (float)$hit['_score'] : null,
         'proximity' => $proximityRanked ? ((float)($hit['_score'] ?? 0) >= 1.0) : null,
         'doc_type' => (string)($source['doc_type'] ?? ''),
         'slug' => (string)($source['slug'] ?? ''),
@@ -698,6 +810,12 @@ function miyabe_search_hit_to_item(array $hit, string $query = '', bool $proximi
         'amended_on' => (string)($source['amended_on'] ?? ''),
     ];
     if (($source['doc_type'] ?? '') === 'hyoka') {
+        // 事務事業評価の索引は自治体名に都道府県名を付けて持っている（「北海道 札幌市」）。
+        // 会議録・例規とそろえ、都道府県名と二重に出ないよう外す。
+        $prefPrefix = $item['pref_name'] !== '' ? $item['pref_name'] . ' ' : '';
+        if ($prefPrefix !== '' && str_starts_with($item['municipality_name'], $prefPrefix)) {
+            $item['municipality_name'] = substr($item['municipality_name'], strlen($prefPrefix));
+        }
         foreach (miyabe_search_hyoka_source_fields() as $field) {
             $item[$field] = in_array($field, ['fiscal_year', 'page'], true)
                 ? (isset($source[$field]) ? (int)$source[$field] : null)
@@ -709,7 +827,8 @@ function miyabe_search_hit_to_item(array $hit, string $query = '', bool $proximi
 
 function miyabe_search_hit_to_detail(array $hit): array
 {
-    $item = miyabe_search_hit_to_item($hit);
+    // ID で 1 件を引くだけなので、_score に意味はない。
+    $item = miyabe_search_hit_to_item($hit, '', false, false);
     $source = is_array($hit['_source'] ?? null) ? $hit['_source'] : [];
     $item['body'] = (string)($source['body'] ?? '');
     $item['indexed_at'] = (string)($source['indexed_at'] ?? '');
@@ -725,6 +844,11 @@ function miyabe_search_fetch_detail_document(string $id, string $docType): ?arra
         return null;
     }
 
+    // ID は「種別:自治体:…」の形で、種別が頭に入っている。doc_type を付け忘れると既定の会議録の索引を
+    // 探して見つからないので、ID の頭を優先する。
+    if (preg_match('/^(minutes|reiki|hyoka):/', $id, $matches) === 1) {
+        $docType = $matches[1];
+    }
     $docType = miyabe_search_normalize_doc_type($docType);
     $filters = [
         ['ids' => ['values' => [$id]]],
@@ -806,10 +930,11 @@ function miyabe_search_execute_request(array $params): array
 {
     $searchRequest = miyabe_search_build_request($params);
     $query = trim((string)$searchRequest['query']);
-    if ($query === '' || ($searchRequest['query_error'] ?? '') !== '') {
+    $missingQuery = $query === '' && !($searchRequest['scoped'] ?? false);
+    if ($missingQuery || ($searchRequest['query_error'] ?? '') !== '') {
         return [
             'status' => 'query_error',
-            'error' => $query === '' ? 'q を指定してください。' : $searchRequest['query_error'],
+            'error' => $missingQuery ? 'q を指定してください（自治体を 1 つに絞るときは省けます）。' : $searchRequest['query_error'],
             'items' => [],
             'total' => 0,
             'total_relation' => 'eq',
@@ -825,6 +950,9 @@ function miyabe_search_execute_request(array $params): array
     $page = (int)$searchRequest['page'];
     $perPage = (int)$searchRequest['per_page'];
     $proximityRanked = (bool)($searchRequest['proximity_ranked'] ?? false);
+    $relevanceSorted = (bool)($searchRequest['relevance_sorted'] ?? false);
+    // 上限より先の頁は取れないので、上限に届いたら「次の頁」は無いことにする。
+    $reachable = min($total, MIYABE_SEARCH_MAX_RESULT_WINDOW);
 
     return [
         'status' => 'ok',
@@ -837,11 +965,12 @@ function miyabe_search_execute_request(array $params): array
         'per_page' => $perPage,
         'total' => $total,
         'total_relation' => $relation,
-        'has_more' => $relation === 'eq' ? ($page * $perPage) < $total : count($hits) >= $perPage,
+        'has_more' => ($page * $perPage) < MIYABE_SEARCH_MAX_RESULT_WINDOW
+            && ($relation === 'eq' ? ($page * $perPage) < $reachable : count($hits) >= $perPage),
         'took_ms' => (int)($response['took'] ?? 0),
         'items' => array_values(array_map(
             static fn($hit): array => is_array($hit)
-                ? miyabe_search_hit_to_item($hit, $query, $proximityRanked)
+                ? miyabe_search_hit_to_item($hit, $query, $proximityRanked, $relevanceSorted)
                 : [],
             $hits
         )),

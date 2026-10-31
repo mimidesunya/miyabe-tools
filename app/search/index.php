@@ -158,6 +158,8 @@ $boot = [
     'fiscalYear' => $requestedFiscalYear,
     'kind' => $requestedKind,
     'sort' => search_query_param('sort', 'date'),
+    // 共有した URL や再読み込みで同じ頁を開けるように。API は 10,000 件目まで（20 件ずつで 500 頁）。
+    'page' => max(1, min(500, (int)search_query_param('page', '1'))),
     'prefectures' => $prefectures,
     'municipalities' => [],
 ];
@@ -341,9 +343,10 @@ $boot = [
                 <dt>除外</dt>
                 <dd><code>メガソーラー NOT 促進</code><span>後ろの語を含む文書を外します。</span></dd>
                 <dt>組み合わせ</dt>
-                <dd><code>(盛土 OR メガソーラー) 条例</code><span>括弧で条件をまとめられます。</span></dd>
+                <dd><code>(盛土 OR メガソーラー) 条例</code><span>括弧で条件をまとめられます。括弧が無いと、OR は左右の語のまとまり全体を分けます（<code>条例 盛土 OR 土砂</code> は「条例と盛土」か「土砂」）。</span></dd>
             </dl>
-            <p>記号（括弧・| など）は検索の対象になりません。OR・NOT を語として探したいときは、引用符で囲んでください。</p>
+            <p>全角で書いても同じです。記号（括弧・| など）は検索の対象になりません。OR・NOT を語として探したいときは、引用符で囲んでください。</p>
+            <p>1文字の語は、ほかの字と続いて書かれた箇所を取りこぼします。2文字以上で探してください。自治体を選べば、語を入れずに新しい順の一覧も出せます。</p>
         </div>
     </section>
 </div>

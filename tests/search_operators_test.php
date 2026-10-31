@@ -84,5 +84,51 @@ check('素の AND はそのまま渡す', $should[0]['simple_query_string']['que
 check('素の AND は語の句も使う（表記の揺れを拾う）', has_clause($should, 'multi_match'));
 check('引用符つきの AND も語の句を使う', has_clause(query_should('"同和団体" 温泉'), 'multi_match'));
 
+// --- 演算子つきでも語単位の句は演算子どおりに使う（複合語の当たり方を素の検索とそろえる）
+function terms_clause(array $should): ?string
+{
+    foreach ($should as $clause) {
+        if (isset($clause['simple_query_string']) && in_array('body_terms', $clause['simple_query_string']['fields'], true)) {
+            return $clause['simple_query_string']['query'];
+        }
+    }
+    return null;
+}
+
+$termsQuery = terms_clause(query_should('同和団体 NOT 部落'));
+check('NOT 検索の語単位の句は Sudachi の語で引き、NOT も効かせる', $termsQuery === null || $termsQuery === '(同和 団体) -部落');
+check('語句があるときは語単位の句を使わない', terms_clause(query_should('"同和団体" OR 温泉')) === null);
+
+// --- 語句と演算子
+function must_count(string $query): int
+{
+    $request = miyabe_search_build_request(['q' => $query, 'doc_type' => 'hyoka', 'sort' => 'relevance']);
+    return count($request['body']['query']['bool']['must']);
+}
+check('-"語句" を「必ず含む語句」にしない', must_count('温泉 -"同和団体"') === 1);
+check('"語句" | 語 で語句を必ず含むにしない', must_count('"同和団体" | 温泉') === 1);
+check('演算子の無い語句は必ず含む', must_count('"同和団体" 温泉') === 2);
+
+// --- 記号の読み方
+$should = query_should('同和 部落');
+check('あいまい検索と語句の距離の記号は読ませない', $should[0]['simple_query_string']['flags'] === 'AND|OR|NOT|PHRASE|PRECEDENCE|PREFIX|WHITESPACE');
+check('索引に無い body.ngram を引かない', !in_array('body.ngram', $should[0]['simple_query_string']['fields'], true));
+check('閉じ括弧の直後の OR も演算子', miyabe_search_simple_query_syntax('(条例 盛土)OR メガソーラー') === '(条例 盛土)| メガソーラー');
+
+// --- 全角
+check('全角の NOT を演算子として読む', query_should('メガソーラー ＮＯＴ 促進')[0]['simple_query_string']['query'] === 'メガソーラー -促進');
+check('全角の OR を演算子として読む', query_should('盛土 ＯＲ 土砂')[0]['simple_query_string']['query'] === '盛土 | 土砂');
+check('全角の括弧を演算子として読む', query_should('条例 （盛土 OR メガソーラー）')[0]['simple_query_string']['query'] === '条例 (盛土 | メガソーラー)');
+check('曲がった引用符を語句として読む', must_count('“同和団体”') === 2);
+$blank = miyabe_search_build_request(['q' => '　', 'doc_type' => 'hyoka']);
+check('全角空白だけの検索語は空として断る', $blank['query'] === '');
+
+// --- そのほかの不正な条件
+check('長すぎる検索語を断る', miyabe_search_build_request(['q' => str_repeat('あ', 201)])['query_error'] !== '');
+check('200 字までは断らない', miyabe_search_build_request(['q' => str_repeat('あ', 200)])['query_error'] === '');
+check('見つからない slug を断る', miyabe_search_build_request(['q' => '予算', 'slug' => 'no-such-place'])['query_error'] !== '');
+check('slug の別名は断らない', miyabe_search_build_request(['q' => '予算', 'slug' => '14130'])['query_error'] === '');
+check('doc_type の打ち間違いを断る', miyabe_search_build_request(['q' => '予算', 'doc_type' => 'hyouka'])['query_error'] !== '');
+
 echo $failures === 0 ? "\nall passed\n" : "\n{$failures} failed\n";
 exit($failures === 0 ? 0 : 1);

@@ -9,8 +9,9 @@ require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPAR
 header('Content-Type: text/html; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 
-$id = trim((string)($_GET['id'] ?? ''));
-$recordId = trim((string)($_GET['record'] ?? ''));
+// 値が配列で来ても Warning を出さないよう、文字列だけを受ける。
+$id = is_scalar($_GET['id'] ?? null) ? trim((string)$_GET['id']) : '';
+$recordId = is_scalar($_GET['record'] ?? null) ? trim((string)$_GET['record']) : '';
 if ($id === '' || $recordId === '' || strlen($id) > 200 || strlen($recordId) > 200) {
     http_response_code(422);
     echo '<p class="detail-note">事業を指定してください。</p>';

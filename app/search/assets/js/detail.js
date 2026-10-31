@@ -22,21 +22,77 @@
         return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
+    /* 全角の英数字・記号を半角に、全角空白を空白に、曲がった二重引用符を " に（検索 API と同じそろえ方） */
+    function foldQuery(value) {
+        return String(value || '')
+            .replace(/[\uFF01-\uFF5E]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xFEE0))
+            .replace(/\u3000/g, ' ')
+            .replace(/[\u201C\u201D]/g, '"');
+    }
+
+    /**
+     * 光らせる語。検索の書き方（OR・NOT・AND・括弧・| ・頭の -・引用符）を読み、演算子そのものと、
+     * NOT や - で外した語（括弧ごと外したときは括弧の中）は光らせない。引用符の中は 1 つの語句。
+     */
     function searchTerms(value) {
-        const source = String(value || '').replace(/\u3000/g, ' ').trim();
+        const source = foldQuery(value).trim();
         if (!source) {
             return [];
         }
+        const tokens = source.match(/"[^"]*"|[()]|[^\s()"]+/g) || [];
         const terms = [];
         const seen = new Set();
-        const pattern = /"([^"]+)"|'([^']+)'|(\S+)/g;
-        let match;
-        while ((match = pattern.exec(source)) !== null) {
-            const term = String(match[1] || match[2] || match[3] || '').trim();
-            const key = term.toLocaleLowerCase();
-            if (term !== '' && !seen.has(key)) {
-                seen.add(key);
-                terms.push(term);
+        let negateNext = false;
+        let negatedDepth = 0;
+        let depth = 0;
+        for (const raw of tokens) {
+            if (raw === '(') {
+                depth += 1;
+                if (negateNext && negatedDepth === 0) {
+                    negatedDepth = depth;
+                }
+                negateNext = false;
+                continue;
+            }
+            if (raw === ')') {
+                if (negatedDepth === depth) {
+                    negatedDepth = 0;
+                }
+                depth = Math.max(0, depth - 1);
+                continue;
+            }
+            const upper = raw.toUpperCase();
+            if (upper === 'AND' || upper === 'OR' || /^NEAR(?:\/\d+)?$/.test(upper)) {
+                continue;
+            }
+            if (upper === 'NOT') {
+                negateNext = true;
+                continue;
+            }
+            let token = raw;
+            while (token.startsWith('-') || token.startsWith('+')) {
+                if (token.startsWith('-')) {
+                    negateNext = true;
+                }
+                token = token.slice(1);
+            }
+            if (token === '') {
+                continue;
+            }
+            const negated = negateNext || negatedDepth > 0;
+            negateNext = false;
+            if (negated) {
+                continue;
+            }
+            const quoted = token.length >= 2 && token.startsWith('"') && token.endsWith('"');
+            const parts = quoted ? [token.slice(1, -1)] : token.replace(/\*+$/, '').split('|');
+            for (const part of parts) {
+                const term = part.trim();
+                const key = term.toLocaleLowerCase();
+                if (term !== '' && !seen.has(key)) {
+                    seen.add(key);
+                    terms.push(term);
+                }
             }
         }
         return terms.sort((a, b) => b.length - a.length);
@@ -134,7 +190,9 @@
     refs.input.addEventListener('input', () => renderBody(false));
     refs.prev.addEventListener('click', () => setActiveMatch(state.active - 1));
     refs.next.addEventListener('click', () => setActiveMatch(state.active + 1));
-    renderBody(true);
+    // 事務事業評価で事業の一覧を本文より前に出している頁と、事業を指して来た頁では、
+    // 開いたとたんに本文の最初の一致へ動かない（一覧や指した事業を飛ばしてしまう）。
+    renderBody(!document.getElementById('hyoka-records') && !window.location.hash);
 })();
 
 // 事務事業評価の「この文書の事業」を語で絞る。語は空白で区切り、すべてを含む事業だけ残す。
@@ -195,4 +253,20 @@
                 });
         });
     });
+})();
+
+// 検索結果の一覧の事業の行から来たとき（URL の #record-…）、その事業を開いて見せる。
+(() => {
+    const hash = decodeURIComponent(window.location.hash.slice(1));
+    if (!hash.startsWith('record-')) {
+        return;
+    }
+    const item = document.getElementById(hash);
+    const details = item ? item.querySelector('details') : null;
+    if (!details) {
+        return;
+    }
+    details.open = true;
+    item.classList.add('is-target');
+    item.scrollIntoView({ block: 'start' });
 })();

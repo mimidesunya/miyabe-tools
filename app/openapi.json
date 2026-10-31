@@ -21,11 +21,12 @@
           {
             "name": "q",
             "in": "query",
-            "required": true,
-            "description": "検索語。空白区切りはAND検索、引用符で完全一致、OR/NOT/括弧も利用できます。",
+            "required": false,
+            "description": "検索語。空白区切りはAND検索、引用符で完全一致、OR/NOT/括弧も利用できます（全角でも同じ）。OR は左右の語のまとまりを分けるので、範囲は括弧で示してください。200字まで。slug か municipality_code で自治体を1つに絞るときは省けます（新しい順の一覧になります）。",
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "maxLength": 200
             },
             "example": "盛土 メガソーラー"
           },
@@ -65,17 +66,18 @@
             "name": "municipality_code",
             "in": "query",
             "required": false,
-            "description": "全国地方公共団体コードで絞り込みます。",
+            "description": "全国地方公共団体コード（検査数字なしの5桁。座間市なら 14216）で絞り込みます。検査数字つきの6桁も受け付けます。",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "pattern": "^\\d{5,6}$"
             },
-            "example": "142166"
+            "example": "14216"
           },
           {
             "name": "start_date",
             "in": "query",
             "required": false,
-            "description": "検索対象期間の開始日。YYYY-MM-DD形式です。hyoka には適用されません。",
+            "description": "検索対象期間の開始日。YYYY-MM-DD形式です。会議録は開催日、例規集は公布日で絞ります。hyoka には適用されません。",
             "schema": {
               "type": "string",
               "format": "date"
@@ -86,7 +88,7 @@
             "name": "end_date",
             "in": "query",
             "required": false,
-            "description": "検索対象期間の終了日。YYYY-MM-DD形式です。hyoka には適用されません。",
+            "description": "検索対象期間の終了日。YYYY-MM-DD形式です。会議録は開催日、例規集は公布日で絞ります。hyoka には適用されません。",
             "schema": {
               "type": "string",
               "format": "date"
@@ -148,7 +150,7 @@
             "name": "sort",
             "in": "query",
             "required": false,
-            "description": "並び順。dateは新しい順（hyoka は年度順）、relevanceは関連度順です。",
+            "description": "並び順。dateは新しい順（会議録は開催日、例規集は公布日、hyoka は年度）、relevanceは関連度順です。",
             "schema": {
               "type": "string",
               "enum": ["date", "relevance"],
@@ -159,7 +161,7 @@
             "name": "page",
             "in": "query",
             "required": false,
-            "description": "ページ番号。",
+            "description": "ページ番号。先頭から10,000件目までしか取れません（page × per_page が 10000 以下）。超えると 422 です。",
             "schema": {
               "type": "integer",
               "minimum": 1,
@@ -211,7 +213,7 @@
             }
           },
           "422": {
-            "description": "検索語が未指定、または検索条件が不正です。hyoka の fiscal_year / kind の不正値も含みます。",
+            "description": "検索語が未指定（自治体を1つに絞っていない）、または検索条件が不正です。不正な doc_type・sort・日付・年・pref_code・municipality_code、見つからない slug、200字を超える検索語、10,000件目より先のページ、hyoka の fiscal_year / kind の不正値を含みます。",
             "content": {
               "application/json": {
                 "schema": {
@@ -380,7 +382,8 @@
             }
           },
           "aggregations": {
-            "$ref": "#/components/schemas/Aggregations"
+            "$ref": "#/components/schemas/Aggregations",
+            "description": "文書種別・都道府県・自治体ごとの件数。include_facets が true のときだけ中身が入り、それ以外は空の配列です。"
           }
         }
       },
@@ -430,7 +433,7 @@
           },
           "score": {
             "type": ["number", "null"],
-            "description": "検索スコア。関連度順のときの並び順に対応する。日付順のときは null。"
+            "description": "検索スコア。関連度順（sort=relevance）のときだけ入り、並び順に対応します。日付順と /api/document では null です。"
           },
           "proximity": {
             "type": ["boolean", "null"],
@@ -474,7 +477,7 @@
           },
           "detail_url": {
             "type": "string",
-            "description": "会議録・事務事業評価ではサイト内の詳細ページURL、例規集では原サイト等のURLです。"
+            "description": "サイト内のページの相対URLです。会議録・事務事業評価は詳細ページ、例規集はサイト内の例規の表示ページです。原サイトのURLは source_url です。"
           },
           "api_document_url": {
             "type": "string",
@@ -563,7 +566,56 @@
           "page_split_reason": {
             "type": "string",
             "description": "hyoka の頁分割の根拠または分割できない理由。saved_text_no_page_boundaries は保存済み本文に頁区切りが無い。"
+          },
+          "records": {
+            "type": "array",
+            "description": "hyoka で、事業ごとの欄に分けてある文書の事業（/api/search のみ）。検索語を含むものを先に最大5件。値は原典の表の欄を機械で書き写したもので、人の確認はまだです。分けていない文書は空の配列です。",
+            "items": {
+              "$ref": "#/components/schemas/HyokaRecord"
+            }
+          },
+          "records_total": {
+            "type": "integer",
+            "description": "hyoka でこの頁（頁区切りが無ければ文書全体）の事業の数。分けていない文書は 0 です。"
           }
+        }
+      },
+      "HyokaRecord": {
+        "type": "object",
+        "description": "事務事業評価の事業 1 件の短い形。",
+        "properties": {
+            "id": {
+              "type": "string",
+              "description": "事業の記録のID。"
+            },
+            "project_name": {
+              "type": "string",
+              "description": "事業名。"
+            },
+            "department": {
+              "type": "string",
+              "description": "担当部署。"
+            },
+            "year": {
+              "type": "string",
+              "description": "対象年度・評価年度の記載。"
+            },
+            "evaluation_rating": {
+              "type": "string",
+              "description": "評価区分の記載。"
+            },
+            "future_direction": {
+              "type": "string",
+              "description": "今後の方向性の記載。"
+            },
+            "location": {
+              "type": "string",
+              "description": "原典の頁など。"
+            },
+            "matched": {
+              "type": "boolean",
+              "description": "検索語を含む事業か。"
+            }
         }
       },
       "Aggregations": {
@@ -607,9 +659,6 @@
             "type": "string"
           },
           "error": {
-            "type": "string"
-          },
-          "detail": {
             "type": "string"
           },
           "items": {

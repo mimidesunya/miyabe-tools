@@ -35,7 +35,7 @@ file_put_contents($path, json_encode([
     'raw_query' => $query,
     'highlight_terms' => $sudachiTerms,
     'exact_phrases' => [],
-    'query_cache_schema' => 'phrase-v7',
+    'query_cache_schema' => JAPANESE_SEARCH_QUERY_CACHE_SCHEMA,
     'tokenizer' => 'sudachi',
 ], JSON_UNESCAPED_UNICODE));
 
@@ -51,7 +51,7 @@ file_put_contents($fallbackPath, json_encode([
     'raw_query' => $fallbackQuery,
     'highlight_terms' => ['捨てられるはず'],
     'exact_phrases' => [],
-    'query_cache_schema' => 'phrase-v7',
+    'query_cache_schema' => JAPANESE_SEARCH_QUERY_CACHE_SCHEMA,
     'tokenizer' => 'fallback',
 ], JSON_UNESCAPED_UNICODE));
 $prepared = japanese_search_prepare_query($fallbackQuery);

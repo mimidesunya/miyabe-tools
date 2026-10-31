@@ -55,7 +55,10 @@ curl -s -X POST http://localhost:8301/mcp -H 'Content-Type: application/json' -H
 - `search_minutes`: 自治体の会議録を検索します
 - `search_reiki`: 条例・規則などの例規集を検索します
 - `search_hyoka`: 事務事業評価を検索します。自治体・都道府県・年度・種別で絞れます
-- `get_municipal_document`: 検索結果の `id` と `doc_type` から本文を取得します
+- `get_municipal_document`: 検索結果の `id` から本文を取得します（種別は `id` の頭 `minutes:`・`reiki:`・`hyoka:` が優先）
+
+検索の既定の並びは、会議録が `date`、例規集と事務事業評価が `relevance`。`page` × `per_page` は 10000 まで（REST と同じ）。
+検索語の書き方（OR・NOT・括弧、全角でも可）と条件の確かめ方は REST と同じで、[検索の並び順と近接優先](search-ranking.md) にまとめた。
 
 `get_municipal_document` は既定で本文を 20000 文字まで返します。必要な場合は `max_body_chars` を増やせます。
 
@@ -66,6 +69,7 @@ curl -s -X POST http://localhost:8301/mcp -H 'Content-Type: application/json' -H
 - `sort`: MCP の既定は `relevance`。`date` は年度の新しい順。日付範囲や `start_year` / `end_year` は事務事業評価では使いません。
 - 1件は頁単位。保存済み本文に頁区切りがなければ文書全体で、`page_split_reason` に理由を返し、頁番号を推測しません。MCPは値が無い `page` / `fiscal_year` を省略し、RESTは `null` を返します。
 - `source_url` は原典URL、`source_page_link` は該当頁へのURL（頁不明なら原典URL）、`source_page_url` は原典を見つけた掲載ページです。検索結果の `page` と各文書の `page`（原典の頁番号）は別です。
+- 事業ごとの欄に分けてある文書では、各件に `records`（その頁の事業を、検索語を含むものから最大 5 件。事業名・担当・評価・今後の方向性）と `records_total` が入り、本文の表示にも「事業:」の行で出します。原典の表の欄を機械で書き写したもので、人の確認はまだです。
 - 年度・種別・リンク文字・見出し・原典のSHA-256・取得日時・状態を保持します。`status: "gone"` は取得元から消えた保存済み文書です。現行版の `text_status: "ok"` のみを対象にし、改訂前の `_archive` とOCR待ちは含めません。
 
 索引の作成・本番運用は [事務事業評価の検索](hyoka-search.md) を参照してください。

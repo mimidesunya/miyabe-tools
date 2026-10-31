@@ -1078,6 +1078,88 @@ mark {
   }
 }
 
+/* 検索結果の一覧で、事務事業評価の事業を表で出す */
+.result-records {
+  display: grid;
+  gap: 6px;
+}
+
+.result-records table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.result-records th,
+.result-records td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.result-records thead th {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom-color: var(--line-strong);
+}
+
+.result-records tbody th {
+  font-weight: 600;
+}
+
+.result-records tbody th a {
+  color: var(--accent);
+}
+
+.result-records tr.is-match > * {
+  background: var(--accent-weak);
+}
+
+.result-records-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.result-excerpt.is-joined {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.hyoka-record.is-target > details {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  .result-records thead {
+    display: none;
+  }
+
+  .result-records tr {
+    display: grid;
+    gap: 2px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .result-records th,
+  .result-records td {
+    padding: 0 4px;
+    border-bottom: 0;
+  }
+
+  .result-records td::before {
+    content: attr(data-label) "：";
+    color: var(--muted);
+  }
+}
+
 @media (max-width: 900px) {
   .app-shell {
     padding: 12px;

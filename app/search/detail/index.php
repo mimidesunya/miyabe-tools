@@ -5,6 +5,13 @@ require_once dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPAR
 require_once dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'site_assets.php';
 require_once dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'hyoka_display.php';
 
+// 取り込んだ原典の URL をそのまま href に入れない。http(s) だけ通す。
+function search_detail_safe_url(string $value): string
+{
+    $value = trim($value);
+    return preg_match('#^https?://#i', $value) === 1 ? $value : '';
+}
+
 function search_detail_h(?string $value): string
 {
     return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -57,10 +64,14 @@ try {
     $error = '詳細の取得に失敗しました。';
 }
 
+// ID の頭（hyoka: など）で引いた種別を使う。doc_type を付け忘れた URL でも事務事業評価の欄を出す。
+if (is_array($document) && isset($document['doc_type'])) {
+    $docType = miyabe_search_normalize_doc_type((string)$document['doc_type']);
+}
 $title = trim((string)($document['title'] ?? ($docType === 'hyoka' ? '事務事業評価詳細' : '会議録詳細')));
-$sourceUrl = trim((string)($document['source_url'] ?? ''));
-$sourcePageUrl = trim((string)($document['source_page_url'] ?? ''));
-$sourcePageLink = $docType === 'hyoka' ? trim((string)($document['source_page_link'] ?? '')) : '';
+$sourceUrl = search_detail_safe_url((string)($document['source_url'] ?? ''));
+$sourcePageUrl = search_detail_safe_url((string)($document['source_page_url'] ?? ''));
+$sourcePageLink = $docType === 'hyoka' ? search_detail_safe_url((string)($document['source_page_link'] ?? '')) : '';
 $sourceLink = $sourcePageLink !== '' ? $sourcePageLink : $sourceUrl;
 $pageNumber = $docType === 'hyoka' ? (int)($document['page'] ?? 0) : 0;
 $hyokaKindLabels = [
@@ -182,7 +193,7 @@ $boot = [
                                 ['is-page', miyabe_hyoka_display_location_label($record)],
                             ], static fn(array $tag): bool => $tag[1] !== ''));
                             ?>
-                            <li class="hyoka-record">
+                            <li class="hyoka-record" id="<?php echo search_detail_h('record-' . preg_replace('/[^0-9A-Za-z_-]/', '-', (string)($record['id'] ?? ''))); ?>">
                                 <details<?php echo $hyokaLazy ? ' data-record-id="' . search_detail_h((string)($record['id'] ?? '')) . '"' : ''; ?>>
                                     <summary>
                                         <span class="hyoka-record-name"><?php echo search_detail_h($recordName !== '' ? $recordName : '（事業名なし）'); ?></span>
