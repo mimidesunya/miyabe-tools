@@ -186,8 +186,12 @@ def cmd_grids(args) -> int:
     print(f"[HYOKA-AI] grids 残り {len(tasks)} 文書、処理 {args.workers}", flush=True)
     started = time.time()
     done = errors = pages = 0
-    with cf.ProcessPoolExecutor(max_workers=args.workers, max_tasks_per_child=50) as pool:
-        for doc_id, _dest, n, error in pool.map(build_doc_grid, tasks, chunksize=1):
+    # 処理は 50 文書ごとに入れ替える（PyMuPDF のメモリを持ち越さない）。ProcessPoolExecutor の max_tasks_per_child は
+    # Python 3.12 で入れ替えが起きずに止まることがあった（10 並列で 500 文書ちょうどで止まった）ので multiprocessing.Pool を使う。
+    import multiprocessing
+    context = multiprocessing.get_context("spawn" if os.name == "nt" else "fork")
+    with context.Pool(processes=args.workers, maxtasksperchild=50) as pool:
+        for doc_id, _dest, n, error in pool.imap_unordered(build_doc_grid, tasks, chunksize=1):
             done += 1
             pages += n
             errors += bool(error)
