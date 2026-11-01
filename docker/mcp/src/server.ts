@@ -459,11 +459,15 @@ const READ_ONLY_ANNOTATIONS = {
   openWorldHint: true
 } as const;
 
+// 道具の引数は数値と文字だけで、多くても 20 項目ほど。大きな配列や連想配列で検証の
+// メモリを使い切らせる要求（GHSA-46jr-4wx8-v453）を、検証の前に断るための上限。
+const MAX_TOOL_INPUT_ELEMENTS = 200;
+
 function createServer(): McpServer {
   const server = new McpServer({
     name: "miyabe-tools-search",
     version: "1.0.0"
-  });
+  }, { maxToolInputElements: MAX_TOOL_INPUT_ELEMENTS });
 
   server.registerTool(
     "search_minutes",
