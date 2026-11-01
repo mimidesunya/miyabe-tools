@@ -400,7 +400,7 @@ const documentCommonShape = {
     future_direction: z.string().optional().describe("今後の方向性の記載。"),
     location: z.string().optional().describe("原典の頁など。"),
     matched: z.boolean().optional().describe("検索語を含む事業か。")
-  })).optional().describe("事務事業評価で、事業ごとの欄に分けてある文書の事業。検索語を含むものを先に最大5件。値は原典の表の欄を機械で書き写したもので、人の確認はまだ。"),
+  })).optional().describe("事務事業評価で、事業ごとの欄に分けてある文書の事業。検索語を含むものを先に最大5件。値は原典の表の欄を、自治体ごとの様式の定義で機械が、または AI が書き写したもの（各件の method。AI の値は原典の文字と機械で照合済み）で、人の確認はまだ。"),
   records_total: z.number().optional().describe("この頁（頁区切りが無ければ文書全体）の事業の数。"),
   held_on: z.string().optional().describe("開催日。会議録で入る。"),
   ordinance_no: z.string().optional().describe("例規番号。例規集で入る。"),

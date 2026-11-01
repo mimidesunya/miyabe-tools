@@ -172,7 +172,11 @@ $boot = [
                 <section class="hyoka-records" id="hyoka-records" aria-labelledby="hyoka-records-title"<?php echo $hyokaLazy ? ' data-detail-id="' . search_detail_h($id) . '"' : ''; ?>>
                     <div class="hyoka-records-head">
                         <h2 id="hyoka-records-title">この文書の事業<span class="hyoka-records-total"><?php echo number_format(count($hyokaRecords)); ?>件</span></h2>
+                        <?php if (array_filter($hyokaRecords, 'miyabe_hyoka_display_is_ai') !== []): ?>
+                        <p class="hyoka-records-note">原典の表を AI（OpenAI の gpt-6-luna）が書き写した記録です。書き写した文字が原典にあることは機械で照合し、合わない値は出していませんが、人の確認はまだです。欄名は原典のまま、欄の中の折り返しは詰めています。数字や言い回しは、各事業の「原典」の頁で確かめてください。</p>
+                        <?php else: ?>
                         <p class="hyoka-records-note">原典の表の欄から機械で書き写した記録です。人の確認はまだです。欄名は原典のまま、欄の中の折り返しは詰めています。数字や言い回しは、各事業の「原典」の頁で確かめてください。</p>
+                        <?php endif; ?>
                         <?php if (count($hyokaRecords) > 5): ?>
                             <label class="field hyoka-records-filter" for="hyoka-record-filter">
                                 <span>事業を絞り込む</span>

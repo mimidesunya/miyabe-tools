@@ -606,7 +606,9 @@
                     <thead><tr><th scope="col">事業</th><th scope="col">担当</th><th scope="col">評価</th><th scope="col">今後の方向性</th></tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
-                <p class="result-records-note">${escapeHtml(note)}原典の表の欄を機械で書き写したもので、人の確認はまだです。</p>
+                <p class="result-records-note">${escapeHtml(note)}${records.some((record) => record.method === 'ai')
+                    ? '原典の表を AI が書き写し、その文字が原典にあることを機械で照合したもので、人の確認はまだです。'
+                    : '原典の表の欄を機械で書き写したもので、人の確認はまだです。'}</p>
             </div>`;
     }
 

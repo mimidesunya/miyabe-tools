@@ -8,7 +8,9 @@
   収集・公開状況（/status/）と自治体一覧（/municipalities/）が読む。
 - `records/<slug>/<doc_id>.json`: 抽出した事業の記録（共通形式 1.2.0）を、
   詳細画面に出す欄だけに縮めたもの。欄名は原典のまま、値は専用欄の原文だけを写す。
-  欄の中の折り返し（表のセルの幅で切れた改行）だけは詰める。AI・推定は使わない。
+  欄の中の折り返し（表のセルの幅で切れた改行）だけは詰める。推定は使わない。
+  様式の定義で機械が取り出した記録（`work/hyoka-extracted`）のある自治体はそれを、無い自治体は
+  AI が書き写して原典と照合した記録（`work/hyoka-ai`、doc/hyoka-ai-extraction.md）を使う。
 
 検索に載った本数は索引づくりのログ（`[HYOKA]` の監査行）から取る。全量の rebuild の
 ログのあとに update のログを古い順に渡せば、後のもので自治体ごとに上書きする。
@@ -237,7 +239,8 @@ def municipality_status(work_dir: Path) -> dict:
     }
 
 
-def build(work_root: Path, records_root: Path | None, out: Path, index_logs: list[Path]) -> dict:
+def build(work_root: Path, records_root: Path | None, out: Path, index_logs: list[Path],
+          ai_records_root: Path | None = None) -> dict:
     index = read_index_logs(index_logs)
     rows = []
     for work_dir in sorted(p for p in work_root.iterdir() if p.is_dir() and SLUG_RE.fullmatch(p.name)):
@@ -250,13 +253,19 @@ def build(work_root: Path, records_root: Path | None, out: Path, index_logs: lis
         raise ValueError(f"抽出の出力（*/records.jsonl）が無い: {records_root}。記録なしで作るなら --no-records")
 
     record_counts: dict[str, int] = {}
+    record_sources: dict[str, str] = {}
     written: set[Path] = set()
     generated_at = now_text()
     if records_root is not None:
         for row in rows:
             path = records_root / row["slug"] / "records.jsonl"
+            source = "machine"
+            if not path.is_file() and ai_records_root is not None:
+                path = ai_records_root / row["slug"] / "records.jsonl"
+                source = "ai"
             if not path.is_file():
                 continue
+            record_sources[row["slug"]] = source
             by_doc: dict[str, list[dict]] = {}
             total = 0
             with path.open(encoding="utf-8") as stream:
@@ -290,12 +299,15 @@ def build(work_root: Path, records_root: Path | None, out: Path, index_logs: lis
         audit = index["by_slug"].get(row["slug"])
         row["indexed_documents"] = audit["indexed_documents"] if audit else None
         row["records"] = record_counts.get(row["slug"], 0)
+        row["records_source"] = record_sources.get(row["slug"], "")
     totals = {"municipalities": len(rows)}
     for key in ("documents", "text_ok", "ocr_done", "ocr_waiting", "ocr_failed", "no_text", "pages", "records"):
         totals[key] = sum(int(row[key] or 0) for row in rows)
     totals["indexed_documents"] = sum(int(row["indexed_documents"] or 0) for row in rows)
     totals["searchable_municipalities"] = sum(1 for row in rows if (row["indexed_documents"] or 0) > 0)
     totals["municipalities_with_records"] = sum(1 for row in rows if row["records"] > 0)
+    totals["records_ai"] = sum(row["records"] for row in rows if row["records_source"] == "ai")
+    totals["municipalities_with_ai_records"] = sum(1 for row in rows if row["records_source"] == "ai" and row["records"] > 0)
     fetch: dict[str, int] = {}
     for row in rows:
         fetch[row["fetch_status"] or "unknown"] = fetch.get(row["fetch_status"] or "unknown", 0) + 1
@@ -310,6 +322,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--work-root", type=Path, default=WORKSPACE_ROOT / "work" / "hyoka")
     parser.add_argument("--records-root", type=Path, default=WORKSPACE_ROOT / "work" / "hyoka-extracted")
     parser.add_argument("--out", type=Path, default=WORKSPACE_ROOT / "data" / "hyoka")
+    parser.add_argument("--ai-records-root", type=Path, default=WORKSPACE_ROOT / "work" / "hyoka-ai",
+                        help="AI が書き写した記録の置き場。機械で取り出した記録の無い自治体に使う（無ければ使わない）")
     parser.add_argument("--no-records", action="store_true", help="事業の記録の控えを作らない（今ある控えは消える）")
     parser.add_argument("--index-log", type=Path, action="append", default=[],
                         help="索引づくりのログ。古い順に複数渡せる（後のもので自治体ごとに上書き）")
@@ -317,13 +331,15 @@ def main(argv: list[str] | None = None) -> int:
     if not args.work_root.is_dir():
         parser.error(f"--work-root が無い: {args.work_root}")
     try:
-        status = build(args.work_root, None if args.no_records else args.records_root, args.out, args.index_log)
+        ai_root = args.ai_records_root if args.ai_records_root.is_dir() else None
+        status = build(args.work_root, None if args.no_records else args.records_root, args.out, args.index_log, ai_root)
     except ValueError as exc:
         parser.error(str(exc))
     totals = status["totals"]
     print(f"[HYOKA-DISPLAY] 自治体 {totals['municipalities']} 文書 {totals['documents']} 本文 {totals['text_ok']} "
           f"検索 {totals['indexed_documents']} OCR {totals['ocr_done']} 待ち {totals['ocr_waiting']} 打ち切り {totals['ocr_failed']} "
-          f"事業の記録 {totals['records']}（{totals['municipalities_with_records']} 自治体） -> {args.out}")
+          f"事業の記録 {totals['records']}（{totals['municipalities_with_records']} 自治体、うち AI {totals['records_ai']}・"
+          f"{totals['municipalities_with_ai_records']} 自治体） -> {args.out}")
     return 0
 
 

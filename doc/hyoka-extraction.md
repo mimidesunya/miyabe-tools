@@ -3,6 +3,7 @@
 取得済みの原典を自治体・様式別のプログラムで読み、[共通形式1.2.0](hyoka-common-format.md) の記録にする。
 入口は `tools/hyoka/extract/run_extract.py`、様式定義は `tools/hyoka/extract/templates/<団体コード>.yaml`。
 ネットワーク、生成AI、要約、原典への書込みは使わない。取得器・公開API・検索への接続はこの段階に含めない。
+定義の無い自治体は [AI による書き写し](hyoka-ai-extraction.md) で構造化する（機械抽出の記録がある自治体はこちらを優先）。
 
 ## 入出力と実行
 

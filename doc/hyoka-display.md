@@ -1,7 +1,8 @@
 # 事務事業評価の画面（事業の一覧と取り込みの状態）
 
 事務事業評価は、自治体の PDF から取り出した文字だけでは表の読み順が崩れて読みにくい。
-[機械抽出](hyoka-extraction.md)で事業ごとの欄に分けた自治体の文書は、詳細画面に事業の一覧を出す。
+[機械抽出](hyoka-extraction.md)で事業ごとの欄に分けた自治体の文書と、[AI が書き写した](hyoka-ai-extraction.md)
+自治体の文書は、詳細画面に事業の一覧を出す。機械抽出の記録がある自治体はそちらを使う。
 取り込みの状態は、会議録・例規と違って実行状態の DB にまだつないでいないので、控えから件数を出す。
 
 ## 画面
@@ -12,11 +13,13 @@
   欄名は原典のまま（標準の名前と違えば「原典の欄名」を添える）、各事業から原典の頁（`#page=N`）へ飛べる。
   頁で分けた詳細（`…:pN`）では、その頁の事業だけを出す。事業が 60 件を超える文書は見出しだけを先に出し、
   開いたときに `/api/hyoka-record.php?id=…&record=…` から中身（HTML の断片）を読む。
-  記録の無い文書は、取り出した文字をそのまま出すことを断る。
+  記録の無い文書は、取り出した文字をそのまま出すことを断る。断り書きは、機械抽出の記録なら「機械で書き写した」、
+  AI の記録（`layout: ai_transcription`）なら「AI が書き写し、原典の文字と機械で照合した」。
 - **検索結果の一覧**（`/search/?doc_type=hyoka`）: 事業の記録がある文書は、結果ごとにその頁（頁区切りが無ければ
   文書全体）の事業を表で出す（事業名・担当・評価・今後の方向性）。検索語を含む事業を先に最大 5 件、残りの数も添え、
   各行から詳細画面のその事業（`#record-…`）へ飛べる。中身は `/api/search` の `records`・`records_total` で、
-  MCP の `search_hyoka` にも同じものが入る。記録の無い文書は抜粋だけ（表の升目ごとの改行は詰める）。
+  MCP の `search_hyoka` にも同じものが入る。事業ごとの `method`（`machine`・`ai`）で書き写し方を示し、
+  一覧の断り書きも分ける。記録の無い文書は抜粋だけ（表の升目ごとの改行は詰める）。
 - **収集・公開状況**（`/status/#hyoka`）: 自治体・文書・事業ごとの欄の 3 段の数と、都道府県別の自治体の表
   （取得の結果、文書、検索できる本数、OCR で読んだ・待ち・読めず、事業の記録、年度、掲載ページ）。
 - **自治体一覧**（`/municipalities/`）: 事務事業評価の欄に「検索 N本」「事業 N件」の札。「検索 N本」と
@@ -35,7 +38,9 @@
   文中の記載（embedded）や組み立てた値は出さない。欄の中の折り返し（セルの幅で切れた改行）だけは詰める
   （文の終わり「。」と箇条書きの頭「○・①」などの改行は残す）。原典の URL も持たせる。
   ZIP の中の文書の記録は、索引に詳細画面が無いので控えを作らない（状態の数には入れる）。
-  抽出し直して無くなった文書の控えは消す。
+  抽出し直して無くなった文書の控えは消す。自治体ごとに、機械抽出の記録（`--records-root`）があればそれを、
+  無ければ AI の記録（`--ai-records-root`、既定 `work/hyoka-ai`。置き場が無ければ使わない）を使い、
+  `status.json` の `records_source`（`machine`・`ai`）と合計の `records_ai` に残す。
 
 取り込み（取得・OCR・抽出・索引づくり）のあとに流す。全量の rebuild のログのあとに update のログを古い順に渡せば、
 後のもので自治体ごとに上書きする。保存先を付け忘れて空の入力で走らせると、控えを空で上書きせずに止まる。
@@ -45,8 +50,9 @@ cd ~/services/miyabe-tools
 docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml run --rm --no-deps -T \
   -v /mnt/big/miyabe-tools/work/hyoka:/workspace/work/hyoka:ro \
   -v /mnt/big/miyabe-tools/work/hyoka-extracted:/workspace/work/hyoka-extracted:ro \
+  -v /mnt/big/miyabe-tools/work/hyoka-ai:/workspace/work/hyoka-ai:ro \
   scraper-reiki-index python3 tools/hyoka/build_display_data.py \
-  --work-root work/hyoka --records-root work/hyoka-extracted --out data/hyoka \
+  --work-root work/hyoka --records-root work/hyoka-extracted --ai-records-root work/hyoka-ai --out data/hyoka \
   --index-log work/hyoka-index-logs/rebuild-YYYYMMDDHHMMSS.log
 ```
 

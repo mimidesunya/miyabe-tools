@@ -372,7 +372,8 @@ OpenAPI YAML: https://tools.miya.be/openapi.yaml</code></pre>
             <p>
                 事業ごとの欄に分けてある事務事業評価の文書では、検索結果の各件に <code>records</code>（その頁の事業。
                 検索語を含むものを先に最大5件で、事業名 <code>project_name</code>・担当 <code>department</code>・評価 <code>evaluation_rating</code>・
-                今後の方向性 <code>future_direction</code> など）と、事業の数 <code>records_total</code> が入ります。原典の表の欄を機械で書き写したもので、
+                今後の方向性 <code>future_direction</code> など）と、事業の数 <code>records_total</code> が入ります。原典の表の欄を、自治体ごとの様式の定義で
+                機械が、または AI が書き写したもので（各件の <code>method</code> が <code>machine</code>・<code>ai</code>。AI の値は原典の文字と機械で照合済み）、
                 人の確認はまだです。条件が不正なときは 422 で、<code>error</code> に理由が入ります。
             </p>
         </section>

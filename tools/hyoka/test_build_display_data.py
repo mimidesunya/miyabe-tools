@@ -126,6 +126,29 @@ class BuildTest(unittest.TestCase):
         b.build(self.work, self.records, self.out, [])
         self.assertFalse(stale.exists())
 
+    def test_ai_records_are_used_only_where_machine_records_are_missing(self) -> None:
+        other = "88888-other-shi"
+        (self.work / other).mkdir(parents=True)
+        (self.work / other / "manifest.json").write_text(json.dumps({
+            "slug": other, "jis_code": "88888", "name": "例市", "documents": {DOC_B: {"text_status": "ok", "file_type": "pdf",
+                                                                                    "source_url": "https://example.jp/b.pdf"}},
+        }, ensure_ascii=False), encoding="utf-8")
+        ai_root = self.out.parent / "ai"
+        for slug in (SLUG, other):
+            ai_record = record(f"ai-{DOC_B}-p0002-01", DOC_B, 2, f"AI の事業 {slug[:5]}")
+            ai_record["layout"] = "ai_transcription"
+            (ai_root / slug).mkdir(parents=True)
+            (ai_root / slug / "records.jsonl").write_text(json.dumps(ai_record, ensure_ascii=False) + "\n", encoding="utf-8")
+        status = b.build(self.work, self.records, self.out, [], ai_root)
+        rows = {row["slug"]: row for row in status["municipalities"]}
+        self.assertEqual((rows[SLUG]["records_source"], rows[SLUG]["records"]), ("machine", 3))  # 機械の記録を優先
+        self.assertEqual((rows[other]["records_source"], rows[other]["records"]), ("ai", 1))
+        self.assertEqual((status["totals"]["records_ai"], status["totals"]["municipalities_with_ai_records"]), (1, 1))
+        saved = json.loads((self.out / "records" / other / f"{DOC_B}.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved["records"][0]["layout"], "ai_transcription")
+        self.assertEqual(saved["source_url"], "https://example.jp/b.pdf")
+        self.assertFalse((self.out / "records" / SLUG / f"{DOC_B}.json").exists())
+
     def test_empty_inputs_do_not_overwrite_the_display_data(self) -> None:
         with self.assertRaises(ValueError):
             b.build(self.work, self.out / "missing", self.out, [])

@@ -109,7 +109,14 @@ function miyabe_hyoka_display_record_summary(array $record): array
         'evaluation_rating' => miyabe_hyoka_display_field($record, 'evaluation_rating'),
         'future_direction' => miyabe_hyoka_display_field($record, 'future_direction'),
         'location' => miyabe_hyoka_display_location_label($record),
+        'method' => miyabe_hyoka_display_is_ai($record) ? 'ai' : 'machine',
     ];
+}
+
+// AI が書き写した記録か（doc/hyoka-ai-extraction.md）。様式の定義で機械が取り出した記録と断り書きを分ける。
+function miyabe_hyoka_display_is_ai(array $record): bool
+{
+    return ($record['layout'] ?? '') === 'ai_transcription';
 }
 
 /**

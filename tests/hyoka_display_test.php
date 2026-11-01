@@ -31,7 +31,7 @@ file_put_contents($dir . '/records/' . $slug . '/' . $docId . '.json', json_enco
         ['id' => 'r1', 'page' => 1, 'fields' => [
             ['key' => 'project_name', 'name' => '事業名', 'label' => '事業名', 'text' => '広報事業'],
         ], 'raw_fields' => []],
-        ['id' => 'r2', 'page' => 3, 'fields' => [
+        ['id' => 'r2', 'page' => 3, 'layout' => 'ai_transcription', 'fields' => [
             ['key' => 'project_name', 'name' => '事業名', 'label' => '事務事業名', 'text' => '防災<script>'],
             ['key' => 'future_direction', 'name' => '今後の方向性', 'label' => '今後の方向性', 'text' => '継続'],
         ], 'raw_fields' => [['label' => '事業概要', 'text' => "訓練を行う。\n年 2 回。"]]],
@@ -66,6 +66,7 @@ check('検索結果に事業の数を添える', $found['total'] === 2);
 check('検索語を含む事業を先にする', array_column($found['records'], 'id') === ['r2', 'r1']);
 check('検索語を含むかの印', $found['records'][0]['matched'] === true && $found['records'][1]['matched'] === false);
 check('事業名と方向性を短い形に入れる', $found['records'][0]['project_name'] === '防災<script>' && $found['records'][0]['future_direction'] === '継続');
+check('AI が書き写した記録かを短い形に入れる', $found['records'][0]['method'] === 'ai' && $found['records'][1]['method'] === 'machine');
 check('語が無ければ原典の順', array_column(miyabe_hyoka_display_search_records("hyoka:{$slug}:{$docId}", [])['records'], 'id') === ['r1', 'r2']);
 check('件数の上限で切る', count(miyabe_hyoka_display_search_records("hyoka:{$slug}:{$docId}", [], 1)['records']) === 1);
 check('頁で分けた結果ならその頁の事業だけ', miyabe_hyoka_display_search_records("hyoka:{$slug}:{$docId}:p1", ['訓練'])['total'] === 1);

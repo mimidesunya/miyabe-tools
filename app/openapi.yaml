@@ -385,7 +385,7 @@ components:
           description: hyoka の頁分割の根拠または分割できない理由。saved_text_no_page_boundaries は保存済み本文に頁区切りが無い。
         records:
           type: array
-          description: hyoka で、事業ごとの欄に分けてある文書の事業（/api/search のみ）。検索語を含むものを先に最大5件。値は原典の表の欄を機械で書き写したもので、人の確認はまだです。分けていない文書は空の配列です。
+          description: hyoka で、事業ごとの欄に分けてある文書の事業（/api/search のみ）。検索語を含むものを先に最大5件。値は原典の表の欄を、自治体ごとの様式の定義で機械が、または AI が書き写したもの（各件の method。AI の値は原典の文字と機械で照合済み）で、人の確認はまだです。分けていない文書は空の配列です。
           items:
             $ref: "#/components/schemas/HyokaRecord"
         records_total:
@@ -416,6 +416,10 @@ components:
         location:
           type: string
           description: 原典の頁など。
+        method:
+          type: string
+          enum: [machine, ai]
+          description: 書き写し方。machine は自治体ごとの様式の定義で機械が取り出した記録、ai は AI が書き写し原典の文字と機械で照合した記録。
         matched:
           type: boolean
           description: 検索語を含む事業か。
