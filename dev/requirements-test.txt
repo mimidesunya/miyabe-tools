@@ -8,6 +8,10 @@ pypdf[crypto]>=6.21.4
 sudachipy>=0.6,<0.7
 sudachidict_core
 pillow>=13.0.0
+# 事務事業評価の抽出（tools/hyoka/extract）と、その試験で合成の PDF を作るのに要る。
+PyYAML>=6.0
+pypdfium2==4.30.0
+reportlab>=4.0
 celery[redis]>=5.4,<6
 # スクレイパが import する。ブラウザは入れない（テストは起動しない）。
 playwright==1.64.1
