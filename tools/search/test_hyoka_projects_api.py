@@ -216,6 +216,14 @@ def test_project_detail_with_sheet_text(api):
     assert payload["sheet"] == []
 
 
+def test_project_detail_accepts_machine_record_ids(api):
+    call, requests, _ = api
+    machine_id = f"hyoka-project:{SLUG}:{DOC}:hyoka:{'0' * 24}"
+    status, payload = call("hyoka-project", id=machine_id)
+    assert status == 200, payload
+    assert requests[-1][1]["query"] == {"ids": {"values": [machine_id]}}
+
+
 def test_project_detail_errors(api):
     call, requests, response = api
     status, payload = call("hyoka-project", id="hyoka:14130-kawasaki-shi:aaaa")

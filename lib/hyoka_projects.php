@@ -614,10 +614,13 @@ function miyabe_hyoka_projects_execute_get(array $input): array
     ];
 }
 
-/** 事業の ID「hyoka-project:<slug>:<doc_id>:<record_id>」を分ける。形が崩れていれば null。 */
+/**
+ * 事業の ID「hyoka-project:<slug>:<doc_id>:<record_id>」を分ける。形が崩れていれば null。
+ * 記録の ID は機械の抽出だと「hyoka:<24 桁>」で、`:` を含む。
+ */
 function miyabe_hyoka_projects_parse_id(string $id): ?array
 {
-    if (!preg_match('/^hyoka-project:([0-9]{5}-[a-z0-9-]+):([0-9a-f]{16}):([A-Za-z0-9._-]{1,120})$/', $id, $match)) {
+    if (!preg_match('/^hyoka-project:([0-9]{5}-[a-z0-9-]+):([0-9a-f]{16}):([A-Za-z0-9._:-]{1,120})$/', $id, $match)) {
         return null;
     }
     return ['slug' => $match[1], 'doc_id' => $match[2], 'record_id' => $match[3]];
