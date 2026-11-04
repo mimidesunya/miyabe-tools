@@ -65,6 +65,20 @@ def read_body(path: Path) -> str:
     return text.strip("\n")
 
 
+def fallback_title(body: str, limit: int = 60) -> str:
+    """題名の無い文書（川崎市の古い年度の HTML の頁には <title> が無い）の題名。
+
+    本文の最初の行を使い、「事務事業名」のような短い欄名なら次の行（事業名）とつなぐ。
+    """
+    lines = [line.strip() for line in body.splitlines() if line.strip()]
+    if not lines:
+        return ""
+    title = lines[0]
+    if len(title) <= 8 and len(lines) > 1:
+        title = f"{title} {lines[1]}"
+    return title[:limit]
+
+
 def split_pages(body: str, entry: dict) -> list[tuple[int | None, str, str]]:
     """物理頁が確認できる場合だけ分割する。空頁の番号は詰めない。"""
     pages = entry.get("pages")

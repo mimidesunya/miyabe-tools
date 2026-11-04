@@ -1077,7 +1077,8 @@ def iter_hyoka_documents(
                 text_path = hyoka_source_records.current_text_path(manifest_path.parent, entry)
                 body = hyoka_source_records.read_body(text_path)
                 pages = hyoka_source_records.split_pages(body, entry)
-                title = str(entry.get("title") or entry.get("link_text") or entry.get("heading") or "").strip()
+                title = (str(entry.get("title") or entry.get("link_text") or entry.get("heading") or "").strip()
+                         or hyoka_source_records.fallback_title(body))
                 fiscal_year = entry.get("fiscal_year")
                 if fiscal_year is not None and (isinstance(fiscal_year, bool) or not isinstance(fiscal_year, int)):
                     raise ValueError("hyoka fiscal_year must be an integer or null")

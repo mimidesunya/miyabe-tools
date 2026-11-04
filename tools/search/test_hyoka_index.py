@@ -135,6 +135,15 @@ class HyokaIndexTest(unittest.TestCase):
         self.assertNotIn("page", doc)
         self.assertEqual(doc["page_split_reason"], "page_boundary_count_mismatch")
 
+    def test_untitled_document_takes_its_title_from_the_first_lines(self):
+        for key in ("title", "link_text", "heading"):
+            self.entry[key] = ""
+        self.entry["file_type"] = "html"
+        self.write("事務事業名\n土地区画整理事業\n事務事業所管課")
+        self.assertEqual(self.documents()[0][1]["title"], "事務事業名 土地区画整理事業")
+        self.assertEqual(records.fallback_title("令和7年度 事務事業評価シート\n事業の概要"), "令和7年度 事務事業評価シート")
+        self.assertEqual(records.fallback_title(""), "")
+
     def test_non_pdf_document_is_not_split_into_physical_pages(self):
         self.entry["file_type"] = "xlsx"
         self.write("シート一\fシート二")
