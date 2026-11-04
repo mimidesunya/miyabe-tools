@@ -117,15 +117,17 @@ def test_search_filters_sort_and_items(api):
     path, body = requests[-1]
     assert path == "/test-projects/_search"
     assert (body["from"], body["size"]) == (5, 5)
-    filters = body["query"]["bool"]["filter"]
+    scored = body["query"]["function_score"]
+    assert {"filter": {"term": {"document_kind": "project_evaluation"}}, "weight": 2} in scored["functions"]
+    assert scored["boost_mode"] == "multiply"
+    filters = scored["query"]["bool"]["filter"]
     for clause in ({"term": {"slug": SLUG}}, {"term": {"pref_code": "14"}}, {"term": {"evaluation_year": 2024}},
                    {"terms": {"direction": ["improve", "expand"]}}, {"terms": {"rating": ["4"]}}, {"terms": {"aspects": ["成果:c"]}},
                    {"terms": {"method": ["program"]}}, {"term": {"has_amounts": True}}, {"range": {"cost_yen": {"gte": 100000000}}},
                    {"range": {"outcome_ratio_min": {"lte": 0.9999}}}, {"range": {"cost_change_ratio": {"gte": 1.5}}},
                    {"term": {"flags": "outcome_below_half"}}, {"term": {"flags": "cost_up_below_target"}}):
         assert clause in filters, clause
-    assert body["query"]["bool"]["must"][0]["simple_query_string"]["query"] == "ミュージアム"
-    assert {"term": {"document_kind": {"value": "project_evaluation", "boost": 2.0}}} in body["query"]["bool"]["should"]
+    assert scored["query"]["bool"]["must"][0]["simple_query_string"]["query"] == "ミュージアム"
     assert list(body["sort"][0]) == ["cost_change_ratio"]
     assert "amounts" not in body["_source"]
     item = payload["items"][0]

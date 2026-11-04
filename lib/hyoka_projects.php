@@ -246,15 +246,21 @@ function miyabe_hyoka_projects_bool_query(array $params): array
 {
     $bool = ['filter' => miyabe_hyoka_projects_filter_clauses($params)];
     $clause = miyabe_hyoka_projects_query_clause($params['q']);
-    if ($clause !== null) {
-        $bool['must'] = [$clause];
-        // 同じ事業名が総括や施策の表の行にも出るので、事業ごとのシート（事務事業評価の文書・総費用の行がある記録）を先に出す。
-        $bool['should'] = [
-            ['term' => ['document_kind' => ['value' => 'project_evaluation', 'boost' => 2.0]]],
-            ['exists' => ['field' => 'staff_fte', 'boost' => 1.0]],
-        ];
+    if ($clause === null) {
+        return $bool['filter'] === [] ? ['match_all' => (object)[]] : ['bool' => $bool];
     }
-    return $bool['filter'] === [] && !isset($bool['must']) ? ['match_all' => (object)[]] : ['bool' => $bool];
+    $bool['must'] = [$clause];
+    // 同じ事業名が総括や施策の表の行にも出る（行のほうが文字が短く、関連度の点が高くなりやすい）ので、
+    // 事業ごとのシート（事務事業評価の文書、人工の欄がある記録）の点を掛け算で上げて先に出す。
+    return ['function_score' => [
+        'query' => ['bool' => $bool],
+        'functions' => [
+            ['filter' => ['term' => ['document_kind' => 'project_evaluation']], 'weight' => 2],
+            ['filter' => ['exists' => ['field' => 'staff_fte']], 'weight' => 1.5],
+        ],
+        'score_mode' => 'multiply',
+        'boost_mode' => 'multiply',
+    ]];
 }
 
 /** 事業を探す要求。返すのは ['body' => …, 'params' => …, 'error' => …]。 */
