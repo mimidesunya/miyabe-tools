@@ -448,12 +448,25 @@ def read_policy_rows(document):
                         rec['amounts'].append({'label': money_head.text, 'fiscal_year': western_year(yh.text),
                             **cell.value(), 'stage': 'estimate' if stage == 'settlement' and '見込' in yh.text else stage,
                             'scope': 'direct', 'unit': '千円', 'unit_source': money_head.text})
+            if not rec['evaluation_year']:
+                # 表題に年度の無い施策表の頁。決算が見込の年度が評価した年度
+                rec['evaluation_year'] = next((western_year(yh.text) for yh in year_cells if '見込' in yh.text), 0) or 0
             dh = exact(page, '今後の事業の方向性')
             if dh:
-                dc = next((c for c in table if c.r == code.r and c.c == dh.c), None)
                 rh = exact(page, '事業の達成度')
-                rc = next((c for c in table if rh and c.r == name.r and c.c == rh.c), None)
-                rec['evaluations'].append(evaluation(dh.text, rc, dc))
+                ch = next((c for c in table if '貢献' in norm(c.text) and c.r < code.r), None)
+
+                def at(head, row):
+                    return next((c for c in table if head and c.c == head.c and c.r <= row < c.r + c.rs), None)
+
+                # 令和の施策表は年度ごとに達成度、貢献度、方向性の行がある（平成29年度は方向性が事業に 1 つ）。
+                # 最初の年度の行だけを読むと、評価した年度と違う年度の判定になる。年度ごとの評価を古い順に並べる
+                for i, yh in enumerate(year_cells):
+                    rc, cc, dc = at(rh, code.r + i), at(ch, code.r + i), at(dh, code.r + i)
+                    if all(norm(cell.text if cell else '') in ('', '－', '-', '―') for cell in (rc, cc, dc)):
+                        continue
+                    aspects = [{'aspect_raw': ch.text, 'rating_raw': cc.text}] if cc and cc.text and ch else []
+                    rec['evaluations'].append(evaluation(f'{norm(yh.text)} {dh.text}', rc, dc, aspects=aspects))
             records.append(rec)
     return records
 

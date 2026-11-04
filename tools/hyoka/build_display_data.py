@@ -241,7 +241,8 @@ def compact_form_record(record: dict, doc_id: str, number: int) -> dict:
         if isinstance(year, int) and year > 0:
             fields.append({"key": key, "name": name, "label": "", "text": f"{year}年度"})
     evaluations = [row for row in record.get("evaluations") or [] if isinstance(row, dict)]
-    rating = next((row.get("rating_raw") for row in evaluations if row.get("rating_raw")), "")
+    # 評価が年度や段階で複数あるときは、最後（評価した年度、最後の段階）のものを札に出す
+    rating = next((row.get("rating_raw") for row in reversed(evaluations) if row.get("rating_raw")), "")
     final = next((row for row in reversed(evaluations) if row.get("direction_raw")), {})
     if rating:
         fields.append({"key": "evaluation_rating", "name": "評価区分・点数", "label": "", "text": join_wrapped_lines(rating)})
