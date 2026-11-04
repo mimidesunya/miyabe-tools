@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import re
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
@@ -63,6 +64,17 @@ def read_body(path: Path) -> str:
     if not text.strip():
         raise ValueError("hyoka text_status=ok has an empty body")
     return text.strip("\n")
+
+
+# 題名はリンクの文字から取っているので、掲載ページのリンクに付く「別ウィンドウで開く」などが混ざる。
+# 収集の tools/hyoka/scrape_hyoka_docs.py の WINDOW_NOTE_RE と同じ。
+WINDOW_NOTE_RE = re.compile(
+    r"\s*[（(][^（()）]*(?:別|新規|新しい)ウィンドウ[^（()）]*[）)]|\s*(?:別|新規|新しい)ウィンドウ(?:で|が)開(?:く|きます)"
+)
+
+
+def clean_title(title: str) -> str:
+    return re.sub(r"\s+", " ", WINDOW_NOTE_RE.sub("", title)).strip(" 　​")
 
 
 def fallback_title(body: str, limit: int = 60) -> str:

@@ -153,6 +153,11 @@ FILE_NOTE_RE = re.compile(
     r"|[（(]\s*[\d.,]+\s*(?:キロバイト|メガバイト|KB|MB)\s*[）)]",
     re.I,
 )
+# 掲載ページのリンクに付く「別ウィンドウで開く」「（新規ウィンドウ表示）」「（別ウィンドウ・PDFファイル・1.2MB）」。
+# 索引の題名も同じ注記を除く（tools/search/hyoka_source_records.py の WINDOW_NOTE_RE）。
+WINDOW_NOTE_RE = re.compile(
+    r"\s*[（(][^（()）]*(?:別|新規|新しい)ウィンドウ[^（()）]*[）)]|\s*(?:別|新規|新しい)ウィンドウ(?:で|が)開(?:く|きます)"
+)
 NOTE_TYPES = (
     ("pdf", re.compile(r"PDF|ＰＤＦ", re.I)),
     ("xlsx", re.compile(r"Excel|ＥＸＣＥＬ|エクセル|xlsx?|xlsm", re.I)),
@@ -194,7 +199,7 @@ def unescape_label(text: str) -> str:
 
 
 def strip_file_note(label: str) -> str:
-    return clean_label(FILE_NOTE_RE.sub("", label)).strip(" 　・-")
+    return clean_label(FILE_NOTE_RE.sub("", WINDOW_NOTE_RE.sub("", label))).strip(" 　・-​")
 
 
 def link_file_type(url: str, label: str) -> str | None:

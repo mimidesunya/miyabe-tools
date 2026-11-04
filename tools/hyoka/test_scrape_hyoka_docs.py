@@ -195,6 +195,12 @@ class FileLinkTest(unittest.TestCase):
         self.assertEqual(h.strip_file_note("事業評価シート（エクセル：30KB）"), "事業評価シート")
         self.assertEqual(h.strip_file_note("区域まちづくり事業（北区）（PDF：705KB）"), "区域まちづくり事業（北区）")
 
+    def test_title_drops_the_new_window_note(self) -> None:
+        self.assertEqual(h.strip_file_note("政策 4-8 スポーツ・文化芸術を振興する別ウィンドウで開く"), "政策 4-8 スポーツ・文化芸術を振興する")
+        self.assertEqual(h.strip_file_note("令和4年度内部評価実施結果 （新規ウィンドウ表示）"), "令和4年度内部評価実施結果")
+        self.assertEqual(h.strip_file_note("事務事業評価表（総務課） （別ウィンドウ・PDFファイル・1.2MB）"), "事務事業評価表（総務課）")
+        self.assertEqual(h.strip_file_note("評価結果一覧（別ウィンドウが開きます）"), "評価結果一覧")
+
 
 class YearTest(unittest.TestCase):
     def candidate(self, **kwargs) -> h.Candidate:

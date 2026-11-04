@@ -144,6 +144,15 @@ class HyokaIndexTest(unittest.TestCase):
         self.assertEqual(records.fallback_title("令和7年度 事務事業評価シート\n事業の概要"), "令和7年度 事務事業評価シート")
         self.assertEqual(records.fallback_title(""), "")
 
+    def test_title_drops_the_new_window_note_of_the_link(self):
+        self.entry["title"] = "政策 4-8 スポーツ・文化芸術を振興する別ウィンドウで開く"
+        self.write("本文")
+        self.assertEqual(self.documents()[0][1]["title"], "政策 4-8 スポーツ・文化芸術を振興する")
+        self.assertEqual(records.clean_title("進行管理報告書（令和4年度分）​（別ウィンドウで開きます）"), "進行管理報告書（令和4年度分）")
+        self.assertEqual(records.clean_title("令和4年度内部評価実施結果 （新規ウィンドウ表示）"), "令和4年度内部評価実施結果")
+        self.assertEqual(records.clean_title("評価表 （別ウィンドウ・PDFファイル・32KB）"), "評価表")
+        self.assertEqual(records.clean_title("ウィンドウ清掃業務"), "ウィンドウ清掃業務")
+
     def test_non_pdf_document_is_not_split_into_physical_pages(self):
         self.entry["file_type"] = "xlsx"
         self.write("シート一\fシート二")

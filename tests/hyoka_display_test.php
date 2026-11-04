@@ -129,6 +129,29 @@ check('位置の表示も文字を逃がす', str_contains($canvasHtml, '事業&
 check('位置の表示は頁の縦横比を保つ', str_contains($canvasHtml, 'aspect-ratio:595.0/842.0'));
 check('位置の表示の縦書き', str_contains($canvasHtml, 'class="is-vertical"'));
 check('javascript の原典には飛ばない', !str_contains(miyabe_hyoka_display_sheet_html($sheet, 'javascript:alert(1)'), 'href='));
+check('HTML の原典には頁の印を付けない', str_contains(miyabe_hyoka_display_sheet_html($sheet, 'https://example.jp/a.htm'), 'href="https://example.jp/a.htm"'));
+
+// 表全体を囲む帯の升目（川崎市の「事業の概要」）は、ほかの升目と重ならない上の行に縮める。
+$frameHtml = miyabe_hyoka_display_sheet_table_html(['cells' => [
+    ['r' => 0, 'c' => 0, 'rs' => 3, 'cs' => 3, 'text' => '事業の概要'],
+    ['r' => 1, 'c' => 2, 'rs' => 1, 'cs' => 1, 'text' => '値'],
+    ['r' => 1, 'c' => 1, 'rs' => 1, 'cs' => 1, 'text' => '欄'],
+    ['r' => 2, 'c' => 1, 'rs' => 1, 'cs' => 2, 'text' => '下'],
+]]);
+check('囲む帯は上の行に縮める', str_contains($frameHtml, '<tr><td colspan="3">事業の概要</td></tr>'));
+check('升目は列の順に並べ、空いた番地は空の升目で埋める', str_contains($frameHtml, '<tr><td></td><td>欄</td><td>値</td></tr>')
+    && str_contains($frameHtml, '<tr><td></td><td colspan="2">下</td></tr>'));
+$coveredHtml = miyabe_hyoka_display_sheet_table_html(['cells' => [
+    ['r' => 0, 'c' => 0, 'rs' => 1, 'cs' => 2, 'text' => '覆われた'],
+    ['r' => 0, 'c' => 0, 'rs' => 1, 'cs' => 1, 'text' => 'A'],
+    ['r' => 0, 'c' => 1, 'rs' => 1, 'cs' => 1, 'text' => 'B'],
+]]);
+check('すべて覆われた升目の文字も落とさない', str_contains($coveredHtml, '<td colspan="2">覆われた</td>'));
+$spanHtml = miyabe_hyoka_display_sheet_table_html(['cells' => [
+    ['r' => 0, 'c' => 0, 'rs' => 3, 'cs' => 1, 'text' => '縦'],
+    ['r' => 0, 'c' => 1, 'rs' => 3, 'cs' => 1, 'text' => '縦2'],
+]]);
+check('上の升目に覆われた行も数に入れる', substr_count($spanHtml, '<tr>') === 3);
 
 // 様式ごとの読み取りの記録（金額などを表で持つ）
 $formRecord = [

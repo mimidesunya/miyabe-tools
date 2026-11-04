@@ -144,15 +144,86 @@ function miyabe_hyoka_display_sheet_page(string $id, int $pageNumber = 0): ?arra
     return $found === null ? null : ['page' => $found, 'pages' => $pages];
 }
 
-function miyabe_hyoka_display_sheet_table_html(array $table): string
+// 升目を表の番地に置く。升目どうしが重なることがある（川崎市の「事業の概要」の帯は、表全体を囲む枠の大きさで
+// 読み取られている）ので、小さい升目から置き、大きい升目は空いている所まで縮める（左上から右へ、次に下へ）。
+// 空いた番地は空の升目で埋める。返すのは行ごとの [列 => 升目]（升目は r, c, rs, cs, text）。
+function miyabe_hyoka_display_sheet_grid(array $cells): array
 {
-    $rows = [];
-    foreach (($table['cells'] ?? []) as $cell) {
+    $items = [];
+    foreach ($cells as $cell) {
         if (is_array($cell)) {
-            $rows[(int)($cell['r'] ?? 0)][] = $cell;
+            $r = max(0, (int)($cell['r'] ?? 0));
+            $c = max(0, (int)($cell['c'] ?? 0));
+            $items[] = ['r' => $r, 'c' => $c, 'rs' => max(1, (int)($cell['rs'] ?? 1)), 'cs' => max(1, (int)($cell['cs'] ?? 1)),
+                'text' => (string)($cell['text'] ?? '')];
         }
     }
+    usort($items, static fn(array $a, array $b): int => [$a['rs'] * $a['cs'], $a['r'], $a['c']] <=> [$b['rs'] * $b['cs'], $b['r'], $b['c']]);
+    $used = [];
+    $rows = [];
+    $lost = [];
+    $height = 0;
+    $width = 0;
+    foreach ($items as $cell) {
+        $anchor = null;
+        for ($y = $cell['r']; $y < $cell['r'] + $cell['rs'] && $anchor === null; $y++) {
+            for ($x = $cell['c']; $x < $cell['c'] + $cell['cs']; $x++) {
+                if (!isset($used[$y][$x])) {
+                    $anchor = [$y, $x];
+                    break;
+                }
+            }
+        }
+        if ($anchor === null) {
+            // 小さい升目にすべて覆われた升目は、文字があれば最後の行に足す（落とさない）。
+            if (trim($cell['text']) !== '') {
+                $lost[] = $cell['text'];
+            }
+            continue;
+        }
+        [$y, $x] = $anchor;
+        $w = 1;
+        while ($x + $w < $cell['c'] + $cell['cs'] && !isset($used[$y][$x + $w])) {
+            $w++;
+        }
+        $h = 1;
+        while ($y + $h < $cell['r'] + $cell['rs']) {
+            for ($i = $x; $i < $x + $w; $i++) {
+                if (isset($used[$y + $h][$i])) {
+                    break 2;
+                }
+            }
+            $h++;
+        }
+        for ($i = $y; $i < $y + $h; $i++) {
+            for ($j = $x; $j < $x + $w; $j++) {
+                $used[$i][$j] = true;
+            }
+        }
+        $rows[$y][$x] = ['r' => $y, 'c' => $x, 'rs' => $h, 'cs' => $w, 'text' => $cell['text']];
+        $height = max($height, $y + $h);
+        $width = max($width, $x + $w);
+    }
+    for ($y = 0; $y < $height; $y++) {
+        for ($x = 0; $x < $width; $x++) {
+            if (!isset($used[$y][$x])) {
+                $rows[$y][$x] = ['r' => $y, 'c' => $x, 'rs' => 1, 'cs' => 1, 'text' => ''];
+            }
+        }
+        // 上の升目に覆われて自分の升目の無い行も、行の数を合わせるため空の行にする。
+        $rows[$y] ??= [];
+        ksort($rows[$y]);
+    }
     ksort($rows);
+    if ($lost !== []) {
+        $rows[$height] = [0 => ['r' => $height, 'c' => 0, 'rs' => 1, 'cs' => max(1, $width), 'text' => implode(' ', $lost)]];
+    }
+    return $rows;
+}
+
+function miyabe_hyoka_display_sheet_table_html(array $table): string
+{
+    $rows = miyabe_hyoka_display_sheet_grid(is_array($table['cells'] ?? null) ? $table['cells'] : []);
     $html = '<div class="hyoka-sheet-scroll"><table class="hyoka-sheet-table">';
     $widths = is_array($table['widths'] ?? null) ? $table['widths'] : [];
     if ($widths !== []) {
@@ -248,7 +319,9 @@ function miyabe_hyoka_display_sheet_html(array $sheet, string $sourceUrl = ''): 
     }
     if ($sourceUrl !== '' && preg_match('#^https?://#i', $sourceUrl)) {
         $base = preg_replace('/#.*$/', '', $sourceUrl);
-        $html .= '<a href="' . htmlspecialchars($base . '#page=' . $number, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener noreferrer">原典を開く</a>';
+        // HTML の原典には頁が無いので、頁の印を付けない。
+        $link = preg_match('/\.html?$/i', (string)parse_url($base, PHP_URL_PATH)) ? $base : $base . '#page=' . $number;
+        $html .= '<a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener noreferrer">原典を開く</a>';
     }
     return $html . '</div>' . miyabe_hyoka_display_sheet_page_html($page);
 }
