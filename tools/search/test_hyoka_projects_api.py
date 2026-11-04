@@ -125,6 +125,7 @@ def test_search_filters_sort_and_items(api):
                    {"term": {"flags": "outcome_below_half"}}, {"term": {"flags": "cost_up_below_target"}}):
         assert clause in filters, clause
     assert body["query"]["bool"]["must"][0]["simple_query_string"]["query"] == "ミュージアム"
+    assert {"term": {"document_kind": {"value": "project_evaluation", "boost": 2.0}}} in body["query"]["bool"]["should"]
     assert list(body["sort"][0]) == ["cost_change_ratio"]
     assert "amounts" not in body["_source"]
     item = payload["items"][0]

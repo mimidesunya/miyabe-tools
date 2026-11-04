@@ -248,6 +248,11 @@ function miyabe_hyoka_projects_bool_query(array $params): array
     $clause = miyabe_hyoka_projects_query_clause($params['q']);
     if ($clause !== null) {
         $bool['must'] = [$clause];
+        // 同じ事業名が総括や施策の表の行にも出るので、事業ごとのシート（事務事業評価の文書・総費用の行がある記録）を先に出す。
+        $bool['should'] = [
+            ['term' => ['document_kind' => ['value' => 'project_evaluation', 'boost' => 2.0]]],
+            ['exists' => ['field' => 'staff_fte', 'boost' => 1.0]],
+        ];
     }
     return $bool['filter'] === [] && !isset($bool['must']) ? ['match_all' => (object)[]] : ['bool' => $bool];
 }
