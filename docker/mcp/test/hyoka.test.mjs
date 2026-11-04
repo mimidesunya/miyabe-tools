@@ -25,6 +25,21 @@ const fixture = {
   score: null, proximity: null
 };
 
+const projectFixture = {
+  id: "hyoka-project:14130-kawasaki-shi:aaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaa-9", project_name: "市民ミュージアム管理運営事業",
+  municipality_name: "川崎市", pref_name: "神奈川県", department: "市民文化局", evaluation_year: 2024,
+  cost_yen: 1008569000, cost_year: 2024, cost_stage: "settlement", cost_scope: "total", cost_raw: "1,008,569", cost_unit: "千円",
+  cost_prev_yen: 951217000, cost_change_ratio: 1.0603, staff_fte: 14.56, rating: "3", direction: "improve",
+  direction_text: "Ⅱ（改善・見直し）", aspects: ["成果:b"], outcome_ratio_min: null, score: null,
+  indicators: [{ name: "展覧会等の開催回数", kind: "activity", unit: "回", year: 2024, target: "4", actual: "10", ratio: 2.5,
+    cost_per_unit_yen: 100856900 }],
+  flags: ["no_outcome_target", "renamed"], project_names: ["市民ミュージアム運営事業", "市民ミュージアム管理運営事業"],
+  project_first_year: 2011, project_last_year: 2025, slug: "14130-kawasaki-shi",
+  location: "原典 21頁", source_page_link: "https://example.invalid/4-8.pdf#page=21",
+  detail_url: "/search/detail/?id=hyoka%3A14130-kawasaki-shi%3Aaaaaaaaaaaaaaaaa&doc_type=hyoka",
+  api_project_url: "/api/hyoka-project.php?id=x"
+};
+
 async function listen(server) {
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
@@ -76,6 +91,32 @@ test("hyoka MCP contract through a local public API mock", { timeout: 30000 }, a
       document.page_split_reason = "saved_text_no_page_boundaries";
     }
     res.setHeader("Content-Type", "application/json");
+    if (url.pathname === "/api/hyoka-projects.php") {
+      res.end(JSON.stringify({ status: "ok", query: url.searchParams.get("q") || "", sort: "cost_desc", page: 1, per_page: 10,
+        total: 1, total_relation: "eq", items: [projectFixture] }));
+      return;
+    }
+    if (url.pathname === "/api/hyoka-aggregate.php") {
+      if (!url.searchParams.get("year")) {
+        res.statusCode = 422;
+        res.end(JSON.stringify({ status: "query_error", error: "year（金額の年度）を指定してください。" }));
+        return;
+      }
+      res.end(JSON.stringify({ status: "ok", query: "", year: 2024, from_year: null, to_year: null, scope: "total", stage: "best",
+        group_by: "municipality", matched_records: 3, total: { yen: 1234500000, projects: 2, municipalities: 1 },
+        groups: [{ key: "14130-kawasaki-shi", label: "川崎市", yen: 1234500000, projects: 2 }], other_groups_yen: 0,
+        top_projects: [{ id: projectFixture.id, project_name: projectFixture.project_name, municipality_name: "川崎市",
+          department: "", year: 2024, stage: "settlement", label: "総コスト", raw: "1,008,569", unit: "千円", yen: 1008569000 }],
+        notes: ["評価に載った事業だけの合計"] }));
+      return;
+    }
+    if (url.pathname === "/api/hyoka-project.php") {
+      res.end(JSON.stringify({ status: "ok", error: "", project: { ...projectFixture, amounts: [] },
+        record: { fields: [{ key: "purpose", name: "目的", text: "博物館を運営する" }],
+          amounts: { unit: "千円", columns: [{ year: 2024, stage: "決算" }], rows: [{ label: "総コスト", values: ["1,008,569"] }] } },
+        sheet: [{ page: 21, text: "事務事業名 | 市民ミュージアム管理運営事業" }], sheet_truncated: false }));
+      return;
+    }
     res.end(JSON.stringify(url.pathname === "/api/document"
       ? { status: "ok", document }
       : { status: "ok", query: url.searchParams.get("q"), doc_type: docType,
@@ -116,7 +157,11 @@ test("hyoka MCP contract through a local public API mock", { timeout: 30000 }, a
   await t.test("lists hyoka filters and permits hyoka document reads", async () => {
     const result = await rpc(base, "tools/list");
     assert.deepEqual(result.tools.map(tool => tool.name).sort(),
-      ["get_municipal_document", "search_hyoka", "search_minutes", "search_reiki"]);
+      ["aggregate_hyoka_amounts", "get_hyoka_project", "get_municipal_document", "search_hyoka", "search_hyoka_projects",
+        "search_minutes", "search_reiki"]);
+    for (const name of ["aggregate_hyoka_amounts", "get_hyoka_project", "search_hyoka_projects"]) {
+      assert.equal(result.tools.find(tool => tool.name === name).annotations.readOnlyHint, true);
+    }
     const hyoka = result.tools.find(tool => tool.name === "search_hyoka");
     assert.deepEqual(hyoka.inputSchema.properties.kind.enum,
       ["project_evaluation", "policy_evaluation", "external_review", "overview"]);
@@ -177,6 +222,83 @@ test("hyoka MCP contract through a local public API mock", { timeout: 30000 }, a
       assert.equal(result.isError, true);
       assert.equal(requests.length, before);
     }
+  });
+
+  await t.test("searches projects with filters and formats costs in yen", async () => {
+    const result = await rpc(base, "tools/call", { name: "search_hyoka_projects", arguments: {
+      slug: "14130-kawasaki-shi", direction: ["improve", "expand"], rating: ["4"], below_target: true,
+      min_cost: 100000000, min_cost_change_ratio: 1.5, sort: "cost_change_desc", per_page: 5
+    } });
+    assert.notEqual(result.isError, true, JSON.stringify(result));
+    const query = requests.at(-1).searchParams;
+    assert.equal(requests.at(-1).pathname, "/api/hyoka-projects.php");
+    for (const [key, value] of Object.entries({ slug: "14130-kawasaki-shi", direction: "improve,expand", rating: "4",
+      below_target: "1", min_cost: "100000000", min_cost_change_ratio: "1.5", sort: "cost_change_desc", per_page: "5" })) {
+      assert.equal(query.get(key), value);
+    }
+    const item = result.structuredContent.items[0];
+    assert.equal(item.outcome_ratio_min, undefined);
+    assert.match(item.detail_url, /^https:\/\/public.invalid\/search\/detail\//);
+    assert.match(item.api_project_url, /^https:\/\/public.invalid\/api\/hyoka-project\.php/);
+    const text = result.content[0].text;
+    assert.match(text, /10\.09億円/);
+    assert.match(text, /原典 1,008,569千円/);
+    assert.match(text, /前年度比 106%（前年度 9\.51億円）/);
+    assert.match(text, /方向性 改善・見直し/);
+    assert.match(text, /展覧会等の開催回数 2024年度 目標 4 実績 10回（250%） \/ 1回あたり 1\.01億円/);
+    assert.match(text, /印: 目標の数のある成果指標が無い \/ 事業名が年度で違う/);
+    assert.match(text, /履歴: 2011〜2025年度の評価に載る \/ 名前: 市民ミュージアム運営事業 → 市民ミュージアム管理運営事業/);
+    const flagged = await rpc(base, "tools/call", { name: "search_hyoka_projects", arguments: {
+      flag: ["outcome_below_half", "cost_up_below_target"] } });
+    assert.notEqual(flagged.isError, true, JSON.stringify(flagged));
+    assert.equal(requests.at(-1).searchParams.get("flag"), "outcome_below_half,cost_up_below_target");
+    const rejected = await rpc(base, "tools/call", { name: "search_hyoka_projects", arguments: { flag: ["wasteful"] } });
+    assert.equal(rejected.isError, true);
+  });
+
+  await t.test("aggregates amounts and reports REST validation errors", async () => {
+    const result = await rpc(base, "tools/call", { name: "aggregate_hyoka_amounts", arguments: {
+      year: 2024, group_by: "municipality", pref_code: "14", top: 3
+    } });
+    assert.notEqual(result.isError, true, JSON.stringify(result));
+    const query = requests.at(-1).searchParams;
+    assert.equal(requests.at(-1).pathname, "/api/hyoka-aggregate.php");
+    for (const [key, value] of Object.entries({ year: "2024", group_by: "municipality", scope: "total", stage: "best", top: "3" })) {
+      assert.equal(query.get(key), value);
+    }
+    assert.match(result.content[0].text, /合計 12\.35億円/);
+    assert.match(result.content[0].text, /川崎市（14130-kawasaki-shi）: 12\.35億円 \/ 2事業/);
+    assert.match(result.content[0].text, /注: 評価に載った事業だけの合計/);
+    const failed = await rpc(base, "tools/call", { name: "aggregate_hyoka_amounts", arguments: { group_by: "department" } });
+    assert.equal(failed.isError, true);
+    assert.match(failed.content[0].text, /year/);
+  });
+
+  await t.test("returns one project with its sheet text", async () => {
+    const result = await rpc(base, "tools/call", { name: "get_hyoka_project", arguments: { id: projectFixture.id, max_sheet_chars: 500 } });
+    assert.notEqual(result.isError, true, JSON.stringify(result));
+    assert.equal(requests.at(-1).searchParams.get("id"), projectFixture.id);
+    assert.equal(requests.at(-1).searchParams.get("max_sheet_chars"), "500");
+    const text = result.content[0].text;
+    assert.match(text, /目的: 博物館を運営する/);
+    assert.match(text, /金額（単位: 千円）/);
+    assert.match(text, /総コスト \| 1,008,569/);
+    assert.match(text, /原典 21頁の表/);
+    assert.match(result.structuredContent.project.detail_url, /^https:\/\/public.invalid\//);
+    assert.equal(result.structuredContent.related, undefined);
+    const before = requests.length;
+    const related = await rpc(base, "tools/call", { name: "get_hyoka_project", arguments: { id: projectFixture.id, include_related: true } });
+    assert.notEqual(related.isError, true, JSON.stringify(related));
+    const searches = requests.slice(before).filter(url => url.pathname === "/api/search");
+    assert.deepEqual(searches.map(url => url.searchParams.get("doc_type")).sort(), ["minutes", "reiki"]);
+    for (const url of searches) {
+      assert.equal(url.searchParams.get("q"), `"${projectFixture.project_name}"`);
+      assert.equal(url.searchParams.get("slug"), "14130-kawasaki-shi");
+      assert.equal(url.searchParams.get("per_page"), "3");
+    }
+    assert.equal(related.structuredContent.related.minutes.total, 1);
+    assert.match(related.content[0].text, /事業名が出てくる会議録: 1件/);
+    assert.match(related.content[0].text, /事業名が出てくる例規集: 1件/);
   });
 
   await t.test("keeps existing minutes/reiki default sort and filters", async () => {

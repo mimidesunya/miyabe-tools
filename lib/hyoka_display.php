@@ -302,6 +302,61 @@ function miyabe_hyoka_display_sheet_page_html(array $page): string
     return $html;
 }
 
+// 1 頁を文字にする（MCP で AI に渡す形）。表は行ごとに升目の文字を「 | 」で区切り、表の外の文字は行のまま、
+// 上からの位置の順に並べる。重なる升目の扱いは画面と同じ（miyabe_hyoka_display_sheet_grid）。
+function miyabe_hyoka_display_sheet_page_text(array $page): string
+{
+    if (!empty($page['image_only'])) {
+        return '（この頁には文字の層がありません）';
+    }
+    if (!empty($page['garbled'])) {
+        return '（この頁の文字の層は文字化けしていて読めません）';
+    }
+    if (isset($page['plain'])) {
+        return trim((string)$page['plain']);
+    }
+    $items = [];
+    if (is_array($page['canvas'] ?? null) && $page['canvas'] !== []) {
+        foreach ($page['canvas'] as $item) {
+            if (is_array($item) && trim((string)($item['x'] ?? '')) !== '') {
+                $items[] = [(float)($item['t'] ?? 0), (float)($item['l'] ?? 0), trim((string)$item['x'])];
+            }
+        }
+    }
+    foreach (($page['tables'] ?? []) as $tableIndex => $table) {
+        if (!is_array($table)) {
+            continue;
+        }
+        $lines = [];
+        foreach (miyabe_hyoka_display_sheet_grid(is_array($table['cells'] ?? null) ? $table['cells'] : []) as $cells) {
+            $texts = [];
+            foreach ($cells as $cell) {
+                $text = preg_replace('/\s+/u', ' ', trim((string)($cell['text'] ?? ''))) ?? '';
+                if ($text !== '') {
+                    $texts[] = $text;
+                }
+            }
+            if ($texts !== []) {
+                $lines[] = implode(' | ', $texts);
+            }
+        }
+        if ($lines !== []) {
+            $items[] = [(float)($table['top'] ?? 0), 0.0, '[表 ' . ($tableIndex + 1) . "]\n" . implode("\n", $lines)];
+        }
+    }
+    foreach (($page['lines'] ?? []) as $line) {
+        if (is_array($line) && trim((string)($line['text'] ?? '')) !== '') {
+            $items[] = [(float)($line['y'] ?? 0), (float)($line['x'] ?? 0) + 1, trim((string)$line['text'])];
+        }
+    }
+    usort($items, static fn(array $a, array $b): int => [$a[0], $a[1]] <=> [$b[0], $b[1]]);
+    $text = implode("\n", array_column($items, 2));
+    foreach (($page['vertical'] ?? []) as $vertical) {
+        $text .= "\n" . trim((string)$vertical);
+    }
+    return trim($text);
+}
+
 // シートの 1 頁と、前後の頁へ動く釦。
 function miyabe_hyoka_display_sheet_html(array $sheet, string $sourceUrl = ''): string
 {

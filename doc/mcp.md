@@ -56,6 +56,17 @@ curl -s -X POST http://localhost:8301/mcp -H 'Content-Type: application/json' -H
 - `search_reiki`: 条例・規則などの例規集を検索します
 - `search_hyoka`: 事務事業評価を検索します。自治体・都道府県・年度・種別で絞れます
 - `get_municipal_document`: 検索結果の `id` から本文を取得します（種別は `id` の頭 `minutes:`・`reiki:`・`hyoka:` が優先）
+- `search_hyoka_projects`: 事務事業評価を事業ごとに探します。費用（円）・前年度からの増減・方向性・評価・観点・成果指標の目標割れで絞り、費用や増え方の順に並べます（`/api/hyoka-projects.php`）
+- `aggregate_hyoka_amounts`: 事業の金額を集計します。年度・費目・段階を選び、自治体・都道府県・担当部署・方向性・年度ごとの内訳と金額の大きい事業を返します（`/api/hyoka-aggregate.php`）
+- `get_hyoka_project`: 事業 1 件の全部（原典の欄と表、円にそろえた金額の明細、指標、評価、その事業の頁の表の文字）を返します（`/api/hyoka-project.php`）。`include_related: true` なら、同じ自治体の会議録・例規集から事業名が出てくるものを 3 件ずつ添えます（`/api/search` を 2 回足す）
+
+`search_hyoka_projects` の `flag` で、分析の印（成果指標が目標の半分以下、目標割れなのに拡充・費用増、目標の数のある成果指標が無い、
+評価の文が前年度とほぼ同じ、名前が年度で違う、最新の評価年度に無い）を持つ事業に絞れます。印は原典の値から機械で付けたもので、
+問題があると決めたものではありません。
+
+事業ごとの 3 つは、事業ごとの欄に分けてある文書の事業だけが対象です。索引の作り方と二重に数えない仕組みは
+[事務事業評価の事業ごとの索引](hyoka-projects.md)。テキストの応答では金額を「10.09億円（原典 1,008,569千円）」のように
+円の換算と原典の値を並べて出し、構造化の応答には円の整数（`cost_yen`・`yen`）を入れます。
 
 検索の既定の並びは、会議録が `date`、例規集と事務事業評価が `relevance`。`page` × `per_page` は 10000 まで（REST と同じ）。
 検索語の書き方（OR・NOT・括弧、全角でも可）と条件の確かめ方は REST と同じで、[検索の並び順と近接優先](search-ranking.md) にまとめた。
@@ -63,6 +74,7 @@ curl -s -X POST http://localhost:8301/mcp -H 'Content-Type: application/json' -H
 `get_municipal_document` は既定で本文を 20000 文字まで返します。必要な場合は `max_body_chars` を増やせます。
 
 事務事業評価は `search_hyoka` → `get_municipal_document`（`doc_type: "hyoka"`）→原典確認の順で使います。
+事業名・費用・評価で探すときと金額を足すときは `search_hyoka_projects`・`aggregate_hyoka_amounts` → `get_hyoka_project` → 原典確認の順です。
 サイト側でAIによる評価や要約はせず、取得済み本文をそのまま索引に入れます。
 
 - `fiscal_year`: 西暦4桁の年度を完全一致指定。`kind`: `project_evaluation`（事務事業評価）、`policy_evaluation`（施策・政策評価）、`external_review`（外部評価）、`overview`（概要・一覧）。

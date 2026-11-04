@@ -65,7 +65,7 @@ OpenSearch の index はスクレイピング済みファイルから再構築�
 
 - 公開検索 API は `/api/search` です
 - `/api/search` は OpenSearch alias だけを検索します
-- MCP エンドポイントは `/mcp` です。会議録検索、例規集検索、事務事業評価検索、検索結果IDからの本文取得を読み取り専用ツールとして公開します（`search_minutes`・`search_reiki`・`search_hyoka`・`get_municipal_document`）
+- MCP エンドポイントは `/mcp` です。会議録検索、例規集検索、事務事業評価検索、検索結果IDからの本文取得、事務事業評価の事業ごとの検索・金額の集計・事業 1 件の取得を読み取り専用ツールとして公開します（`search_minutes`・`search_reiki`・`search_hyoka`・`get_municipal_document`・`search_hyoka_projects`・`aggregate_hyoka_amounts`・`get_hyoka_project`。[doc/hyoka-projects.md](doc/hyoka-projects.md)）
 - OpenSearch が利用できない場合、検索 API は 503 を返します
 - SQLite FTS5 への検索フォールバックはありません
 - `minutes.sqlite` / `ordinances.sqlite` は公開検索には不要です。削除されていても、スクレイピング済みファイルから OpenSearch index を作れます

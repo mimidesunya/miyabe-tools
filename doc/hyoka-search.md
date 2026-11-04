@@ -144,6 +144,7 @@ updateは現行世代を変えるため、戻す必要がある運用では先�
   （どちらも manifest を書く・読むため）。
   取得の容器で `python3 tools/hyoka/ocr_hyoka_docs.py --all`（数えるだけなら `--dry-run`）。
 - 頁区切りを持たない既存PDFを頁単位へ移すには、別作業で物理頁を保つ再抽出が必要。
+- 事業ごとに探す・金額を集計する索引は別にある（[事業ごとの索引](hyoka-projects.md)）。
 - 項目の記録は [共通形式](hyoka-common-format.md) と別作業の `tools/hyoka/extract/` が担当。
   この全文検索はそれに依存せず、事業名・費用・評価結果等を解釈して補わない。
 - hyoka用Celery定期実行、OCR掃き取り、自治体マップの収集進捗表示はまだ接続していない。

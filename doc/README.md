@@ -6,6 +6,7 @@
 - [gijiroku.md](gijiroku.md) — 会議録ツール。スクレイプ成果物から OpenSearch index を作る流れと画面・API
 - [reiki.md](reiki.md) — 例規集ツール。保存済み HTML / Markdown / JSON からの index 作成と画面・API
 - [hyoka-search.md](hyoka-search.md) — 事務事業評価の全文検索。頁・出典、索引の作成と本番実行、OCR・項目抽出との境界
+- [hyoka-projects.md](hyoka-projects.md) — 事務事業評価の事業ごとの索引。費用・方向性・評価・目標割れで探す、金額を集計する（二重に数えない仕組み）、MCP の 3 つの道具
 - [mcp.md](mcp.md) — MCP 連携。`/mcp` エンドポイント、ツール定義、設定項目
 
 ## 設計・運用

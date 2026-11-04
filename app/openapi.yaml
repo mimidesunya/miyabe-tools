@@ -219,8 +219,567 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/hyoka-projects.php:
+    get:
+      operationId: searchHyokaProjects
+      summary: 事務事業評価の事業を条件で探す
+      description: 事業ごとの欄に分けてある事務事業評価の事業を、語・費用・前年度からの増減・方向性・評価・成果指標の目標割れで絞り、関連度・費用・増え方などの順に返します。金額は円にそろえた値と原典の値の両方を返します。値は原典の表の欄を機械やAIが書き写したもので、人の確認はまだです。
+      parameters:
+        - $ref: "#/components/parameters/ProjectQ"
+        - $ref: "#/components/parameters/ProjectPrefCode"
+        - $ref: "#/components/parameters/ProjectSlug"
+        - $ref: "#/components/parameters/ProjectMunicipalityCode"
+        - $ref: "#/components/parameters/ProjectEvaluationYear"
+        - $ref: "#/components/parameters/ProjectDepartment"
+        - $ref: "#/components/parameters/ProjectDirection"
+        - $ref: "#/components/parameters/ProjectRating"
+        - $ref: "#/components/parameters/ProjectAspect"
+        - $ref: "#/components/parameters/ProjectMethod"
+        - $ref: "#/components/parameters/ProjectFlag"
+        - $ref: "#/components/parameters/ProjectHasAmounts"
+        - $ref: "#/components/parameters/ProjectMinCost"
+        - $ref: "#/components/parameters/ProjectMaxCost"
+        - $ref: "#/components/parameters/ProjectBelowTarget"
+        - $ref: "#/components/parameters/ProjectMaxOutcomeRatio"
+        - $ref: "#/components/parameters/ProjectMinCostChangeRatio"
+        - name: sort
+          in: query
+          required: false
+          description: relevance 関連度、cost_desc 費用の大きい順、cost_asc 小さい順、cost_change_desc 前年度からの増え方の大きい順、outcome_ratio 成果指標の達成の低い順、year_desc 新しい評価から。既定は q があれば relevance、無ければ cost_desc。
+          schema:
+            type: string
+            enum: [relevance, cost_desc, cost_asc, cost_change_desc, outcome_ratio, year_desc]
+        - name: page
+          in: query
+          required: false
+          description: 結果のページ番号。page × per_page は10000まで。
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          required: false
+          description: 1ページの件数。
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: 事業の一覧
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HyokaProjectsResponse"
+        "422":
+          description: 条件が正しくありません。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: 検索基盤が利用できません。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/hyoka-aggregate.php:
+    get:
+      operationId: aggregateHyokaAmounts
+      summary: 事務事業評価の事業の金額を集計する
+      description: /api/hyoka-projects.php と同じ条件で事業を絞り、年度・費目・段階を選んで、合計と内訳（自治体・都道府県・担当部署・方向性・年度）、金額の大きい事業を返します。同じ事業・年度・費目の金額は1つだけ数えます。合計は評価に載った事業だけのもので、自治体の予算・決算の総額ではありません。
+      parameters:
+        - $ref: "#/components/parameters/ProjectQ"
+        - $ref: "#/components/parameters/ProjectPrefCode"
+        - $ref: "#/components/parameters/ProjectSlug"
+        - $ref: "#/components/parameters/ProjectMunicipalityCode"
+        - $ref: "#/components/parameters/ProjectEvaluationYear"
+        - $ref: "#/components/parameters/ProjectDepartment"
+        - $ref: "#/components/parameters/ProjectDirection"
+        - $ref: "#/components/parameters/ProjectRating"
+        - $ref: "#/components/parameters/ProjectAspect"
+        - $ref: "#/components/parameters/ProjectMethod"
+        - $ref: "#/components/parameters/ProjectFlag"
+        - $ref: "#/components/parameters/ProjectHasAmounts"
+        - $ref: "#/components/parameters/ProjectMinCost"
+        - $ref: "#/components/parameters/ProjectMaxCost"
+        - $ref: "#/components/parameters/ProjectBelowTarget"
+        - $ref: "#/components/parameters/ProjectMaxOutcomeRatio"
+        - $ref: "#/components/parameters/ProjectMinCostChangeRatio"
+        - name: year
+          in: query
+          required: false
+          description: 金額の年度（西暦）。group_by が year 以外では必須です。
+          schema:
+            type: integer
+            minimum: 1000
+            maximum: 9999
+          example: 2024
+        - name: from_year
+          in: query
+          required: false
+          description: group_by=year のときの最初の年度。
+          schema:
+            type: integer
+            minimum: 1000
+            maximum: 9999
+        - name: to_year
+          in: query
+          required: false
+          description: group_by=year のときの最後の年度。
+          schema:
+            type: integer
+            minimum: 1000
+            maximum: 9999
+        - name: scope
+          in: query
+          required: false
+          description: 足す費目。total 総費用（人件費を含む）、direct 事業費、personnel 人件費、funding_* は財源の内訳です。
+          schema:
+            type: string
+            enum: [total, direct, personnel, sub_project, breakdown, other, funding_national, funding_prefecture, funding_bond, funding_fund, funding_user_fee, funding_other_specific, funding_general, funding_other]
+            default: total
+        - name: stage
+          in: query
+          required: false
+          description: best は事業ごとに決算・決算見込・予算・計画の順で1つ。settlement・estimate・budget・plan はその段階だけを足します。
+          schema:
+            type: string
+            enum: [best, settlement, estimate, budget, plan]
+            default: best
+        - name: group_by
+          in: query
+          required: false
+          description: 内訳の分け方。
+          schema:
+            type: string
+            enum: [none, municipality, prefecture, department, direction, year]
+            default: none
+        - name: limit
+          in: query
+          required: false
+          description: 内訳の数（金額の大きい順、year は古い順）。
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 20
+        - name: top
+          in: query
+          required: false
+          description: 金額の大きい事業を何件添えるか。
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 20
+            default: 5
+      responses:
+        "200":
+          description: 集計結果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HyokaAggregateResponse"
+        "422":
+          description: 条件が正しくありません（年度の指定が無いなど）。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: 検索基盤が利用できません。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/hyoka-project.php:
+    get:
+      operationId: getHyokaProject
+      summary: 事務事業評価の事業1件の全部を取得する
+      description: 事業の id から、円にそろえた金額の明細、原典の欄と表（原典の単位のまま）、指標、評価の段階、検算の結果、その事業の頁の表を文字にしたものを返します。
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: /api/hyoka-projects.php の items[].id（hyoka-project:…）。
+          schema:
+            type: string
+            minLength: 1
+        - name: include_sheet
+          in: query
+          required: false
+          description: 0 なら頁の表の文字を返しません。
+          schema:
+            type: boolean
+            default: true
+        - name: max_sheet_chars
+          in: query
+          required: false
+          description: 頁の表の文字の上限。
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 100000
+            default: 20000
+      responses:
+        "200":
+          description: 事業1件
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HyokaProjectResponse"
+        "404":
+          description: 事業が見つかりません。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: id の形が正しくありません。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: 検索基盤が利用できません。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
+  parameters:
+    ProjectQ:
+      name: q
+      in: query
+      required: false
+      description: 検索語（事業名・担当・目的・欄の文字）。空白区切りはAND、OR/NOT/括弧も使えます。省くと条件だけで絞ります。
+      schema:
+        type: string
+        maxLength: 200
+    ProjectPrefCode:
+      name: pref_code
+      in: query
+      required: false
+      description: 都道府県コード。
+      schema:
+        type: string
+        pattern: "^\\d{1,2}$"
+    ProjectSlug:
+      name: slug
+      in: query
+      required: false
+      description: 自治体を1つに絞るID。
+      schema:
+        type: string
+      example: 14130-kawasaki-shi
+    ProjectMunicipalityCode:
+      name: municipality_code
+      in: query
+      required: false
+      description: 全国地方公共団体コード（5桁、検査数字つきの6桁も可）。
+      schema:
+        type: string
+        pattern: "^\\d{5,6}$"
+    ProjectEvaluationYear:
+      name: evaluation_year
+      in: query
+      required: false
+      description: 評価した年度（西暦）。シートの評価年度、無ければ掲載文書の年度。
+      schema:
+        type: integer
+        minimum: 1000
+        maximum: 9999
+    ProjectDepartment:
+      name: department
+      in: query
+      required: false
+      description: 担当部署の名前の一部。
+      schema:
+        type: string
+        maxLength: 100
+    ProjectDirection:
+      name: direction
+      in: query
+      required: false
+      description: 今後の方向性の区分（カンマ区切りで複数）。other は文の記載で区分のないもの。
+      schema:
+        type: string
+      example: reduce,abolish
+    ProjectRating:
+      name: rating
+      in: query
+      required: false
+      description: 評価区分の原典の記載（カンマ区切り）。尺度は自治体ごとに違います。
+      schema:
+        type: string
+    ProjectAspect:
+      name: aspect
+      in: query
+      required: false
+      description: 観点ごとの評価「観点:記号」（カンマ区切り）。例は 成果:c。
+      schema:
+        type: string
+    ProjectMethod:
+      name: method
+      in: query
+      required: false
+      description: 記録の作り方。program 様式ごとの読み取りプログラム、ai AIの書き写し、machine 様式の定義での機械抽出。
+      schema:
+        type: string
+        enum: [program, ai, machine]
+    ProjectFlag:
+      name: flag
+      in: query
+      required: false
+      description: 分析の印（カンマ区切り、すべてを持つ事業）。outcome_below_half 成果指標が目標の半分以下、expand_below_target 目標割れなのに拡充、cost_up_below_target 目標割れなのに費用が前年度の1.1倍以上、no_outcome_target 目標の数のある成果指標が無い、repeated_text 評価の文が前年度とほぼ同じ、renamed 事業名が年度で違う、not_in_latest 最新の評価年度に無い。原典の値から機械で付けた印で、問題があると決めたものではありません。
+      schema:
+        type: string
+      example: outcome_below_half,cost_up_below_target
+    ProjectHasAmounts:
+      name: has_amounts
+      in: query
+      required: false
+      description: 1 なら金額の表がある事業だけ。
+      schema:
+        type: boolean
+    ProjectMinCost:
+      name: min_cost
+      in: query
+      required: false
+      description: 評価した年度の費用（総費用、無ければ事業費）の下限。円。
+      schema:
+        type: integer
+        minimum: 0
+    ProjectMaxCost:
+      name: max_cost
+      in: query
+      required: false
+      description: 評価した年度の費用の上限。円。
+      schema:
+        type: integer
+        minimum: 0
+    ProjectBelowTarget:
+      name: below_target
+      in: query
+      required: false
+      description: 1 なら成果指標のどれかが目標に届いていない（実績 ÷ 目標 < 1）事業だけ。少ない方が良い指標もあります。
+      schema:
+        type: boolean
+    ProjectMaxOutcomeRatio:
+      name: max_outcome_ratio
+      in: query
+      required: false
+      description: 成果指標の実績 ÷ 目標の最小値の上限。
+      schema:
+        type: number
+        minimum: 0
+    ProjectMinCostChangeRatio:
+      name: min_cost_change_ratio
+      in: query
+      required: false
+      description: 前の年度からの費用の比（今年 ÷ 前年）の下限。
+      schema:
+        type: number
+        minimum: 0
   schemas:
+    HyokaProject:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 事業のID（hyoka-project:<slug>:<doc_id>:<record_id>）。
+        project_name:
+          type: string
+        department:
+          type: string
+        municipality_name:
+          type: string
+        pref_name:
+          type: string
+        evaluation_year:
+          type: [integer, "null"]
+        cost_yen:
+          type: [integer, "null"]
+          description: 評価した年度の費用（円）。総費用、無ければ事業費（cost_scope）。原典の値は cost_raw と cost_unit。
+        cost_year:
+          type: [integer, "null"]
+        cost_stage:
+          type: string
+          description: settlement 決算、estimate 決算見込、budget 予算、plan 計画。
+        cost_scope:
+          type: string
+        cost_raw:
+          type: string
+        cost_unit:
+          type: string
+        cost_prev_yen:
+          type: [integer, "null"]
+          description: 前の年度の同じ事業・費目の金額（集計に使う値）。
+        cost_change_ratio:
+          type: [number, "null"]
+          description: 今年 ÷ 前年。
+        staff_fte:
+          type: [number, "null"]
+          description: 人工（職員の数の換算）。
+        rating:
+          type: string
+        direction:
+          type: string
+        direction_text:
+          type: string
+        aspects:
+          type: array
+          items:
+            type: string
+        indicators:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              kind:
+                type: string
+              unit:
+                type: string
+              year:
+                type: integer
+              target:
+                type: string
+              actual:
+                type: string
+              ratio:
+                type: [number, "null"]
+              cost_per_unit_yen:
+                type: [integer, "null"]
+                description: 費用 ÷ 実績（1単位あたりの費用、円）。割合・点数の指標では出しません。
+        outcome_ratio_min:
+          type: [number, "null"]
+        flags:
+          type: array
+          items:
+            type: string
+          description: 分析の印。原典の値から機械で付けたもので、問題があると決めたものではありません。
+        project_names:
+          type: array
+          items:
+            type: string
+          description: 同じ事業の名前の並び（年度の古い順）。
+        project_first_year:
+          type: [integer, "null"]
+        project_last_year:
+          type: [integer, "null"]
+        text_repeat_ratio:
+          type: [number, "null"]
+          description: 評価の文のうち、前の年度の同じ事業と同じ文の割合。
+        method:
+          type: string
+        location:
+          type: string
+        source_url:
+          type: string
+        source_page_link:
+          type: string
+        document_id:
+          type: string
+          description: /api/document に渡せる文書のID。
+        detail_url:
+          type: string
+        api_project_url:
+          type: string
+    HyokaProjectsResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        query:
+          type: string
+        sort:
+          type: string
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+        total_relation:
+          type: string
+        has_more:
+          type: boolean
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HyokaProject"
+    HyokaAggregateResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        year:
+          type: [integer, "null"]
+        scope:
+          type: string
+        stage:
+          type: string
+        group_by:
+          type: string
+        matched_records:
+          type: integer
+        total:
+          type: object
+          properties:
+            yen:
+              type: integer
+            projects:
+              type: integer
+            municipalities:
+              type: integer
+        groups:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+              label:
+                type: string
+              yen:
+                type: integer
+              projects:
+                type: integer
+        other_groups_yen:
+          type: integer
+        top_projects:
+          type: array
+          items:
+            type: object
+        notes:
+          type: array
+          items:
+            type: string
+    HyokaProjectResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        project:
+          $ref: "#/components/schemas/HyokaProject"
+        record:
+          type: [object, "null"]
+          description: 原典の欄と表（金額の表は原典の単位のまま）、指標、評価の段階、検算。
+        sheet:
+          type: array
+          items:
+            type: object
+            properties:
+              page:
+                type: integer
+              text:
+                type: string
+        sheet_truncated:
+          type: boolean
     SearchResponse:
       type: object
       required: [status, query, doc_type, page, per_page, total, items]

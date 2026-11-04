@@ -256,6 +256,8 @@ def compact_form_record(record: dict, doc_id: str, number: int) -> dict:
         "layout": "form_reader",
         "status": "",
         **({"page": pages[0]} if pages else {}),
+        # 1 事業が何頁にもわたる様式（川崎市は 2〜3 頁）で、MCP がその頁の表をまとめて返すため
+        **({"pages": pages} if len(pages) > 1 else {}),
         "fields": fields,
         "raw_fields": raw_fields,
         "amounts": pivot_table(record.get("amounts") or [], "scope", SCOPE_NAMES) if record.get("amounts") else None,
@@ -271,6 +273,8 @@ def compact_form_record(record: dict, doc_id: str, number: int) -> dict:
         "evaluations": [{
             "stage": clean_label(row.get("stage_raw")), "rating": join_wrapped_lines(row.get("rating_raw")),
             "direction": direction_text(row),
+            # 読み取りが凡例から決めた区分（DIRECTION_NAMES の鍵か other）。事業ごとの索引の絞り込みに使う
+            **({"direction_code": str(row.get("direction"))} if str(row.get("direction") or "") not in ("", "none") else {}),
             "aspects": [f"{clean_label(item.get('aspect_raw'))}: {clean_label(item.get('rating_raw'))}"
                         for item in row.get("aspects") or [] if isinstance(item, dict) and item.get("aspect_raw")],
         } for row in evaluations if row.get("status") != "blank" or row.get("direction_raw") or row.get("rating_raw")],

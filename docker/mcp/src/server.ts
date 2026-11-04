@@ -300,6 +300,271 @@ function formatDocumentText(document: any): string {
   ].filter((value) => String(value || "").trim() !== "").join("\n");
 }
 
+// 事務事業評価の事業ごとの索引（/api/hyoka-projects.php・hyoka-aggregate.php・hyoka-project.php）。
+const PROJECT_DIRECTIONS = ["expand", "continue", "maintain", "improve", "reduce", "integrate", "suspend", "abolish", "complete", "other"] as const;
+const PROJECT_SORTS = ["relevance", "cost_desc", "cost_asc", "cost_change_desc", "outcome_ratio", "year_desc"] as const;
+// 分析の印（tools/search/hyoka_projects.py の FLAG_NAMES）。原典の値から機械で付けたもので、問題があると決めたものではない。
+const PROJECT_FLAGS = ["outcome_below_half", "expand_below_target", "cost_up_below_target", "no_outcome_target",
+  "repeated_text", "renamed", "not_in_latest"] as const;
+const FLAG_LABELS: Record<string, string> = {
+  outcome_below_half: "成果指標が目標の半分以下", expand_below_target: "目標割れなのに拡充",
+  cost_up_below_target: "目標割れなのに費用が前年度より1割以上増", no_outcome_target: "目標の数のある成果指標が無い",
+  repeated_text: "評価の文が前年度とほぼ同じ", renamed: "事業名が年度で違う", not_in_latest: "最新の評価年度に無い"
+};
+const AMOUNT_SCOPES = [
+  "total", "direct", "personnel", "sub_project", "breakdown", "other",
+  "funding_national", "funding_prefecture", "funding_bond", "funding_fund", "funding_user_fee",
+  "funding_other_specific", "funding_general", "funding_other"
+] as const;
+const AMOUNT_STAGES = ["best", "settlement", "estimate", "budget", "plan"] as const;
+const AMOUNT_GROUPS = ["none", "municipality", "prefecture", "department", "direction", "year"] as const;
+const STAGE_LABELS: Record<string, string> = {
+  best: "決算・見込・予算・計画の順で 1 つ", settlement: "決算", estimate: "決算見込", budget: "予算", plan: "計画", unstated: "段階不明"
+};
+const SCOPE_LABELS: Record<string, string> = {
+  total: "総費用（人件費を含む）", direct: "事業費（人件費を除く）", personnel: "人件費", sub_project: "細事業", breakdown: "内訳",
+  other: "そのほかの金額", funding_national: "財源: 国", funding_prefecture: "財源: 都道府県", funding_bond: "財源: 地方債",
+  funding_fund: "財源: 基金", funding_user_fee: "財源: 受益者負担", funding_other_specific: "財源: その他の特定財源",
+  funding_general: "財源: 一般財源", funding_other: "財源: そのほか"
+};
+const DIRECTION_LABELS: Record<string, string> = {
+  expand: "拡充", continue: "継続", maintain: "現状維持", improve: "改善・見直し", reduce: "縮小", integrate: "統合",
+  suspend: "休止", abolish: "廃止", complete: "完了", other: "区分なし（文の記載）"
+};
+
+function formatYen(value: unknown): string {
+  const yen = Number(value);
+  if (value === null || value === undefined || !Number.isFinite(yen)) {
+    return "";
+  }
+  const abs = Math.abs(yen);
+  if (abs >= 1e8) {
+    return `${(yen / 1e8).toLocaleString("ja-JP", { maximumFractionDigits: 2 })}億円`;
+  }
+  if (abs >= 1e4) {
+    return `${Math.round(yen / 1e4).toLocaleString("ja-JP")}万円`;
+  }
+  return `${yen.toLocaleString("ja-JP")}円`;
+}
+
+function formatRatio(value: unknown): string {
+  const ratio = Number(value);
+  return value === null || value === undefined || !Number.isFinite(ratio) ? "" : `${Math.round(ratio * 1000) / 10}%`;
+}
+
+function buildProjectFilterParams(args: any): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const key of ["q", "slug", "municipality_code", "pref_code", "evaluation_year", "department", "method", "has_amounts",
+    "min_cost", "max_cost", "below_target", "max_outcome_ratio", "min_cost_change_ratio"]) {
+    addOptional(params, key, args[key]);
+  }
+  for (const key of ["direction", "rating", "aspect", "flag"]) {
+    if (Array.isArray(args[key]) && args[key].length > 0) {
+      params.set(key, args[key].join(","));
+    }
+  }
+  return params;
+}
+
+function projectsPayloadWithPublicUrls(payload: any): any {
+  if (!payload || !Array.isArray(payload.items)) {
+    return payload;
+  }
+  return {
+    ...payload,
+    items: payload.items.map((item: any) => {
+      const fixed: any = withoutNulls(item);
+      for (const key of ["detail_url", "api_project_url"]) {
+        if (fixed[key]) {
+          fixed[key] = toPublicUrl(fixed[key]);
+        }
+      }
+      return fixed;
+    })
+  };
+}
+
+function projectCostText(item: any): string {
+  if (item.cost_yen === null || item.cost_yen === undefined) {
+    return "";
+  }
+  const raw = item.cost_raw ? `（原典 ${item.cost_raw}${item.cost_unit || ""}）` : "";
+  const scope = item.cost_scope === "direct" ? "事業費" : "総費用";
+  const change = item.cost_change_ratio !== undefined && item.cost_change_ratio !== null
+    ? ` / 前年度比 ${formatRatio(item.cost_change_ratio)}（前年度 ${formatYen(item.cost_prev_yen)}）` : "";
+  return `${item.cost_year}年度${STAGE_LABELS[item.cost_stage] || ""}の${scope} ${formatYen(item.cost_yen)}${raw}${change}`;
+}
+
+function flagsText(item: any): string {
+  return (Array.isArray(item?.flags) ? item.flags : []).map((flag: string) => FLAG_LABELS[flag] || flag).join(" / ");
+}
+
+function historyText(item: any): string {
+  const names = Array.isArray(item?.project_names) ? item.project_names : [];
+  const span = item?.project_first_year ? `${item.project_first_year}〜${item.project_last_year}年度の評価に載る` : "";
+  return [span, names.length > 1 ? `名前: ${names.join(" → ")}` : ""].filter(Boolean).join(" / ");
+}
+
+function formatProjectsText(payload: any): string {
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  const totalText = `${payload?.total ?? 0}件${payload?.total_relation === "gte" ? "以上" : ""}`;
+  const header = `事務事業評価の事業: "${payload?.query || ""}" / ${totalText} / 並び ${payload?.sort || ""}`;
+  if (items.length === 0) {
+    return `${header}\n該当する事業はありませんでした。`;
+  }
+  const lines = items.map((item: any, index: number) => {
+    const indicators = (Array.isArray(item.indicators) ? item.indicators : [])
+      .filter((row: any) => row.target || row.actual)
+      .slice(0, 4)
+      .map((row: any) => `${row.name || "(指標名なし)"} ${row.year || ""}年度 目標 ${row.target || "-"} 実績 ${row.actual || "-"}${row.unit || ""}`
+        + (row.ratio !== null && row.ratio !== undefined ? `（${formatRatio(row.ratio)}）` : "")
+        + (row.cost_per_unit_yen ? ` / 1${row.unit || "単位"}あたり ${formatYen(row.cost_per_unit_yen)}` : ""));
+    const evaluation = [
+      item.rating ? `評価 ${item.rating}` : "",
+      item.direction ? `方向性 ${DIRECTION_LABELS[item.direction] || item.direction}` : "",
+      item.direction_text ? `「${String(item.direction_text).replace(/\s+/g, " ").slice(0, 80)}」` : ""
+    ].filter(Boolean);
+    const where = [
+      item.location,
+      item.source_page_link ? `source page: ${item.source_page_link}` : "",
+      item.detail_url ? `detail: ${item.detail_url}` : ""
+    ].filter(Boolean);
+    return [
+      `${index + 1}. ${item.project_name || "(事業名なし)"}`,
+      `   ${[item.pref_name, item.municipality_name, item.department, item.evaluation_year ? `${item.evaluation_year}年度の評価` : ""]
+        .filter(Boolean).join(" / ")}`,
+      projectCostText(item) ? `   費用: ${projectCostText(item)}${item.staff_fte ? ` / 人工 ${item.staff_fte}` : ""}` : "",
+      evaluation.length > 0 ? `   ${evaluation.join(" / ")}` : "",
+      Array.isArray(item.aspects) && item.aspects.length > 0 ? `   観点: ${item.aspects.join(" ")}` : "",
+      ...indicators.map((text: string) => `   指標: ${text}`),
+      flagsText(item) ? `   印: ${flagsText(item)}` : "",
+      historyText(item) ? `   履歴: ${historyText(item)}` : "",
+      `   id: ${item.id}`,
+      where.length > 0 ? `   ${where.join(" / ")}` : ""
+    ].filter(Boolean).join("\n");
+  });
+  return [header, ...lines].join("\n");
+}
+
+function formatAggregateText(payload: any): string {
+  const period = payload?.year ? `${payload.year}年度`
+    : payload?.from_year || payload?.to_year ? `${payload.from_year || ""}〜${payload.to_year || ""}年度` : "全年度";
+  const total = payload?.total || {};
+  const lines = [
+    `金額の集計: ${period} / ${SCOPE_LABELS[payload?.scope] || payload?.scope} / 段階: ${STAGE_LABELS[payload?.stage] || payload?.stage}`
+      + (payload?.query ? ` / 検索語 "${payload.query}"` : ""),
+    `合計 ${formatYen(total.yen)}（${Number(total.yen || 0).toLocaleString("ja-JP")}円、${total.projects || 0}事業・${total.municipalities || 0}自治体）`
+  ];
+  const groups = Array.isArray(payload?.groups) ? payload.groups : [];
+  if (groups.length > 0) {
+    lines.push(`内訳（${payload.group_by}）:`);
+    for (const group of groups) {
+      lines.push(`   ${group.label}${group.label !== group.key ? `（${group.key}）` : ""}: ${formatYen(group.yen)} / ${group.projects}事業`);
+    }
+    if (Number(payload.other_groups_yen || 0) > 0) {
+      lines.push(`   そのほか: ${formatYen(payload.other_groups_yen)}`);
+    }
+  }
+  const top = Array.isArray(payload?.top_projects) ? payload.top_projects : [];
+  if (top.length > 0) {
+    lines.push("金額の大きい事業:");
+    for (const item of top) {
+      lines.push(`   ${item.project_name || "(事業名なし)"} / ${item.municipality_name || ""} / ${item.department || ""} / `
+        + `${item.year}年度${STAGE_LABELS[item.stage] || ""} ${formatYen(item.yen)}（原典 ${item.raw}${item.unit || ""}） / id: ${item.id}`);
+    }
+  }
+  for (const note of Array.isArray(payload?.notes) ? payload.notes : []) {
+    lines.push(`注: ${note}`);
+  }
+  return lines.join("\n");
+}
+
+function pivotText(table: any, title: string): string[] {
+  if (!table || !Array.isArray(table.columns) || !Array.isArray(table.rows) || table.rows.length === 0) {
+    return [];
+  }
+  const heads = table.columns.map((column: any) => `${column.year ? `${column.year}年度` : ""}${column.stage || ""}`);
+  return [
+    `${title}${table.unit ? `（単位: ${table.unit}）` : ""}`,
+    `   欄 | ${heads.join(" | ")}`,
+    ...table.rows.map((row: any) => `   ${row.label || row.kind || ""}${row.unit ? `（${row.unit}）` : ""} | ${(row.values || []).join(" | ")}`)
+  ];
+}
+
+function formatProjectText(payload: any): string {
+  const project = payload?.project || {};
+  const record = payload?.record || {};
+  const lines = [
+    `${project.project_name || "(事業名なし)"}`,
+    [project.pref_name, project.municipality_name, project.department, project.evaluation_year ? `${project.evaluation_year}年度の評価` : ""]
+      .filter(Boolean).join(" / "),
+    `id: ${project.id || ""}`,
+    project.document_title ? `文書: ${project.document_title}${project.document_id ? `（${project.document_id}）` : ""}` : "",
+    project.source_page_link ? `source page: ${project.source_page_link}` : "",
+    project.detail_url ? `detail: ${project.detail_url}` : "",
+    projectCostText(project) ? `費用: ${projectCostText(project)}` : "",
+    flagsText(project) ? `印: ${flagsText(project)}（原典の値から機械で付けた印。問題と決めたものではない）` : "",
+    historyText(project) ? `履歴: ${historyText(project)}` : ""
+  ];
+  for (const field of Array.isArray(record.fields) ? record.fields : []) {
+    lines.push(`${field.name || field.label}: ${field.text}`);
+  }
+  for (const field of Array.isArray(record.raw_fields) ? record.raw_fields : []) {
+    lines.push(`${field.label}: ${field.text}`);
+  }
+  lines.push(...pivotText(record.amounts, "金額"), ...pivotText(record.funding, "財源"), ...pivotText(record.staff, "人員"));
+  for (const indicator of Array.isArray(record.indicators) ? record.indicators : []) {
+    const values = (indicator.values || []).map((value: any) => `${value.year || "?"}年度 目標 ${value.target || "-"} 実績 ${value.actual || "-"}`);
+    lines.push(`指標（${indicator.kind || ""}）${indicator.name || ""}${indicator.unit ? `（${indicator.unit}）` : ""}: ${values.join(" / ")}`);
+  }
+  for (const evaluation of Array.isArray(record.evaluations) ? record.evaluations : []) {
+    lines.push(`評価 ${evaluation.stage || ""}: ${[evaluation.rating ? `区分 ${evaluation.rating}` : "", evaluation.direction ? `方向性 ${evaluation.direction}` : "",
+      ...(evaluation.aspects || [])].filter(Boolean).join(" / ")}`);
+  }
+  if (record.checks && Number(record.checks.pairs || 0) > 0) {
+    const problems = Array.isArray(record.checks.problems) ? record.checks.problems : [];
+    lines.push(`検算: ${record.checks.pairs}組${problems.length > 0 ? `、合わないもの: ${problems.join(" / ")}` : "、すべて一致"}`);
+  }
+  for (const page of Array.isArray(payload?.sheet) ? payload.sheet : []) {
+    lines.push(`--- 原典 ${page.page}頁の表（升目の文字を | で区切ったもの） ---`, page.text);
+  }
+  if (payload?.sheet_truncated) {
+    lines.push("[表の文字は max_sheet_chars で省略されています。]");
+  }
+  for (const [label, found] of [["会議録", payload?.related?.minutes], ["例規集", payload?.related?.reiki]] as const) {
+    if (!found) {
+      continue;
+    }
+    lines.push(`--- 事業名が出てくる${label}: ${found.total ?? 0}件${found.error ? `（取得できませんでした: ${found.error}）` : ""} ---`);
+    for (const item of Array.isArray(found.items) ? found.items : []) {
+      lines.push(`   ${item.title || "(無題)"} / ${displayDate(item)} / id: ${item.id}${item.excerpt ? ` / ${String(item.excerpt).replace(/\s+/g, " ").slice(0, 120)}` : ""}`);
+    }
+  }
+  return lines.filter((line) => String(line || "").trim() !== "").join("\n");
+}
+
+// 事業名が出てくる会議録と例規。片方が失敗しても事業の応答は返す。
+async function relatedDocuments(projectName: string, slug: string): Promise<any> {
+  const phrase = `"${projectName.replace(/"/g, " ").trim()}"`;
+  const lookup = async (docType: DocType) => {
+    const params = buildSearchParams(docType, { q: phrase, slug, sort: "relevance", per_page: 3, include_body_highlight: true });
+    try {
+      const payload = searchPayloadWithPublicUrls(await callPublicApi("/api/search", params));
+      return {
+        total: payload.total ?? 0,
+        items: (payload.items || []).map((item: any) => ({
+          id: item.id, title: item.title, held_on: item.held_on, promulgated_on: item.promulgated_on, sort_date: item.sort_date,
+          excerpt: item.excerpt, detail_url: item.detail_url, source_url: item.source_url
+        }))
+      };
+    } catch (error) {
+      return { total: 0, items: [], error: error instanceof Error ? error.message : "検索に失敗しました。" };
+    }
+  };
+  const [minutes, reiki] = await Promise.all([lookup("minutes"), lookup("reiki")]);
+  return { query: phrase, minutes, reiki };
+}
+
 function errorResult(error: unknown) {
   if (error instanceof PublicApiError) {
     return {
@@ -450,7 +715,91 @@ const documentOutputSchema = z.looseObject({
   }).describe("取得した文書。")
 });
 
-// 4ツールとも公開データを読むだけで、書き込みも削除も行わない。注釈がないと
+// 事業を絞る条件。探す（search_hyoka_projects）と集計（aggregate_hyoka_amounts）で共通。
+const projectFilterShape = {
+  q: z.string().max(200).optional().describe("検索語（事業名・担当・目的・欄の文字）。空白区切りはAND、OR/NOT/括弧も使える。省くと条件だけで絞る。"),
+  pref_code: z.string().optional().describe("都道府県コード。例: 神奈川県は 14。"),
+  slug: z.string().optional().describe("自治体を1つに絞るcanonical slug。例: 14130-kawasaki-shi。"),
+  municipality_code: z.string().optional().describe("全国地方公共団体コード（検査数字なしの5桁）。"),
+  evaluation_year: z.number().int().min(1000).max(9999).optional().describe("評価した年度（西暦）。シートの評価年度、無ければ掲載文書の年度。"),
+  department: z.string().max(100).optional().describe("担当部署の名前の一部。例: シティプロモーション。"),
+  direction: z.array(z.enum(PROJECT_DIRECTIONS)).max(10).optional()
+    .describe("今後の方向性の区分。expand 拡充、continue 継続、maintain 現状維持、improve 改善・見直し、reduce 縮小、integrate 統合、suspend 休止、abolish 廃止、complete 完了、other 文の記載で区分なし。"),
+  rating: z.array(z.string().max(40)).max(10).optional().describe("評価区分の原典の記載（例: 4、C）。尺度は自治体ごとに違うので、先に事業を見て記載を確かめる。"),
+  aspect: z.array(z.string().max(40)).max(10).optional().describe("観点ごとの評価「観点:記号」。例: 成果:c（川崎市の「成果が上がっていない」）。"),
+  method: z.enum(["program", "ai", "machine"]).optional().describe("記録の作り方。program は様式ごとの読み取りプログラム、ai は AI の書き写し、machine は様式の定義での機械抽出。"),
+  has_amounts: z.boolean().optional().describe("true なら金額の表がある事業だけ。"),
+  min_cost: z.number().int().min(0).optional().describe("評価した年度の費用（総費用、無ければ事業費）の下限。円。"),
+  max_cost: z.number().int().min(0).optional().describe("評価した年度の費用の上限。円。"),
+  below_target: z.boolean().optional().describe("true なら成果指標のどれかが目標に届いていない（実績 ÷ 目標 < 1）事業だけ。少ない方が良い指標もあるので原典で確かめる。"),
+  max_outcome_ratio: z.number().min(0).max(1000).optional().describe("成果指標の実績 ÷ 目標の最小値の上限。例: 0.5 で目標の半分以下の指標がある事業。"),
+  min_cost_change_ratio: z.number().min(0).max(1000).optional().describe("前の年度からの費用の比（今年 ÷ 前年）の下限。例: 1.5 で 5 割以上増えた事業。"),
+  flag: z.array(z.enum(PROJECT_FLAGS)).max(7).optional()
+    .describe("分析の印（複数はすべてを持つ事業）。outcome_below_half 成果指標が目標の半分以下、expand_below_target 目標割れなのに拡充、cost_up_below_target 目標割れなのに費用が前年度より1割以上増、no_outcome_target 費用があるのに目標の数のある成果指標が無い、repeated_text 評価の文が前年度とほぼ同じ、renamed 事業名が年度で違う、not_in_latest その自治体の最新の評価年度に無い。原典の値から機械で付けた印で、問題と決めたものではない。")
+};
+
+const projectsInputSchema = z.object({
+  ...projectFilterShape,
+  sort: z.enum(PROJECT_SORTS).optional()
+    .describe("relevance 関連度、cost_desc 費用の大きい順、cost_asc 小さい順、cost_change_desc 前年度からの増え方の大きい順、outcome_ratio 成果指標の達成の低い順、year_desc 新しい評価から。既定は q があれば relevance、無ければ cost_desc。"),
+  page: z.number().int().min(1).default(1).describe("結果のページ番号。page × per_page は 10000 まで。"),
+  per_page: z.number().int().min(1).max(50).default(10).describe("1ページの件数。MCPでは最大50件。")
+});
+
+const aggregateInputSchema = z.object({
+  ...projectFilterShape,
+  year: z.number().int().min(1000).max(9999).optional().describe("金額の年度（西暦）。group_by が year 以外では必須。"),
+  from_year: z.number().int().min(1000).max(9999).optional().describe("group_by=year のときの最初の年度。"),
+  to_year: z.number().int().min(1000).max(9999).optional().describe("group_by=year のときの最後の年度。"),
+  scope: z.enum(AMOUNT_SCOPES).default("total").describe("足す費目。total 総費用（人件費を含む）、direct 事業費、personnel 人件費、funding_general 一般財源など財源の内訳も選べる。"),
+  stage: z.enum(AMOUNT_STAGES).default("best").describe("best は事業ごとに決算・決算見込・予算・計画の順で 1 つ。settlement 決算、estimate 決算見込、budget 予算、plan 計画だけを足すこともできる。"),
+  group_by: z.enum(AMOUNT_GROUPS).default("none").describe("内訳の分け方。municipality 自治体、prefecture 都道府県、department 担当部署、direction 今後の方向性、year 年度（推移）。"),
+  limit: z.number().int().min(1).max(200).default(20).describe("内訳の数（大きい順。year は古い順）。"),
+  top: z.number().int().min(0).max(20).default(5).describe("金額の大きい事業を何件添えるか。")
+});
+
+const projectItemShape = {
+  id: z.string().describe("事業のID。get_hyoka_project にそのまま渡せる。"),
+  project_name: z.string().nullable().optional().describe("事業名。"),
+  municipality_name: z.string().nullable().optional().describe("自治体名。"),
+  pref_name: z.string().nullable().optional().describe("都道府県名。"),
+  department: z.string().nullable().optional().describe("担当部署。"),
+  evaluation_year: z.number().nullable().optional().describe("評価した年度。"),
+  cost_yen: z.number().nullable().optional().describe("評価した年度の費用（円）。総費用、無ければ事業費（cost_scope）。原典の値は cost_raw と cost_unit。"),
+  cost_change_ratio: z.number().nullable().optional().describe("前の年度からの費用の比（今年 ÷ 前年）。"),
+  outcome_ratio_min: z.number().nullable().optional().describe("成果指標の実績 ÷ 目標の最小値。"),
+  direction: z.string().nullable().optional().describe("今後の方向性の区分。"),
+  source_page_link: z.string().nullable().optional().describe("原典の該当頁へのURL。")
+};
+
+const projectsOutputSchema = z.looseObject({
+  status: z.string().describe("ok または error。"),
+  total: z.number().optional().describe("該当する事業の数。"),
+  items: z.array(z.looseObject(projectItemShape)).optional().describe("事業。金額は円、指標は目標・実績と比。値は原典の表の欄を機械やAIが書き写したもので、人の確認はまだ。")
+});
+
+const aggregateOutputSchema = z.looseObject({
+  status: z.string().describe("ok または error。"),
+  total: z.looseObject({
+    yen: z.number().describe("合計（円）。"),
+    projects: z.number().describe("数えた事業の数。"),
+    municipalities: z.number().describe("数えた自治体の数。")
+  }).optional(),
+  groups: z.array(z.looseObject({
+    key: z.string(), label: z.string(), yen: z.number(), projects: z.number()
+  })).optional().describe("内訳。"),
+  top_projects: z.array(z.looseObject({ id: z.string(), yen: z.number() })).optional().describe("金額の大きい事業。"),
+  notes: z.array(z.string()).optional().describe("集計の読み方の注意。")
+});
+
+const projectOutputSchema = z.looseObject({
+  status: z.string().describe("ok または error。"),
+  project: z.looseObject(projectItemShape).optional().describe("索引の値。amounts は円にそろえた金額の明細（best は集計に使う値）。"),
+  record: z.looseObject({}).nullable().optional().describe("原典の欄と表（金額の表は原典の単位のまま）、指標、評価の段階、検算。"),
+  sheet: z.array(z.looseObject({ page: z.number(), text: z.string() })).optional().describe("その事業の頁の表を、升目の文字を | で区切って行ごとに並べたもの。")
+});
+
+// どのツールも公開データを読むだけで、書き込みも削除も行わない。注釈がないと
 // クライアントは既定で「書き込みあり・破壊的」とみなすため、明示しておく。
 const READ_ONLY_ANNOTATIONS = {
   readOnlyHint: true,
@@ -519,7 +868,7 @@ function createServer(): McpServer {
     "search_hyoka",
     {
       title: "事務事業評価検索",
-      description: "自治体の事務事業評価を検索し、抜粋、年度、種別、原典URL、分かる場合は頁、本文取得用IDを返します。自治体・都道府県・年度・種別で絞れます。抜粋だけで判断せず、get_municipal_document と原典で確かめてください。",
+      description: "自治体の事務事業評価の文書を全文で検索し、抜粋、年度、種別、原典URL、分かる場合は頁、本文取得用IDを返します。自治体・都道府県・年度・種別で絞れます。事業名・費用・評価・方向性で事業を探すなら search_hyoka_projects、金額を足すなら aggregate_hyoka_amounts を使ってください。抜粋だけで判断せず、get_municipal_document と原典で確かめてください。",
       inputSchema: hyokaSearchInputSchema,
       outputSchema: searchOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS
@@ -561,6 +910,94 @@ function createServer(): McpServer {
         const result = { ...payload, document };
         return {
           content: [{ type: "text" as const, text: formatDocumentText(document) }],
+          structuredContent: result
+        };
+      } catch (error) {
+        return errorResult(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "search_hyoka_projects",
+    {
+      title: "事務事業評価の事業検索",
+      description: "事務事業評価を事業ごとに探します。事業名・担当・目的の語のほか、費用（円）、前年度からの増え方、今後の方向性（拡充・縮小・廃止など）、評価区分、観点の評価、成果指標の目標割れで絞り、費用や増え方の順に並べられます。返る事業ごとに、評価した年度の費用、人工、評価、方向性、指標の目標と実績、原典の頁を返します。事業ごとの欄に分けてある文書の事業だけが対象です。値は機械やAIが書き写したもので人の確認はまだなので、get_hyoka_project と原典で確かめてください。",
+      inputSchema: projectsInputSchema,
+      outputSchema: projectsOutputSchema,
+      annotations: READ_ONLY_ANNOTATIONS
+    },
+    async (args) => {
+      try {
+        const params = buildProjectFilterParams(args);
+        addOptional(params, "sort", args.sort);
+        addOptional(params, "page", args.page || 1);
+        addOptional(params, "per_page", args.per_page || 10);
+        const payload = projectsPayloadWithPublicUrls(await callPublicApi("/api/hyoka-projects.php", params));
+        return {
+          content: [{ type: "text" as const, text: formatProjectsText(payload) }],
+          structuredContent: payload
+        };
+      } catch (error) {
+        return errorResult(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "aggregate_hyoka_amounts",
+    {
+      title: "事務事業評価の金額集計",
+      description: "事務事業評価に載った事業の金額を集計します。search_hyoka_projects と同じ条件で事業を絞り、年度・費目（総費用、事業費、人件費、財源の内訳）・段階（決算、見込、予算、計画）を選んで、合計と、自治体・都道府県・担当部署・方向性・年度ごとの内訳、金額の大きい事業を返します。同じ事業・年度・費目の金額は 1 つだけ数えます。合計は評価に載った事業だけのもので、自治体の予算・決算の総額ではありません。",
+      inputSchema: aggregateInputSchema,
+      outputSchema: aggregateOutputSchema,
+      annotations: READ_ONLY_ANNOTATIONS
+    },
+    async (args) => {
+      try {
+        const params = buildProjectFilterParams(args);
+        for (const key of ["year", "from_year", "to_year", "scope", "stage", "group_by", "limit", "top"] as const) {
+          addOptional(params, key, args[key]);
+        }
+        const payload = await callPublicApi("/api/hyoka-aggregate.php", params);
+        return {
+          content: [{ type: "text" as const, text: formatAggregateText(payload) }],
+          structuredContent: payload
+        };
+      } catch (error) {
+        return errorResult(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "get_hyoka_project",
+    {
+      title: "事務事業評価の事業の全部",
+      description: "search_hyoka_projects・aggregate_hyoka_amounts の結果の id から、事業 1 件の全部を返します。原典の欄（目的、対象、根拠法令など）、金額・財源・人員の表（原典の単位のまま）、円にそろえた金額の明細、指標の各年度の目標と実績、評価の段階と観点、検算の結果、そしてその事業の頁の表（升目の文字を | で区切ったもの）です。数字は原典の頁（source_page_link）で確かめてください。",
+      inputSchema: z.object({
+        id: z.string().min(1).max(200).describe("事業の id（hyoka-project:…）。"),
+        include_sheet: z.boolean().default(true).describe("false なら頁の表の文字を返さない。"),
+        include_related: z.boolean().default(false).describe("true なら、同じ自治体の会議録と例規集から事業名が出てくるものを 3 件ずつ添える（検索を 2 回足すので少し遅くなる）。"),
+        max_sheet_chars: z.number().int().min(0).max(100000).default(20000).describe("頁の表の文字の上限。")
+      }),
+      outputSchema: projectOutputSchema,
+      annotations: READ_ONLY_ANNOTATIONS
+    },
+    async (args) => {
+      try {
+        const params = new URLSearchParams();
+        params.set("id", args.id);
+        addOptional(params, "include_sheet", args.include_sheet ?? true);
+        addOptional(params, "max_sheet_chars", args.max_sheet_chars ?? 20000);
+        const payload = await callPublicApi("/api/hyoka-project.php", params);
+        const project = projectsPayloadWithPublicUrls({ items: [payload.project || {}] }).items[0];
+        const result: any = { ...payload, project };
+        if (args.include_related && project.project_name && project.slug) {
+          result.related = await relatedDocuments(String(project.project_name), String(project.slug));
+        }
+        return {
+          content: [{ type: "text" as const, text: formatProjectText(result) }],
           structuredContent: result
         };
       } catch (error) {
