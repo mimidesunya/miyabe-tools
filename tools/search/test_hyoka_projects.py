@@ -185,6 +185,8 @@ def test_cost_per_unit_skips_ratios_and_zero():
     assert hp.cost_per_unit(1_000_000, {"actual": "85.8", "unit": "%"}) is None
     assert hp.cost_per_unit(1_000_000, {"actual": "0", "unit": "人"}) is None
     assert hp.cost_per_unit(None, {"actual": "10", "unit": "回"}) is None
+    assert hp.cost_per_unit(1_000_000, {"name": "重要な管路の耐震化率", "actual": "98.5", "unit": ""}) is None
+    assert hp.cost_per_unit(1_000_000, {"name": "工業用水道管路の更新延長", "actual": "0.9", "unit": ""}) == 1_111_111
 
 
 def with_reason(base: dict, text: str) -> dict:

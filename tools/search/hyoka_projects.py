@@ -230,11 +230,17 @@ def indicator_rows(indicators: object, own_year: int) -> list[dict]:
 RATIO_UNITS = {"%", "％", "点", "倍", "割", "ポイント", "pt", "位", "段階"}
 
 
+# 単位の欄が空でも、名前から割合・点数と分かる指標（川崎市の「重要な管路の耐震化率」は単位が空で 98.5）。
+RATIO_NAME_RE = re.compile(r"率|割合|満足度|指数|度合|平均値|得点|評価点|順位|倍率")
+
+
 def cost_per_unit(cost_yen: int | None, row: dict) -> int | None:
-    """費用 ÷ 指標の実績（参加者 1 人あたりなど）。実績が 0 以下か、単位が割合・点数なら出さない。"""
+    """費用 ÷ 指標の実績（参加者 1 人あたりなど）。実績が 0 以下か、単位や名前から割合・点数と分かれば出さない。"""
     actual = parse_number(row.get("actual"))
     unit = nfkc(row.get("unit"))
     if cost_yen is None or actual is None or actual <= 0 or unit in RATIO_UNITS or nfkc(row.get("actual")).endswith(("%", "点")):
+        return None
+    if unit == "" and RATIO_NAME_RE.search(nfkc(row.get("name"))):
         return None
     return round(cost_yen / actual)
 
