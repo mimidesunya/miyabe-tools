@@ -1,0 +1,70 @@
+{
+  "format": "2.0-truth",
+  "source": {"slug": "31329-yazu-cho", "name": "八頭町", "doc_id": "e5eee1e481ff4153", "pdf_pages": [3]},
+  "document_type": "事業シート",
+  "form_name": "事務事業計画書兼評価表（A表）",
+  "evaluation_year": 2026,
+  "target_year": 2025,
+  "project": {
+    "name": "放課後児童クラブ運営費",
+    "code": "188",
+    "department": "学校教育課 学校教育係",
+    "plan_alignment": "やすらぎといきがいのあるまちづくり／子育て支援の充実／放課後児童クラブ運営事業",
+    "continuity_raw": "継続",
+    "legal_basis": "児童福祉法、放課後児童クラブ施設条例・施行規則",
+    "mandate_raw": "1,3,4（1.法令（義務）2.法令（任意）3.条例 4.規則・要綱等 5.なし）",
+    "mandate": "mandatory",
+    "delivery_raw": "H31年度から民間業者へ運営委託している",
+    "delivery": "委託",
+    "target": "子育てをする保護者とその子ども"
+  },
+  "amount_tables": [
+    {
+      "id": "コスト",
+      "unit": "千円",
+      "unit_source": "単位の列",
+      "columns": [
+        {"key": "R5実績", "fiscal_year": 2023, "stage": "settlement"},
+        {"key": "R6実績", "fiscal_year": 2024, "stage": "settlement"},
+        {"key": "R7目標", "fiscal_year": 2025, "stage": "plan"},
+        {"key": "R7実績", "fiscal_year": 2025, "stage": "settlement"},
+        {"key": "R8目標", "fiscal_year": 2026, "stage": "plan"},
+        {"key": "R8実績", "fiscal_year": 2026, "stage": "settlement"},
+        {"key": "R9目標", "fiscal_year": 2027, "stage": "plan"}
+      ],
+      "rows": [
+        {"label": "トータルコスト", "scope": "total", "values": ["101,416", "35,457", "42,665", {"status": "placeholder", "raw": "0"}, "41,907", {"status": "placeholder", "raw": "0"}, "41,907"]},
+        {"label": "職員人件費", "scope": "personnel", "values": ["3,200", "3,200", "3,200", {"status": "placeholder", "raw": "0"}, "3,200", {"status": "placeholder", "raw": "0"}, "3,200"]},
+        {"label": "事業費", "scope": "direct", "values": ["98,216", "32,257", "39,465", {"status": "hatched"}, "38,707", {"status": "hatched"}, "38,707"]}
+      ]
+    }
+  ],
+  "funding_tables": [
+    {
+      "id": "事業費財源内訳",
+      "unit": "千円",
+      "unit_source": "単位の列",
+      "columns": ["R5実績", "R6実績", "R7目標", "R8目標", "R9目標"],
+      "rows": [
+        {"label": "国庫支出金", "source": "national", "values": ["27,030", "10,533", "11,741", "12,264", "12,264"]},
+        {"label": "県支出金", "source": "prefecture", "values": ["27,030", "10,533", "11,741", "12,264", "12,264"]},
+        {"label": "地方債", "source": "bond", "values": ["26,000", {"status": "blank"}, {"status": "blank"}, {"status": "blank"}, {"status": "blank"}]},
+        {"label": "事業収入", "source": "user_fee", "values": [{"status": "blank"}, {"status": "blank"}, {"status": "blank"}, {"status": "blank"}, {"status": "blank"}]},
+        {"label": "一般財源（単町費）", "source": "general", "values": ["18,156", "11,191", "15,983", "14,179", "14,179"]}
+      ]
+    }
+  ],
+  "staff": {
+    "method": "人数のみ",
+    "columns": ["R5実績", "R6実績", "R7目標", "R8目標", "R9目標"],
+    "rows": [{"label": "担当職員数", "unit": "人", "values": ["0.4", "0.4", "0.4", "0.4", "0.4"]}]
+  },
+  "indicators": [],
+  "evaluations": [],
+  "absent": ["指標（A表には無い）", "評価（A表には無い）"],
+  "checks": [
+    {"type": "sum", "table": "コスト", "total": "トータルコスト", "parts": ["事業費", "職員人件費"], "columns": ["R5実績", "R6実績", "R7目標", "R8目標", "R9目標"]},
+    {"type": "funding_sum", "table": "コスト", "total": "事業費", "funding": "事業費財源内訳", "columns": ["R5実績", "R6実績", "R7目標", "R8目標", "R9目標"]}
+  ],
+  "notes": ["R7実績とR8実績は未到来で、網掛けに 0 が見えるが値ではない", "担当者の氏名あり（検索の対象にしない）"]
+}

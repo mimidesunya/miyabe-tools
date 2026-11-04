@@ -165,6 +165,17 @@ class FileLinkTest(unittest.TestCase):
         self.assertEqual(h.link_file_type("https://x/documents/d/r6", "報告書（PDF 10.1MB）"), "pdf")
         self.assertEqual(h.link_file_type("https://x/download.php?id=3", "評価シート Excel"), "xlsx")
 
+    def test_download_endpoints_without_a_hint(self) -> None:
+        cases = (
+            "https://www.city.hitoyoshi.lg.jp/resource.php?e=38a9687eaa25f06e",
+            "https://official.shinkamigoto.net/cmd/dlfile.php?entryname=benri&entryid=05039&fileid=00000016&/all.pdf",
+            "https://www.town.tsunagi.lg.jp/common/UploadFileOutput.ashx?c_id=3&flid=15940&id=4787",
+            "https://www.town.noheji.aomori.jp/download_file/view/2709/1537",
+        )
+        for url in cases:
+            with self.subTest(url=url):
+                self.assertEqual(h.link_file_type(url, "評価結果"), "pdf")
+
     def test_pages_and_assets(self) -> None:
         self.assertIsNone(h.link_file_type("https://x/hyoka/r6.html", "令和6年度"))
         self.assertIsNone(h.link_file_type("https://x/download/", "評価シート PDF"))

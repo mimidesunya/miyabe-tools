@@ -1,0 +1,571 @@
+{
+  "format": "2.0-truth",
+  "source": {
+    "slug": "08226-naka-shi",
+    "name": "那珂市",
+    "doc_id": "6e5c64f47d0ed3a5",
+    "pdf_pages": [
+      7,
+      8
+    ]
+  },
+  "document_type": "事業シート",
+  "form_name": "事務事業評価シート",
+  "evaluation_year": 2025,
+  "target_year": 2024,
+  "project": {
+    "name": "市民活動支援センター運営事業",
+    "department": "市民生活部 市民協働課 市民活動グループ",
+    "account": {
+      "kaikei": "一般会計",
+      "kan": "02",
+      "kou": "01",
+      "moku": "07",
+      "name_raw": "市民活動支援センター運営事業"
+    },
+    "plan_alignment": "第1章 みんなで進める住みよいまちづくり／3 市民との協働によるまちづくりを推進する／2 市民活動への支援と連携",
+    "legal_basis": "那珂市市民活動支援センター利用規則",
+    "mandate": "unstated",
+    "delivery_raw": "市民活動支援センター運営を業務委託",
+    "delivery": "委託",
+    "period_raw": "単年度繰返",
+    "target": "市民、市民活動団体"
+  },
+  "amount_tables": [
+    {
+      "id": "投入量の推移",
+      "unit": "千円",
+      "unit_source": "単位の列",
+      "columns": [
+        {
+          "key": "05実績",
+          "fiscal_year": 2023,
+          "stage": "settlement"
+        },
+        {
+          "key": "06実績",
+          "fiscal_year": 2024,
+          "stage": "settlement"
+        },
+        {
+          "key": "07見込",
+          "fiscal_year": 2025,
+          "stage": "estimate"
+        },
+        {
+          "key": "08計画",
+          "fiscal_year": 2026,
+          "stage": "plan"
+        },
+        {
+          "key": "09計画",
+          "fiscal_year": 2027,
+          "stage": "plan"
+        }
+      ],
+      "rows": [
+        {
+          "label": "事業費計（A）",
+          "scope": "direct",
+          "values": [
+            "3,800",
+            "4,037",
+            "4,150",
+            "4,150",
+            "4,150"
+          ]
+        },
+        {
+          "label": "人件費（B）",
+          "scope": "personnel",
+          "values": [
+            "540",
+            "352",
+            "352",
+            "352",
+            "352"
+          ]
+        },
+        {
+          "label": "投入量（A)+(B）",
+          "scope": "total",
+          "values": [
+            "4,340",
+            "4,389",
+            "4,502",
+            "4,502",
+            "4,502"
+          ]
+        }
+      ]
+    }
+  ],
+  "funding_tables": [
+    {
+      "id": "財源内訳",
+      "unit": "千円",
+      "unit_source": "単位の列",
+      "columns": [
+        "05実績",
+        "06実績",
+        "07見込",
+        "08計画",
+        "09計画"
+      ],
+      "rows": [
+        {
+          "label": "国庫支出金",
+          "source": "national",
+          "values": [
+            "0",
+            "0",
+            "0",
+            "0",
+            "0"
+          ]
+        },
+        {
+          "label": "県支出金",
+          "source": "prefecture",
+          "values": [
+            "0",
+            "0",
+            "0",
+            "0",
+            "0"
+          ]
+        },
+        {
+          "label": "地方債",
+          "source": "bond",
+          "values": [
+            "0",
+            "0",
+            "0",
+            "0",
+            "0"
+          ]
+        },
+        {
+          "label": "その他",
+          "source": "other_specific",
+          "values": [
+            "700",
+            "700",
+            "54",
+            "54",
+            "54"
+          ]
+        },
+        {
+          "label": "一般財源",
+          "source": "general",
+          "values": [
+            "3,100",
+            "3,337",
+            "4,096",
+            "4,096",
+            "4,096"
+          ]
+        }
+      ]
+    }
+  ],
+  "staff": {
+    "method": "人工",
+    "columns": [
+      "05実績",
+      "06実績",
+      "07見込",
+      "08計画",
+      "09計画"
+    ],
+    "rows": [
+      {
+        "label": "人件費の人工",
+        "unit": "人",
+        "values": [
+          "0.12",
+          "0.07",
+          "0.07",
+          "0.07",
+          "0.07"
+        ]
+      }
+    ]
+  },
+  "indicators": [
+    {
+      "name": "人口（常住人口）",
+      "kind_raw": "対象指標",
+      "kind": "target",
+      "unit": "人",
+      "columns": [
+        2023,
+        2024,
+        2025,
+        2026,
+        2027
+      ],
+      "stages": [
+        "実績",
+        "実績",
+        "見込",
+        "計画",
+        "計画"
+      ],
+      "actual": [
+        "52700",
+        "52365",
+        "52500",
+        {
+          "status": "blank"
+        },
+        {
+          "status": "blank"
+        }
+      ],
+      "target": [
+        {
+          "status": "blank"
+        },
+        {
+          "status": "blank"
+        },
+        {
+          "status": "blank"
+        },
+        "52300",
+        "52000"
+      ]
+    },
+    {
+      "name": "市民活動団体数",
+      "kind_raw": "対象指標",
+      "kind": "target",
+      "unit": "団体",
+      "columns": [
+        2023,
+        2024,
+        2025,
+        2026,
+        2027
+      ],
+      "stages": [
+        "実績",
+        "実績",
+        "見込",
+        "計画",
+        "計画"
+      ],
+      "actual": [
+        "199",
+        "198",
+        "33",
+        {
+          "status": "blank"
+        },
+        {
+          "status": "blank"
+        }
+      ],
+      "note": "見込から 33 に変わる。定義の変更か誤記か、シートでは分からない",
+      "target": [
+        {
+          "status": "blank"
+        },
+        {
+          "status": "blank"
+        },
+        {
+          "status": "blank"
+        },
+        "33",
+        "33"
+      ]
+    },
+    {
+      "name": "広報紙の発行回数",
+      "kind_raw": "活動指標",
+      "kind": "activity",
+      "unit": "回",
+      "columns": [
+        2023,
+        2024,
+        2025,
+        2026,
+        2027
+      ],
+      "stages": [
+        "実績",
+        "実績",
+        "見込",
+        "計画",
+        "計画"
+      ],
+      "actual": [
+        "4",
+        "4",
+        "4",
+        {
+          "status": "blank"
+        },
+        {
+          "status": "blank"
+        }
+      ],
+      "target": [
+        {
+          "status": "blank"
+        },
+        {
+          "status": "blank"
+        },
+        {
+          "status": "blank"
+        },
+        "4",
+        "4"
+      ]
+    },
+    {
+      "name": "市民活動支援センター年間利用団体数",
+      "kind_raw": "活動指標",
+      "kind": "activity",
+      "unit": "団体",
+      "columns": [
+        2023,
+        2024,
+        2025,
+        2026,
+        2027
+      ],
+      "stages": [
+        "実績",
+        "実績",
+        "見込",
+        "計画",
+        "計画"
+      ],
+      "actual": [
+        "89",
+        "94",
+        "83",
+        {
+          "status": "blank"
+        },
+        {
+          "status": "blank"
+        }
+      ],
+      "target": [
+        {
+          "status": "blank"
+        },
+        {
+          "status": "blank"
+        },
+        {
+          "status": "blank"
+        },
+        "83",
+        "83"
+      ]
+    },
+    {
+      "name": "まちづくり活動に参加している市民の割合",
+      "kind_raw": "成果指標",
+      "kind": "outcome",
+      "unit": "%",
+      "columns": [
+        2023,
+        2024,
+        2025,
+        2026,
+        2027
+      ],
+      "stages": [
+        "実績",
+        "実績",
+        "見込",
+        "計画",
+        "計画"
+      ],
+      "actual": [
+        "40.22",
+        "42.91",
+        "48",
+        {
+          "status": "blank"
+        },
+        {
+          "status": "blank"
+        }
+      ],
+      "target": [
+        {
+          "status": "blank"
+        },
+        {
+          "status": "blank"
+        },
+        {
+          "status": "blank"
+        },
+        "50",
+        "52"
+      ]
+    },
+    {
+      "name": "行政（市政）等の情報を把握している市民の割合",
+      "kind_raw": "成果指標",
+      "kind": "outcome",
+      "unit": "%",
+      "columns": [
+        2023,
+        2024,
+        2025,
+        2026,
+        2027
+      ],
+      "stages": [
+        "実績",
+        "実績",
+        "見込",
+        "計画",
+        "計画"
+      ],
+      "actual": [
+        "91.15",
+        "90.81",
+        "92",
+        {
+          "status": "blank"
+        },
+        {
+          "status": "blank"
+        }
+      ],
+      "target": [
+        {
+          "status": "blank"
+        },
+        {
+          "status": "blank"
+        },
+        {
+          "status": "blank"
+        },
+        "92",
+        "92"
+      ]
+    }
+  ],
+  "evaluations": [
+    {
+      "stage_raw": "1次評価（担当課長、グループ長、担当者）",
+      "actor": "課長",
+      "status": "done",
+      "aspects": [
+        {
+          "aspect_raw": "市関与の妥当性",
+          "aspect": "妥当性",
+          "rating_raw": "妥当である"
+        },
+        {
+          "aspect_raw": "成果の向上余地",
+          "aspect": "有効性",
+          "rating_raw": "余地がない"
+        },
+        {
+          "aspect_raw": "類似事業との統廃合余地",
+          "aspect": "有効性",
+          "rating_raw": "統廃合の余地がない"
+        },
+        {
+          "aspect_raw": "廃止・休止の可能性",
+          "aspect": "有効性",
+          "rating_raw": "廃止・休止の可能性がない"
+        },
+        {
+          "aspect_raw": "事業費の削減余地",
+          "aspect": "効率性",
+          "rating_raw": "事業費の削減余地がない"
+        },
+        {
+          "aspect_raw": "人件費の削減余地",
+          "aspect": "効率性",
+          "rating_raw": "人件費の削減余地がない"
+        },
+        {
+          "aspect_raw": "受益者負担の適正余地",
+          "aspect": "公平性",
+          "rating_raw": "適正である"
+        }
+      ],
+      "direction_raw": "継続（現状維持）",
+      "direction": "maintain"
+    },
+    {
+      "stage_raw": "2次評価（担当部長）",
+      "actor": "部長",
+      "status": "done",
+      "direction_raw": "継続（現状維持）",
+      "direction": "maintain"
+    },
+    {
+      "stage_raw": "外部評価",
+      "actor": "外部",
+      "status": "blank"
+    },
+    {
+      "stage_raw": "3次評価（行政評価本部会議）",
+      "actor": "首長",
+      "status": "blank"
+    }
+  ],
+  "reflection": [
+    {
+      "fiscal_year": 2024,
+      "kind": "none",
+      "previous_result": "現状維持",
+      "change_raw": "反映なし"
+    }
+  ],
+  "checks": [
+    {
+      "type": "sum",
+      "table": "投入量の推移",
+      "total": "投入量（A)+(B）",
+      "parts": [
+        "事業費計（A）",
+        "人件費（B）"
+      ],
+      "columns": [
+        "05実績",
+        "06実績",
+        "07見込",
+        "08計画",
+        "09計画"
+      ]
+    },
+    {
+      "type": "funding_sum",
+      "table": "投入量の推移",
+      "total": "事業費計（A）",
+      "funding": "財源内訳",
+      "columns": [
+        "05実績",
+        "06実績",
+        "07見込",
+        "08計画",
+        "09計画"
+      ]
+    }
+  ],
+  "notes": [
+    "年度の列は 05年度など。元号の表記が無い",
+    "指標と総事業費の空行に 0 が見えるが値ではない（placeholder）",
+    "別に「総事業費」の列があり、全部 0。単年度の事業費とは別の意味"
+  ]
+}

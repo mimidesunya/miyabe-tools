@@ -1,0 +1,69 @@
+{
+  "format": "2.0-truth",
+  "source": {"slug": "20205-iida-shi", "name": "飯田市", "doc_id": "909ec9e199e72e7e", "pdf_pages": [112]},
+  "document_type": "事業シート",
+  "form_name": "令和6年度事務事業実績評価表",
+  "evaluation_year": 2024,
+  "target_year": 2024,
+  "project": {
+    "name": "児童扶養手当事業",
+    "code": "106",
+    "department": "保育家庭課",
+    "account": {"kaikei": "一般会計", "codes": "1-3-2-3-14-2", "name_raw": "児童扶養手当費"},
+    "kind_raw": "経常",
+    "continuity_raw": "継続",
+    "legal_basis": "児童扶養手当法 児童扶養手当施行令 児童扶養手当施行規則",
+    "mandate": "unstated",
+    "nature": "給付"
+  },
+  "amount_tables": [
+    {
+      "id": "決算",
+      "unit": "千円",
+      "unit_source": "欄名「6年度決算（千円）」",
+      "columns": [
+        {"key": "予算", "fiscal_year": 2024, "stage": "budget"},
+        {"key": "決算", "fiscal_year": 2024, "stage": "settlement"}
+      ],
+      "rows": [
+        {"label": "予算額", "scope": "direct", "values": ["389,154", {"status": "not_on_form"}]},
+        {"label": "決算額", "scope": "direct", "values": [{"status": "not_on_form"}, "349,352"]},
+        {"label": "児童扶養手当", "scope": "breakdown", "values": [{"status": "not_on_form"}, "340,691"]},
+        {"label": "過年度国庫支出金精算返還金", "scope": "breakdown", "values": [{"status": "not_on_form"}, "8,661"]}
+      ]
+    }
+  ],
+  "funding_tables": [
+    {
+      "id": "財源の状況",
+      "unit": "千円",
+      "unit_source": "欄名「6年度決算（千円）」",
+      "columns": ["決算"],
+      "rows": [
+        {"label": "国庫支出金", "source": "national", "values": ["116,523"]},
+        {"label": "県支出金", "source": "prefecture", "values": ["0"]},
+        {"label": "地方債", "source": "bond", "values": ["0"]},
+        {"label": "その他", "source": "other_specific", "values": ["0"]},
+        {"label": "一般財源", "source": "general", "values": ["232,829"]}
+      ]
+    }
+  ],
+  "indicators": [
+    {
+      "name": "児童扶養手当受給資格者数（8月末）",
+      "kind_raw": "活動指標",
+      "kind": "activity",
+      "unit": "人",
+      "columns": [2021, 2022, 2023, 2024],
+      "target": ["980", "980", "980", "940"],
+      "actual": ["945", "905", "854", "809"]
+    }
+  ],
+  "evaluations": [],
+  "absent": ["人件費の欄", "方向性の欄", "評価の段階"],
+  "checks": [
+    {"type": "sum", "table": "決算", "total": "決算額", "parts": ["児童扶養手当", "過年度国庫支出金精算返還金"], "columns": ["決算"]},
+    {"type": "funding_sum", "table": "決算", "total": "決算額", "funding": "財源の状況", "columns": ["決算"]}
+  ],
+  "notes": ["法定の給付で、費用は制度で決まる。任意の事業と同じ目で比べない", "予算と決算の差は 39,802 千円"]
+}

@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import argparse
 import gzip
+import io
 import json
 import sys
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "ai"))
 
+import openai_api  # noqa: E402
 import records as rec  # noqa: E402
 import run_ai  # noqa: E402
 
@@ -99,12 +104,41 @@ class AssembleTest(unittest.TestCase):
         self.assertEqual(got[0]["raw_fields"][0]["content"]["raw_text"], "令和6年度")
         self.assertEqual(summary["errors"], 1)
 
+    def test_each_record_keeps_the_model_that_wrote_it(self) -> None:
+        text = "=== 頁 1 ===\n0,0: 事務事業名\n0,1: 広報事業\n0,2: 防災事業\n0,3: 継続"
+        luna = chunk(0, [1], text, [item(1, "広報事業")])
+        haiku = dict(chunk(1, [1], text, [item(1, "防災事業"), item(1, "広報事業", future_direction="継続")]), model="claude-haiku-5-5")
+        got, _summary = rec.assemble_document(META, [luna, haiku], {"model": "gpt-6-luna"})
+        models = {r["fields"]["project_name"]["value"]: r["extraction"]["model"] for r in got}
+        self.assertEqual(models, {"広報事業": "claude-haiku-5-5 + gpt-6-luna", "防災事業": "claude-haiku-5-5"})
+
     def test_direction_label_rule(self) -> None:
         self.assertTrue(rec.direction_is_dedicated("今後の方向性"))
         self.assertTrue(rec.direction_is_dedicated("事業の課題に対する改善事項"))
         self.assertTrue(rec.direction_is_dedicated(""))
         self.assertFalse(rec.direction_is_dedicated("総合評価"))
         self.assertFalse(rec.direction_is_dedicated("２次評価 評価結果"))
+
+
+class PlanRoleTest(unittest.TestCase):
+    def test_survey_documents_are_chosen_by_role(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "work"
+            folder = root / "14130-kawasaki-shi"
+            (folder / "source").mkdir(parents=True)
+            documents = {}
+            # 調査から集めた文書は役割で、以前の収集の文書は kind で選ぶ
+            for doc_id, origin, kind in (("a" * 16, "listed:sheet", "overview"), ("b" * 16, "followed:other", "project_evaluation"),
+                                         ("c" * 16, "", "project_evaluation"), ("d" * 16, "", "overview")):
+                (folder / "source" / f"{doc_id}.pdf").write_bytes(b"%PDF-1.4")
+                documents[doc_id] = {"file": f"source/{doc_id}.pdf", "file_type": "pdf", "text_status": "ok", "origin": origin, "kind": kind}
+            (folder / "manifest.json").write_text(json.dumps({"jis_code": "14130", "name": "川崎市", "documents": documents}), encoding="utf-8")
+            out = Path(temporary) / "out"
+            run_ai.cmd_plan(argparse.Namespace(work_root=root, extracted_root=Path(temporary) / "none", out=out, slug=None,
+                                               limit_docs=0, include_extracted=False, roles="sheet,report,external"))
+            plan = json.loads((out / "plan.json").read_text(encoding="utf-8"))
+        chosen = sorted(doc["doc_id"] for doc in plan["municipalities"]["14130-kawasaki-shi"]["docs"])
+        self.assertEqual(chosen, ["a" * 16, "c" * 16])
 
 
 class RunTest(unittest.TestCase):
@@ -128,6 +162,47 @@ class RunTest(unittest.TestCase):
         self.assertIn("error", run_ai.parse_batch_line(json.dumps(bad))[1])
         broken = {"custom_id": "s/d/2", "response": {"status_code": 200, "body": {"choices": [{"message": {"content": "{"}}]}}}
         self.assertIn("error", run_ai.parse_batch_line(json.dumps(broken))[1])
+
+    def test_sync_goes_to_claude_with_the_fallback_model(self) -> None:
+        answer = json.dumps({"document_kind": "other", "records": []})
+        usage = {"prompt_tokens": 1000000, "completion_tokens": 0}
+        with mock.patch.object(run_ai.anthropic_api, "chat", return_value=(answer, usage, "end_turn")) as claude, \
+                mock.patch.object(run_ai.openai_api, "chat") as openai:
+            got = run_ai.extract_sync("key", "指示", {"index": 0, "pages": [1], "text": "升目"}, run_ai.FALLBACK_MODEL)
+        openai.assert_not_called()
+        self.assertEqual(claude.call_args.args[:4], ("key", "claude-haiku-5-5", "指示", "升目"))
+        self.assertEqual((got["model"], got["parsed"]["document_kind"]), ("claude-haiku-5-5", "other"))
+        self.assertAlmostEqual(got["usd"], 0.10)  # 一括処理の半額はきかない
+
+    def test_failed_batch_keeps_what_it_finished(self) -> None:
+        line = json.dumps({"custom_id": "s/d/0", "response": {"status_code": 200, "body": {
+            "usage": {}, "choices": [{"finish_reason": "stop", "message": {"content": json.dumps({"document_kind": "other", "records": []})}}]}}})
+
+        def download(_key, _file_id, dest):
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(line, encoding="utf-8")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            run_ai.write_json(out / "batches.json", {"batches": [{"part": "p", "batch_id": "b1", "status": "in_progress"}]})
+            config = out / "config.json"
+            config.write_text(json.dumps({"openai": {"apiKey": "k"}}), encoding="utf-8")
+            info = {"status": "failed", "output_file_id": "f1", "request_counts": {"completed": 1, "failed": 1}}
+            with mock.patch.object(run_ai.openai_api, "get_batch", return_value=info), \
+                    mock.patch.object(run_ai.openai_api, "download_file", side_effect=download):
+                run_ai.cmd_collect(argparse.Namespace(out=out, config=config))
+            saved = json.loads((out / "batches.json").read_text(encoding="utf-8"))["batches"][0]
+            self.assertEqual((saved["status"], saved["final_status"]), ("collected", "failed"))
+            self.assertIn("parsed", run_ai.read_json(out / "s" / "results" / "d.json")["chunks"]["0"])
+
+    def test_no_credit_is_not_retried(self) -> None:
+        body = json.dumps({"error": {"code": "insufficient_quota"}}).encode("utf-8")
+        error = urllib.error.HTTPError("https://example.jp", 429, "Too Many Requests", {}, io.BytesIO(body))
+        with mock.patch("urllib.request.urlopen", side_effect=error) as urlopen, mock.patch("time.sleep") as sleep:
+            with self.assertRaisesRegex(RuntimeError, "insufficient_quota"):
+                openai_api.get_batch("key", "b1")
+        self.assertEqual(urlopen.call_count, 1)
+        sleep.assert_not_called()
 
     def test_legend_is_used_only_when_nothing_gets_worse(self) -> None:
         base = {"records": 20, "fill": 0.9, "verify": 1.0, "kinds": 4, "options": 0.3}
@@ -215,6 +290,149 @@ class GridTest(unittest.TestCase):
         self.assertIn("●：見直して継続", text)  # 印を右の選択肢へ付け直す
         self.assertIn("作業効率化を図ると共に、適正なごみ収集運搬作業を実施する。", text)  # 折り返しは空白なしでつなぐ
         self.assertRegex(text, r"\[\d\d,\d\d\] 令和6年度 ?事務事業評価シート")
+
+    def make_mark_table(self, rows):
+        """見出しの行の下に、列で印を付ける表。"""
+        doc = fitz.open()
+        page = doc.new_page(width=400, height=200)
+        xs, ys = [20, 120, 180, 240, 300], [20 + 30 * i for i in range(len(rows) + 1)]
+        for x in xs:
+            page.draw_line((x, ys[0]), (x, ys[-1]))
+        for y in ys:
+            page.draw_line((xs[0], y), (xs[-1], y))
+        for r, row in enumerate(rows):
+            for c, text in enumerate(row):
+                if text:
+                    page.insert_text((xs[c] + 4, ys[r] + 20), text, fontname="japan", fontsize=10)
+        return doc, page
+
+    def test_mark_under_a_heading_stays_in_its_column(self) -> None:
+        # 宇土市の形。◎ は「現状維持」の列にあり、右隣の「－」の升目へ動かしてはいけない
+        doc, page = self.make_mark_table([
+            ["事業名", "拡充", "現状維持", "規模縮小"],
+            ["広報事業", "－", "◎", "－"],
+            ["防災事業", "◎", "－", "－"],
+        ])
+        text = grid.build_cells(page)
+        doc.close()
+        self.assertIn("1,2: ◎", text)
+        self.assertIn("2,1: ◎", text)
+        self.assertNotIn("◎－", text)
+
+    def test_mark_next_to_a_filler_is_not_moved(self) -> None:
+        doc, page = self.make_mark_table([["広報事業", "○", "－", "－"]])
+        text = grid.build_cells(page)
+        doc.close()
+        self.assertIn("0,1: ○", text)
+        self.assertIn("0,2: －", text)
+
+    def test_rotated_page_reads_the_way_it_looks(self) -> None:
+        # 三島市の形。頁に 90 度の回転の指定があると、文字の座標が回転の前のままで字が逆に並ぶ
+        source, _ = self.make_page()
+        doc = fitz.open()
+        page = doc.new_page(width=300, height=400)
+        page.show_pdf_page(page.rect, source, 0, rotate=90)
+        page.set_rotation(90)
+        text = grid.build_cells(page)
+        doc.close()
+        source.close()
+        self.assertIn("広報広聴事業", text)
+        self.assertIn("●：見直して継続", text)
+
+    def test_grid_step_writes_the_list_and_the_layout(self) -> None:
+        doc, page = self.make_page()
+        doc.new_page(width=400, height=300)  # 文字の無い頁
+        with tempfile.TemporaryDirectory() as tmp:
+            pdf = Path(tmp) / "a.pdf"
+            doc.save(pdf)
+            dest = Path(tmp) / "out" / "11111-a-shi" / "inputs" / "abc.json.gz"
+            result = run_ai.build_doc_grid((str(pdf), str(dest), "abc"))
+            with gzip.open(dest, "rt", encoding="utf-8") as stream:
+                inputs = json.load(stream)
+            head, first, second = run_ai.read_gzip_lines(run_ai.layouts_path(dest))
+        doc.close()
+        self.assertEqual(result[2:], (1, ""))
+        self.assertEqual([p for p, _ in inputs["pages"]], [1])
+        self.assertEqual(head["pages"], [1, 2])
+        self.assertEqual(inputs["pages"][0][1], grid.layout_text(first))
+        self.assertTrue(second["image_only"])  # 画像だけの頁も、あったことを残す
+
+    def test_stacked_numbers_in_a_cell_are_not_joined(self) -> None:
+        # 那珂市の形。点線の行が 1 つの升目に重なり、右端にそろった数字がつながると 48.92.0.0. になる
+        doc = fitz.open()
+        page = doc.new_page(width=300, height=200)
+        for x in (20, 60):
+            page.draw_line((x, 20), (x, 100))
+        for y in (20, 100):
+            page.draw_line((20, y), (60, y))
+        for y, text in ((40, "48."), (60, "92."), (80, "0.")):
+            page.insert_text((58 - fitz.get_text_length(text, fontsize=10), y), text, fontsize=10)
+        glyphs = grid.text_glyphs(page)
+        text = grid.cell_text(glyphs, 60)
+        doc.close()
+        self.assertEqual(text, "48. 92. 0.")
+
+    def test_close_lines_do_not_interleave(self) -> None:
+        # 久山町の形。上下の行が近いと、字が「実事施業方…」と混ざる
+        doc = fitz.open()
+        page = doc.new_page(width=300, height=200)
+        page.insert_text((20, 40), "実施方法の工夫", fontname="japan", fontsize=10)
+        page.insert_text((20, 44.5), "事業の効率化", fontname="japan", fontsize=10)
+        text = grid.cell_text(grid.text_glyphs(page), 280)
+        doc.close()
+        self.assertIn("実施方法の工夫", text)
+        self.assertIn("事業の効率化", text)
+
+    def test_page_without_tables_keeps_the_text_positions(self) -> None:
+        doc = fitz.open()
+        page = doc.new_page(width=400, height=200)
+        page.insert_text((40, 50), "事業名", fontname="japan", fontsize=10)
+        page.insert_text((200, 50), "広報事業", fontname="japan", fontsize=10)
+        layout = grid.page_layout(page)
+        doc.close()
+        items = {item["x"]: item for item in layout["canvas"]}
+        self.assertAlmostEqual(items["事業名"]["l"], 10, delta=0.5)
+        self.assertAlmostEqual(items["広報事業"]["l"], 50, delta=0.5)  # 離れた字は別の塊のまま位置を保つ
+
+    def test_page_with_a_good_table_has_no_canvas(self) -> None:
+        doc, page = self.make_mark_table([["事業名", "拡充", "現状維持", "規模縮小"], ["広報事業", "－", "◎", "－"]])
+        layout = grid.page_layout(page)
+        doc.close()
+        self.assertNotIn("canvas", layout)
+
+    def test_overprinted_text_is_read_once(self) -> None:
+        # 足立区の形。太く見せるために同じ字を少しずらして重ねた PDF は、字が「事事務務」と二重に取れる
+        doc = fitz.open()
+        page = doc.new_page(width=300, height=100)
+        page.insert_text((20, 40), "事務事業名", fontname="japan", fontsize=12)
+        page.insert_text((20.3, 40), "事務事業名", fontname="japan", fontsize=12)
+        page.insert_text((20, 70), "ああ", fontname="japan", fontsize=12)  # 本当に続く同じ字は残す
+        text = grid.build_cells(page)
+        doc.close()
+        self.assertRegex(text, r"\] 事務事業名")
+        self.assertRegex(text, r"\] ああ")
+
+    def test_every_character_of_the_page_is_kept(self) -> None:
+        doc, page = self.make_page()
+        kept = grid.layout_text(grid.page_layout(page))
+        doc.close()
+        for word in ("事務事業名", "広報広聴事業", "令和6年度", "事務事業評価シート"):
+            self.assertIn(word, kept)
+
+    def test_layout_keeps_the_table_shape_and_empty_cells(self) -> None:
+        doc, page = self.make_mark_table([
+            ["事業名", "拡充", "", "規模縮小"],
+            ["広報事業", "", "◎", ""],
+        ])
+        layout = grid.page_layout(page)
+        doc.close()
+        table = layout["tables"][0]
+        self.assertEqual((table["rows"], table["cols"]), (2, 4))
+        cells = {(c["r"], c["c"]): c["text"] for c in table["cells"]}
+        self.assertEqual(table["widths"], [35.7, 21.4, 21.4, 21.4])
+        self.assertEqual(cells[(0, 2)], "")
+        self.assertEqual(cells[(1, 2)], "◎")
+        self.assertEqual(len(cells), 8)
 
     def test_garbled_text_layer_is_not_passed(self) -> None:
         glyphs = [grid.Glyph((0, 0, 1, 1), chr(c)) for c in list(range(1, 20)) * 4]

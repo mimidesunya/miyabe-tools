@@ -1,0 +1,140 @@
+{
+  "format": "2.0-truth",
+  "source": {"slug": "40348-hisayama-cho", "name": "久山町", "doc_id": "d3cb0ff666c03964", "pdf_pages": [1, 2, 3, 4, 5, 6]},
+  "document_type": "事業シート",
+  "form_name": "令和3年度事業評価シート",
+  "evaluation_year": 2021,
+  "target_year": 2021,
+  "project": {
+    "name": "健康をテーマにした特産品開発（オリーブ栽培事業）",
+    "name_budget": "オリーブ栽培事業費",
+    "code": "68",
+    "department": "経営デザイン課",
+    "account": {"kan": "2", "kou": "1", "moku": "15"},
+    "plan_alignment": "農業の恵みを守り、高める",
+    "continuity_raw": "継続事業",
+    "kind_raw": "自治事務",
+    "legal_basis_status": "dash",
+    "mandate": "discretionary",
+    "mandate_raw": "町が実施主体となることが法令等により定められている（印なし）",
+    "start_year": 2011,
+    "target": "全住民",
+    "delivery_raw": "一般的な作業についてはシルバー人材センターに作業を委託する",
+    "delivery": "一部委託"
+  },
+  "amount_tables": [
+    {
+      "id": "PLAN",
+      "unit": "千円",
+      "unit_source": "表の外の右上「（千円）」",
+      "columns": [
+        {"key": "2予算", "fiscal_year": 2020, "stage": "budget"},
+        {"key": "3予算", "fiscal_year": 2021, "stage": "budget"},
+        {"key": "4予算", "fiscal_year": 2022, "stage": "budget"},
+        {"key": "5予算", "fiscal_year": 2023, "stage": "budget"}
+      ],
+      "rows": [
+        {"label": "直接事業費", "scope": "direct", "values": ["3,358", "3,074", "3,299", "3,299"]},
+        {"label": "人件費", "scope": "personnel", "values": ["2,754", "574", "631", "631"]},
+        {"label": "合計", "scope": "total", "values": ["6,112", "3,648", "3,930", "3,930"]}
+      ]
+    },
+    {
+      "id": "DO",
+      "unit": "千円",
+      "unit_source": "表の外の右上「（千円）」",
+      "columns": [
+        {"key": "2決算", "fiscal_year": 2020, "stage": "settlement"},
+        {"key": "3予算", "fiscal_year": 2021, "stage": "budget"},
+        {"key": "3決算", "fiscal_year": 2021, "stage": "settlement"},
+        {"key": "4予算", "fiscal_year": 2022, "stage": "budget"}
+      ],
+      "rows": [
+        {"label": "直接事業費", "scope": "direct", "values": ["2,626", "3,074", "2,402", "3,299"]},
+        {"label": "人件費", "scope": "personnel", "values": ["2,754", "574", "561", "631"]},
+        {"label": "合計", "scope": "total", "values": ["5,380", "3,648", "2,963", "3,930"]}
+      ]
+    }
+  ],
+  "funding_tables": [
+    {
+      "id": "DO財源",
+      "unit": "千円",
+      "unit_source": "表の外の右上「（千円）」",
+      "columns": ["2決算", "3予算", "3決算", "4予算"],
+      "rows": [
+        {"label": "国庫支出金", "source": "national", "values": ["0", "0", "0", "0"]},
+        {"label": "県支出金", "source": "prefecture", "values": ["0", "0", "0", "0"]},
+        {"label": "地方債", "source": "bond", "values": ["0", "0", "0", "0"]},
+        {"label": "その他", "source": "other_specific", "values": ["0", "0", "0", "0"]},
+        {"label": "一般財源", "source": "general", "values": ["5,380", "3,648", "2,963", "3,930"]}
+      ]
+    }
+  ],
+  "staff": {
+    "method": "人工 × 単価",
+    "columns": ["2決算", "3予算", "3決算", "4予算"],
+    "rows": [
+      {"label": "人工数", "unit": "人", "values": ["0.36", "0.08", "0.08", "0.08"]},
+      {"label": "人件費単価", "unit": "千円", "values": ["7,652", "7,179", "7,022", "7,898"]}
+    ]
+  },
+  "unit_costs": [
+    {"label": "町民一人当たり負担額", "raw": "395", "unit": "円", "note": "PLAN の欄。国費・県費は含まない"},
+    {"label": "町民一人当たり負担額", "raw": "321", "unit": "円", "note": "DO の欄。国費・県費は含まない"}
+  ],
+  "indicators": [
+    {"name": "オリーブの実の収穫量", "kind_raw": "成果指標", "kind": "outcome", "unit": "kg", "target_basis": "生育状況に裏年と表年があるため、増加一辺倒にはしていない", "columns": [2020, 2021, 2022, 2023], "target": ["240", "250", "200", "250"], "actual": ["61", "215", {"status": "blank"}, {"status": "blank"}]},
+    {"name": "専門家による栽培指導", "kind_raw": "活動指標", "kind": "activity", "unit": "回", "columns": [2020, 2021, 2022, 2023], "target": ["12", "12", "12", "12"], "actual": ["12", "12", {"status": "blank"}, {"status": "blank"}]},
+    {"name": "栽培事業について広報紙等", "kind_raw": "活動指標", "kind": "activity", "unit": "回", "columns": [2020, 2021, 2022, 2023], "target": ["3", "5", "5", "5"], "actual": ["5", "2", {"status": "blank"}, {"status": "blank"}]}
+  ],
+  "evaluations": [
+    {
+      "stage_raw": "自己評価",
+      "actor": "担当",
+      "status": "done",
+      "aspects": [
+        {"aspect_raw": "そもそも必要な事業か", "aspect": "必要性", "rating_raw": "D"},
+        {"aspect_raw": "町が実施する必要があるか", "aspect": "妥当性", "rating_raw": "C"},
+        {"aspect_raw": "有効性", "aspect": "有効性", "rating_raw": "C"},
+        {"aspect_raw": "効率性", "aspect": "効率性", "rating_raw": "C"},
+        {"aspect_raw": "公平性・透明性", "aspect": "公平性", "rating_raw": "D"}
+      ],
+      "direction_raw": "C見直し",
+      "direction": "improve",
+      "reason_contains": "現在の投資が妥当であるかは検討が必要"
+    },
+    {
+      "stage_raw": "一次評価",
+      "actor": "担当",
+      "status": "done",
+      "aspects": [
+        {"aspect_raw": "そもそも必要な事業か", "aspect": "必要性", "rating_raw": "D"},
+        {"aspect_raw": "町が実施する必要があるか", "aspect": "妥当性", "rating_raw": "C"},
+        {"aspect_raw": "有効性", "aspect": "有効性", "rating_raw": "C"},
+        {"aspect_raw": "効率性", "aspect": "効率性", "rating_raw": "D"},
+        {"aspect_raw": "公平性・透明性", "aspect": "公平性", "rating_raw": "D"}
+      ],
+      "direction_raw": "C見直し",
+      "direction": "improve",
+      "reason_contains": "外部評価委員会において「廃止」と評価された事業です"
+    },
+    {
+      "stage_raw": "二次評価",
+      "actor": "課長",
+      "status": "done",
+      "direction_raw": "C事業継続と判断するが、以下の課題を解決するため計画の見直しを行う。",
+      "direction": "improve",
+      "reason_contains": "外部評価で廃止とされ、次の受け皿として民間委託が決まるまでは最低限の管理を実施する"
+    },
+    {"stage_raw": "外部評価", "actor": "外部", "status": "blank", "note": "この年度の欄は空。前年度の結果「廃止」が一次、二次の理由の文中にある"},
+    {"stage_raw": "経営者評価", "actor": "首長", "status": "partial", "direction_raw": "見直しの具体的内容に事業の効率化の印だけ"}
+  ],
+  "reflection": [],
+  "checks": [
+    {"type": "sum", "table": "PLAN", "total": "合計", "parts": ["直接事業費", "人件費"], "columns": ["2予算", "3予算", "4予算", "5予算"]},
+    {"type": "sum", "table": "DO", "total": "合計", "parts": ["直接事業費", "人件費"], "columns": ["2決算", "3予算", "3決算", "4予算"]},
+    {"type": "funding_sum", "table": "DO", "total": "合計", "funding": "DO財源", "columns": ["2決算", "3予算", "3決算", "4予算"]}
+  ],
+  "notes": ["成果指標の名前だが中身は収穫量。生産 270 本に対し販売は 55 本（文中）", "収集時の年度は 2020 で、シートは令和3年度", "文書の題名は別の事業の名前"]
+}

@@ -1,0 +1,44 @@
+{
+  "format": "2.0-truth",
+  "source": {"slug": "28227-shiso-shi", "name": "宍粟市", "doc_id": "b540a4fdb4b40a1d", "pdf_pages": [1, 2, 3]},
+  "document_type": "事業シート",
+  "form_name": "令和5年度 個別事業評価シート（令和4年度事業実施後）",
+  "evaluation_year": 2023,
+  "target_year": 2022,
+  "project": {
+    "name": "営業部設置事業",
+    "department": "秘書政策課",
+    "plan_alignment": "シティプロモーションの推進／【まちの魅力】選ばれるまちづくり"
+  },
+  "amount_tables": [],
+  "funding_tables": [],
+  "indicators": [
+    {"name": "包括連携協定企業数", "kind_raw": "成果指標", "kind": "outcome", "columns": [2022], "target": [{"status": "dash", "raw": "-"}], "actual": ["3"], "rate": [{"status": "dash", "raw": "-"}]},
+    {"name": "モニターツアー参加企業数", "kind_raw": "成果指標", "kind": "outcome", "columns": [2022], "target": [{"status": "dash", "raw": "-"}], "actual": ["20"], "rate": [{"status": "dash", "raw": "-"}]}
+  ],
+  "evaluations": [
+    {
+      "stage_raw": "一次評価（所管部局の評価）",
+      "actor": "担当",
+      "status": "done",
+      "rating_raw": "非常に効果があった",
+      "direction_raw": "同内容で継続",
+      "direction": "maintain"
+    },
+    {
+      "stage_raw": "二次評価（行政評価委員会の評価）",
+      "actor": "外部",
+      "status": "done",
+      "reason_contains": "アウトカムできる指標を設定する必要がある"
+    },
+    {
+      "stage_raw": "外部評価（総合計画及び地域創生戦略委員会の評価）",
+      "actor": "外部",
+      "status": "done",
+      "reason_contains": "どちらかに絞るのではなく"
+    }
+  ],
+  "absent": ["金額の欄", "財源の欄", "人員の欄"],
+  "checks": [],
+  "notes": ["金額が無くても、一次評価と二次評価の差は検証の材料になる", "目標が空で達成率も出ない", "文書の題名は個別施策等評価シート（個票）、シートの題は個別事業評価シート"]
+}

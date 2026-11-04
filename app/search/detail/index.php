@@ -102,6 +102,7 @@ $hyokaDisplay = ($docType === 'hyoka' && $document !== null) ? miyabe_hyoka_disp
 $hyokaRecords = $hyokaDisplay['records'];
 $hyokaRecordSource = $sourceUrl !== '' ? $sourceUrl : $hyokaDisplay['source_url'];
 $hyokaLazy = count($hyokaRecords) > MIYABE_HYOKA_INLINE_RECORDS;
+$hyokaHasSheet = $docType === 'hyoka' && $document !== null && miyabe_hyoka_display_sheet_path($id) !== null;
 
 $boot = [
     'query' => $query,
@@ -172,8 +173,10 @@ $boot = [
                 <section class="hyoka-records" id="hyoka-records" aria-labelledby="hyoka-records-title"<?php echo $hyokaLazy ? ' data-detail-id="' . search_detail_h($id) . '"' : ''; ?>>
                     <div class="hyoka-records-head">
                         <h2 id="hyoka-records-title">この文書の事業<span class="hyoka-records-total"><?php echo number_format(count($hyokaRecords)); ?>件</span></h2>
-                        <?php if (array_filter($hyokaRecords, 'miyabe_hyoka_display_is_ai') !== []): ?>
-                        <p class="hyoka-records-note">原典の表を AI（OpenAI の gpt-6-luna）が書き写した記録です。書き写した文字が原典にあることは機械で照合し、合わない値は出していませんが、人の確認はまだです。欄名は原典のまま、欄の中の折り返しは詰めています。数字や言い回しは、各事業の「原典」の頁で確かめてください。</p>
+                        <?php if (array_filter($hyokaRecords, 'miyabe_hyoka_display_is_form') !== []): ?>
+                        <p class="hyoka-records-note">原典の表を、この自治体の様式に合わせた読み取りプログラムで書き写した記録です。プログラムは AI（OpenAI の Codex）が書き、検算と原典の見本で確かめました。書き写した文字が原典の升目にあることを機械で照合し、金額は合計と内訳を検算しています。人の確認はまだです。数字や言い回しは、各事業の「原典」の頁で確かめてください。</p>
+                        <?php elseif (array_filter($hyokaRecords, 'miyabe_hyoka_display_is_ai') !== []): ?>
+                        <p class="hyoka-records-note">原典の表を AI（<?php echo search_detail_h(miyabe_hyoka_display_ai_model_label($hyokaRecords)); ?>）が書き写した記録です。書き写した文字が原典にあることは機械で照合し、合わない値は出していませんが、人の確認はまだです。欄名は原典のまま、欄の中の折り返しは詰めています。数字や言い回しは、各事業の「原典」の頁で確かめてください。</p>
                         <?php else: ?>
                         <p class="hyoka-records-note">原典の表の欄から機械で書き写した記録です。人の確認はまだです。欄名は原典のまま、欄の中の折り返しは詰めています。数字や言い回しは、各事業の「原典」の頁で確かめてください。</p>
                         <?php endif; ?>
@@ -219,6 +222,14 @@ $boot = [
                         <?php endforeach; ?>
                     </ol>
                 </section>
+            <?php endif; ?>
+
+            <?php if ($hyokaHasSheet): ?>
+                <details class="hyoka-sheet" id="hyoka-sheet" data-sheet-id="<?php echo search_detail_h($id); ?>">
+                    <summary>シートの全部（原典の表の形）</summary>
+                    <p class="detail-note">原典の PDF の表を、機械で読み取って同じ形に並べたものです。印や列の読み取りに誤りがあることがあります。大事な値は原典で確かめてください。</p>
+                    <div class="hyoka-sheet-body" data-pending></div>
+                </details>
             <?php endif; ?>
 
             <?php if ($docType === 'hyoka'): ?>

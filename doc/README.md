@@ -27,10 +27,14 @@
 - [assembly-minutes-url-survey.md](assembly-minutes-url-survey.md) — 地方議会会議録システム URL 一覧 `assembly_minutes_system_urls.tsv` の調査手順
 - [reiki-url-survey.md](reiki-url-survey.md) — 自治体例規集システム URL 一覧 `reiki_system_urls.tsv` の調査手順
 - [hyoka-url-survey.md](hyoka-url-survey.md) — 事務事業評価の公開先 `hyoka_system_urls.tsv` の調査手順と全国調査の結果、評価表の取得
+- [hyoka-survey.md](hyoka-survey.md) — 事務事業評価の実地調査。総務省の個票を土台に、公式サイトの実物を開いて台帳を作り直す
 - [hyoka-common-format.md](hyoka-common-format.md) — 事務事業評価の共通形式1.2.0。95自治体の専用欄と文中記載の割合、出典付きSchema、6自治体の記録例
 - [hyoka-extraction.md](hyoka-extraction.md) — 事務事業評価の機械抽出。38自治体の様式、チェック印・原典照合、対象外頁、再開と本番実行の案
 - [hyoka-ai-extraction.md](hyoka-ai-extraction.md) — 事務事業評価の AI による書き写し。構造化していない自治体の PDF を升目の一覧にして gpt-6-luna に書き写させ、原典と機械で照合する。凡例と自動の比べ、一括処理、本番での流し方
+- [hyoka-forms.md](hyoka-forms.md) — 事務事業評価の様式ごとの読み取り。Codex が自治体の様式に合わせた読み取りプログラムを書き、同じ様式の文書を AI なしで読む。番地の照合、検算、正解との突き合わせ、川崎市の結果
 - [hyoka-display.md](hyoka-display.md) — 事務事業評価の画面。詳細画面の事業の一覧、収集・公開状況と自治体一覧の取り込みの数、控え `data/hyoka` の作り方
+- [hyoka-verification-review.md](hyoka-verification-review.md) — 事務事業評価の設計の見直し（案）。目的は税金の無駄遣いの検証。取り違え、検証の問い、実物を読んだ頻出項目の調査
+- [hyoka-format-2.md](hyoka-format-2.md) — 事務事業評価の形 2.0（案）。全欄の層と検証の層、金額・指標・評価の持ち方、値の状態、検算
 - [kansa-url-survey.md](kansa-url-survey.md) — 包括外部監査の報告書の公開先 `gaibu_kansa_system_urls.tsv` の調査と、報告書の取得
 - [collection-gap-survey.md](collection-gap-survey.md) — 会議録・例規集の収集取りこぼしの現況。取りこぼしの型、直したもの、残っている課題、調査の再現手順
 - [collection-gap-survey-history.md](collection-gap-survey-history.md) — 収集取りこぼしの調査と修正の記録。ラウンドごとの時系列の全記録

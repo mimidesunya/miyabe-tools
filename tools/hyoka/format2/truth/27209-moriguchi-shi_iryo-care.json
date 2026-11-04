@@ -1,0 +1,37 @@
+{
+  "format": "2.0-truth",
+  "source": {"slug": "27209-moriguchi-shi", "name": "守口市", "doc_id": "36bc2837df04db8c", "pdf_pages": [5]},
+  "document_type": "事業シート",
+  "form_name": "令和5年度決算 事務事業評価書",
+  "evaluation_year": 2023,
+  "target_year": 2023,
+  "project": {
+    "name": "医療的ケア児受入支援事業",
+    "department": "こども部こども施設課",
+    "account": {"kaikei": "一般会計"},
+    "plan_alignment": "施策1_子ども・子育て支援／3.子どもの健やかな育ちと仕事・家庭の両立",
+    "period_raw": "継続的事業 令和4年度〜",
+    "start_year": 2022
+  },
+  "amount_tables": [
+    {
+      "id": "事業費",
+      "unit": "千円",
+      "unit_source": "欄名「事業費（単位：千円）」",
+      "columns": [
+        {"key": "予算", "fiscal_year": 2023, "stage": "budget"},
+        {"key": "決算", "fiscal_year": 2023, "stage": "settlement"}
+      ],
+      "rows": [
+        {"label": "事業費", "scope": "direct", "values": ["47,565", {"status": "dash", "raw": "－"}]}
+      ]
+    }
+  ],
+  "indicators": [],
+  "evaluations": [
+    {"stage_raw": "今後の事務事業の方向性（行革担当）", "actor": "行革担当", "status": "done", "direction_raw": "継続", "direction": "continue"}
+  ],
+  "absent": ["指標の欄", "財源の欄", "人件費の欄"],
+  "checks": [],
+  "notes": ["予算 47,565 千円に対し決算が「－」。執行が無いのか未記入かはシートでは分からない", "事業費の内訳の表は空", "この PDF は文字が図形で描かれていて文字の層が無い。値は画像から読んだ。機械で取るには OCR が要る"]
+}

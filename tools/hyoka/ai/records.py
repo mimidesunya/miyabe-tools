@@ -7,6 +7,7 @@
 - 方向性の欄名が評価の欄（「総合評価」「判定」など）なら、共通形式の決まり（評価区分が方針の意味を兼ねるだけなら
   方向性は文中の記載）に従い、方向性の専用欄としては出さない。
 - 記録には AI が書き写したこと（型・指示文の版・升目の版・凡例の有無）を残す。人の確認はしていない。
+  型は区切りごとに実際に使ったもの（区切りに型が無ければ extraction の型）。別の型の区切りをまとめた記録は両方の名を残す。
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ import unicodedata
 from prompts import FIELDS
 
 SCHEMA_VERSION = "1.2.0"
-GRID_VERSION = "g3"
+GRID_VERSION = "g5"
 MARKS = set("●○◎■□☑☐✓✔◯◉")
 WS = re.compile(r"\s+")
 LINE_PREFIX = re.compile(r"^(?:\d+,\d+(?:\+\d+x\d+)?: |\[\d\d,\d\d\] |\[縦\] )")
@@ -65,7 +66,7 @@ def assemble_document(meta: dict, chunks: list[dict], extraction: dict) -> tuple
 
     meta: slug・code・name・doc_id・source_url・page_url
     chunks: [{"index", "pages", "text"（渡した升目の一覧）, "parsed"（答え）か "error"}]
-    extraction: 記録に残す方法（model・prompt_version・legend など）
+    extraction: 記録に残す方法（model・prompt_version・legend など）。区切りの "model" があればそちらを記録に残す
     """
     candidates: list[dict] = []
     summary = {"doc_id": meta["doc_id"], "chunks": len(chunks), "errors": 0, "kinds": [], "records": 0,
@@ -102,7 +103,8 @@ def assemble_document(meta: dict, chunks: list[dict], extraction: dict) -> tuple
                 summary["unverified_values"] += len(unverified)
                 summary["dropped_no_name"] += 1
                 continue
-            candidates.append({"page": page, "values": values, "unverified": unverified})
+            candidates.append({"page": page, "values": values, "unverified": unverified,
+                               "models": {chunk.get("model") or extraction.get("model") or ""}})
     # 区切りをまたいだ同じ事業をまとめる
     merged: list[dict] = []
     for cand in candidates:
@@ -116,6 +118,7 @@ def assemble_document(meta: dict, chunks: list[dict], extraction: dict) -> tuple
                         prev["unverified"].setdefault(field, value)
                 pages = [p for p in (prev["page"], cand["page"]) if p]
                 prev["page"] = min(pages) if pages else None
+                prev["models"] |= cand["models"]
                 break
         else:
             merged.append(cand)
@@ -141,6 +144,7 @@ def assemble_document(meta: dict, chunks: list[dict], extraction: dict) -> tuple
                              "raw_text": None, "raw_label": label, "related_fields": [label]}
             fields[key] = field
         summary["unverified_values"] += len(cand["unverified"])
+        model = " + ".join(sorted(m for m in cand["models"] if m))
         records.append({
             "schema_version": SCHEMA_VERSION,
             "record_id": f"ai-{meta['doc_id']}-p{page:04d}-{counters[page]:02d}",
@@ -154,7 +158,8 @@ def assemble_document(meta: dict, chunks: list[dict], extraction: dict) -> tuple
             "fields": fields,
             "raw_fields": raw_fields,
             "unverified": cand["unverified"],
-            "extraction": {"method": "ai_transcription", "grid_version": GRID_VERSION, "human_reviewed": False, **extraction},
+            "extraction": {"method": "ai_transcription", "grid_version": GRID_VERSION, "human_reviewed": False, **extraction,
+                           **({"model": model} if model else {})},
         })
     summary["records"] = len(records)
     return records, summary

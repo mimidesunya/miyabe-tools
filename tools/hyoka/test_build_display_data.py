@@ -126,6 +126,57 @@ class BuildTest(unittest.TestCase):
         b.build(self.work, self.records, self.out, [])
         self.assertFalse(stale.exists())
 
+    def overlay(self) -> dict:
+        """調査から集め直した保存先にだけある自治体と、その様式ごとの読み取りの記録。"""
+        root = self.work.parent
+        slug = "14130-kawasaki-shi"
+        work_dir = root / "hyoka2" / slug
+        (root / "hyoka2-ai" / slug / "layouts").mkdir(parents=True)
+        work_dir.mkdir(parents=True)
+        (work_dir / "manifest.json").write_text(json.dumps({
+            "slug": slug, "jis_code": "14130", "name": "神奈川県 川崎市", "last_run": {"status": "ok"},
+            "documents": {DOC_A: {"text_status": "ok", "file_type": "pdf", "pages": 4, "fiscal_year": 2025, "source_url": "https://k.jp/a.pdf"}},
+        }, ensure_ascii=False), encoding="utf-8")
+        (root / "hyoka2-ai" / slug / "layouts" / f"{DOC_A}.json.gz").write_bytes(b"x")
+        amounts = [{"label": "事業費A", "fiscal_year": 2024, "raw": "100", "stage": "settlement", "scope": "direct", "unit": "千円"},
+                   {"label": "人件費B", "fiscal_year": 2024, "raw": "50", "stage": "settlement", "scope": "personnel", "unit": "千円"},
+                   {"label": "総コスト(A+B)", "fiscal_year": 2024, "raw": "150", "stage": "settlement", "scope": "total", "unit": "千円"},
+                   {"label": "事業費A", "fiscal_year": 2025, "raw": "120", "stage": "budget", "scope": "direct", "unit": "千円"}]
+        form = {"doc_id": DOC_A, "pages": [3, 4], "evaluation_year": 2025, "target_year": 0,
+                "project": {"name": [{"raw": "人権関連事業", "ref": "p3t1r2c9"}], "department": [{"raw": "市民文化局\n人権課", "ref": "p3t1r4c9"}],
+                            "legal_basis": [{"raw": "人権教育法", "ref": "p3t1r9c5"}], "code": []},
+                "amounts": amounts, "funding": [], "staff": [],
+                "indicators": [{"name": "受講者数", "kind": "activity", "kind_raw": "活動指標", "unit": "人",
+                                "values": [{"fiscal_year": 2024, "target_raw": "560", "actual_raw": "612", "rate_raw": ""}]}],
+                "evaluations": [{"stage_raw": "今後の方向性", "status": "done", "rating_raw": "3", "direction_raw": "継続", "aspects": []}]}
+        (root / "forms" / slug).mkdir(parents=True)
+        (root / "forms" / slug / "records.jsonl").write_text(json.dumps(form, ensure_ascii=False) + "\n", encoding="utf-8")
+        return {"slugs": [slug], "root": root / "hyoka2", "records_root": root / "forms", "layouts_root": root / "hyoka2-ai"}
+
+    def test_overlay_publishes_form_records_for_the_chosen_municipality(self) -> None:
+        status = b.build(self.work, self.records, self.out, [self.log], overlay=self.overlay())
+        rows = {row["slug"]: row for row in status["municipalities"]}
+        self.assertEqual(sorted(rows), ["14130-kawasaki-shi", SLUG])
+        self.assertEqual((rows["14130-kawasaki-shi"]["records"], rows["14130-kawasaki-shi"]["records_source"], rows["14130-kawasaki-shi"]["sheets"]), (1, "form", 1))
+        self.assertEqual(rows[SLUG]["records_source"], "machine")
+        saved = json.loads((self.out / "records" / "14130-kawasaki-shi" / f"{DOC_A}.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved["schema_version"], "2.0-form")
+        shown = saved["records"][0]
+        self.assertEqual((shown["id"], shown["layout"], shown["page"]), (f"{DOC_A}-1", "form_reader", 3))
+        self.assertEqual([(f["key"], f["text"]) for f in shown["fields"]],
+                         [("project_name", "人権関連事業"), ("department", "市民文化局人権課"), ("evaluation_year", "2025年度"),
+                          ("evaluation_rating", "3"), ("future_direction", "継続")])
+        self.assertEqual(shown["raw_fields"], [{"label": "根拠法令", "text": "人権教育法"}])
+        table = shown["amounts"]
+        self.assertEqual(table["unit"], "千円")
+        self.assertEqual(table["columns"], [{"year": 2024, "stage": "決算"}, {"year": 2025, "stage": "予算"}])
+        self.assertEqual(table["rows"][0], {"label": "事業費A", "kind": "事業費（人件費を除く）", "unit": "", "values": ["100", "120"]})
+        self.assertEqual(shown["indicators"][0]["values"], [{"year": 2024, "target": "560", "actual": "612", "rate": ""}])
+        self.assertEqual(shown["checks"], {"pairs": 1, "problems": []})
+        self.assertEqual(b.direction_text({"direction_raw": "Ⅰ", "direction": "continue"}), "Ⅰ（継続）")
+        self.assertEqual(b.direction_text({"direction_raw": "改善しながら継続", "direction": "improve"}), "改善しながら継続")
+        self.assertTrue((self.out / "sheets" / "14130-kawasaki-shi" / f"{DOC_A}.json.gz").is_file())
+
     def test_ai_records_are_used_only_where_machine_records_are_missing(self) -> None:
         other = "88888-other-shi"
         (self.work / other).mkdir(parents=True)
@@ -137,6 +188,7 @@ class BuildTest(unittest.TestCase):
         for slug in (SLUG, other):
             ai_record = record(f"ai-{DOC_B}-p0002-01", DOC_B, 2, f"AI の事業 {slug[:5]}")
             ai_record["layout"] = "ai_transcription"
+            ai_record["extraction"] = {"method": "ai_transcription", "model": "claude-haiku-5-5"}
             (ai_root / slug).mkdir(parents=True)
             (ai_root / slug / "records.jsonl").write_text(json.dumps(ai_record, ensure_ascii=False) + "\n", encoding="utf-8")
         status = b.build(self.work, self.records, self.out, [], ai_root)
@@ -146,8 +198,51 @@ class BuildTest(unittest.TestCase):
         self.assertEqual((status["totals"]["records_ai"], status["totals"]["municipalities_with_ai_records"]), (1, 1))
         saved = json.loads((self.out / "records" / other / f"{DOC_B}.json").read_text(encoding="utf-8"))
         self.assertEqual(saved["records"][0]["layout"], "ai_transcription")
+        self.assertEqual(saved["records"][0]["model"], "claude-haiku-5-5")
         self.assertEqual(saved["source_url"], "https://example.jp/b.pdf")
         self.assertFalse((self.out / "records" / SLUG / f"{DOC_B}.json").exists())
+
+    def test_empty_machine_records_fall_back_to_ai(self) -> None:
+        # 機械の抽出で 1 件も取れなかった自治体には、空の records.jsonl が残っている
+        (self.records / SLUG / "records.jsonl").write_text("", encoding="utf-8")
+        ai_root = self.out.parent / "ai"
+        ai_record = record(f"ai-{DOC_B}-p0002-01", DOC_B, 2, "AI の事業")
+        ai_record["layout"] = "ai_transcription"
+        (ai_root / SLUG).mkdir(parents=True)
+        (ai_root / SLUG / "records.jsonl").write_text(json.dumps(ai_record, ensure_ascii=False) + "\n", encoding="utf-8")
+        status = b.build(self.work, self.records, self.out, [], ai_root)
+        rows = {row["slug"]: row for row in status["municipalities"]}
+        self.assertEqual((rows[SLUG]["records_source"], rows[SLUG]["records"]), ("ai", 1))
+        self.assertEqual(status["totals"]["records_ai"], 1)
+
+    def test_sheets_are_copied_and_stale_ones_removed(self) -> None:
+        ai_root = self.out.parent / "ai"
+        (ai_root / SLUG / "layouts").mkdir(parents=True)
+        (ai_root / SLUG / "layouts" / f"{DOC_B}.json.gz").write_bytes(b"sheet")
+        stale = self.out / "sheets" / SLUG / f"{'c' * 16}.json.gz"
+        stale.parent.mkdir(parents=True)
+        stale.write_bytes(b"old")
+        other = self.out / "sheets" / "88888-other-shi" / f"{'d' * 16}.json.gz"
+        other.parent.mkdir(parents=True)
+        other.write_bytes(b"keep")
+        status = b.build(self.work, self.records, self.out, [], ai_root)
+        self.assertEqual((self.out / "sheets" / SLUG / f"{DOC_B}.json.gz").read_bytes(), b"sheet")
+        self.assertFalse(stale.exists())
+        self.assertTrue(other.exists())  # AI の置き場に無い自治体の控えは消さない
+        self.assertEqual(status["totals"]["sheets"], 1)
+
+    def test_sheets_stay_when_the_ai_folder_is_not_mounted(self) -> None:
+        kept = self.out / "sheets" / SLUG / f"{DOC_B}.json.gz"
+        kept.parent.mkdir(parents=True)
+        kept.write_bytes(b"sheet")
+        b.build(self.work, self.records, self.out, [], None)
+        self.assertTrue(kept.exists())
+
+    def test_empty_machine_records_stay_empty_without_ai(self) -> None:
+        (self.records / SLUG / "records.jsonl").write_text("", encoding="utf-8")
+        status = b.build(self.work, self.records, self.out, [], self.out.parent / "ai")
+        rows = {row["slug"]: row for row in status["municipalities"]}
+        self.assertEqual(rows[SLUG]["records"], 0)
 
     def test_empty_inputs_do_not_overwrite_the_display_data(self) -> None:
         with self.assertRaises(ValueError):

@@ -33,6 +33,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 WORKSPACE_ROOT = HERE.parents[2]
 
+import anthropic_api  # noqa: E402
 import openai_api  # noqa: E402
 import prompts  # noqa: E402
 import records as rec  # noqa: E402
@@ -40,8 +41,9 @@ import records as rec  # noqa: E402
 JST = timezone(timedelta(hours=9))
 EXTRACT_MODEL = "gpt-6-luna"
 LEGEND_MODEL = "gpt-6.1-sol"
+FALLBACK_MODEL = "claude-haiku-5-5"  # OpenAI のクレジットが切れたときの sync 用。比べた型で次に良かったもの
 # 100 万トークンあたりの単価（2026-11-01 に公式の料金表で確かめた。一括処理は半額）
-PRICES = {"gpt-6-luna": (0.10, 0.50), "gpt-6.1-sol": (2.00, 10.00)}
+PRICES = {"gpt-6-luna": (0.10, 0.50), "gpt-6.1-sol": (2.00, 10.00), FALLBACK_MODEL: (0.10, 0.50)}
 CHUNK_PAGES = 6
 CHUNK_MAX_CHARS = 40000
 PART_MAX_BYTES = 150 * 1024 * 1024
@@ -99,9 +101,17 @@ def cmd_plan(args) -> int:
         for doc_id, doc in (manifest.get("documents") or {}).items():
             if not isinstance(doc, dict) or doc.get("status") == "gone":
                 continue
-            if (doc.get("file_type") or "").lower() != "pdf" or doc.get("text_status") != "ok":
+            if (doc.get("file_type") or "").lower() not in ("pdf", "html") or doc.get("text_status") != "ok":
                 continue
-            if doc.get("text_source") == OCR_SOURCE or doc.get("kind") != "project_evaluation":
+            if doc.get("text_source") == OCR_SOURCE:
+                continue
+            # 調査から集めた文書（collect_from_survey.py）は、選んだ役割（origin の「:」の後）で決める。
+            # 以前の収集の kind はリンクの言葉から付けたもので当てにならない
+            origin = str(doc.get("origin") or "")
+            if ":" in origin:
+                if origin.rsplit(":", 1)[1] not in args.roles.split(","):
+                    continue
+            elif doc.get("kind") != "project_evaluation":
                 continue
             relative = doc.get("file") or f"source/{doc_id}.pdf"
             if not (manifest_path.parent / relative).is_file():
@@ -140,30 +150,72 @@ def inputs_path(out: Path, slug: str, doc_id: str) -> Path:
     return out / slug / "inputs" / f"{doc_id}.json.gz"
 
 
+def layouts_path(inputs: Path) -> Path:
+    """頁の表の構造（全欄の層。画面に全部出すもの）の置き場。升目の一覧の隣に置く。"""
+    return inputs.parent.parent / "layouts" / inputs.name
+
+
+def write_gzip_lines(path: Path, lines: list[dict]) -> None:
+    """1 行 1 件で gzip にする。画面が大きな文書の 1 頁だけを読めるように、頁を行に分ける。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    with gzip.open(temporary, "wt", encoding="utf-8") as stream:
+        for line in lines:
+            stream.write(json.dumps(line, ensure_ascii=False, separators=(",", ":")) + "\n")
+    temporary.replace(path)
+
+
+def read_gzip_lines(path: Path) -> list[dict]:
+    with gzip.open(path, "rt", encoding="utf-8") as stream:
+        return [json.loads(line) for line in stream if line.strip()]
+
+
 def build_doc_grid(task: tuple[str, str, str]) -> tuple[str, str, int, str]:
-    """1 文書の升目の一覧を作って書く（別の処理で動く）。"""
+    """1 文書の升目の一覧と頁の表の構造を作って書く（別の処理で動く）。HTML のシートは 1 頁として扱う。"""
     pdf_path, dest, doc_id = task
-    import fitz
     import grid
     pages = []
+    layouts = []
     error = ""
+    if pdf_path.lower().endswith((".html", ".htm")):
+        import html_layout
+        try:
+            layout = html_layout.html_layout(Path(pdf_path).read_bytes())
+            layouts.append({"page": 1, **layout})
+            text = grid.layout_text(layout)
+            if text.strip():
+                pages.append([1, text])
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"[:300]
+        return write_doc_grid(dest, doc_id, pages, layouts, error)
+    import fitz
     try:
         with fitz.open(pdf_path) as pdf:
             for index in range(len(pdf)):
                 page = pdf[index]
                 try:
-                    if not page.get_text("text").strip():
-                        continue  # 文字の無い頁（白紙・画像だけ）
+                    plain = page.get_text("text")
+                    if not plain.strip():
+                        layouts.append({"page": index + 1, "image_only": True})  # 文字の無い頁（白紙・画像だけ）
+                        continue
                     if len(page.get_drawings()) > MAX_DRAWINGS:
-                        text = page.get_text("text")
+                        text = plain
+                        layouts.append({"page": index + 1, "plain": plain})
                     else:
-                        text = grid.build_cells(page)
+                        layout = grid.page_layout(page)
+                        text = grid.layout_text(layout)
+                        layouts.append({"page": index + 1, **layout})
                 except Exception as exc:  # 頁ごとの失敗は書き残して次へ
                     text = f"## この頁は升目にできなかった（{type(exc).__name__}）\n" + page.get_text("text")
+                    layouts.append({"page": index + 1, "plain": page.get_text("text")})
                 if text.strip():
                     pages.append([index + 1, text])
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"[:300]
+    return write_doc_grid(dest, doc_id, pages, layouts, error)
+
+
+def write_doc_grid(dest: str, doc_id: str, pages: list, layouts: list, error: str) -> tuple[str, str, int, str]:
     payload = {"doc_id": doc_id, "grid_version": rec.GRID_VERSION, "pages": pages, "error": error}
     path = Path(dest)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -171,6 +223,8 @@ def build_doc_grid(task: tuple[str, str, str]) -> tuple[str, str, int, str]:
     with gzip.open(temporary, "wt", encoding="utf-8") as stream:
         json.dump(payload, stream, ensure_ascii=False)
     temporary.replace(path)
+    head = {"doc_id": doc_id, "grid_version": rec.GRID_VERSION, "pages": [p["page"] for p in layouts], "error": error}
+    write_gzip_lines(layouts_path(path), [head, *layouts])
     return doc_id, dest, len(pages), error
 
 
@@ -180,7 +234,7 @@ def cmd_grids(args) -> int:
     for slug, muni in plan["municipalities"].items():
         for doc in muni["docs"]:
             dest = inputs_path(args.out, slug, doc["doc_id"])
-            if not dest.is_file():
+            if not layouts_path(dest).is_file():  # 前の版の升目の一覧には表の構造が無いので作り直す
                 tasks.append((str(args.work_root / slug / doc["file"]), str(dest), doc["doc_id"]))
     random.Random(0).shuffle(tasks)  # 大きな文書が固まらないように
     print(f"[HYOKA-AI] grids 残り {len(tasks)} 文書、処理 {args.workers}", flush=True)
@@ -287,12 +341,19 @@ def accept_legend(v2: dict, v3: dict) -> tuple[bool, str]:
     return True, "悪化なし"
 
 
-def extract_sync(key: str, system: str, chunk: dict) -> dict:
-    body = openai_api.chat_body(EXTRACT_MODEL, system, chunk["text"], prompts.SCHEMA, "hyoka_records")
-    result = {"index": chunk["index"], "pages": chunk["pages"]}
+def is_claude(model: str) -> bool:
+    return model.startswith("claude-")
+
+
+def extract_sync(key: str, system: str, chunk: dict, model: str = EXTRACT_MODEL) -> dict:
+    result = {"index": chunk["index"], "pages": chunk["pages"], "model": model}
     try:
-        raw, usage, finish = openai_api.chat(key, body)
-        result.update(usage=usage, finish=finish, usd=cost(EXTRACT_MODEL, usage, batch=False))
+        if is_claude(model):
+            raw, usage, finish = anthropic_api.chat(key, model, system, chunk["text"], prompts.SCHEMA)
+        else:
+            body = openai_api.chat_body(model, system, chunk["text"], prompts.SCHEMA, "hyoka_records")
+            raw, usage, finish = openai_api.chat(key, body)
+        result.update(usage=usage, finish=finish, usd=cost(model, usage, batch=False))
         result["parsed"] = json.loads(raw)
     except Exception as exc:
         result["error"] = f"{type(exc).__name__}: {exc}"[:500]
@@ -510,8 +571,8 @@ def cmd_collect(args) -> int:
         info = openai_api.get_batch(key, batch["batch_id"])
         batch["status"] = info.get("status")
         batch["request_counts"] = info.get("request_counts")
-        # 期限切れ・取り消しでも、終わった分は出力にある（残りは sync でやり直す）
-        if info.get("status") in ("completed", "expired", "cancelled"):
+        # 期限切れ・取り消し・失敗でも、終わった分は出力にある（残りは sync でやり直す）
+        if info.get("status") in ("completed", "expired", "cancelled", "failed"):
             store: dict = {}
             for file_key in ("output_file_id", "error_file_id"):
                 file_id = info.get(file_key)
@@ -526,6 +587,7 @@ def cmd_collect(args) -> int:
                             custom_id, result = parse_batch_line(line)
                             save_result(args.out, custom_id, result, store)
             flush_results(args.out, store)
+            batch["final_status"] = info.get("status")
             batch["status"] = "collected"
             batch["collected_at"] = now_text()
         counts[batch["status"]] = counts.get(batch["status"], 0) + 1
@@ -537,7 +599,7 @@ def cmd_collect(args) -> int:
 def cmd_sync(args) -> int:
     """一括処理を使わずに送る。結果の形は collect と同じ。失敗した区切りだけのやり直しにも使う。"""
     plan = load_plan(args)
-    key = openai_api.load_key(args.config)
+    key = (anthropic_api if is_claude(args.model) else openai_api).load_key(args.config)
     jobs = []
     for slug, muni in plan["municipalities"].items():
         system, legend_version = system_for(args.out, slug)
@@ -554,11 +616,11 @@ def cmd_sync(args) -> int:
                 if previous and "parsed" in previous:
                     continue
                 jobs.append((slug, doc["doc_id"], system, chunk))
-    print(f"[HYOKA-AI] sync {len(jobs)} 件", flush=True)
+    print(f"[HYOKA-AI] sync {len(jobs)} 件（{args.model}）", flush=True)
     spent = 0.0
     store: dict = {}
     with cf.ThreadPoolExecutor(max_workers=args.workers) as pool:
-        futures = {pool.submit(extract_sync, key, system, chunk): (slug, doc_id) for slug, doc_id, system, chunk in jobs}
+        futures = {pool.submit(extract_sync, key, system, chunk, args.model): (slug, doc_id) for slug, doc_id, system, chunk in jobs}
         for n, future in enumerate(cf.as_completed(futures), 1):
             slug, doc_id = futures[future]
             result = future.result()
@@ -651,8 +713,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--slug", action="append", help="この自治体だけ（複数可）")
     parser.add_argument("--limit-docs", type=int, default=0, help="plan: 1 自治体あたりの文書の数の上限（試し用）")
     parser.add_argument("--include-extracted", action="store_true", help="plan: 構造化済みの自治体も入れる")
+    parser.add_argument("--roles", default="sheet,report,external", help="plan: 調査から集めた文書のうち対象にする役割")
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--max-parts", type=int, default=0, help="submit: 送る要求ファイルの数の上限")
+    parser.add_argument("--model", default=EXTRACT_MODEL, choices=[EXTRACT_MODEL, FALLBACK_MODEL], help="sync: 書き写しに使う型")
     args = parser.parse_args(argv)
     if args.out.resolve() == args.work_root.resolve() or args.work_root.resolve() in args.out.resolve().parents:
         parser.error("--out を --work-root の中に置かない")

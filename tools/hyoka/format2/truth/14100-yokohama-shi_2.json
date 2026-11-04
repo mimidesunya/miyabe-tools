@@ -1,0 +1,45 @@
+{
+  "format": "2.0-truth",
+  "source": {"slug": "14100-yokohama-shi", "name": "横浜市", "doc_id": "ee19e459ec38288c", "pdf_pages": [4, 5]},
+  "document_type": "事業シート",
+  "form_name": "令和7年度事業評価書",
+  "evaluation_year": 2025,
+  "target_year": 2024,
+  "project": {
+    "name": "収納データ作成経費",
+    "code": "2",
+    "department": "会計室会計管理課",
+    "account": {"kaikei": "一般会計", "kan": "02", "kou": "08", "moku": "01"}
+  },
+  "amount_tables": [
+    {
+      "id": "事業決算額",
+      "unit": "千円",
+      "unit_source": "欄名「事業費（千円）」",
+      "columns": [
+        {"key": "5年度", "fiscal_year": 2023, "stage": "settlement"},
+        {"key": "6年度", "fiscal_year": 2024, "stage": "settlement"}
+      ],
+      "rows": [
+        {"label": "事業費", "scope": "direct", "values": ["163,339", "137,421"]},
+        {"label": "受入済通知書等からの収納データ及び帳票作成等", "scope": "sub_project", "values": ["124,739", "137,321"]},
+        {"label": "電子収納サービス（ペイジー）利用に伴う年会費", "scope": "sub_project", "values": ["100", "100"]}
+      ]
+    }
+  ],
+  "indicators": [
+    {"name": "データ処理", "kind_raw": "細事業事業量", "kind": "activity", "unit": "件", "sub_project": "受入済通知書等からの収納データ及び帳票作成等", "columns": [2021, 2022, 2023, 2024], "target": ["5,386,710", "5,159,710", "5,290,000", "5,290,000"], "actual": ["4,922,811", "4,720,859", "4,214,676", "3,814,456"], "note": "想定と書かれた値"},
+    {"name": "ペイジー収納", "kind_raw": "細事業事業量", "kind": "activity", "unit": "件", "sub_project": "電子収納サービス（ペイジー）利用に伴う年会費", "columns": [2021, 2022, 2023, 2024], "target": ["1,100,000", "1,100,000", "1,100,000", "1,100,000"], "actual": ["975,117", "938,540", "840,359", "786,758"], "note": "想定と書かれた値"}
+  ],
+  "evaluations": [],
+  "absent": ["人件費の欄", "財源の欄", "方向性の欄"],
+  "checks": [
+    {"type": "sum", "table": "事業決算額", "total": "事業費", "parts": ["受入済通知書等からの収納データ及び帳票作成等", "電子収納サービス（ペイジー）利用に伴う年会費"], "columns": ["6年度"]},
+    {"type": "difference", "raw": "▲ 25,918", "from": "163,339", "to": "137,421"},
+    {"type": "difference", "raw": "12,582", "from": "124,739", "to": "137,321"}
+  ],
+  "known_gaps": [
+    {"table": "事業決算額", "column": "5年度", "total": "163,339", "parts_sum": "124,839", "note": "親と細事業の合計が 38,500 千円合わない。読んだ頁の外の細事業か、年度の違いかはシートでは分からない"}
+  ],
+  "notes": ["「指標 測ることはなじまない」「目標設定になじまない」と書かれている", "親と細事業を足すと二重計上になる"]
+}

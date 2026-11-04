@@ -255,6 +255,41 @@
     });
 })();
 
+// シートの全部は、開いたときに 1 頁ずつ読む。
+(() => {
+    const section = document.querySelector('details.hyoka-sheet[data-sheet-id]');
+    if (!section) {
+        return;
+    }
+    const body = section.querySelector('.hyoka-sheet-body');
+    const load = (page) => {
+        body.textContent = '読み込んでいます。';
+        const params = new URLSearchParams({ id: section.getAttribute('data-sheet-id') || '', page: String(page) });
+        fetch(`/api/hyoka-sheet.php?${params.toString()}`)
+            .then((response) => (response.ok ? response.text() : Promise.reject(new Error(String(response.status)))))
+            .then((html) => {
+                // 中身はサーバーで文字を逃がして組んだ HTML。
+                body.innerHTML = html;
+            })
+            .catch(() => {
+                body.textContent = '読み込めませんでした。閉じてもう一度開いてください。';
+                body.setAttribute('data-pending', '');
+            });
+    };
+    section.addEventListener('toggle', () => {
+        if (section.open && body.hasAttribute('data-pending')) {
+            body.removeAttribute('data-pending');
+            load(0);
+        }
+    });
+    body.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-sheet-page]');
+        if (button) {
+            load(button.getAttribute('data-sheet-page'));
+        }
+    });
+})();
+
 // 検索結果の一覧の事業の行から来たとき（URL の #record-…）、その事業を開いて見せる。
 (() => {
     const hash = decodeURIComponent(window.location.hash.slice(1));

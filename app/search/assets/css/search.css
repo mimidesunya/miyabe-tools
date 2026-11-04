@@ -891,6 +891,83 @@ mark {
   font-size: 17px;
 }
 
+.hyoka-sheet {
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.hyoka-sheet > summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.hyoka-sheet-body {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.hyoka-sheet-body[data-pending] {
+  display: none;
+}
+
+.hyoka-sheet-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.hyoka-sheet-scroll {
+  overflow-x: auto;
+}
+
+.hyoka-sheet-table {
+  min-width: 640px;
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.hyoka-sheet-table td {
+  padding: 3px 5px;
+  border: 1px solid var(--line);
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+.hyoka-sheet-line {
+  margin: 0;
+}
+
+.hyoka-sheet-canvas {
+  position: relative;
+  container-type: inline-size;
+  min-width: 720px;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.hyoka-sheet-canvas span {
+  position: absolute;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.hyoka-sheet-canvas span.is-vertical {
+  writing-mode: vertical-rl;
+}
+
+.hyoka-sheet-plain {
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
 .hyoka-records {
   display: grid;
   gap: 14px;
@@ -1050,6 +1127,64 @@ mark {
 
 .hyoka-record-subhead {
   margin: 8px 14px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.hyoka-record-subhead small {
+  margin-left: 6px;
+  font-weight: 400;
+}
+
+.hyoka-record-body > .hyoka-sheet-scroll {
+  margin: 6px 14px 4px;
+}
+
+.hyoka-record-table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.hyoka-record-table caption {
+  padding: 4px 0;
+  font-weight: 700;
+  text-align: left;
+}
+
+.hyoka-record-table caption small,
+.hyoka-record-table th small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.hyoka-record-table th,
+.hyoka-record-table td {
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.hyoka-record-table thead th {
+  background: var(--panel-soft);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.hyoka-record-table tbody th {
+  text-align: left;
+  font-weight: 400;
+}
+
+.hyoka-record-table td {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.hyoka-record-checks {
+  margin: 6px 14px;
   color: var(--muted);
   font-size: 13px;
 }

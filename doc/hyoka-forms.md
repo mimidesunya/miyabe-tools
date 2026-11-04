@@ -1,0 +1,50 @@
+# 事務事業評価の様式ごとの読み取り
+
+作成: 2026-11-04。[形 2.0](hyoka-format-2.md) の検証の層（金額、財源、人員、指標、評価）を、自治体の様式に合わせた
+読み取りプログラムで取り出す。プログラムは Codex（AI）が書き、同じ様式の文書を AI なしで全部読む。
+文書ごとに AI に読ませるより安く、同じ様式なら何度流しても同じ結果になる。
+
+## 流れ
+
+1. 升目（`tools/hyoka/ai/run_ai.py grids`）: PDF の頁と HTML のシートを、表の行と列と結合の形にする。
+   升目に複数の行があれば行ごとの文字（`lines`）も持つ（点線で区切った複数の指標の行が 1 つの升目に入る様式）。
+   HTML は `tools/hyoka/ai/html_layout.py` で同じ形にする。
+2. 読み取り（`tools/hyoka/forms/readers/<slug>.py`）: `read(document) -> list[dict]`。道具は `cells.py`
+   （欄名で升目を探す、右・下の升目、印、数字、年度）。1 件が 1 事業の 1 回の評価で、値はすべて原典の番地付き。
+3. 確かめ（`tools/hyoka/forms/check.py`）: 番地が実在し原文がその升目にあるか、検算（事業費＋人件費＝総費用、
+   財源の合計＝事業費、達成率）、取れ具合。`--truth` で人の読んだ正解（`tools/hyoka/format2/truth/`）と突き合わせる。
+4. 控え（`tools/hyoka/build_display_data.py --overlay-…`）: 詳細画面に出す形にする（[画面](hyoka-display.md)）。
+
+## Codex に書かせる
+
+`tools/hyoka/forms/run_forms.py` が作業の置き場を団体ごとに作り（升目、見本の原本、道具、依頼書 `brief.md`、
+調査の記録）、Codex に `reader.py` を書かせる。手本は川崎市の読み取り。
+
+```bash
+python tools/hyoka/forms/run_forms.py fetch --source SRC --slug 40348-hisayama-cho   # 本番から升目と見本の原本を写す
+python tools/hyoka/forms/run_forms.py prepare --work WORK --slug 40348-hisayama-cho --source SRC --survey survey_final.jsonl
+python tools/hyoka/forms/run_forms.py run --work WORK --parallel 3 --model gpt-6.1-sol --effort medium --max-quota 80
+python tools/hyoka/forms/run_forms.py report --work WORK
+```
+
+週の枠を使い切ると有料のクレジットから引かれるので、`run` は枠が `--max-quota` に達すると新しい団体を始めない。
+
+## 試しの結果（2026-11-04）
+
+正解のある 3 団体（各 30 文書）を Sol medium で。1 団体 5〜10 分、週の枠は 1 団体 0.2〜0.3%。
+
+| 団体 | 金額 | 財源 | 指標 | 評価 | 事業 | 検算の不一致 |
+|---|---|---|---|---|---|---|
+| 那珂市 | 15/15 | 10/10 | 30/30 | 4/4 | 2/2 | 5,533 組で 0 |
+| 久山町 | 24/24 | 4/4 | 18/18 | 1/5 | 2/2 | 財源の対応の違い（旧様式は総費用と対応） |
+| 横浜市 | 6/6 | なし | 16/16 | なし | 2/2 | 52（うち 48 は原典の繰越額） |
+
+川崎市は平成 17 年度から令和 7 年度まで（HTML 5 種、PDF 4 種の様式）を 1 つの読み取りで読む。5,095 文書から
+31,980 記録、番地の問題 0、検算 97,352 組のうち不一致 19（原典の総コストが 0、`#VALUE!` など）。
+平成 17〜25 年度は、施策の頁の一覧の行と事業の頁に同じ事業が出るので、記録の数は事業の数より多い。
+
+## 守ること
+
+- 読み取りは `cells` と標準ライブラリだけを使い、ネットワークやファイルを触らない。文書ごとの値を書き込まない。
+- 推測で値を埋めない。検算が合わない値は原典のまま残し、理由を `notes.md` に書く。
+- 単位は表ごとに見出しから読み、原本の画像で確かめる。

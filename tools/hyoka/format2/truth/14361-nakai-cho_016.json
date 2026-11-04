@@ -1,0 +1,82 @@
+{
+  "format": "2.0-truth",
+  "source": {"slug": "14361-nakai-cho", "name": "中井町", "doc_id": "577cdd688d5ae5f9", "pdf_pages": [1]},
+  "document_type": "事業シート",
+  "form_name": "事務事業評価シート兼総合計画実施計画書",
+  "evaluation_year": 2017,
+  "target_year": 2016,
+  "project": {
+    "name": "青少年交流洋上体験研修事業",
+    "code": "016",
+    "department": "生涯学習課 生涯学習班",
+    "account": {"kaikei": "1", "kan": "9", "kou": "5", "moku": "1", "name_raw": "青少年活動費"},
+    "plan_alignment": "教育・学習／学びあい・教えあいのなかまづくり／青少年の健全育成／地域ぐるみでの青少年の育成活動",
+    "legal_basis_status": "blank",
+    "target": "1市4町1村（秦野・中井町・大井町・松田町・二宮町・清川村）の中学生"
+  },
+  "amount_tables": [
+    {
+      "id": "事業の予算",
+      "unit": "千円",
+      "unit_source": "表の外の右上「（単位：千円）」",
+      "columns": [
+        {"key": "H28決算額", "fiscal_year": 2016, "stage": "settlement"},
+        {"key": "H29決算見込", "fiscal_year": 2017, "stage": "estimate"},
+        {"key": "H30事業費", "fiscal_year": 2018, "stage": "plan"},
+        {"key": "H31事業費", "fiscal_year": 2019, "stage": "plan"},
+        {"key": "H32事業費", "fiscal_year": 2020, "stage": "plan"}
+      ],
+      "rows": [
+        {"label": "直接事業費", "scope": "direct", "values": ["342", "388", {"status": "blank"}, {"status": "blank"}, {"status": "blank"}]},
+        {"label": "人件費", "scope": "personnel", "values": [{"status": "blank"}, {"status": "blank"}, {"status": "blank"}, {"status": "blank"}, {"status": "blank"}]},
+        {"label": "事業費合計", "scope": "total", "values": ["342", "388", {"status": "blank"}, {"status": "blank"}, {"status": "blank"}]}
+      ]
+    }
+  ],
+  "funding_tables": [
+    {
+      "id": "財源",
+      "unit": "千円",
+      "unit_source": "表の外の右上「（単位：千円）」",
+      "columns": ["H28決算額", "H29決算見込"],
+      "rows": [
+        {"label": "国庫支出金", "source": "national", "values": [{"status": "blank"}, {"status": "blank"}]},
+        {"label": "県支出金", "source": "prefecture", "values": [{"status": "blank"}, {"status": "blank"}]},
+        {"label": "地方債", "source": "bond", "values": [{"status": "blank"}, {"status": "blank"}]},
+        {"label": "その他", "source": "other_specific", "values": [{"status": "blank"}, {"status": "blank"}]},
+        {"label": "一般財源", "source": "general", "values": ["342", "388"]}
+      ]
+    }
+  ],
+  "unit_costs": [
+    {"label": "参加費一人", "raw": "18,000", "unit": "円", "note": "補足説明の文中。受益者の負担で、財源の欄には出ていない"}
+  ],
+  "indicators": [
+    {"name": "参加者", "kind_raw": "対象", "kind": "target", "unit": "人", "columns": [2016, 2017, 2018, 2019, 2020], "stages": ["実績", "見込", "計画", "計画", "計画"], "target": [{"status": "blank"}, {"status": "blank"}, "10", "10", "10"], "actual": ["7", "6", {"status": "blank"}, {"status": "blank"}, {"status": "blank"}]}
+  ],
+  "evaluations": [
+    {
+      "stage_raw": "主管課",
+      "actor": "課長",
+      "status": "done",
+      "aspects": [
+        {"aspect_raw": "必要性", "aspect": "必要性", "rating_raw": "4点"},
+        {"aspect_raw": "適切性", "aspect": "妥当性", "rating_raw": "4点"},
+        {"aspect_raw": "妥当性", "aspect": "妥当性", "rating_raw": "5点"},
+        {"aspect_raw": "有効性", "aspect": "有効性", "rating_raw": "4点"},
+        {"aspect_raw": "公平性", "aspect": "公平性", "rating_raw": "4点"},
+        {"aspect_raw": "効率性", "aspect": "効率性", "rating_raw": "3点"}
+      ],
+      "direction_raw": "現状維持",
+      "direction": "maintain",
+      "reason_contains": "広域で行っている事業でありニーズも高いことから継続して行っていく"
+    },
+    {"stage_raw": "決定権者", "actor": "首長", "status": "done", "direction_raw": "継続（改善・効率化）", "direction": "improve"}
+  ],
+  "absent": ["活動指標の値", "成果指標の値"],
+  "checks": [
+    {"type": "sum", "table": "事業の予算", "total": "事業費合計", "parts": ["直接事業費"], "columns": ["H28決算額", "H29決算見込"]},
+    {"type": "funding_sum", "table": "事業の予算", "total": "事業費合計", "funding": "財源", "columns": ["H28決算額", "H29決算見込"]}
+  ],
+  "notes": ["広域の事業で、342 千円が自町の分か全体かは欄の上では分からない", "成果の欄は様式にあるが空"]
+}

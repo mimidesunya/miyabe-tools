@@ -1,0 +1,135 @@
+{
+  "format": "2.0-truth",
+  "source": {"slug": "13121-adachi-ku", "name": "足立区", "doc_id": "6a658892e9847707", "pdf_pages": [11, 12], "printed_pages": [118, 119]},
+  "document_type": "事業シート",
+  "form_name": "令和7年度事務事業評価調書（令和6年度事業実施分）",
+  "evaluation_year": 2025,
+  "target_year": 2024,
+  "project": {
+    "name": "住宅施策推進事務",
+    "code": "4008",
+    "department": "都市建設部・建・住宅課・住宅計画係",
+    "plan_alignment": "11.3 安心して住み続けられる住宅環境の整備",
+    "legal_basis": "足立区住宅基本条例 足立区住宅専門相談実施要綱 住生活基本法 マンション管理適正化法 住宅セーフティネット法",
+    "mandate": "unstated"
+  },
+  "amount_tables": [
+    {
+      "id": "投入資源",
+      "unit": "千円",
+      "unit_source": "表の見出し「投入資源（千円）」",
+      "columns": [
+        {"key": "R3", "fiscal_year": 2021, "stage": "unstated"},
+        {"key": "R4", "fiscal_year": 2022, "stage": "unstated"},
+        {"key": "R5", "fiscal_year": 2023, "stage": "unstated"},
+        {"key": "R6", "fiscal_year": 2024, "stage": "unstated"},
+        {"key": "R7", "fiscal_year": 2025, "stage": "unstated"}
+      ],
+      "rows": [
+        {"label": "総事業費", "scope": "total", "values": ["62,877", "61,434", "72,553", "54,020", {"status": "hatched"}]},
+        {"label": "事業費", "scope": "direct", "values": ["7,125", "8,353", "19,073", "7,017", "12,295"]},
+        {"label": "人件費", "scope": "personnel", "values": ["55,752", "53,081", "53,480", "47,003", {"status": "hatched"}]},
+        {"label": "常勤 計", "scope": "personnel_regular", "values": ["52,512", "49,782", "50,208", "43,045", {"status": "hatched"}]},
+        {"label": "非常勤 計", "scope": "personnel_other", "values": ["3,240", "3,299", "3,272", "3,958", {"status": "hatched"}]}
+      ]
+    }
+  ],
+  "funding_tables": [
+    {
+      "id": "財源内訳",
+      "unit": "千円",
+      "unit_source": "表の見出し「投入資源（千円）」",
+      "columns": ["R3", "R4", "R5", "R6", "R7"],
+      "rows": [
+        {"label": "国庫支出金", "source": "national", "values": ["400", "939", "586", "592", "429"]},
+        {"label": "都支出金", "source": "prefecture", "values": ["500", "500", "1,995", "0", "0"]},
+        {"label": "受益者負担金", "source": "user_fee", "values": ["0", "0", "0", "0", "3"]},
+        {"label": "その他特定財源", "source": "other_specific", "values": ["0", "0", "0", "0", "0"]},
+        {"label": "基金", "source": "fund", "values": ["0", "0", "0", "0", "0"]},
+        {"label": "起債", "source": "bond", "values": ["0", "0", "0", "0", "0"]},
+        {"label": "一般財源", "source": "general", "values": ["61,977", "59,995", "69,972", "53,428", "11,863"]}
+      ]
+    }
+  ],
+  "staff": {
+    "method": "平均給与 × 人数",
+    "columns": ["R3", "R4", "R5", "R6"],
+    "rows": [
+      {"label": "常勤 平均給与", "unit": "千円", "values": ["8,752", "8,297", "8,368", "8,609"]},
+      {"label": "常勤 人数", "unit": "人", "values": ["6", "6", "6", "5"]},
+      {"label": "非常勤 平均給与", "unit": "千円", "values": ["3,240", "3,299", "3,272", "3,958"]},
+      {"label": "非常勤 人数", "unit": "人", "values": ["1", "1", "1", "1"]}
+    ]
+  },
+  "indicators": [
+    {
+      "name": "住宅専門相談件数（すまいの相談者とマンション相談者の合計）",
+      "kind_raw": "活動量・活動結果を測る指標",
+      "kind": "activity",
+      "unit": "件",
+      "target_basis": "前年度実績を踏まえた相談件数",
+      "columns": [2021, 2022, 2023, 2024, 2025],
+      "target": ["36", "30", "35", "35", "36"],
+      "actual": ["27", "35", "39", "45", {"status": "hatched"}],
+      "rate": ["75%", "117%", "111%", "129%", {"status": "hatched"}]
+    },
+    {
+      "name": "分譲マンション管理アドバイザー派遣件数",
+      "kind_raw": "活動量・活動結果を測る指標",
+      "kind": "activity",
+      "unit": "件",
+      "target_basis": "前年度実績を踏まえた派遣件数",
+      "columns": [2021, 2022, 2023, 2024, 2025],
+      "target": ["100", "100", "70", "70", "70"],
+      "actual": ["38", "57", "53", "68", {"status": "hatched"}],
+      "rate": ["38%", "57%", "76%", "97%", {"status": "hatched"}]
+    },
+    {
+      "name": "お部屋さがし相談件数",
+      "kind_raw": "活動量・活動結果を測る指標",
+      "kind": "activity",
+      "unit": "件",
+      "target_basis": "前年度実績を踏まえた相談件数",
+      "columns": [2021, 2022, 2023, 2024, 2025],
+      "target": ["150", "250", "260", "260", "265"],
+      "actual": ["243", "295", "384", "374", {"status": "hatched"}],
+      "rate": ["162%", "118%", "148%", "144%", {"status": "hatched"}]
+    }
+  ],
+  "evaluations": [
+    {
+      "stage_raw": "総合評価（課長評価）",
+      "actor": "課長",
+      "status": "done",
+      "direction_raw": "改善・変更",
+      "direction": "improve"
+    },
+    {
+      "stage_raw": "区民評価",
+      "actor": "市民",
+      "status": "done",
+      "aspects": [
+        {"aspect_raw": "事業の必要性", "aspect": "必要性", "rating_raw": "A"},
+        {"aspect_raw": "事業の周知度", "aspect": "その他", "rating_raw": "B"},
+        {"aspect_raw": "事業手法の妥当性", "aspect": "妥当性", "rating_raw": "B+"},
+        {"aspect_raw": "補助金等の有効性", "aspect": "有効性", "rating_raw": "-"},
+        {"aspect_raw": "受益者負担の適切度", "aspect": "公平性", "rating_raw": "-"},
+        {"aspect_raw": "予算計上の妥当性", "aspect": "効率性", "rating_raw": "B+"}
+      ],
+      "reason_contains": "1人当たり費用が割高"
+    }
+  ],
+  "reflection": [
+    {"fiscal_year": 2026, "kind": "increase", "raw": "7,524", "unit": "千円", "unit_source": "値の中", "change_raw": "前年度比3,762千円 拡充"},
+    {"fiscal_year": 2026, "kind": "new", "raw": "27,000", "unit": "千円", "unit_source": "値の中", "change_raw": "新規"},
+    {"fiscal_year": 2026, "kind": "new", "raw": "34,000", "unit": "千円", "unit_source": "値の中", "change_raw": "新規（令和8年度歳出予定額6,800千円・令和9年度歳出予定額27,200千円）"}
+  ],
+  "checks": [
+    {"type": "sum", "table": "投入資源", "total": "総事業費", "parts": ["事業費", "人件費"], "columns": ["R3", "R4", "R5", "R6"]},
+    {"type": "sum", "table": "投入資源", "total": "人件費", "parts": ["常勤 計", "非常勤 計"], "columns": ["R3", "R4", "R5", "R6"]},
+    {"type": "funding_sum", "table": "投入資源", "total": "総事業費", "funding": "財源内訳", "columns": ["R3", "R4", "R5", "R6"]},
+    {"type": "funding_sum", "table": "投入資源", "total": "事業費", "funding": "財源内訳", "columns": ["R7"], "note": "R7 は総事業費が斜線で、財源は事業費と合う"},
+    {"type": "product", "table": "投入資源", "total": "常勤 計", "staff": ["常勤 平均給与", "常勤 人数"], "columns": ["R3", "R4", "R5", "R6"]}
+  ],
+  "notes": ["様式の注記: 法定業務や管理業務等は、目標値＝見込み、達成率＝執行率に読み替える", "事業費だけ見ると総費用の 13% しか見えない"]
+}

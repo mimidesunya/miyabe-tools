@@ -61,6 +61,7 @@ import re
 import sys
 import threading
 from collections import defaultdict
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -130,6 +131,8 @@ MAX_DOCUMENT_BYTES = 120 * 1024 * 1024
 EXCLUDED_EXAMPLES = 5
 
 KINDS = ("project_evaluation", "policy_evaluation", "external_review", "overview")
+# 評価を HTML の頁で公開する団体がある（三郷市の事業別シート）。頁そのものも文書として保存する
+SAVED_EXTENSIONS = {**DOCUMENT_EXTENSIONS, "html": ".html"}
 
 # ─────────────────────────────────────
 # 添付ファイルのリンク
@@ -137,7 +140,11 @@ KINDS = ("project_evaluation", "policy_evaluation", "external_review", "overview
 
 FILE_URL_RE = re.compile(r"\.(pdf|xlsx|xlsm|xls|docx|doc|zip|csv)(?:$|[?#])", re.I)
 ASSET_RE = re.compile(r"\.(jpe?g|png|gif|svg|css|js|ico|mp4|mp3|pptx?|txt|html?|php|aspx?)(?:$|[?#])", re.I)
-DOWNLOAD_SCRIPT_RE = re.compile(r"/(?:dl|download|file|files|fileoutput|attach(?:ment)?)\.(?:php|aspx?|cgi|do|jsp)$", re.I)
+DOWNLOAD_SCRIPT_RE = re.compile(
+    r"/(?:dl|dlfile|download|file|files|fileoutput|uploadfileoutput|attach(?:ment)?|resource)\.(?:php|aspx?|ashx|cgi|do|jsp)$", re.I
+)
+# 番号だけの配信口（野辺地町 `/download_file/view/2709/1537`）
+DOWNLOAD_PATH_RE = re.compile(r"/download_file/(?:view/)?\d+(?:/\d+)?/?$", re.I)
 DOWNLOAD_DIRECTORY_RE = re.compile(r"/(?:dl|download|file|files|fileoutput|attach(?:ment)?)/?$", re.I)
 # リンク文字の末尾に付く「（PDF：1.2MB）」「(エクセル 30KB)」などの注記。
 FILE_NOTE_RE = re.compile(
@@ -201,7 +208,7 @@ def link_file_type(url: str, label: str) -> str | None:
     found = FILE_URL_RE.search(parts.path)
     if found:
         return found.group(1).lower()
-    endpoint = bool(DOWNLOAD_SCRIPT_RE.search(parts.path)) or (
+    endpoint = bool(DOWNLOAD_SCRIPT_RE.search(parts.path)) or bool(DOWNLOAD_PATH_RE.search(parts.path)) or (
         bool(parts.query) and bool(DOWNLOAD_DIRECTORY_RE.search(parts.path))
     )
     if ASSET_RE.search(parts.path) and not endpoint:
@@ -213,7 +220,8 @@ def link_file_type(url: str, label: str) -> str | None:
     for kind, pattern in NOTE_TYPES:
         if pattern.search(text):
             return kind
-    return None
+    # 配信口で形式の手掛かりが無い（人吉市の `resource.php?e=…`）。中身は取ったところで見分ける
+    return "pdf" if endpoint else None
 
 
 # ファイルだけを外部の保管庫に置く CMS がある（大町市は `*.isk01.sakurastorage.jp`）。
@@ -233,6 +241,52 @@ def check_document_response(response, raw: bytes) -> None:
     if sniff_document_type(raw, getattr(response, "url", "") or "", headers.get("Content-Type", ""),
                            headers.get("Content-Disposition", "")) is None:
         raise ValueError(f"評価表のファイルではない応答: {headers.get('Content-Type', '')!r}")
+
+
+HTML_CHARSET_RE = re.compile(rb"""<meta[^>]+charset\s*=\s*["']?([\w-]+)""", re.I)
+HTML_DROP_RE = re.compile(r"(?is)<(script|style|noscript|nav|header|footer)\b.*?</\1\s*>|<!--.*?-->")
+HTML_CELL_RE = re.compile(r"(?i)</t[dh]\s*>")
+HTML_LINE_RE = re.compile(r"(?i)</(?:tr|p|div|li|h[1-6]|table|dd|dt)\s*>|<br\s*/?>")
+HTML_TAG_RE = re.compile(r"<[^>]+>")
+# 「見つかりません」の頁の題名
+NOT_FOUND_RE = re.compile(r"お探しのページ|見つかりません|見つかりませんでした|存在しません|ページがありません|Not Found|404 エラー", re.I)
+
+
+def decode_html(raw: bytes) -> str:
+    """HTML を文字にする。宣言の文字コードを先に試し、古い頁に多いシフト JIS も試す。"""
+    declared = HTML_CHARSET_RE.search(raw[:4096])
+    names = [declared.group(1).decode("ascii", "ignore")] if declared else []
+    for name in [*names, "utf-8", "cp932", "euc_jp"]:
+        try:
+            return raw.decode({"shift_jis": "cp932", "x-sjis": "cp932"}.get(name.lower(), name))
+        except (UnicodeDecodeError, LookupError):
+            continue
+    return raw.decode("utf-8", "replace")
+
+
+def extract_html_text(raw: bytes) -> str:
+    """HTML の本文を抜き出す。表の列は ` | ` で、行は改行で区切って残す。"""
+    text = HTML_DROP_RE.sub(" ", decode_html(raw))
+    text = HTML_LINE_RE.sub("\n", HTML_CELL_RE.sub(" | ", text))
+    text = html_entities.unescape(HTML_TAG_RE.sub(" ", text))
+    lines = (re.sub(r"[ \t　\xa0]+", " ", line).strip(" |") for line in text.splitlines())
+    return "\n".join(line for line in lines if line)
+
+
+def check_html_response(response, raw: bytes) -> None:
+    """HTML のシートの応答を確かめる。「見つかりません」の頁と本文の無い頁は保存しない。
+
+    題名の言葉で中身を選ばない。三郷市の「介護保険利用料助成等事業」のシートを、別制度の言葉
+    （介護）で落としたことがある。
+    """
+    headers = response.headers
+    if sniff_document_type(raw, getattr(response, "url", "") or "", headers.get("Content-Type", ""),
+                           headers.get("Content-Disposition", "")) is not None:
+        return
+    if len(extract_html_text(raw)) < MIN_TEXT_CHARS:
+        raise ValueError("本文の無い頁")
+    if NOT_FOUND_RE.search(page_title(decode_html(raw))):
+        raise ValueError("見つからない頁")
 
 
 # ─────────────────────────────────────
@@ -592,6 +646,7 @@ class Candidate:
     kind: str
     path_year: int = 0
     order: int = 0
+    origin: str = ""
 
 
 @dataclass
@@ -776,6 +831,8 @@ def extract_document_text(file_type: str, raw: bytes) -> tuple[str, dict]:
         return extract_docx_text(raw), {}
     if file_type == "csv":
         return decode_csv(raw), {}
+    if file_type == "html":
+        return extract_html_text(raw), {}
     if file_type == "zip":
         return "", {"archive_members": zip_member_names(raw)}
     return "", {}
@@ -787,7 +844,7 @@ def text_status_for(file_type: str, body: str, extra: dict) -> str:
             return "ok"
         # スキャンだけの PDF。本文は OCR の掃き取りに任せる。
         return "needs_ocr" if extra.get("pages") else "unreadable"
-    if file_type in ("xlsx", "xlsm", "docx", "csv"):
+    if file_type in ("xlsx", "xlsm", "docx", "csv", "html"):
         return "ok" if body.strip() else "unreadable"
     if file_type == "zip":
         return "archive"
@@ -816,14 +873,17 @@ def set_status(entry: dict) -> None:
 def scrape_one(target: Target, fetcher: Fetcher, work_root: Path, *, max_pages: int = DEFAULT_MAX_PAGES,
                max_depth: int = DEFAULT_MAX_DEPTH, max_docs: int = DEFAULT_MAX_DOCS,
                refresh_days: int = DEFAULT_REFRESH_DAYS, dry_run: bool = False,
-               verbose: bool = False) -> RunResult:
+               verbose: bool = False, collector: Callable[..., list[Candidate]] | None = None,
+               reuse: Callable[[str, dict, Path], None] | None = None,
+               manifest_extra: dict | None = None) -> RunResult:
+    """1 自治体の文書を取る。collector で候補の集め方を、reuse で以前の保存物の使い回しを替えられる。"""
     work_dir = work_root / target.slug
     result = RunResult(slug=target.slug)
     started_at = now_text()
     manifest = {} if dry_run else load_manifest(work_dir)
     documents: dict[str, dict] = dict(manifest.get("documents") or {})
     try:
-        candidates = collect_candidates(fetcher, target, max_pages=max_pages, max_depth=max_depth, result=result)
+        candidates = (collector or collect_candidates)(fetcher, target, max_pages=max_pages, max_depth=max_depth, result=result)
     except HostBlocked as exc:
         result.status = "host_blocked"
         result.errors.append(f"ホストを休止中: {exc}")
@@ -881,9 +941,13 @@ def scrape_one(target: Target, fetcher: Fetcher, work_root: Path, *, max_pages: 
             "kind": candidate.kind,
             "link_file_type": candidate.file_type,
         })
+        if candidate.origin:
+            entry["origin"] = candidate.origin
         entry.setdefault("first_seen_at", now_text())
         entry.pop("missing_since", None)
         documents[doc_id] = entry
+        if reuse:
+            reuse(doc_id, entry, work_dir)
         if result.status == "host_blocked":
             continue
 
@@ -895,7 +959,8 @@ def scrape_one(target: Target, fetcher: Fetcher, work_root: Path, *, max_pages: 
         try:
             fetched = fetch_document(
                 fetcher, candidate.url, entry, work_dir, now=now, refresh_days=refresh_days,
-                max_bytes=MAX_DOCUMENT_BYTES, check=check_document_response,
+                max_bytes=MAX_DOCUMENT_BYTES,
+                check=check_html_response if candidate.file_type == "html" else check_document_response,
             )
         except HostBlocked as exc:
             result.status = "host_blocked"
@@ -927,7 +992,7 @@ def scrape_one(target: Target, fetcher: Fetcher, work_root: Path, *, max_pages: 
         ) or candidate.file_type
         had_previous = bool(fetched.file_ok and entry.get("sha256"))
         previous_file = str(entry.get("file") or "")
-        relative_file = f"source/{doc_id}{DOCUMENT_EXTENSIONS.get(file_type, '.bin')}"
+        relative_file = f"source/{doc_id}{SAVED_EXTENSIONS.get(file_type, '.bin')}"
         relative_text = f"text/{doc_id}.txt.gz"
         if had_previous:
             # 改訂された。前の版（原典と本文）は上書きせず _archive へ残す。
@@ -983,6 +1048,7 @@ def scrape_one(target: Target, fetcher: Fetcher, work_root: Path, *, max_pages: 
         "entry_url": target.url,
         "registry_status": target.crawl_status,
         "updated_at": now_text(),
+        **(manifest_extra or {}),
         "last_run": run_summary(result, started_at),
         "excluded_examples": result.excluded_examples,
         "documents": dict(sorted(documents.items())),

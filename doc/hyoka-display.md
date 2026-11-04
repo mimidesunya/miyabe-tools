@@ -34,13 +34,21 @@
 - `status.json`: 自治体ごとの取得の結果（manifest の `last_run`）、文書・本文・OCR・本文の無い文書の数、
   年度の範囲、事業の記録の数、検索に載った本数（索引づくりのログの `[HYOKA]` 監査の `yielded`）。
   OCR は、試した回数が上限（`pdf_ocr.MAX_ATTEMPTS`）に届いて打ち切ったものを「読めず」、まだ試せるものを「待ち」と数える。
+- `sheets/<slug>/<doc_id>.json.gz`: シートの全部。頁の表の形（[形 2.0](hyoka-format-2.md) の全欄の層）を、
+  `work/hyoka-ai/<slug>/layouts/` から写したもの。AI の置き場が見えないときは今ある控えを消さない。
 - `records/<slug>/<doc_id>.json`: 事業の記録を詳細画面に出す欄だけに縮めたもの。値は専用欄の原文だけで、
   文中の記載（embedded）や組み立てた値は出さない。欄の中の折り返し（セルの幅で切れた改行）だけは詰める
   （文の終わり「。」と箇条書きの頭「○・①」などの改行は残す）。原典の URL も持たせる。
   ZIP の中の文書の記録は、索引に詳細画面が無いので控えを作らない（状態の数には入れる）。
   抽出し直して無くなった文書の控えは消す。自治体ごとに、機械抽出の記録（`--records-root`）があればそれを、
-  無ければ AI の記録（`--ai-records-root`、既定 `work/hyoka-ai`。置き場が無ければ使わない）を使い、
+  無いか空なら AI の記録（`--ai-records-root`、既定 `work/hyoka-ai`。置き場が無ければ使わない）を使い、
   `status.json` の `records_source`（`machine`・`ai`）と合計の `records_ai` に残す。
+
+調査から集め直した自治体（`work/hyoka2`、[調査](hyoka-survey.md)）は、`--overlay-slug` で 1 つずつ公開する。その自治体だけ
+状態を `--overlay-root` から作り、記録は[様式ごとの読み取り](hyoka-forms.md)の `records.jsonl`（`--overlay-records-root`）を、
+シートの全部は `--overlay-layouts-root` を使う。控えの記録は `schema_version: 2.0-form`、事業ごとに `layout: form_reader` で、
+標準の欄（一覧の札）に加えて金額、財源、人員を年度と段階の表（`amounts`、`funding`、`staff`）、指標、評価の段階、
+検算の結果（`checks`）を持つ。詳細画面はこれを表で出し、断り書きを「様式に合わせた読み取りプログラムで書き写した」にする。
 
 取り込み（取得・OCR・抽出・索引づくり）のあとに流す。全量の rebuild のログのあとに update のログを古い順に渡せば、
 後のもので自治体ごとに上書きする。保存先を付け忘れて空の入力で走らせると、控えを空で上書きせずに止まる。

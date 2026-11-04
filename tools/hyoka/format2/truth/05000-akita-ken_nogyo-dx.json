@@ -1,0 +1,81 @@
+{
+  "format": "2.0-truth",
+  "source": {"slug": "05000-akita-ken", "name": "秋田県", "doc_id": "c6ca815671e92947", "pdf_pages": [19, 20]},
+  "document_type": "事業シート",
+  "form_name": "事業評価調書（目的設定、中間評価、事後評価）",
+  "evaluation_year": 2026,
+  "target_year": 2025,
+  "project": {
+    "name": "農業DXを牽引する公設試デジタル化推進事業",
+    "department": "農林水産部 農林政策課 研究推進チーム",
+    "plan_alignment": "2 農林水産戦略／1 農業の食料供給力の強化／② 持続可能で効率的な生産体制づくり",
+    "start_year": 2021,
+    "end_year": 2025
+  },
+  "amount_tables": [
+    {
+      "id": "事業概要及び財源",
+      "unit": "千円",
+      "unit_source": "表の外の右上「（単位:千円）」",
+      "columns": [
+        {"key": "R8予算", "fiscal_year": 2026, "stage": "budget"},
+        {"key": "R7決算見込", "fiscal_year": 2025, "stage": "estimate"},
+        {"key": "最終年度決算見込", "fiscal_year": 2025, "stage": "estimate"}
+      ],
+      "rows": [
+        {"label": "情報通信インフラ整備事業", "scope": "breakdown", "values": [{"status": "blank"}, "1,585", "1,585"]},
+        {"label": "デジタルデータ活用研究推進事業", "scope": "breakdown", "values": [{"status": "blank"}, "6,709", "6,709"]},
+        {"label": "農林水産情報基盤構築事業", "scope": "breakdown", "values": [{"status": "blank"}, "37", "37"]},
+        {"label": "スマート農業普及促進対策事業", "scope": "breakdown", "values": [{"status": "blank"}, "2,215", "2,215"]},
+        {"label": "財源内訳の合計", "scope": "direct", "values": ["0", "10,546", "10,546"]}
+      ]
+    }
+  ],
+  "funding_tables": [
+    {
+      "id": "財源内訳",
+      "unit": "千円",
+      "unit_source": "表の外の右上「（単位:千円）」",
+      "columns": ["R8予算", "R7決算見込", "最終年度決算見込"],
+      "rows": [
+        {"label": "国庫補助金", "source": "national", "values": [{"status": "blank"}, {"status": "blank"}, {"status": "blank"}]},
+        {"label": "県債", "source": "bond", "values": [{"status": "blank"}, {"status": "blank"}, {"status": "blank"}]},
+        {"label": "その他", "source": "other_specific", "values": [{"status": "blank"}, {"status": "blank"}, {"status": "blank"}]},
+        {"label": "一般財源", "source": "general", "values": ["0", "10,546", "10,546"]}
+      ]
+    }
+  ],
+  "indicators": [
+    {
+      "name": "公設試験場におけるスマート農業に係る研究課題数",
+      "kind_raw": "業績指標",
+      "kind": "activity",
+      "unit": "件",
+      "formula": "公設試験場の試験研究課題のうちスマート農業関係の課題数",
+      "columns": [2021, 2022, 2023, 2024, 2025],
+      "target": ["14", "16", "17", "18", "19"],
+      "actual": ["14", "17", "19", "21", "22"],
+      "rate": ["100.0%", "106.3%", "111.8%", "116.7%", "115.8%"]
+    }
+  ],
+  "evaluations": [
+    {
+      "stage_raw": "事後評価",
+      "actor": "担当",
+      "status": "done",
+      "rating_raw": "B",
+      "aspects": [
+        {"aspect_raw": "有効性（事業目標の達成状況）", "aspect": "有効性", "rating_raw": "a"},
+        {"aspect_raw": "効率性（限られた予算で効果を発揮するために努力した内容）", "aspect": "効率性", "rating_raw": "b"}
+      ]
+    },
+    {"stage_raw": "中間評価", "actor": "担当", "status": "blank"}
+  ],
+  "absent": ["人件費の欄"],
+  "checks": [
+    {"type": "sum", "table": "事業概要及び財源", "total": "財源内訳の合計", "parts": ["情報通信インフラ整備事業", "デジタルデータ活用研究推進事業", "農林水産情報基盤構築事業", "スマート農業普及促進対策事業"], "columns": ["R7決算見込", "最終年度決算見込"]},
+    {"type": "funding_sum", "table": "事業概要及び財源", "total": "財源内訳の合計", "funding": "財源内訳", "columns": ["R7決算見込", "最終年度決算見込"]},
+    {"type": "rate", "indicator": 0}
+  ],
+  "notes": ["判定基準: 達成率の全てが 100% 以上で a。目標が実績より低い間は a になる"]
+}

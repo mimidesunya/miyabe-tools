@@ -2,6 +2,7 @@
 
 キーは data/config.json の openai.apiKey から読み、表示も保存もしない。
 混雑（429）と一時的な失敗（5xx・接続の切れ）は、間を空けてやり直す。
+クレジット切れ（429 の insufficient_quota）は待っても直らないので、やり直さない。
 """
 
 from __future__ import annotations
@@ -38,7 +39,7 @@ def _request(key: str, method: str, path: str, *, body: bytes | None = None, con
                 return response.read()
         except urllib.error.HTTPError as error:
             detail = error.read().decode("utf-8", "replace")[:500]
-            if error.code in RETRY_STATUS and attempt < retries:
+            if error.code in RETRY_STATUS and attempt < retries and "insufficient_quota" not in detail:
                 time.sleep(delay)
                 delay = min(delay * 2, 120)
                 continue
