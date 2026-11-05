@@ -286,8 +286,8 @@ def tidy_text(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n").strip()
 
 
-def extract_pdf_text(raw: bytes) -> tuple[str, int]:
-    """PDF の本文とページ数。読めなければ ("", 0)。"""
+def extract_pdf_pages(raw: bytes) -> list[str]:
+    """PDF の頁ごとの本文。文字の無い頁は空文字のまま残す（頁の番号を詰めない）。読めなければ空の一覧。"""
     try:
         from pypdf import PdfReader
     except ImportError as exc:  # pragma: no cover - 依存は requirements にある
@@ -300,18 +300,27 @@ def extract_pdf_text(raw: bytes) -> tuple[str, int]:
         # その文書だけ読めない扱いにする。
         pages = list(reader.pages)
     except Exception:
-        return "", 0
-    parts: list[str] = []
+        return []
+    texts: list[str] = []
     for page in pages:
         try:
             text = page.extract_text() or ""
         except Exception:
             text = ""
-        text = tidy_text(text)
-        if text:
-            parts.append(text)
-    body = re.sub(r"\n{3,}", "\n\n", "\n\n".join(parts)).strip()
+        texts.append(re.sub(r"\n{3,}", "\n\n", tidy_text(text).replace("\f", "\n")))
+    return texts
+
+
+def extract_pdf_text(raw: bytes) -> tuple[str, int]:
+    """PDF の本文とページ数。読めなければ ("", 0)。文字のある頁を空行でつなぐ（頁の区切りは残らない）。"""
+    pages = extract_pdf_pages(raw)
+    body = re.sub(r"\n{3,}", "\n\n", "\n\n".join(text for text in pages if text)).strip()
     return body, len(pages)
+
+
+def join_pdf_pages(pages: list[str]) -> str:
+    """頁ごとの本文を改頁文字でつなぐ。空の頁も 1 頁と数え、検索の索引が物理頁の番号で分けられるようにする。"""
+    return "\f".join(pages) if any(text.strip() for text in pages) else ""
 
 
 # ─────────────────────────────────────

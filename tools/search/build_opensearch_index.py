@@ -35,7 +35,7 @@ sys.path.append(str(Path(__file__).resolve().parents[2] / "lib" / "python"))
 import gijiroku_targets  # type: ignore
 import reiki_targets  # type: ignore
 import build_locks  # type: ignore
-from opensearch_mappings import build_index_body
+from opensearch_mappings import build_index_body, load_index_mappings
 import hyoka_source_records
 from parser_generation import PARSER_GENERATION  # type: ignore
 from scraped_source_records import (  # type: ignore
@@ -139,6 +139,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--doc-type", choices=["all", "minutes", "reiki", "hyoka"], default="all",
                         help="all は従来どおり minutes/reiki。hyoka は保存先を確認して明示指定する。")
+    parser.add_argument("--hyoka-display-dir", type=Path,
+                        default=Path(os.environ.get("MIYABE_HYOKA_DISPLAY_DIR", str(hyoka_source_records.DEFAULT_HYOKA_ROOT.parents[1] / "data" / "hyoka"))),
+                        help="画面用の控え（records/<slug>/<doc_id>.json）。事業の頁の範囲で、頁を事業ごとのシートとそれ以外に分ける。")
     parser.add_argument("--hyoka-root", type=Path,
                         default=Path(os.environ.get("MIYABE_HYOKA_ROOT", str(hyoka_source_records.DEFAULT_HYOKA_ROOT))),
                         help="事務事業評価の <slug>/manifest.json が並ぶ保存先")
@@ -1024,14 +1027,22 @@ def iter_reiki_documents(
                 return
 
 
+# 後から足した事務事業評価の欄。update では今の世代の mapping にも足す（index_mappings.json に定義）。
+HYOKA_ADDED_FIELDS = ("page_end", "segment")
+
+
 def iter_hyoka_documents(
     limit: int = 0,
     slugs: set[str] | None = None,
     exclude_slugs: set[str] | None = None,
     strict: bool = False,
     root: Path = hyoka_source_records.DEFAULT_HYOKA_ROOT,
+    display_dir: Path | None = None,
 ) -> Iterator[tuple[str, dict[str, Any]]]:
-    """現在版の保存済み本文を投入する。gone は残し、旧版は読まない。"""
+    """現在版の保存済み本文を投入する。gone は残し、旧版は読まない。
+
+    display_dir（画面用の控え）があれば、事業の記録の頁の範囲で頁を事業ごとのシートとそれ以外に分ける。
+    """
     emitted = 0
     for manifest_path in hyoka_source_records.manifest_paths(root, slugs, exclude_slugs):
         slug = manifest_path.parent.name
@@ -1049,6 +1060,7 @@ def iter_hyoka_documents(
         source_keys = {key: manifest_path.parent / f"manifest-document-{key}" for key in entries}
         start_source_integrity_audit("hyoka", slug, source_keys.values())
         page_reasons: Counter[str] = Counter()
+        segments: Counter[str] = Counter()
         indexed_pages = 0
         for doc_id, entry in sorted(entries.items()):
             source_key = source_keys[doc_id]
@@ -1076,7 +1088,9 @@ def iter_hyoka_documents(
                     raise ValueError("hyoka text_status=ok must have saved status ok or gone")
                 text_path = hyoka_source_records.current_text_path(manifest_path.parent, entry)
                 body = hyoka_source_records.read_body(text_path)
-                pages = hyoka_source_records.split_pages(body, entry)
+                pages = hyoka_source_records.segment_pages(
+                    hyoka_source_records.split_pages(body, entry),
+                    hyoka_source_records.record_spans(display_dir, slug, doc_id))
                 title = (hyoka_source_records.clean_title(str(entry.get("title") or entry.get("link_text") or entry.get("heading") or ""))
                          or hyoka_source_records.fallback_title(body))
                 fiscal_year = entry.get("fiscal_year")
@@ -1088,9 +1102,11 @@ def iter_hyoka_documents(
                     raise
                 continue
             record_source_integrity_outcome("hyoka", slug, source_key, "yielded")
-            page_reasons[pages[0][2]] += 1
-            for page, page_body, reason in pages:
-                local_id = f"{doc_id}:p{page}" if page is not None else doc_id
+            page_reasons[pages[0][3]] += 1
+            for page, page_end, page_body, reason, segment in pages:
+                segments[segment] += 1
+                # 1 頁なら「:p21」、事業のシートが何頁にもわたれば「:p21-22」。頁に分けられなければ文書の ID。
+                local_id = doc_id if page is None else f"{doc_id}:p{page}" if page_end == page else f"{doc_id}:p{page}-{page_end}"
                 page_link = hyoka_source_records.source_page_link(source_url, page)
                 document = {
                     **meta,
@@ -1104,7 +1120,7 @@ def iter_hyoka_documents(
                     "updated_at": normalize_datetime(manifest.get("updated_at")),
                     "fiscal_year": fiscal_year, "year_label": entry.get("year_label"),
                     "kind": entry.get("kind"), "link_text": entry.get("link_text"), "heading": entry.get("heading"),
-                    "page": page, "page_split_reason": reason,
+                    "page": page, "page_end": page_end, "segment": segment, "page_split_reason": reason,
                     "sha256": entry.get("sha256"), "fetched_at": normalize_datetime(entry.get("fetched_at")),
                     "status": entry.get("status"), "text_status": "ok",
                 }
@@ -1115,7 +1131,8 @@ def iter_hyoka_documents(
                     mark_pending_sources_as_limited("hyoka", slug)
                     return
         print("[HYOKA] " + json.dumps({"slug": slug, **source_integrity_summary("hyoka", slug),
-                                       "indexed_documents": indexed_pages, "page_split_reasons": dict(page_reasons)},
+                                       "indexed_documents": indexed_pages, "page_split_reasons": dict(page_reasons),
+                                       "segments": dict(segments)},
                                       ensure_ascii=False), flush=True)
 
 
@@ -1779,6 +1796,12 @@ def update_one(
             build_locks.release_build_lock(lock_path)
 
     print(f"[UPDATE] alias={alias} index={current_index} slugs={','.join(sorted(slugs))}", flush=True)
+    if doc_type == "hyoka":
+        # 後から足した事務事業評価の欄（事業ごとのシートの印、頁の範囲）を今の世代にも足す。
+        # dynamic は false なので、足さないと _source にだけ入って絞り込みと順位付けに効かない。
+        properties = load_index_mappings()["properties"]
+        client.request("PUT", f"/{quote(current_index)}/_mapping",
+                       body={"properties": {name: properties[name] for name in HYOKA_ADDED_FIELDS}})
     # update mode は指定自治体だけを意図的に書き換える。
     # alias 配下の他自治体 index は公開したまま触らない。
     # document ID は slug+ファイルパス由来で安定しているため、まず bulk で上書き投入し、
@@ -1937,7 +1960,8 @@ def main() -> int:
                 minutes_alias=args.minutes_alias,
                 reiki_alias=args.reiki_alias,
                 build_id=build_id,
-                documents=iter_hyoka_documents(limit=args.limit, slugs=slugs, strict=True, root=args.hyoka_root),
+                documents=iter_hyoka_documents(limit=args.limit, slugs=slugs, strict=True, root=args.hyoka_root,
+                                               display_dir=args.hyoka_display_dir),
                 slugs=slugs,
                 shards=args.shards,
                 replicas=args.replicas,
@@ -2135,7 +2159,8 @@ def main() -> int:
             hyoka_count = build_one(
                 client,
                 index_name=built_hyoka_index,
-                documents=iter_hyoka_documents(limit=args.limit, slugs=slugs, exclude_slugs=resume_done_slugs, root=args.hyoka_root),
+                documents=iter_hyoka_documents(limit=args.limit, slugs=slugs, exclude_slugs=resume_done_slugs, root=args.hyoka_root,
+                                               display_dir=args.hyoka_display_dir),
                 shards=args.shards,
                 replicas=args.replicas,
                 bulk_size=bulk_size,

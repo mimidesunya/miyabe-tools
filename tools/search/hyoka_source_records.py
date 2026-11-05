@@ -112,6 +112,75 @@ def split_pages(body: str, entry: dict) -> list[tuple[int | None, str, str]]:
     return [(None, body, "saved_text_no_page_boundaries")]
 
 
+def record_spans(display_dir: Path | None, slug: str, doc_id: str) -> list[tuple[int, int]]:
+    """画面用の控え（data/hyoka/records）の事業ごとの頁の範囲。控えが無ければ空。
+
+    様式ごとの読み取りプログラム（tools/hyoka/forms、川崎市が手本）は、事業ごとに載っている頁の一覧
+    `pages` を書く（1 頁だけの事業は `page` だけ）。機械の抽出・AI の書き写しの記録は頁 `page` だけ。
+    """
+    if display_dir is None:
+        return []
+    path = display_dir / "records" / slug / f"{doc_id}.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    if not isinstance(data, dict) or data.get("doc_id") != doc_id:
+        return []
+    spans = []
+    for record in data.get("records") or []:
+        if not isinstance(record, dict):
+            continue
+        pages = [page for page in record.get("pages") or [] if isinstance(page, int) and not isinstance(page, bool) and page > 0]
+        page = record.get("page")
+        if not pages and isinstance(page, int) and not isinstance(page, bool) and page > 0:
+            pages = [page]
+        if pages:
+            spans.append((min(pages), max(pages)))
+    return spans
+
+
+# 索引の 1 件の分類。事業ごとのシートを検索で優先するために使う。
+SEGMENT_SHEET = "sheet"        # 事業 1 件の頁（1 事業が何頁にもわたれば、その範囲をまとめて 1 件）
+SEGMENT_TABLE = "table"        # 1 頁に何事業も載る頁（総括や施策の表の一覧）
+SEGMENT_OTHER = "other"        # 事業の記録がある文書の、どの事業にも入らない頁（政策体系図、表紙など）
+SEGMENT_PAGE = "page"          # 事業の記録が無い文書の頁
+SEGMENT_DOCUMENT = "document"  # 頁に分けられない文書の全体
+
+
+def segment_pages(pages: list[tuple[int | None, str, str]],
+                  spans: list[tuple[int, int]]) -> list[tuple[int | None, int | None, str, str, str]]:
+    """split_pages の頁を、事業ごとのシートとそれ以外に分ける。返すのは (最初の頁, 最後の頁, 本文, 頁の根拠, 分類)。
+
+    重なる範囲（同じ頁に 2 事業）はまとめて一覧にする。範囲の中に文字のある頁が無ければ、その範囲は出さない。
+    頁に分けられない文書は 1 件のまま、事業が 1 つだけならシート、2 つ以上なら一覧とする。
+    """
+    if any(number is None for number, _, _ in pages):
+        number, body, reason = pages[0]
+        kind = SEGMENT_SHEET if len(spans) == 1 else SEGMENT_TABLE if spans else SEGMENT_DOCUMENT
+        return [(None, None, body, reason, kind)]
+    if not spans:
+        return [(number, number, body, reason, SEGMENT_PAGE) for number, body, reason in pages]
+    merged: list[list[int]] = []
+    for start, end in sorted(spans):
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+            merged[-1][2] += 1
+        else:
+            merged.append([start, end, 1])
+    out = []
+    used: set[int] = set()
+    for start, end, records in merged:
+        inside = [(number, body, reason) for number, body, reason in pages if start <= number <= end]
+        if not inside:
+            continue
+        used.update(number for number, _, _ in inside)
+        out.append((inside[0][0], inside[-1][0], "\n\n".join(body for _, body, _ in inside), inside[0][2],
+                    SEGMENT_SHEET if records == 1 else SEGMENT_TABLE))
+    out += [(number, number, body, reason, SEGMENT_OTHER) for number, body, reason in pages if number not in used]
+    return sorted(out, key=lambda segment: segment[0])
+
+
 def source_page_link(source_url: str, page: int | None) -> str:
     if page is None:
         return source_url

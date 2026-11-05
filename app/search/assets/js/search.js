@@ -585,7 +585,7 @@
             return '';
         }
         const total = Math.max(records.length, Number(item.records_total || 0));
-        const scope = item.page ? 'この頁' : 'この文書';
+        const scope = item.segment === 'sheet' ? 'この事業のシート' : item.page ? 'この頁' : 'この文書';
         const rows = records.map((record) => {
             const href = `${detailUrl}#${recordAnchor(record.id)}`;
             return `
@@ -635,13 +635,27 @@
         return item.detail_url || item.source_url || '#';
     }
 
+    // 事務事業評価の頁の範囲（事業のシートが何頁にもわたれば「21〜22頁」）。
+    function hyokaPageLabel(item) {
+        if (!item.page) {
+            return '';
+        }
+        return item.page_end && item.page_end > item.page ? `${item.page}〜${item.page_end}頁` : `${item.page}頁`;
+    }
+
+    // 索引の分類（tools/search/hyoka_source_records.py の SEGMENT_*）。シートと一覧だけ札にする。
+    function hyokaSegmentLabel(item) {
+        return { sheet: '事業のシート', table: '事業の一覧の頁' }[item.segment] || '';
+    }
+
     function resultMeta(item) {
         if (item.doc_type === 'hyoka') {
             return [
                 item.pref_name,
                 item.municipality_name,
                 hyokaKindLabel(item.kind),
-                item.page ? `${item.page}頁` : '頁区切りなし（文書全体）',
+                hyokaSegmentLabel(item),
+                item.page ? hyokaPageLabel(item) : '頁区切りなし（文書全体）',
                 item.status === 'gone' ? '掲載ページで見つからない文書' : '',
             ].filter(Boolean);
         }
@@ -691,7 +705,7 @@
             const detailUrl = safeUrl(buildDetailUrl(item));
             const sourceUrl = safeUrl((item.doc_type === 'hyoka' ? item.source_page_link : '') || item.source_url || '');
             const isHyoka = item.doc_type === 'hyoka';
-            const sourceLabel = item.doc_type === 'hyoka' ? (item.page ? `原典 ${item.page}頁` : '原典') : '原サイト';
+            const sourceLabel = item.doc_type === 'hyoka' ? (item.page ? `原典 ${hyokaPageLabel(item)}` : '原典') : '原サイト';
             return `
                 <article class="result-item">
                     <div class="result-top">

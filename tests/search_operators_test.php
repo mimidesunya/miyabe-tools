@@ -56,7 +56,8 @@ check('語の途中の - は演算子にしない', !miyabe_search_query_has_ope
 function query_should(string $query): array
 {
     $request = miyabe_search_build_request(['q' => $query, 'doc_type' => 'hyoka', 'sort' => 'relevance']);
-    return $request['body']['query']['bool']['must'][0]['bool']['should'];
+    // 事務事業評価は事業ごとのシートの点を上げる function_score で包んである。
+    return $request['body']['query']['function_score']['query']['bool']['must'][0]['bool']['should'];
 }
 
 function has_clause(array $should, string $name): bool
@@ -103,7 +104,7 @@ check('語句があるときは語単位の句を使わない', terms_clause(que
 function must_count(string $query): int
 {
     $request = miyabe_search_build_request(['q' => $query, 'doc_type' => 'hyoka', 'sort' => 'relevance']);
-    return count($request['body']['query']['bool']['must']);
+    return count($request['body']['query']['function_score']['query']['bool']['must']);
 }
 check('-"語句" を「必ず含む語句」にしない', must_count('温泉 -"同和団体"') === 1);
 check('"語句" | 語 で語句を必ず含むにしない', must_count('"同和団体" | 温泉') === 1);

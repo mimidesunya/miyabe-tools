@@ -39,7 +39,11 @@ file_put_contents($dir . '/records/' . $slug . '/' . $docId . '.json', json_enco
 ], JSON_UNESCAPED_UNICODE));
 putenv('MIYABE_HYOKA_DISPLAY_DIR=' . $dir);
 
-check('ID から slug・文書・頁を取る', miyabe_hyoka_display_parse_id("hyoka:{$slug}:{$docId}:p3") === ['slug' => $slug, 'doc_id' => $docId, 'page' => 3]);
+check('ID から slug・文書・頁を取る', miyabe_hyoka_display_parse_id("hyoka:{$slug}:{$docId}:p3") === ['slug' => $slug, 'doc_id' => $docId, 'page' => 3, 'page_end' => 3]);
+check('事業のシートの頁の範囲の ID', miyabe_hyoka_display_parse_id("hyoka:{$slug}:{$docId}:p2-3") === ['slug' => $slug, 'doc_id' => $docId, 'page' => 2, 'page_end' => 3]
+    && miyabe_hyoka_display_parse_id("hyoka:{$slug}:{$docId}:p3-2") === null);
+check('範囲の ID なら、その範囲から始まる事業', array_column(miyabe_hyoka_display_records("hyoka:{$slug}:{$docId}:p2-3"), 'id') === ['r2']
+    && array_column(miyabe_hyoka_display_records("hyoka:{$slug}:{$docId}:p1-3"), 'id') === ['r1', 'r2']);
 check('頁なしの ID', miyabe_hyoka_display_parse_id("hyoka:{$slug}:{$docId}")['page'] === 0);
 check('形の崩れた ID は読まない', miyabe_hyoka_display_parse_id("hyoka:../{$slug}:{$docId}") === null
     && miyabe_hyoka_display_records("hyoka:{$slug}:../{$docId}") === []);

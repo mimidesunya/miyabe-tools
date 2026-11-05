@@ -923,7 +923,13 @@ components:
           description: hyoka の原典を見つけた掲載ページのURL。
         page:
           type: [integer, "null"]
-          description: hyoka の原典の頁番号（1から）。頁区切りが不明なら null で文書全体。検索結果のページ番号とは別。
+          description: hyoka の原典の頁番号（1から）。頁区切りが不明なら null で文書全体。検索結果のページ番号とは別。事業のシートが何頁にもわたるときは最初の頁。
+        page_end:
+          type: [integer, "null"]
+          description: hyoka の原典の頁の範囲の最後。事業のシートが何頁にもわたるとき page より大きい。
+        segment:
+          type: string
+          description: hyoka の 1 件の分類。sheet 事業 1 件のシート（関連度で優先）、table 1 頁に何事業も載る一覧、other 事業の無い頁、page 事業の記録の無い文書の頁、document 頁に分けられない文書。
         source_page_link:
           type: string
           description: hyoka の原典の該当頁へのURL。頁不明なら原典URL。

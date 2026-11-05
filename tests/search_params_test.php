@@ -28,7 +28,9 @@ function build(array $params): array
 
 function filters_of(array $request): array
 {
-    return $request['body']['query']['bool']['filter'] ?? [];
+    // 事務事業評価は事業ごとのシートの点を上げる function_score で包んである。
+    $query = $request['body']['query']['function_score']['query'] ?? $request['body']['query'];
+    return $query['bool']['filter'] ?? [];
 }
 
 function filter_value(array $request, string $field): mixed

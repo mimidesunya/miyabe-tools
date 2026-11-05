@@ -258,7 +258,10 @@ function hyokaMetadata(document: any): string[] {
   return [
     document.year_label || (document.fiscal_year ? `${document.fiscal_year}年度` : ""),
     document.kind || "",
-    document.page ? `${document.page}頁` : "頁区切りなし（文書全体）",
+    document.segment === "sheet" ? "事業のシート" : document.segment === "table" ? "事業の一覧の頁" : "",
+    document.page
+      ? (document.page_end && document.page_end > document.page ? `${document.page}〜${document.page_end}頁` : `${document.page}頁`)
+      : "頁区切りなし（文書全体）",
     document.status === "gone" ? "取得元から消失（保存済み本文）" : ""
   ];
 }
@@ -649,7 +652,9 @@ const documentCommonShape = {
   link_text: z.string().optional().describe("原典へのリンクの文字。"),
   heading: z.string().optional().describe("原典リンクの周囲の見出し。"),
   source_page_url: z.string().optional().describe("原典を見つけた掲載ページのURL。"),
-  page: z.number().int().optional().describe("原典の頁番号。区切りが不明な文書では省略。検索結果のページ番号とは別。"),
+  page: z.number().int().optional().describe("原典の頁番号。区切りが不明な文書では省略。検索結果のページ番号とは別。事業のシートが何頁にもわたるときは最初の頁。"),
+  page_end: z.number().int().optional().describe("原典の頁の範囲の最後。事業のシートが何頁にもわたるとき page より大きい。"),
+  segment: z.string().optional().describe("事務事業評価の 1 件の分類。sheet 事業 1 件のシート（優先して返す）、table 1 頁に何事業も載る一覧、other 事業の無い頁（政策体系図など）、page 事業の記録の無い文書の頁、document 頁に分けられない文書。"),
   source_page_link: z.string().optional().describe("原典の該当頁へのURL。頁が不明な文書では原典URL。"),
   sha256: z.string().optional().describe("取得した原典のSHA-256。"),
   fetched_at: z.string().optional().describe("原典の取得日時。"),
@@ -868,7 +873,7 @@ function createServer(): McpServer {
     "search_hyoka",
     {
       title: "事務事業評価検索",
-      description: "自治体の事務事業評価の文書を全文で検索し、抜粋、年度、種別、原典URL、分かる場合は頁、本文取得用IDを返します。自治体・都道府県・年度・種別で絞れます。事業名・費用・評価・方向性で事業を探すなら search_hyoka_projects、金額を足すなら aggregate_hyoka_amounts を使ってください。抜粋だけで判断せず、get_municipal_document と原典で確かめてください。",
+      description: "自治体の事務事業評価の文書を全文で検索し、抜粋、年度、種別、原典URL、分かる場合は頁、本文取得用IDを返します。頁の区切りが分かる文書は、事業ごとのシート（segment=sheet、何頁にもわたれば頁の範囲で 1 件）とそれ以外の頁に分けてあり、シートを優先して返します。自治体・都道府県・年度・種別で絞れます。事業名・費用・評価・方向性で事業を探すなら search_hyoka_projects、金額を足すなら aggregate_hyoka_amounts を使ってください。抜粋だけで判断せず、get_municipal_document と原典で確かめてください。",
       inputSchema: hyokaSearchInputSchema,
       outputSchema: searchOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS

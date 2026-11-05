@@ -74,6 +74,9 @@ $sourcePageUrl = search_detail_safe_url((string)($document['source_page_url'] ??
 $sourcePageLink = $docType === 'hyoka' ? search_detail_safe_url((string)($document['source_page_link'] ?? '')) : '';
 $sourceLink = $sourcePageLink !== '' ? $sourcePageLink : $sourceUrl;
 $pageNumber = $docType === 'hyoka' ? (int)($document['page'] ?? 0) : 0;
+// 事業のシートが何頁にもわたるとき（索引の page_end）、「21〜22頁」と出す。
+$pageEnd = $docType === 'hyoka' ? max($pageNumber, (int)($document['page_end'] ?? 0)) : 0;
+$pageLabel = $pageNumber > 0 ? ($pageEnd > $pageNumber ? $pageNumber . '〜' . $pageEnd . '頁' : $pageNumber . '頁') : '';
 $hyokaKindLabels = [
     'project_evaluation' => '事務事業評価',
     'policy_evaluation' => '施策・政策評価',
@@ -92,11 +95,11 @@ $meta = array_values(array_filter([
     $yearLabel,
     search_detail_display_date($document ?? []),
     $docType === 'hyoka' ? ($hyokaKindLabels[(string)($document['kind'] ?? '')] ?? '') : '',
-    $docType === 'hyoka' ? ($pageNumber > 0 ? (string)$pageNumber . '頁' : '頁区切りなし（文書全体）') : '',
+    $docType === 'hyoka' ? ($pageNumber > 0 ? $pageLabel : '頁区切りなし（文書全体）') : '',
 ], static fn(string $value): bool => $value !== ''));
 
 $docTypeLabel = match ($docType) { 'reiki' => '例規', 'hyoka' => '事務事業評価', default => '会議録' };
-$bodyLabel = $pageNumber > 0 ? (string)$pageNumber . '頁の本文' : '全文';
+$bodyLabel = $pageNumber > 0 ? $pageLabel . 'の本文' : '全文';
 // 抽出済みの自治体の文書だけ、事業ごとの欄を先に出す。本文は PDF の文字の並びのままで読みにくい。
 $hyokaDisplay = ($docType === 'hyoka' && $document !== null) ? miyabe_hyoka_display_document($id) : ['records' => [], 'source_url' => ''];
 $hyokaRecords = $hyokaDisplay['records'];

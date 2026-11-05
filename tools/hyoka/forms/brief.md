@@ -17,7 +17,7 @@
 
 `read(document) -> list[dict]`。1 件が 1 事業の 1 回の評価。
 
-- `pages`: その事業の頁番号の配列
+- `pages`: その事業の頁番号の配列。事業のシートが何頁にもわたれば続きの頁も全部入れる（川崎市の手本 `example_reader.py` は 1 事業 2〜3 頁）。全文検索はこの範囲を「事業のシート」1 件にまとめ、表紙・政策体系図・総括などの頁と分けて、シートを優先して返す。だから事業に関係ない頁（表紙、目次、体系図、ほかの事業の頁）を入れない。1 頁に何事業も並ぶ一覧の様式では、どの事業もその 1 頁だけ
 - `evaluation_year`、`target_year`: 評価の年度と、評価の対象になった事業の実施年度（西暦）。書かれていなければ 0
 - `project`: `name`、`name_budget`（予算上の事業名）、`code`、`department`（部、課、係）、`account`（会計、款、項、目）、`plan_alignment`（総合計画の位置づけ）、`legal_basis`、`target`（対象）、`purpose`（目的）、`period`（期間）。どれも値の組の配列 `[{"raw": 原文, "ref": 番地}]`。`Cell.value()` で作る。無ければ空の配列
 - `amounts`: 金額の表の数字を 1 つずつ全部。`{label, fiscal_year, raw, ref, stage, scope, unit, unit_source}`

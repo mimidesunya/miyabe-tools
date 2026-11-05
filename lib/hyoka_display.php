@@ -47,13 +47,19 @@ function miyabe_hyoka_display_status_by_slug(): array
     return $rows;
 }
 
-// 詳細画面の ID「hyoka:<slug>:<doc_id>」又は「…:p<頁>」から、控えのファイルを決める部分だけを取る。
+// 詳細画面の ID「hyoka:<slug>:<doc_id>」、「…:p<頁>」、事業のシートが何頁にもわたれば「…:p<頁>-<頁>」から、
+// 控えのファイルを決める部分だけを取る。page_end は頁の範囲の最後（1 頁なら page と同じ、文書全体なら 0）。
 function miyabe_hyoka_display_parse_id(string $id): ?array
 {
-    if (!preg_match('/^hyoka:([0-9]{5}-[a-z0-9-]+):([0-9a-f]{16})(?::p([0-9]{1,5}))?$/', $id, $match)) {
+    if (!preg_match('/^hyoka:([0-9]{5}-[a-z0-9-]+):([0-9a-f]{16})(?::p([0-9]{1,5})(?:-([0-9]{1,5}))?)?$/', $id, $match)) {
         return null;
     }
-    return ['slug' => $match[1], 'doc_id' => $match[2], 'page' => isset($match[3]) ? (int)$match[3] : 0];
+    $page = isset($match[3]) ? (int)$match[3] : 0;
+    $end = isset($match[4]) && $match[4] !== '' ? (int)$match[4] : $page;
+    if ($end < $page) {
+        return null;
+    }
+    return ['slug' => $match[1], 'doc_id' => $match[2], 'page' => $page, 'page_end' => $end];
 }
 
 // これより事業が多い文書は、一覧の見出しだけを先に出し、中身は開いたときに読む（島根県は 1 文書 743 件）。
@@ -74,7 +80,9 @@ function miyabe_hyoka_display_document(string $id): array
     }
     $records = array_values(array_filter($data['records'], 'is_array'));
     if ($parsed['page'] > 0) {
-        $records = array_values(array_filter($records, static fn(array $record): bool => (int)($record['page'] ?? 0) === $parsed['page']));
+        // その頁（範囲）から始まる事業。何頁にもわたる事業は最初の頁で数える。
+        $records = array_values(array_filter($records, static fn(array $record): bool
+            => (int)($record['page'] ?? 0) >= $parsed['page'] && (int)($record['page'] ?? 0) <= $parsed['page_end']));
     }
     return ['records' => $records, 'source_url' => trim((string)($data['source_url'] ?? ''))];
 }

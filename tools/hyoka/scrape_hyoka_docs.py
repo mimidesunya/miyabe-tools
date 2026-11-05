@@ -93,7 +93,8 @@ from document_crawl import (  # noqa: E402
     decode_csv,
     doc_id_for,
     extract_docx_text,
-    extract_pdf_text,
+    extract_pdf_pages,
+    join_pdf_pages,
     extract_xlsx_text,
     fetch_document,
     fiscal_year_source,
@@ -827,8 +828,9 @@ def collect_candidates(fetcher: Fetcher, target: Target, *, max_pages: int, max_
 def extract_document_text(file_type: str, raw: bytes) -> tuple[str, dict]:
     """形式ごとに本文を抜き出す。(本文, entry に足す項目)。"""
     if file_type == "pdf":
-        body, pages = extract_pdf_text(raw)
-        return body, {"pages": pages}
+        # 頁の間に改頁文字を入れる。検索の索引が物理頁で分け、事業ごとのシートにまとめられるように。
+        pages = extract_pdf_pages(raw)
+        return join_pdf_pages(pages), {"pages": len(pages)}
     if file_type in ("xlsx", "xlsm"):
         body, sheets = extract_xlsx_text(raw)
         return body, {"sheets": sheets}

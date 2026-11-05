@@ -169,6 +169,12 @@
     "page": {
       "type": "integer"
     },
+    "page_end": {
+      "type": "integer"
+    },
+    "segment": {
+      "type": "keyword"
+    },
     "link_text": {
       "type": "text",
       "analyzer": "ja_cjk"

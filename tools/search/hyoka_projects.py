@@ -541,13 +541,24 @@ def iter_record_files(display_dir: Path, slugs: set[str] | None = None) -> Itera
             yield slug_dir.name, path
 
 
+ID_PAGES_RE = re.compile(r":p(\d+)(?:-(\d+))?$")
+
+
 def document_meta(metadata: dict[str, dict], slug: str, doc_id: str, page: int) -> dict:
-    """文書の情報。検索の ID は頁で分けた文書なら頁の ID、無ければ文書全体の ID、どちらも無ければ最初の頁。"""
+    """文書の情報。検索の ID は、その頁を含む 1 件（頁、または事業のシートの頁の範囲「:p21-22」）、
+    無ければ文書全体の ID、どちらも無ければ最初の 1 件。"""
     entry = metadata.get(f"{slug}:{doc_id}") or {}
     ids = entry.get("ids") or []
-    wanted = [f"hyoka:{slug}:{doc_id}:p{page}"] if page > 0 else []
-    wanted.append(f"hyoka:{slug}:{doc_id}")
-    document_id = next((candidate for candidate in wanted if candidate in ids), ids[0] if ids else "")
+    document_id = ""
+    if page > 0:
+        for candidate in ids:
+            match = ID_PAGES_RE.search(candidate)
+            if match and int(match.group(1)) <= page <= int(match.group(2) or match.group(1)):
+                document_id = candidate
+                break
+    if not document_id:
+        whole = f"hyoka:{slug}:{doc_id}"
+        document_id = whole if whole in ids else ids[0] if ids else ""
     return {**entry, "document_id": document_id}
 
 

@@ -13,7 +13,7 @@ const fixture = {
   id: "hyoka:14216-zama-shi:sample:p2", doc_type: "hyoka",
   title: "子育て支援事業評価", municipality_name: "座間市", pref_name: "神奈川県",
   fiscal_year: 2024, year_label: "令和6年度", kind: "project_evaluation",
-  link_text: "評価表", heading: "事業評価結果", page: 2,
+  link_text: "評価表", heading: "事業評価結果", page: 2, page_end: 3, segment: "sheet",
   source_url: "https://example.invalid/evaluation.pdf",
   source_page_link: "https://example.invalid/evaluation.pdf#page=2",
   source_page_url: "https://example.invalid/evaluation/",
@@ -191,7 +191,7 @@ test("hyoka MCP contract through a local public API mock", { timeout: 30000 }, a
     assert.match(item.api_document_url, /^https:\/\/public.invalid\/api\/document/);
     assert.match(item.detail_url, /^https:\/\/public.invalid\/search\/detail\//);
     assert.match(result.content[0].text, /事務事業評価検索/);
-    assert.match(result.content[0].text, /2頁/);
+    assert.match(result.content[0].text, /事業のシート \/ 2〜3頁/);
     assert.match(result.content[0].text, /取得元から消失/);
     assert.equal(item.score, undefined);
   });

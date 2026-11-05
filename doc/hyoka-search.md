@@ -11,9 +11,8 @@ AI、OCR、項目抽出は実行しない。保存済み本文を読み、検索
 メタ情報として持ち、残りの本文を収録する。`_archive/` と `previous_versions` は読まない。
 取得元から見つからなくなった `status=gone` も収録し、検索結果と詳細に印を出す。
 
-原則は物理頁ごとに1件。ただし**現在のPDF取得器は非空頁を二重改行で結合しており、
-既存の多頁PDFの本文から物理頁を確定できない**。段落から頁番号を推測せず、
-この場合は文書全体を1件とする。原典の頁番号が不明なら `page=null`。
+原則は物理頁ごとに1件で、事業の記録があれば事業のシートごとにまとめる（下）。保存済みの本文に頁の区切りが
+無ければ段落から頁番号を推測せず、文書全体を1件とする。原典の頁番号が不明なら `page=null`。
 
 | `page_split_reason` | 単位 |
 | --- | --- |
@@ -24,7 +23,31 @@ AI、OCR、項目抽出は実行しない。保存済み本文を読み、検索
 | `page_count_unknown` | PDFの頁数が不明。文書全体 |
 | `non_pdf_document` | Excel・Word等。文書全体 |
 
-IDは `hyoka:<slug>:<doc_id>:p<物理頁>`、文書全体なら `hyoka:<slug>:<doc_id>`。
+**事業ごとのシートとそれ以外に分ける**: 頁に分けられる文書は、画面用の控え（`--hyoka-display-dir`、既定は
+`MIYABE_HYOKA_DISPLAY_DIR` か `data/hyoka`）の事業の記録の頁の範囲で頁をまとめる（`tools/search/hyoka_source_records.py` の
+`segment_pages`）。範囲は様式ごとの読み取りの `pages`（川崎市が基準、[様式ごとの読み取り](hyoka-forms.md)）、無ければ記録の `page`。
+1 件ごとに分類 `segment` と頁の範囲 `page`〜`page_end` を持つ。全文検索は `segment=sheet` の点を 3 倍にして、事業のシートを先に返す
+（`lib/opensearch_search.php` の `MIYABE_SEARCH_HYOKA_SHEET_WEIGHT`）。
+
+| `segment` | 1 件の単位 |
+| --- | --- |
+| `sheet` | 事業 1 件の頁。何頁にもわたれば範囲をまとめて 1 件（川崎市は 2〜3 頁） |
+| `table` | 1 頁に何事業も載る頁（総括や施策の表の一覧）。範囲が重なる事業もまとめる |
+| `other` | 事業の記録がある文書の、どの事業にも入らない頁（表紙、政策体系図など） |
+| `page` | 事業の記録が無い文書の頁 |
+| `document` | 頁に分けられない文書の全体（事業が 1 つなら `sheet`、2 つ以上なら `table`） |
+
+**頁の区切り**: 以前の取得器は PDF の頁を空行でつなぎ空の頁を落としていたので、多頁の PDF は文書全体の 1 件になっていた。
+今の取得器（`tools/hyoka/scrape_hyoka_docs.py`）は頁の間に改頁文字を入れる。保存済みの本文は、原典の PDF から取り出し直して
+書き換える（`tools/hyoka/repage_text.py`。取得し直しはしない。原典の SHA-256・頁数・空白を除いた文字が前と同じときだけ書く）。
+
+```bash
+python3 tools/hyoka/repage_text.py --root /data/hyoka2 --slug 14130-kawasaki-shi --dry-run   # 数えるだけ
+python3 tools/hyoka/repage_text.py --root /data/hyoka2 --slug 14130-kawasaki-shi --workers 4
+```
+
+IDは `hyoka:<slug>:<doc_id>:p<物理頁>`、事業のシートが何頁にもわたれば `hyoka:<slug>:<doc_id>:p<最初の頁>-<最後の頁>`、
+文書全体なら `hyoka:<slug>:<doc_id>`。
 改訂で頁構成が変わるとIDが変わり得る。更新は自治体単位で旧IDを入れ替える。
 `source_url` は取得時の原典URL、`source_page_url` は発見した掲載ページ、
 `source_page_link` は頁が分かるPDFでは原典URLの `#page=N`、不明なら原典URL。
@@ -143,7 +166,7 @@ updateは現行世代を変えるため、戻す必要がある運用では先�
   本文にした自治体を、そのあと update する。OCR は取得器・全量の索引づくりと同時に走らせない
   （どちらも manifest を書く・読むため）。
   取得の容器で `python3 tools/hyoka/ocr_hyoka_docs.py --all`（数えるだけなら `--dry-run`）。
-- 頁区切りを持たない既存PDFを頁単位へ移すには、別作業で物理頁を保つ再抽出が必要。
+- 頁区切りを持たない既存PDFは `tools/hyoka/repage_text.py` で取り出し直す（上）。取り出し直したあと、その自治体を update する。
 - 事業ごとに探す・金額を集計する索引は別にある（[事業ごとの索引](hyoka-projects.md)）。
 - 項目の記録は [共通形式](hyoka-common-format.md) と別作業の `tools/hyoka/extract/` が担当。
   この全文検索はそれに依存せず、事業名・費用・評価結果等を解釈して補わない。

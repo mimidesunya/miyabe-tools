@@ -165,7 +165,7 @@ function miyabe_search_hyoka_source_fields(): array
 {
     return [
         'fiscal_year', 'kind', 'link_text', 'heading', 'source_page_url',
-        'page', 'source_page_link', 'sha256', 'fetched_at', 'status',
+        'page', 'page_end', 'segment', 'source_page_link', 'sha256', 'fetched_at', 'status',
         'text_status', 'page_split_reason',
     ];
 }
@@ -286,6 +286,9 @@ function miyabe_search_simple_query_syntax(string $query): string
 // simple_query_string に読ませる記号。あいまい検索（~）と語句の距離（"…"~N）は外す。
 // 「令和5年～6年」の ～ が半角の ~ になると、後ろの語が距離として読まれて黙って捨てられていた。
 const MIYABE_SEARCH_QUERY_FLAGS = 'AND|OR|NOT|PHRASE|PRECEDENCE|PREFIX|WHITESPACE';
+
+// 事務事業評価で、事業ごとのシートの点に掛ける数。
+const MIYABE_SEARCH_HYOKA_SHEET_WEIGHT = 3;
 
 // 検索語の長さの上限。文字 2 つずつの組の数だけ句が増え、330 字前後で OpenSearch の句の上限
 // （maxClauseCount 1024）を超えて 500 になっていた。
@@ -620,6 +623,19 @@ function miyabe_search_build_request(array $params): array
         }
     }
 
+    if ($docType === 'hyoka') {
+        // 事務事業評価は事業ごとのシート（索引の segment=sheet。tools/search/hyoka_source_records.py）を先に出す。
+        // 政策ごとの PDF の政策体系図や総括の一覧の頁より、事業 1 件の頁が当たるほうが調べやすい。
+        $bodyQuery = [
+            'function_score' => [
+                'query' => $bodyQuery,
+                'functions' => [['filter' => ['term' => ['segment' => 'sheet']], 'weight' => MIYABE_SEARCH_HYOKA_SHEET_WEIGHT]],
+                'score_mode' => 'multiply',
+                'boost_mode' => 'multiply',
+            ],
+        ];
+    }
+
     $sortSpec = [['_score' => ['order' => 'desc']]];
     if ($sort === 'date') {
         // hyoka の年度は掲載文書の年度。実際の日付や評価実施年度を推測しない。
@@ -817,7 +833,7 @@ function miyabe_search_hit_to_item(
             $item['municipality_name'] = substr($item['municipality_name'], strlen($prefPrefix));
         }
         foreach (miyabe_search_hyoka_source_fields() as $field) {
-            $item[$field] = in_array($field, ['fiscal_year', 'page'], true)
+            $item[$field] = in_array($field, ['fiscal_year', 'page', 'page_end'], true)
                 ? (isset($source[$field]) ? (int)$source[$field] : null)
                 : (string)($source[$field] ?? '');
         }

@@ -95,7 +95,9 @@ def test_hyoka_filters_and_source_document_roundtrip(api):
     assert status == 200
     path, body = requests[-1]
     assert path == "/test-hyoka/_search"
-    filters = body["query"]["bool"]["filter"]
+    scored = body["query"]["function_score"]
+    assert scored["functions"] == [{"filter": {"term": {"segment": "sheet"}}, "weight": 3}]
+    filters = scored["query"]["bool"]["filter"]
     for field, value in {"doc_type": "hyoka", "fiscal_year": 2025, "kind": "project_evaluation",
                          "slug": "14130-kawasaki-shi", "municipality_code": "14130", "pref_code": "14"}.items():
         assert {"term": {field: value}} in filters
