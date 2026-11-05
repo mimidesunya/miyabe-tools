@@ -642,7 +642,9 @@ function miyabe_hyoka_display_policy_html(array $record): string
         foreach ($path as $step) {
             $head = trim((string)($step['level'] ?? '') . ' ' . (string)($step['code'] ?? '') . ' ' . (string)($step['name'] ?? ''));
             $goal = (string)($step['goal'] ?? '');
-            $html .= '<li>' . miyabe_hyoka_display_h($head) . ($goal !== '' ? '<small>' . miyabe_hyoka_display_h($goal) . '</small>' : '') . '</li>';
+            // この文書に体系図が無く、同じ年度のほかの文書（分冊の前の方など）から補った段
+            $from = (string)($step['from_doc'] ?? '') !== '' ? '<small>同じ年度のほかの文書の体系図から補った段</small>' : '';
+            $html .= '<li>' . miyabe_hyoka_display_h($head) . ($goal !== '' ? '<small>' . miyabe_hyoka_display_h($goal) . '</small>' : '') . $from . '</li>';
         }
         $html .= '</ol>';
     }

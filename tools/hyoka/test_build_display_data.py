@@ -211,6 +211,45 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(evaluation["aspect_levels"][0]["level"], "low")
         self.assertEqual(evaluation["reasons"], [{"aspect": "有効性", "label": "評価の理由", "text": "参加者が減った"}])
 
+    def test_policy_paths_are_completed_within_the_municipality(self) -> None:
+        def step(level, code, name):
+            return {"level_raw": level, "code": code, "name": name, "source": {"raw": name, "ref": "p1t1r0c0"}}
+        top = step("基本政策", "1", "生命を守り生き生きと暮らすことができるまちづくり")
+        policy = step("政策", "1-4", "誰もが安心して暮らせる地域のつながり・しくみをつくる")
+        rows = [
+            # 体系図のある分冊の前の方
+            {"doc_id": "a" * 16, "evaluation_year": 2024, "policy_path": [top, policy, step("施策", "1-4-1", "地域包括ケア")]},
+            # 体系図の無い後ろの方（施策だけ）
+            {"doc_id": "b" * 16, "evaluation_year": 2024, "policy_path": [step("施策", "1-4-4", "障害福祉サービスの充実")]},
+            # 別の年度には補わない
+            {"doc_id": "c" * 16, "evaluation_year": 2023, "policy_path": [step("施策", "1-4-4", "障害福祉サービスの充実")]},
+            # 仮名の抜けた体系図の名前は、同じ番号の字の多い名前にそろえる
+            {"doc_id": "d" * 16, "evaluation_year": 2021, "policy_path": [step("基本政策", "1", "生命守生生暮"), step("政策", "1-4", "誰安心暮地域")]},
+        ]
+        path = self.out.parent / "policy.jsonl"
+        path.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows), encoding="utf-8")
+        names, ancestors = b.policy_index(path)
+        b.repair_policy_path(rows[1], names, ancestors)
+        self.assertEqual([(s["code"], s.get("from_doc")) for s in rows[1]["policy_path"]], [("1", "a" * 16), ("1-4", "a" * 16), ("1-4-4", None)])
+        b.repair_policy_path(rows[2], names, ancestors)
+        self.assertEqual(len(rows[2]["policy_path"]), 1)
+        # 番号の無い段は、同じ年度・同じ呼び名で骨組みの同じ名前の段から番号を取り、そこから上を補う
+        bare = {"doc_id": "e" * 16, "evaluation_year": 2024,
+                "policy_path": [step("政策", "", "誰もが安心して暮らせる地域のつながり・しくみをつくる"), step("施策", "", "障害福祉サービスの充実")]}
+        b.repair_policy_path(bare, names, ancestors)
+        self.assertEqual([(s["code"], s.get("from_doc"), s.get("code_from_doc")) for s in bare["policy_path"]],
+                         [("1", "a" * 16, None), ("1-4", None, "a" * 16), ("1-4-4", None, "b" * 16)])
+        # 同じ文書の中の道筋から補った段には、ほかの文書の印を付けない
+        same = {"doc_id": "a" * 16, "evaluation_year": 2024, "policy_path": [step("施策", "1-4-2", "高齢者福祉")]}
+        b.repair_policy_path(same, names, ancestors)
+        self.assertEqual([(s["code"], s.get("from_doc")) for s in same["policy_path"]], [("1", None), ("1-4", None), ("1-4-2", None)])
+        b.repair_policy_path(rows[3], names, ancestors)
+        self.assertEqual([s["name"] for s in rows[3]["policy_path"]], [top["name"], policy["name"]])
+        self.assertEqual(rows[3]["policy_path"][0]["source"]["raw"], "生命守生生暮")  # 原文は残す
+        shown = b.compact_form_record({**rows[1], "project": {"name": [{"raw": "x", "ref": "p1t1r0c0"}]}}, "b" * 16, 1)
+        self.assertEqual(shown["policy_path"][0]["from_doc"], "a" * 16)
+        self.assertNotIn("from_doc", shown["policy_path"][2])
+
     def test_ai_records_are_used_only_where_machine_records_are_missing(self) -> None:
         other = "88888-other-shi"
         (self.work / other).mkdir(parents=True)

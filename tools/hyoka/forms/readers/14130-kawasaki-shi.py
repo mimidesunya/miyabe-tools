@@ -574,9 +574,25 @@ def three_levels(rank: int, size: int, names: tuple[str, str, str]) -> str:
     return names[0] if rank <= edge else names[2] if rank > size - edge else names[1]
 
 
+# 令和2〜4年度の政策体系図は「民」「長」などを部首の字（CJK 部首補助。NFKC でも直らない）で刷っている。
+RADICALS = str.maketrans({"⺠": "民", "⻑": "長", "⻄": "西", "⻘": "青", "⻝": "食", "⻩": "黄", "⻭": "歯", "⻆": "角",
+                          "⻤": "鬼", "⻨": "麦", "⻁": "虎", "⻫": "斉", "⻲": "亀", "⻯": "竜"})
+
+
+def policy_name(text):
+    return norm(text).translate(RADICALS)
+
+
+def name_key(text):
+    """体系図とシートの段の名前を突き合わせる形。令和2・3年度の体系図は平仮名・片仮名が抜けている
+    （「生涯を通じて学び成長する」が「生涯通学成⻑」、「の」が「●」の年もある）ので、仮名と記号を除いた字の並びで比べる。"""
+    return re.sub(r"[\u3040-\u30ff・、。「」（）()●]", "", policy_name(text))
+
+
 def read_policy_map(document):
     """政策体系図の頁（基本政策・政策・施策・事務事業の表）から、施策ごとの体系の道筋と、事業ごとの主な事業の印（○）を引く表。"""
     measures, projects = {}, {}
+    carried = {}  # 前の頁の体系図で最後に出た段（表が頁をまたぐと、上の段の升目は前の頁にだけある）
     for page in document.pages:
         head = exact(page, '基本政策')
         if not head or not exact(page, '施策'):
@@ -589,18 +605,28 @@ def read_policy_map(document):
             for depth, (level, code_re) in enumerate(POLICY_LEVELS):
                 found = re.fullmatch(level + code_re + r"(.+)", text)
                 if found and cell.r > head.r:
-                    spans.append((depth, cell.r, cell.r + cell.rs, {"level_raw": level, "code": found.group(1), "name": found.group(2),
-                                                                     "source": cell.value()}))
+                    spans.append((depth, cell.r, cell.r + cell.rs, {"level_raw": level, "code": found.group(1),
+                                                                     "name": policy_name(found.group(2)), "source": cell.value()}))
                     break
         for cell in table:
             if project_col is None or cell.c != project_col or cell.r <= head.r or not norm(cell.text):
                 continue
-            path = [item for depth in range(len(POLICY_LEVELS))
-                    for d, r0, r1, item in spans if d == depth and r0 <= cell.r < r1][:len(POLICY_LEVELS)]
+            # 段ごとに、その行より上でいちばん近い升目。無ければ前の頁から引き継いだ段。上の段の升目の縦の範囲が
+            # 表の終わりで切れていたり（令和4〜7年度の 1-1-5）、前の頁にだけあったりする。番号の頭が合う段だけを使う
+            nearest = {}
+            for depth in range(len(POLICY_LEVELS)):
+                above = [(r0, item) for d, r0, r1, item in spans if d == depth and r0 <= cell.r]
+                nearest[depth] = max(above, key=lambda pair: pair[0])[1] if above else carried.get(depth)
+            path = [item for item in nearest.values() if item]
+            path = [item for i, item in enumerate(path) if all(later["code"].startswith(item["code"] + "-") for later in path[i + 1:])]
             name = norm(cell.text).lstrip("○◯")
             projects[name] = {"is_main": norm(cell.text).startswith(("○", "◯")), "source": cell.value(), "path": path}
             if path:
-                measures[norm(path[-1]["name"])] = path
+                measures[name_key(path[-1]["name"])] = path
+        for depth in range(len(POLICY_LEVELS)):
+            last = [(r0, item) for d, r0, r1, item in spans if d == depth]
+            if last:
+                carried[depth] = max(last, key=lambda pair: pair[0])[1]
     return {"measures": measures, "projects": projects}
 
 
@@ -630,10 +656,17 @@ def read_policy_path(page, record, policy_map):
     goal = page.right(exact(page, '直接目標'))
     if not measure or not norm(measure.text):
         return
-    path = [dict(item) for item in policy_map["measures"].get(norm(measure.text), [])]
+    path = [dict(item) for item in policy_map["measures"].get(name_key(measure.text), [])]
     if not path:
-        path = [{"level_raw": "政策", "code": "", "name": policy.text, "source": policy.value()}] if policy and policy.text else []
-        path.append({"level_raw": "施策", "code": "", "name": measure.text, "source": measure.value()})
+        path = [{"level_raw": "政策", "code": "", "name": policy_name(policy.text), "source": policy.value()}] if policy and policy.text else []
+        path.append({"level_raw": "施策", "code": "", "name": policy_name(measure.text), "source": measure.value()})
+    # 体系図の名前は字が抜けた年があるので、シートに欄がある段はシートの字を名前にする（番号は体系図から）
+    path[-1]["name"] = policy_name(measure.text)
+    if policy and norm(policy.text):
+        for step in path:
+            if step["level_raw"] == "政策" and name_key(step["name"]) == name_key(policy.text):
+                step["name"] = policy_name(policy.text)
+                step["sheet_source"] = policy.value()
     path[-1]["sheet_source"] = measure.value()
     if goal and goal.text:
         path[-1]["goal"] = goal.value()

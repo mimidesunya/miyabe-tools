@@ -326,7 +326,9 @@ def compact_form_record(record: dict, doc_id: str, number: int) -> dict:
         "checks": {"pairs": pairs, "problems": problems[:10]},
         # 形 2.0 の体系の道筋、事業の階層、分け、主な事業か、文章の項目、そのほかの欄
         **({"policy_path": [{"level": clean_label(item.get("level_raw")), "code": str(item.get("code") or ""), "name": clean_label(item.get("name")),
-                             **({"goal": raw_text(item.get("goal"))} if item.get("goal") else {})}
+                             **({"goal": raw_text(item.get("goal"))} if item.get("goal") else {}),
+                             **({"from_doc": str(item["from_doc"])} if item.get("from_doc") else {}),
+                             **({"code_from_doc": str(item["code_from_doc"])} if item.get("code_from_doc") else {})}
                             for item in record.get("policy_path") or [] if isinstance(item, dict)]} if record.get("policy_path") else {}),
         **({"level": clean_label(record.get("level_raw"))} if record.get("level_raw") else {}),
         **({"parent": record["parent"]} if record.get("parent") else {}),
@@ -456,21 +458,88 @@ def municipality_status(work_dir: Path) -> dict:
     }
 
 
-def write_form_records(slug: str, path: Path, manifest_path: Path, out: Path, generated_at: str) -> tuple[int, set[Path]]:
-    """様式ごとの読み取りの記録（records.jsonl、1 行に doc_id と 1 事業）から、文書ごとの控えを書く。"""
-    by_doc: dict[str, list[dict]] = {}
-    total = 0
+# 体系の段の番号の親（「1-4-4」の親は「1-4」）。番号を区切りで重ねない自治体では親を引かない。
+POLICY_PARENT_RE = re.compile(r"^(.+)[-‐－.．]([^-‐－.．]+)$")
+# 段の名前の骨組み。体系図の文字の層は仮名が抜けたり「●」に化けたりする年がある（川崎市の令和2・3年度）。
+POLICY_SKELETON_RE = re.compile(r"[\u3040-\u30ff・、。「」（）()●\s]")
+
+
+def read_jsonl(path: Path):
     with path.open(encoding="utf-8") as stream:
         for line in stream:
-            if not line.strip():
+            if line.strip():
+                yield json.loads(line)
+
+
+def policy_index(path: Path) -> tuple[dict, dict]:
+    """同じ自治体の読み取りの記録から、体系の段（呼び名・番号・名前の骨組み）ごとのいちばん字の多い名前と、
+    年度と段の番号ごと、年度と段の呼び名・名前の骨組みごとの、その段までの道筋（と出どころの文書）を集める。"""
+    names: dict[tuple[str, str, str], str] = {}
+    ancestors: dict[tuple, tuple[str, list[dict]]] = {}
+    for record in read_jsonl(path):
+        steps = [step for step in record.get("policy_path") or [] if isinstance(step, dict)]
+        year = record.get("evaluation_year") if isinstance(record.get("evaluation_year"), int) else 0
+        for depth, step in enumerate(steps):
+            code, name = str(step.get("code") or ""), str(step.get("name") or "")
+            if not code or not name or step.get("from_doc"):
                 continue
-            record = json.loads(line)
-            doc_id = str(record.get("doc_id") or "")
-            if not DOC_ID_RE.fullmatch(doc_id):
-                continue
-            total += 1
-            items = by_doc.setdefault(doc_id, [])
-            items.append(compact_form_record(record, doc_id, len(items) + 1))
+            key = (str(step.get("level_raw") or ""), code, POLICY_SKELETON_RE.sub("", name))
+            if len(name) > len(names.get(key, "")):
+                names[key] = name
+            ancestors.setdefault((year, code), (str(record.get("doc_id") or ""), steps[:depth + 1]))
+            ancestors.setdefault((year, key[0], key[2]), (str(record.get("doc_id") or ""), steps[:depth + 1]))
+    return names, ancestors
+
+
+def repair_policy_path(record: dict, names: dict, ancestors: dict) -> None:
+    """体系の道筋を同じ自治体のほかの記録で補う。
+
+    - 番号の無い段（体系図の無い文書でシートの欄から読んだ段）は、同じ年度に同じ呼び名で名前の骨組みが同じ段の番号を取り、
+      取った番号に出どころの文書 `code_from_doc` を付ける。
+    - 上の段が無い道筋（体系図が前の文書にだけある分冊など）は、同じ年度に番号の親が分かる記録の道筋を前に足す。
+      ほかの文書から足した段には、出どころの文書 `from_doc` を付ける。
+    - 段の名前は、同じ段・同じ番号で骨組み（仮名と記号を除いた字）が同じ名前のうち、いちばん字の多いものにそろえる。
+      原文は段の `source` に残る。
+    """
+    steps = [dict(step) for step in record.get("policy_path") or [] if isinstance(step, dict)]
+    if not steps:
+        return
+    year = record.get("evaluation_year") if isinstance(record.get("evaluation_year"), int) else 0
+    doc_id = str(record.get("doc_id") or "")
+    for step in steps:
+        if step.get("code"):
+            continue
+        same = ancestors.get((year, str(step.get("level_raw") or ""), POLICY_SKELETON_RE.sub("", str(step.get("name") or ""))))
+        if same:
+            step["code"] = str(same[1][-1].get("code") or "")
+            if same[0] != doc_id:
+                step["code_from_doc"] = same[0]
+    found = POLICY_PARENT_RE.match(str(steps[0].get("code") or ""))
+    parent = ancestors.get((year, found.group(1))) if found else None
+    if parent:
+        other = parent[0] != doc_id
+        steps = [{**dict(step), **({"from_doc": parent[0]} if other else {})} for step in parent[1]] + steps
+    for step in steps:
+        key = (str(step.get("level_raw") or ""), str(step.get("code") or ""), POLICY_SKELETON_RE.sub("", str(step.get("name") or "")))
+        if key[1] and names.get(key):
+            step["name"] = names[key]
+    record["policy_path"] = steps
+
+
+def write_form_records(slug: str, path: Path, manifest_path: Path, out: Path, generated_at: str) -> tuple[int, set[Path]]:
+    """様式ごとの読み取りの記録（records.jsonl、1 行に doc_id と 1 事業）から、文書ごとの控えを書く。
+    記録を 2 回読む（1 回目は体系の道筋を補うための索引づくり）。"""
+    names, ancestors = policy_index(path)
+    by_doc: dict[str, list[dict]] = {}
+    total = 0
+    for record in read_jsonl(path):
+        doc_id = str(record.get("doc_id") or "")
+        if not DOC_ID_RE.fullmatch(doc_id):
+            continue
+        total += 1
+        repair_policy_path(record, names, ancestors)
+        items = by_doc.setdefault(doc_id, [])
+        items.append(compact_form_record(record, doc_id, len(items) + 1))
     documents = json.loads(manifest_path.read_text(encoding="utf-8")).get("documents") or {}
     written: set[Path] = set()
     for doc_id, items in by_doc.items():

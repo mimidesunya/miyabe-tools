@@ -203,6 +203,9 @@ check('評価の理由を全文で出す', str_contains($form2Html, '<dt>評価�
 check('文章の項目は標準の名前と原典の欄名', str_contains($form2Html, '事業の内容・手段<small>原典の欄名: 事業内容</small></dt><dd>隣保館を運営する'));
 check('そのほかの欄は区画の名前を添えて 1 つの見出しにまとめる', substr_count($form2Html, 'そのほかの欄') === 1
     && str_contains($form2Html, '<dt>事業開始年度<small>事業の概要</small></dt><dd>1970</dd>') && str_contains($form2Html, '人権教育法'));
+$form2['policy_path'][0]['from_doc'] = 'cccccccccccccccc';
+check('ほかの文書から補った段にはそう添える', str_contains(miyabe_hyoka_display_record_body_html($form2, ''),
+    '<li>基本政策 5 市民自治の地域づくり<small>同じ年度のほかの文書の体系図から補った段</small></li>'));
 check('2.0 の項目が無い記録には出さない', !str_contains($formHtml, '体系の道筋') && !str_contains($formHtml, '事業の説明'));
 check('表の無い記録には表を出さない', !str_contains(miyabe_hyoka_display_record_body_html(
     ['id' => 'r9', 'fields' => [['key' => 'project_name', 'name' => '事業名', 'label' => '', 'text' => '広報事業']], 'raw_fields' => []], ''

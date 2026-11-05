@@ -100,6 +100,42 @@ class KawasakiForm2Test(unittest.TestCase):
         self.assertEqual(self.reader.level_of(two[1]["a"]), "high")
         self.assertEqual(self.reader.level_of("当てはまらない"), "")
 
+    def test_policy_names_match_through_lost_kana(self) -> None:
+        # 令和2・3年度の体系図は仮名が抜け、「の」が「●」、「長」「民」が部首の字になっている
+        key = self.reader.name_key
+        self.assertEqual(key("生涯通学成\u2ed1"), key("生涯を通じて学び成長する"))
+        self.assertEqual(key("家庭地域●教育\u2f12●向上"), key("家庭・地域の教育力の向上"))
+        self.assertEqual(key("戦略的"), key("戦略的なシティプロモーション"))
+        self.assertNotEqual(key("家庭地域の教育力の向上"), key("自ら学び、活動するための支援"))
+        self.assertEqual(self.reader.policy_name("市\u2ea0自治"), "市民自治")
+
+    def test_policy_map_carries_upper_levels_across_pages(self) -> None:
+        def cell(r, c, text, rs=1):
+            return {"r": r, "c": c, "rs": rs, "cs": 1, "text": text}
+        head = [cell(0, 0, "基本政策"), cell(0, 1, "政策"), cell(0, 2, "施策"), cell(0, 3, "事務事業")]
+        first = {"page": 1, "lines": [], "tables": [{"cells": [
+            *head, cell(1, 0, "基本政策1生命を守る", rs=2), cell(1, 1, "政策1-1災害から生命を守る", rs=2),
+            cell(1, 2, "施策1-1-1災害に備える"), cell(1, 3, "○防災事業"),
+            # 上の段の升目の範囲の外の行
+            cell(2, 2, "施策1-1-4消防力の強化"), cell(2, 3, "消防事業"), cell(3, 2, "施策1-1-5河川整備"), cell(3, 3, "河川事業")]}]}
+        second = {"page": 2, "lines": [], "tables": [{"cells": [
+            *head, cell(1, 2, "施策1-1-6水道"), cell(1, 3, "水道事業"),
+            # 番号の頭が合わない段は使わない
+            cell(2, 2, "施策2-1-1子育て"), cell(2, 3, "保育事業")]}]}
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "14130-kawasaki-shi" / "layouts" / "map.json.gz"
+            path.parent.mkdir(parents=True)
+            with gzip.open(path, "wt", encoding="utf-8") as stream:
+                stream.write("\n".join(json.dumps(item, ensure_ascii=False) for item in ({"doc_id": "map", "pages": [1, 2]}, first, second)) + "\n")
+            policy = self.reader.read_policy_map(cells.load_document(path))
+        codes = {name: [step["code"] for step in item["path"]] for name, item in policy["projects"].items()}
+        self.assertEqual(codes["防災事業"], ["1", "1-1", "1-1-1"])
+        self.assertEqual(codes["河川事業"], ["1", "1-1", "1-1-5"])
+        self.assertEqual(codes["水道事業"], ["1", "1-1", "1-1-6"])
+        self.assertEqual(codes["保育事業"], ["2-1-1"])
+        self.assertTrue(policy["projects"]["防災事業"]["is_main"])
+        self.assertFalse(policy["projects"]["河川事業"]["is_main"])
+
     def test_variants_by_ward_or_repeated_base(self) -> None:
         def record(name: str) -> dict:
             return {"project": {"name": [{"raw": name, "ref": "p1t1r0c1"}]}}

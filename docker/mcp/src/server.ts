@@ -536,7 +536,8 @@ function formatProjectText(payload: any): string {
   if (path.length > 0) {
     lines.push("体系の道筋:");
     for (const step of path) {
-      lines.push(`   ${[step.level, step.code, step.name].filter(Boolean).join(" ")}${step.goal ? ` / 目標: ${step.goal}` : ""}`);
+      lines.push(`   ${[step.level, step.code, step.name].filter(Boolean).join(" ")}${step.goal ? ` / 目標: ${step.goal}` : ""}`
+        + (step.from_doc ? "（同じ年度のほかの文書の体系図から補った段）" : ""));
     }
   }
   lines.push([
