@@ -481,15 +481,41 @@ function miyabe_hyoka_display_h(string $value): string
     return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
-// 年度と段階の列、欄名の行の表（金額、財源、人員）。値は原典の升目の原文のまま。
+// 円の金額を「10億7,865万円」の形にする。万円未満は四捨五入する（1 万円未満はそのまま円で出す）。
+function miyabe_hyoka_display_yen(int $yen): string
+{
+    $sign = $yen < 0 ? '−' : '';
+    $yen = abs($yen);
+    if ($yen < 10000) {
+        return $sign . number_format($yen) . '円';
+    }
+    $man = (int)round($yen / 10000);
+    $oku = intdiv($man, 10000);
+    $rest = $man % 10000;
+    if ($oku === 0) {
+        return $sign . number_format($man) . '万円';
+    }
+    return $sign . number_format($oku) . '億' . ($rest > 0 ? number_format($rest) . '万' : '') . '円';
+}
+
+// 年度と段階の列、欄名の行の表（金額、財源、人員）。
+// 金額と財源は円にそろえた値（控えの yen）を「10億7,865万円」の形で出し、原典の値は升目に添える（title）。
+// 円にできない値（「－」、空欄、単位が読めない値）と人員は原典の升目の原文のまま。
 function miyabe_hyoka_display_pivot_html(mixed $table, string $title): string
 {
     if (!is_array($table) || !is_array($table['columns'] ?? null) || !is_array($table['rows'] ?? null) || $table['rows'] === []) {
         return '';
     }
     $unit = trim((string)($table['unit'] ?? ''));
+    $hasYen = false;
+    foreach ($table['rows'] as $row) {
+        $hasYen = $hasYen || (is_array($row) && is_array($row['yen'] ?? null));
+    }
+    $note = $hasYen
+        ? '（円にそろえ、万円未満は四捨五入' . ($unit !== '' ? '。原典の単位は' . $unit : '') . '）'
+        : ($unit !== '' ? '（単位：' . $unit . '）' : '');
     $html = '<h3 class="hyoka-record-subhead">' . miyabe_hyoka_display_h($title)
-        . ($unit !== '' ? '<small>（単位：' . miyabe_hyoka_display_h($unit) . '）</small>' : '') . '</h3>'
+        . ($note !== '' ? '<small>' . miyabe_hyoka_display_h($note) . '</small>' : '') . '</h3>'
         . '<div class="hyoka-sheet-scroll"><table class="hyoka-record-table"><thead><tr><th scope="col">欄</th>';
     foreach ($table['columns'] as $column) {
         $year = (int)($column['year'] ?? 0);
@@ -506,8 +532,13 @@ function miyabe_hyoka_display_pivot_html(mixed $table, string $title): string
         $html .= '<tr><th scope="row">' . miyabe_hyoka_display_h($label)
             . ($kind !== '' && $kind !== $label ? '<small>' . miyabe_hyoka_display_h($kind) . '</small>' : '')
             . ($rowUnit !== '' ? '<small>（' . miyabe_hyoka_display_h($rowUnit) . '）</small>' : '') . '</th>';
-        foreach (($row['values'] ?? []) as $value) {
-            $html .= '<td>' . miyabe_hyoka_display_h((string)$value) . '</td>';
+        $yens = is_array($row['yen'] ?? null) ? $row['yen'] : [];
+        $cellUnit = $rowUnit !== '' ? $rowUnit : $unit;
+        foreach (array_values($row['values'] ?? []) as $index => $value) {
+            $yen = $yens[$index] ?? null;
+            $html .= is_int($yen)
+                ? '<td title="' . miyabe_hyoka_display_h('原典 ' . $value . $cellUnit) . '">' . miyabe_hyoka_display_h(miyabe_hyoka_display_yen($yen)) . '</td>'
+                : '<td>' . miyabe_hyoka_display_h((string)$value) . '</td>';
         }
         $html .= '</tr>';
     }
@@ -567,10 +598,87 @@ function miyabe_hyoka_display_evaluations_html(mixed $evaluations): string
             (string)($evaluation['direction'] ?? '') !== '' ? '方向性: ' . $evaluation['direction'] : '',
             implode(' / ', array_filter($evaluation['aspects'] ?? [], 'is_string')),
         ]);
+        // 形 2.0 のそろえた段階（凡例から決めた大まかなもの。原典の記載と凡例の選択肢を添える）
+        foreach (['achievement' => '達成度', 'overall' => '総合評価'] as $key => $name) {
+            $level = $evaluation[$key] ?? null;
+            if (is_array($level) && (string)($level['level'] ?? '') !== '') {
+                $parts[] = $name . '（そろえた段階）: ' . miyabe_hyoka_display_level_text($level, (string)($level['raw'] ?? ''));
+            }
+        }
+        foreach (array_filter($evaluation['aspect_levels'] ?? [], 'is_array') as $aspect) {
+            // 観点（必要性など）の中の問い（市民のニーズなど）が別にあれば括弧で添える
+            $group = (string)($aspect['aspect'] ?? '');
+            $question = (string)($aspect['aspect_raw'] ?? '');
+            $head = $group !== '' && $question !== '' && $question !== $group ? $group . '（' . $question . '）' : ($group !== '' ? $group : $question);
+            $parts[] = '観点 ' . $head . ': ' . miyabe_hyoka_display_level_text($aspect, (string)($aspect['rating'] ?? ''));
+        }
         $html .= '<div><dt>' . miyabe_hyoka_display_h((string)($evaluation['stage'] ?? '') ?: '評価') . '</dt><dd>'
             . miyabe_hyoka_display_h(implode("\n", $parts)) . '</dd></div>';
+        foreach (array_filter($evaluation['reasons'] ?? [], 'is_array') as $reason) {
+            $aspect = (string)($reason['aspect'] ?? '');
+            $html .= '<div><dt>評価の理由' . ($aspect !== '' ? '（' . miyabe_hyoka_display_h($aspect) . '）' : '') . '</dt><dd>'
+                . miyabe_hyoka_display_h((string)($reason['text'] ?? '')) . '</dd></div>';
+        }
     }
     return $html . '</dl>';
+}
+
+// そろえた段階の名前と、原典の記載・凡例の選択肢。
+function miyabe_hyoka_display_level_text(array $level, string $raw): string
+{
+    $name = (string)($level['name'] ?? '') ?: (string)($level['level'] ?? '');
+    $option = (string)($level['option'] ?? '');
+    $source = trim($raw . ($option !== '' ? '「' . $option . '」' : ''));
+    return $name . ($source !== '' ? '（原典 ' . $source . '）' : '');
+}
+
+// 形 2.0 の体系の道筋（上の段から。段の呼び名は原典のまま）と、事業の階層・親・分け・主な事業か。
+function miyabe_hyoka_display_policy_html(array $record): string
+{
+    $html = '';
+    $path = array_values(array_filter($record['policy_path'] ?? [], 'is_array'));
+    if ($path !== []) {
+        $html .= '<h3 class="hyoka-record-subhead">体系の道筋</h3><ol class="hyoka-record-path">';
+        foreach ($path as $step) {
+            $head = trim((string)($step['level'] ?? '') . ' ' . (string)($step['code'] ?? '') . ' ' . (string)($step['name'] ?? ''));
+            $goal = (string)($step['goal'] ?? '');
+            $html .= '<li>' . miyabe_hyoka_display_h($head) . ($goal !== '' ? '<small>' . miyabe_hyoka_display_h($goal) . '</small>' : '') . '</li>';
+        }
+        $html .= '</ol>';
+    }
+    $parent = is_array($record['parent'] ?? null) ? $record['parent'] : [];
+    $variant = is_array($record['variant'] ?? null) ? $record['variant'] : [];
+    $notes = array_filter([
+        (string)($record['level'] ?? '') !== '' ? '階層: ' . $record['level'] : '',
+        $parent !== [] ? '親の事業: ' . ((string)($parent['name'] ?? '') ?: (string)($parent['record_id'] ?? '')) : '',
+        (string)($variant['base_name'] ?? '') !== '' ? '分け: ' . $variant['base_name'] . ' の ' . (string)($variant['label'] ?? '') : '',
+        ($record['is_main'] ?? null) === true ? '主な事業（体系図の印）' : '',
+    ]);
+    if ($notes !== []) {
+        $html .= '<p class="hyoka-record-notes">' . miyabe_hyoka_display_h(implode(' / ', $notes)) . '</p>';
+    }
+    return $html;
+}
+
+// 形 2.0 の文章の項目（事業の内容、実施結果など。全文）。
+function miyabe_hyoka_display_texts_html(array $record): string
+{
+    $html = '';
+    $texts = array_values(array_filter($record['texts'] ?? [], 'is_array'));
+    if ($texts !== []) {
+        $html .= '<h3 class="hyoka-record-subhead">事業の説明</h3><dl class="hyoka-record-fields">';
+        foreach ($texts as $text) {
+            $name = (string)($text['name'] ?? '');
+            $label = trim((string)($text['label'] ?? ''));
+            $html .= '<div><dt>' . miyabe_hyoka_display_h($name !== '' ? $name : $label);
+            if ($label !== '' && $name !== '' && $label !== $name) {
+                $html .= '<small>原典の欄名: ' . miyabe_hyoka_display_h($label) . '</small>';
+            }
+            $html .= '</dt><dd>' . miyabe_hyoka_display_h((string)($text['text'] ?? '')) . '</dd></div>';
+        }
+        $html .= '</dl>';
+    }
+    return $html;
 }
 
 // 検算の結果。合計と内訳（事業費＋人件費＝総費用、財源の合計＝事業費）を確かめた組の数と、合わなかったもの。
@@ -613,16 +721,22 @@ function miyabe_hyoka_display_record_body_html(array $record, string $sourceUrl)
         $html .= '</dt><dd>' . miyabe_hyoka_display_h((string)($field['text'] ?? '')) . '</dd></div>';
     }
     $html .= '</dl>';
-    $html .= miyabe_hyoka_display_pivot_html($record['amounts'] ?? null, '金額')
+    $html .= miyabe_hyoka_display_policy_html($record)
+        . miyabe_hyoka_display_texts_html($record)
+        . miyabe_hyoka_display_pivot_html($record['amounts'] ?? null, '金額')
         . miyabe_hyoka_display_pivot_html($record['funding'] ?? null, '財源')
         . miyabe_hyoka_display_pivot_html($record['staff'] ?? null, '人員・人件費の単価')
         . miyabe_hyoka_display_indicators_html($record['indicators'] ?? null)
         . miyabe_hyoka_display_evaluations_html($record['evaluations'] ?? null);
-    $raw = array_values(array_filter($record['raw_fields'] ?? [], 'is_array'));
+    // 標準に無い欄。形 2.0 のそのほかの欄（extra_fields）は、原典の区画の名前を欄名に添える。
+    $raw = array_merge(array_values(array_filter($record['raw_fields'] ?? [], 'is_array')),
+        array_values(array_filter($record['extra_fields'] ?? [], 'is_array')));
     if ($raw !== []) {
         $html .= '<h3 class="hyoka-record-subhead">そのほかの欄（原典の欄名のまま）</h3><dl class="hyoka-record-fields is-raw">';
         foreach ($raw as $field) {
-            $html .= '<div><dt>' . miyabe_hyoka_display_h((string)($field['label'] ?? '')) . '</dt><dd>'
+            $section = (string)($field['section'] ?? '');
+            $html .= '<div><dt>' . miyabe_hyoka_display_h((string)($field['label'] ?? ''))
+                . ($section !== '' ? '<small>' . miyabe_hyoka_display_h($section) . '</small>' : '') . '</dt><dd>'
                 . miyabe_hyoka_display_h((string)($field['text'] ?? '')) . '</dd></div>';
         }
         $html .= '</dl>';

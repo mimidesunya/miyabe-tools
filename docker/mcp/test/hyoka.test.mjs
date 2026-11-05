@@ -35,6 +35,8 @@ const projectFixture = {
     cost_per_unit_yen: 100856900 }],
   flags: ["no_outcome_target", "renamed"], project_names: ["市民ミュージアム運営事業", "市民ミュージアム管理運営事業"],
   project_first_year: 2011, project_last_year: 2025, slug: "14130-kawasaki-shi",
+  policy_names: ["5 市民自治の地域づくり", "5-2-1 人権尊重のまちづくり"], is_main: true, achievement: "below", overall: "middle",
+  variant_base: "市民ミュージアム事業", variant_label: "収蔵品",
   location: "原典 21頁", source_page_link: "https://example.invalid/4-8.pdf#page=21",
   detail_url: "/search/detail/?id=hyoka%3A14130-kawasaki-shi%3Aaaaaaaaaaaaaaaaa&doc_type=hyoka",
   api_project_url: "/api/hyoka-project.php?id=x"
@@ -113,7 +115,15 @@ test("hyoka MCP contract through a local public API mock", { timeout: 30000 }, a
     if (url.pathname === "/api/hyoka-project.php") {
       res.end(JSON.stringify({ status: "ok", error: "", project: { ...projectFixture, amounts: [] },
         record: { fields: [{ key: "purpose", name: "目的", text: "博物館を運営する" }],
-          amounts: { unit: "千円", columns: [{ year: 2024, stage: "決算" }], rows: [{ label: "総コスト", values: ["1,008,569"] }] } },
+          policy_path: [{ level: "基本政策", code: "5", name: "市民自治の地域づくり" },
+            { level: "施策", code: "5-2-1", name: "人権尊重のまちづくり", goal: "差別の無い社会" }],
+          level: "事務事業", is_main: true,
+          texts: [{ key: "description", name: "事業の内容・手段", label: "事業内容", text: "収蔵品を修復する" }],
+          extra_fields: [{ section: "事業の概要", label: "事業開始年度", text: "1988" }],
+          evaluations: [{ stage: "所管局", rating: "3", direction: "Ⅱ（改善・見直し）", aspects: [],
+            achievement: { level: "below", name: "目標を下回る", raw: "1", option: "目標を下回った" },
+            reasons: [{ aspect: "成果", label: "理由", text: "来館者が減った" }] }],
+          amounts: { unit: "千円", columns: [{ year: 2024, stage: "決算" }], rows: [{ label: "総コスト", values: ["1,008,569"], yen: [1008569000] }] } },
         sheet: [{ page: 21, text: "事務事業名 | 市民ミュージアム管理運営事業" }], sheet_truncated: false }));
       return;
     }
@@ -241,11 +251,11 @@ test("hyoka MCP contract through a local public API mock", { timeout: 30000 }, a
     assert.match(item.detail_url, /^https:\/\/public.invalid\/search\/detail\//);
     assert.match(item.api_project_url, /^https:\/\/public.invalid\/api\/hyoka-project\.php/);
     const text = result.content[0].text;
-    assert.match(text, /10\.09億円/);
+    assert.match(text, /10億857万円/);
     assert.match(text, /原典 1,008,569千円/);
-    assert.match(text, /前年度比 106%（前年度 9\.51億円）/);
+    assert.match(text, /前年度比 106%（前年度 9億5,122万円）/);
     assert.match(text, /方向性 改善・見直し/);
-    assert.match(text, /展覧会等の開催回数 2024年度 目標 4 実績 10回（250%） \/ 1回あたり 1\.01億円/);
+    assert.match(text, /展覧会等の開催回数 2024年度 目標 4 実績 10回（250%） \/ 1回あたり 1億86万円/);
     assert.match(text, /印: 目標の数のある成果指標が無い \/ 事業名が年度で違う/);
     assert.match(text, /履歴: 2011〜2025年度の評価に載る \/ 名前: 市民ミュージアム運営事業 → 市民ミュージアム管理運営事業/);
     const flagged = await rpc(base, "tools/call", { name: "search_hyoka_projects", arguments: {
@@ -254,6 +264,18 @@ test("hyoka MCP contract through a local public API mock", { timeout: 30000 }, a
     assert.equal(requests.at(-1).searchParams.get("flag"), "outcome_below_half,cost_up_below_target");
     const rejected = await rpc(base, "tools/call", { name: "search_hyoka_projects", arguments: { flag: ["wasteful"] } });
     assert.equal(rejected.isError, true);
+    // 形 2.0 の体系・そろえた評価・主な事業での絞り込み
+    const form2 = await rpc(base, "tools/call", { name: "search_hyoka_projects", arguments: {
+      policy: "5-2-1", achievement: ["below"], overall: ["low", "middle"], is_main: true } });
+    assert.notEqual(form2.isError, true, JSON.stringify(form2));
+    for (const [key, value] of Object.entries({ policy: "5-2-1", achievement: "below", overall: "low,middle", is_main: "1" })) {
+      assert.equal(requests.at(-1).searchParams.get(key), value);
+    }
+    assert.match(form2.content[0].text, /体系: 5 市民自治の地域づくり > 5-2-1 人権尊重のまちづくり（主な事業）/);
+    assert.match(form2.content[0].text, /評価 3 \/ 達成度 目標を下回る \/ 総合 中くらい/);
+    assert.match(form2.content[0].text, /分け: 市民ミュージアム事業 の 収蔵品/);
+    const badLevel = await rpc(base, "tools/call", { name: "search_hyoka_projects", arguments: { achievement: ["bad"] } });
+    assert.equal(badLevel.isError, true);
   });
 
   await t.test("aggregates amounts and reports REST validation errors", async () => {
@@ -266,9 +288,14 @@ test("hyoka MCP contract through a local public API mock", { timeout: 30000 }, a
     for (const [key, value] of Object.entries({ year: "2024", group_by: "municipality", scope: "total", stage: "best", top: "3" })) {
       assert.equal(query.get(key), value);
     }
-    assert.match(result.content[0].text, /合計 12\.35億円/);
-    assert.match(result.content[0].text, /川崎市（14130-kawasaki-shi）: 12\.35億円 \/ 2事業/);
+    assert.match(result.content[0].text, /合計 12億3,450万円/);
+    assert.match(result.content[0].text, /川崎市（14130-kawasaki-shi）: 12億3,450万円 \/ 2事業/);
     assert.match(result.content[0].text, /注: 評価に載った事業だけの合計/);
+    const byPolicy = await rpc(base, "tools/call", { name: "aggregate_hyoka_amounts", arguments: {
+      year: 2024, group_by: "policy_top", stage: "initial_budget" } });
+    assert.notEqual(byPolicy.isError, true, JSON.stringify(byPolicy));
+    assert.equal(requests.at(-1).searchParams.get("group_by"), "policy_top");
+    assert.equal(requests.at(-1).searchParams.get("stage"), "initial_budget");
     const failed = await rpc(base, "tools/call", { name: "aggregate_hyoka_amounts", arguments: { group_by: "department" } });
     assert.equal(failed.isError, true);
     assert.match(failed.content[0].text, /year/);
@@ -281,9 +308,15 @@ test("hyoka MCP contract through a local public API mock", { timeout: 30000 }, a
     assert.equal(requests.at(-1).searchParams.get("max_sheet_chars"), "500");
     const text = result.content[0].text;
     assert.match(text, /目的: 博物館を運営する/);
-    assert.match(text, /金額（単位: 千円）/);
-    assert.match(text, /総コスト \| 1,008,569/);
+    assert.match(text, /金額（円にそろえ万円未満は四捨五入。原典の単位は千円）/);
+    assert.match(text, /総コスト \| 10億857万円/);
     assert.match(text, /原典 21頁の表/);
+    assert.match(text, /体系の道筋:\n   基本政策 5 市民自治の地域づくり\n   施策 5-2-1 人権尊重のまちづくり \/ 目標: 差別の無い社会/);
+    assert.match(text, /階層: 事務事業 \/ 主な事業（体系図の○）/);
+    assert.match(text, /事業の内容・手段（原典: 事業内容）: 収蔵品を修復する/);
+    assert.match(text, /そのほかの欄:\n   事業の概要 \/ 事業開始年度: 1988/);
+    assert.match(text, /達成度（そろえた段階）: 目標を下回る（原典 1「目標を下回った」）/);
+    assert.match(text, /理由（成果）: 来館者が減った/);
     assert.match(result.structuredContent.project.detail_url, /^https:\/\/public.invalid\//);
     assert.equal(result.structuredContent.related, undefined);
     const before = requests.length;

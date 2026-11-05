@@ -319,10 +319,17 @@ const AMOUNT_SCOPES = [
   "funding_national", "funding_prefecture", "funding_bond", "funding_fund", "funding_user_fee",
   "funding_other_specific", "funding_general", "funding_other"
 ] as const;
-const AMOUNT_STAGES = ["best", "settlement", "estimate", "budget", "plan"] as const;
-const AMOUNT_GROUPS = ["none", "municipality", "prefecture", "department", "direction", "year"] as const;
+const AMOUNT_STAGES = ["best", "settlement", "estimate", "revised_budget", "budget", "initial_budget", "plan"] as const;
+const AMOUNT_GROUPS = ["none", "municipality", "prefecture", "department", "direction", "year", "policy_top", "policy_leaf", "variant"] as const;
 const STAGE_LABELS: Record<string, string> = {
-  best: "決算・見込・予算・計画の順で 1 つ", settlement: "決算", estimate: "決算見込", budget: "予算", plan: "計画", unstated: "段階不明"
+  best: "決算・見込・予算・計画の順で 1 つ", settlement: "決算", estimate: "決算見込", revised_budget: "補正後予算", budget: "予算",
+  initial_budget: "当初予算", plan: "計画", unstated: "段階不明"
+};
+// 形 2.0 でそろえた評価の段階。達成度は目標との比べ、総合評価は 3 段。原典の記載は raw に残る。
+const ACHIEVEMENT_LEVELS = ["above", "on_target", "below"] as const;
+const OVERALL_LEVELS = ["high", "middle", "low"] as const;
+const LEVEL_LABELS: Record<string, string> = {
+  above: "目標を上回る", on_target: "ほぼ目標どおり", below: "目標を下回る", high: "高い", middle: "中くらい", low: "低い"
 };
 const SCOPE_LABELS: Record<string, string> = {
   total: "総費用（人件費を含む）", direct: "事業費（人件費を除く）", personnel: "人件費", sub_project: "細事業", breakdown: "内訳",
@@ -335,19 +342,25 @@ const DIRECTION_LABELS: Record<string, string> = {
   suspend: "休止", abolish: "廃止", complete: "完了", other: "区分なし（文の記載）"
 };
 
+// 円の金額を「10億7,865万円」の形にする（サイトの lib/hyoka_display.php の miyabe_hyoka_display_yen と同じ）。
+// 万円未満は四捨五入し、1 万円未満はそのまま円で出す。
 function formatYen(value: unknown): string {
   const yen = Number(value);
   if (value === null || value === undefined || !Number.isFinite(yen)) {
     return "";
   }
+  const sign = yen < 0 ? "−" : "";
   const abs = Math.abs(yen);
-  if (abs >= 1e8) {
-    return `${(yen / 1e8).toLocaleString("ja-JP", { maximumFractionDigits: 2 })}億円`;
+  if (abs < 1e4) {
+    return `${sign}${abs.toLocaleString("ja-JP")}円`;
   }
-  if (abs >= 1e4) {
-    return `${Math.round(yen / 1e4).toLocaleString("ja-JP")}万円`;
+  const man = Math.round(abs / 1e4);
+  const oku = Math.floor(man / 1e4);
+  const rest = man % 1e4;
+  if (oku === 0) {
+    return `${sign}${man.toLocaleString("ja-JP")}万円`;
   }
-  return `${yen.toLocaleString("ja-JP")}円`;
+  return `${sign}${oku.toLocaleString("ja-JP")}億${rest > 0 ? `${rest.toLocaleString("ja-JP")}万` : ""}円`;
 }
 
 function formatRatio(value: unknown): string {
@@ -357,11 +370,11 @@ function formatRatio(value: unknown): string {
 
 function buildProjectFilterParams(args: any): URLSearchParams {
   const params = new URLSearchParams();
-  for (const key of ["q", "slug", "municipality_code", "pref_code", "evaluation_year", "department", "method", "has_amounts",
-    "min_cost", "max_cost", "below_target", "max_outcome_ratio", "min_cost_change_ratio"]) {
+  for (const key of ["q", "slug", "municipality_code", "pref_code", "evaluation_year", "department", "policy", "method", "has_amounts",
+    "is_main", "min_cost", "max_cost", "below_target", "max_outcome_ratio", "min_cost_change_ratio"]) {
     addOptional(params, key, args[key]);
   }
-  for (const key of ["direction", "rating", "aspect", "flag"]) {
+  for (const key of ["direction", "rating", "aspect", "achievement", "overall", "flag"]) {
     if (Array.isArray(args[key]) && args[key].length > 0) {
       params.set(key, args[key].join(","));
     }
@@ -424,6 +437,8 @@ function formatProjectsText(payload: any): string {
         + (row.cost_per_unit_yen ? ` / 1${row.unit || "単位"}あたり ${formatYen(row.cost_per_unit_yen)}` : ""));
     const evaluation = [
       item.rating ? `評価 ${item.rating}` : "",
+      item.achievement ? `達成度 ${LEVEL_LABELS[item.achievement] || item.achievement}` : "",
+      item.overall ? `総合 ${LEVEL_LABELS[item.overall] || item.overall}` : "",
       item.direction ? `方向性 ${DIRECTION_LABELS[item.direction] || item.direction}` : "",
       item.direction_text ? `「${String(item.direction_text).replace(/\s+/g, " ").slice(0, 80)}」` : ""
     ].filter(Boolean);
@@ -436,6 +451,9 @@ function formatProjectsText(payload: any): string {
       `${index + 1}. ${item.project_name || "(事業名なし)"}`,
       `   ${[item.pref_name, item.municipality_name, item.department, item.evaluation_year ? `${item.evaluation_year}年度の評価` : ""]
         .filter(Boolean).join(" / ")}`,
+      Array.isArray(item.policy_names) && item.policy_names.length > 0
+        ? `   体系: ${item.policy_names.join(" > ")}${item.is_main === true ? "（主な事業）" : ""}` : "",
+      item.variant_base && item.variant_base !== item.project_name ? `   分け: ${item.variant_base} の ${item.variant_label || ""}` : "",
       projectCostText(item) ? `   費用: ${projectCostText(item)}${item.staff_fte ? ` / 人工 ${item.staff_fte}` : ""}` : "",
       evaluation.length > 0 ? `   ${evaluation.join(" / ")}` : "",
       Array.isArray(item.aspects) && item.aspects.length > 0 ? `   観点: ${item.aspects.join(" ")}` : "",
@@ -487,10 +505,14 @@ function pivotText(table: any, title: string): string[] {
     return [];
   }
   const heads = table.columns.map((column: any) => `${column.year ? `${column.year}年度` : ""}${column.stage || ""}`);
+  // 金額と財源は円にそろえた値（yen）を出す。円にできない値（「－」など）は原文のまま。
+  const hasYen = table.rows.some((row: any) => Array.isArray(row.yen));
   return [
-    `${title}${table.unit ? `（単位: ${table.unit}）` : ""}`,
+    `${title}${hasYen ? `（円にそろえ万円未満は四捨五入${table.unit ? `。原典の単位は${table.unit}` : ""}）` : table.unit ? `（単位: ${table.unit}）` : ""}`,
     `   欄 | ${heads.join(" | ")}`,
-    ...table.rows.map((row: any) => `   ${row.label || row.kind || ""}${row.unit ? `（${row.unit}）` : ""} | ${(row.values || []).join(" | ")}`)
+    ...table.rows.map((row: any) => `   ${row.label || row.kind || ""}${row.unit ? `（${row.unit}）` : ""} | ${(row.values || [])
+      .map((value: unknown, index: number) => Array.isArray(row.yen) && Number.isInteger(row.yen[index]) ? formatYen(row.yen[index]) : String(value ?? ""))
+      .join(" | ")}`)
   ];
 }
 
@@ -509,11 +531,34 @@ function formatProjectText(payload: any): string {
     flagsText(project) ? `印: ${flagsText(project)}（原典の値から機械で付けた印。問題と決めたものではない）` : "",
     historyText(project) ? `履歴: ${historyText(project)}` : ""
   ];
+  // 形 2.0 の体系の道筋（段の呼び名は原典のまま）、事業の階層、分け、主な事業か
+  const path = Array.isArray(record.policy_path) ? record.policy_path : [];
+  if (path.length > 0) {
+    lines.push("体系の道筋:");
+    for (const step of path) {
+      lines.push(`   ${[step.level, step.code, step.name].filter(Boolean).join(" ")}${step.goal ? ` / 目標: ${step.goal}` : ""}`);
+    }
+  }
+  lines.push([
+    record.level ? `階層: ${record.level}` : "",
+    record.parent ? `親: ${record.parent.name || record.parent.record_id || ""}` : "",
+    record.variant ? `分け: ${record.variant.base_name || ""} の ${record.variant.label || ""}` : "",
+    record.is_main === true ? "主な事業（体系図の○）" : ""
+  ].filter(Boolean).join(" / "));
   for (const field of Array.isArray(record.fields) ? record.fields : []) {
     lines.push(`${field.name || field.label}: ${field.text}`);
   }
   for (const field of Array.isArray(record.raw_fields) ? record.raw_fields : []) {
     lines.push(`${field.label}: ${field.text}`);
+  }
+  for (const text of Array.isArray(record.texts) ? record.texts : []) {
+    lines.push(`${text.name || text.label}${text.label && text.name && text.label !== text.name ? `（原典: ${text.label}）` : ""}: ${text.text}`);
+  }
+  if (Array.isArray(record.extra_fields) && record.extra_fields.length > 0) {
+    lines.push("そのほかの欄:");
+    for (const field of record.extra_fields) {
+      lines.push(`   ${field.section ? `${field.section} / ` : ""}${field.label}: ${field.text}`);
+    }
   }
   lines.push(...pivotText(record.amounts, "金額"), ...pivotText(record.funding, "財源"), ...pivotText(record.staff, "人員"));
   for (const indicator of Array.isArray(record.indicators) ? record.indicators : []) {
@@ -523,6 +568,20 @@ function formatProjectText(payload: any): string {
   for (const evaluation of Array.isArray(record.evaluations) ? record.evaluations : []) {
     lines.push(`評価 ${evaluation.stage || ""}: ${[evaluation.rating ? `区分 ${evaluation.rating}` : "", evaluation.direction ? `方向性 ${evaluation.direction}` : "",
       ...(evaluation.aspects || [])].filter(Boolean).join(" / ")}`);
+    // そろえた段階は凡例から決めたもの。原典の記載と凡例の選択肢を添える。
+    for (const [label, level] of [["達成度", evaluation.achievement], ["総合評価", evaluation.overall]] as const) {
+      if (level) {
+        lines.push(`   ${label}（そろえた段階）: ${level.name || LEVEL_LABELS[level.level] || level.level}（原典 ${level.raw || ""}${level.option ? `「${level.option}」` : ""}）`);
+      }
+    }
+    for (const aspect of Array.isArray(evaluation.aspect_levels) ? evaluation.aspect_levels : []) {
+      const head = aspect.aspect && aspect.aspect_raw && aspect.aspect_raw !== aspect.aspect
+        ? `${aspect.aspect}（${aspect.aspect_raw}）` : aspect.aspect || aspect.aspect_raw;
+      lines.push(`   観点 ${head}: ${aspect.name || aspect.level}（原典 ${aspect.rating || ""}${aspect.option ? `「${aspect.option}」` : ""}）`);
+    }
+    for (const reason of Array.isArray(evaluation.reasons) ? evaluation.reasons : []) {
+      lines.push(`   理由${reason.aspect ? `（${reason.aspect}）` : ""}: ${reason.text}`);
+    }
   }
   if (record.checks && Number(record.checks.pairs || 0) > 0) {
     const problems = Array.isArray(record.checks.problems) ? record.checks.problems : [];
@@ -728,10 +787,16 @@ const projectFilterShape = {
   municipality_code: z.string().optional().describe("全国地方公共団体コード（検査数字なしの5桁）。"),
   evaluation_year: z.number().int().min(1000).max(9999).optional().describe("評価した年度（西暦）。シートの評価年度、無ければ掲載文書の年度。"),
   department: z.string().max(100).optional().describe("担当部署の名前の一部。例: シティプロモーション。"),
+  policy: z.string().max(100).optional().describe("体系の道筋（政策・施策など、上の段から下の段まで）のどこかの名前か番号の一部。例: 市民自治、5-2-1。体系の分かる自治体の事業だけが当たる。"),
   direction: z.array(z.enum(PROJECT_DIRECTIONS)).max(10).optional()
     .describe("今後の方向性の区分。expand 拡充、continue 継続、maintain 現状維持、improve 改善・見直し、reduce 縮小、integrate 統合、suspend 休止、abolish 廃止、complete 完了、other 文の記載で区分なし。"),
   rating: z.array(z.string().max(40)).max(10).optional().describe("評価区分の原典の記載（例: 4、C）。尺度は自治体ごとに違うので、先に事業を見て記載を確かめる。"),
   aspect: z.array(z.string().max(40)).max(10).optional().describe("観点ごとの評価「観点:記号」。例: 成果:c（川崎市の「成果が上がっていない」）。"),
+  achievement: z.array(z.enum(ACHIEVEMENT_LEVELS)).max(3).optional()
+    .describe("自治体をまたいでそろえた達成度。above 目標を上回る、on_target ほぼ目標どおり、below 目標を下回る。原典の凡例から機械で決めた大まかな段階。"),
+  overall: z.array(z.enum(OVERALL_LEVELS)).max(3).optional()
+    .describe("自治体をまたいでそろえた総合評価。high 高い、middle 中くらい、low 低い。尺度の段の数で上・中・下に分けた大まかな段階。"),
+  is_main: z.boolean().optional().describe("true なら体系図で主な事業（○など）の印がある事業だけ。"),
   method: z.enum(["program", "ai", "machine"]).optional().describe("記録の作り方。program は様式ごとの読み取りプログラム、ai は AI の書き写し、machine は様式の定義での機械抽出。"),
   has_amounts: z.boolean().optional().describe("true なら金額の表がある事業だけ。"),
   min_cost: z.number().int().min(0).optional().describe("評価した年度の費用（総費用、無ければ事業費）の下限。円。"),
@@ -757,8 +822,8 @@ const aggregateInputSchema = z.object({
   from_year: z.number().int().min(1000).max(9999).optional().describe("group_by=year のときの最初の年度。"),
   to_year: z.number().int().min(1000).max(9999).optional().describe("group_by=year のときの最後の年度。"),
   scope: z.enum(AMOUNT_SCOPES).default("total").describe("足す費目。total 総費用（人件費を含む）、direct 事業費、personnel 人件費、funding_general 一般財源など財源の内訳も選べる。"),
-  stage: z.enum(AMOUNT_STAGES).default("best").describe("best は事業ごとに決算・決算見込・予算・計画の順で 1 つ。settlement 決算、estimate 決算見込、budget 予算、plan 計画だけを足すこともできる。"),
-  group_by: z.enum(AMOUNT_GROUPS).default("none").describe("内訳の分け方。municipality 自治体、prefecture 都道府県、department 担当部署、direction 今後の方向性、year 年度（推移）。"),
+  stage: z.enum(AMOUNT_STAGES).default("best").describe("best は事業ごとに決算・決算見込・予算・計画の順で 1 つ。settlement 決算、estimate 決算見込、revised_budget 補正後予算、budget 予算（当初か補正後か分からないもの）、initial_budget 当初予算、plan 計画だけを足すこともできる。"),
+  group_by: z.enum(AMOUNT_GROUPS).default("none").describe("内訳の分け方。municipality 自治体、prefecture 都道府県、department 担当部署、direction 今後の方向性、year 年度（推移）、policy_top 体系のいちばん上の段（政策など）、policy_leaf いちばん下の段（施策など）、variant 区や対象で分けた事業をもとの事業名でまとめる。体系や分けの分からない事業は「そのほか」に入る。"),
   limit: z.number().int().min(1).max(200).default(20).describe("内訳の数（大きい順。year は古い順）。"),
   top: z.number().int().min(0).max(20).default(5).describe("金額の大きい事業を何件添えるか。")
 });
@@ -774,6 +839,10 @@ const projectItemShape = {
   cost_change_ratio: z.number().nullable().optional().describe("前の年度からの費用の比（今年 ÷ 前年）。"),
   outcome_ratio_min: z.number().nullable().optional().describe("成果指標の実績 ÷ 目標の最小値。"),
   direction: z.string().nullable().optional().describe("今後の方向性の区分。"),
+  achievement: z.string().nullable().optional().describe("そろえた達成度（above・on_target・below）。"),
+  overall: z.string().nullable().optional().describe("そろえた総合評価（high・middle・low）。"),
+  policy_names: z.array(z.string()).nullable().optional().describe("体系の道筋の段の番号と名前（上の段から）。"),
+  is_main: z.boolean().nullable().optional().describe("体系図で主な事業の印があるか。"),
   source_page_link: z.string().nullable().optional().describe("原典の該当頁へのURL。")
 };
 
@@ -927,7 +996,7 @@ function createServer(): McpServer {
     "search_hyoka_projects",
     {
       title: "事務事業評価の事業検索",
-      description: "事務事業評価を事業ごとに探します。事業名・担当・目的の語のほか、費用（円）、前年度からの増え方、今後の方向性（拡充・縮小・廃止など）、評価区分、観点の評価、成果指標の目標割れで絞り、費用や増え方の順に並べられます。返る事業ごとに、評価した年度の費用、人工、評価、方向性、指標の目標と実績、原典の頁を返します。事業ごとの欄に分けてある文書の事業だけが対象です。値は機械やAIが書き写したもので人の確認はまだなので、get_hyoka_project と原典で確かめてください。",
+      description: "事務事業評価を事業ごとに探します。事業名・担当・目的の語のほか、費用（円）、前年度からの増え方、今後の方向性（拡充・縮小・廃止など）、評価区分、観点の評価、成果指標の目標割れ、体系の道筋（政策・施策）、自治体をまたいでそろえた達成度と総合評価、主な事業の印で絞り、費用や増え方の順に並べられます。返る事業ごとに、評価した年度の費用、人工、評価、方向性、指標の目標と実績、原典の頁を返します。事業ごとの欄に分けてある文書の事業だけが対象です。値は機械やAIが書き写したもので人の確認はまだなので、get_hyoka_project と原典で確かめてください。",
       inputSchema: projectsInputSchema,
       outputSchema: projectsOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS
@@ -953,7 +1022,7 @@ function createServer(): McpServer {
     "aggregate_hyoka_amounts",
     {
       title: "事務事業評価の金額集計",
-      description: "事務事業評価に載った事業の金額を集計します。search_hyoka_projects と同じ条件で事業を絞り、年度・費目（総費用、事業費、人件費、財源の内訳）・段階（決算、見込、予算、計画）を選んで、合計と、自治体・都道府県・担当部署・方向性・年度ごとの内訳、金額の大きい事業を返します。同じ事業・年度・費目の金額は 1 つだけ数えます。合計は評価に載った事業だけのもので、自治体の予算・決算の総額ではありません。",
+      description: "事務事業評価に載った事業の金額を集計します。search_hyoka_projects と同じ条件で事業を絞り、年度・費目（総費用、事業費、人件費、財源の内訳）・段階（決算、見込、予算、計画）を選んで、合計と、自治体・都道府県・担当部署・方向性・年度・体系の段・分けた事業のもとの名前ごとの内訳、金額の大きい事業を返します。同じ事業・年度・費目の金額は 1 つだけ数えます。合計は評価に載った事業だけのもので、自治体の予算・決算の総額ではありません。",
       inputSchema: aggregateInputSchema,
       outputSchema: aggregateOutputSchema,
       annotations: READ_ONLY_ANNOTATIONS
@@ -979,7 +1048,7 @@ function createServer(): McpServer {
     "get_hyoka_project",
     {
       title: "事務事業評価の事業の全部",
-      description: "search_hyoka_projects・aggregate_hyoka_amounts の結果の id から、事業 1 件の全部を返します。原典の欄（目的、対象、根拠法令など）、金額・財源・人員の表（原典の単位のまま）、円にそろえた金額の明細、指標の各年度の目標と実績、評価の段階と観点、検算の結果、そしてその事業の頁の表（升目の文字を | で区切ったもの）です。数字は原典の頁（source_page_link）で確かめてください。",
+      description: "search_hyoka_projects・aggregate_hyoka_amounts の結果の id から、事業 1 件の全部を返します。原典の欄（目的、対象、根拠法令など）、体系の道筋、事業の説明と評価の理由の全文、そのほかの欄（原典の欄名と値）、金額・財源・人員の表（原典の単位のまま）、円にそろえた金額の明細、指標の各年度の目標と実績、評価の段階と観点（自治体をまたいでそろえた段階と原典の記載）、検算の結果、そしてその事業の頁の表（升目の文字を | で区切ったもの）です。数字は原典の頁（source_page_link）で確かめてください。",
       inputSchema: z.object({
         id: z.string().min(1).max(200).describe("事業の id（hyoka-project:…）。"),
         include_sheet: z.boolean().default(true).describe("false なら頁の表の文字を返さない。"),

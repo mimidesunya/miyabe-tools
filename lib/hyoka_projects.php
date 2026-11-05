@@ -21,7 +21,10 @@ const MIYABE_HYOKA_AMOUNT_SCOPES = [
     'funding_national', 'funding_prefecture', 'funding_bond', 'funding_fund', 'funding_user_fee',
     'funding_other_specific', 'funding_general', 'funding_other',
 ];
-const MIYABE_HYOKA_AMOUNT_STAGES = ['best', 'settlement', 'estimate', 'budget', 'plan'];
+const MIYABE_HYOKA_AMOUNT_STAGES = ['best', 'settlement', 'estimate', 'revised_budget', 'budget', 'initial_budget', 'plan'];
+// 形 2.0 でそろえた評価の段階（達成度は目標との比べ、総合評価は 3 段）。
+const MIYABE_HYOKA_PROJECT_ACHIEVEMENTS = ['above', 'on_target', 'below'];
+const MIYABE_HYOKA_PROJECT_OVERALLS = ['high', 'middle', 'low'];
 const MIYABE_HYOKA_AMOUNT_GROUPS = [
     'none' => '',
     'municipality' => 'amounts.slug',
@@ -29,6 +32,11 @@ const MIYABE_HYOKA_AMOUNT_GROUPS = [
     'department' => 'amounts.department',
     'direction' => 'amounts.direction',
     'year' => 'amounts.year',
+    // 体系の道筋のいちばん上の段（政策など）と、いちばん下の段（施策など）。段の呼び名は自治体ごとに違う。
+    'policy_top' => 'amounts.policy_top',
+    'policy_leaf' => 'amounts.policy_leaf',
+    // 同じ事業を区や対象で分けたものを、もとの事業名でまとめる。
+    'variant' => 'amounts.variant_base',
 ];
 // 一覧に返す項目。金額の明細（amounts）は大きいので、事業 1 件を引くときだけ返す。
 const MIYABE_HYOKA_PROJECT_LIST_FIELDS = [
@@ -36,6 +44,7 @@ const MIYABE_HYOKA_PROJECT_LIST_FIELDS = [
     'slug', 'municipality_code', 'municipality_name', 'pref_code', 'pref_name',
     'project_name', 'project_code', 'department', 'purpose', 'evaluation_year', 'rating', 'direction', 'direction_text',
     'aspects', 'method', 'page', 'location', 'source_url', 'source_page_link',
+    'policy_names', 'policy_top', 'policy_leaf', 'level', 'variant_base', 'variant_label', 'is_main', 'achievement', 'overall',
     'cost_yen', 'cost_year', 'cost_stage', 'cost_scope', 'cost_raw', 'cost_unit', 'cost_prev_yen', 'cost_change_ratio',
     'staff_fte', 'has_amounts',
     'outcome_ratio_min', 'indicator_ratio_min', 'indicators', 'flags', 'project_names', 'project_first_year', 'project_last_year',
@@ -103,8 +112,9 @@ function miyabe_hyoka_projects_bool(mixed $value): ?bool
 
 /**
  * 事業を絞る条件（探す・集計で共通）。返すのは ['params' => …, 'error' => 断る理由（無ければ空）]。
- * 受けるのは q, slug, municipality_code, pref_code, evaluation_year, department, direction, rating, aspect,
- * method, flag, has_amounts, min_cost, max_cost, max_outcome_ratio, below_target, min_cost_change_ratio。
+ * 受けるのは q, slug, municipality_code, pref_code, evaluation_year, department, policy, direction, rating, aspect,
+ * achievement, overall, method, flag, is_main, has_amounts, min_cost, max_cost, max_outcome_ratio, below_target,
+ * min_cost_change_ratio。
  */
 function miyabe_hyoka_projects_filters(array $input): array
 {
@@ -115,6 +125,7 @@ function miyabe_hyoka_projects_filters(array $input): array
         'municipality_code' => '',
         'pref_code' => '',
         'department' => $string('department'),
+        'policy' => $string('policy'),
     ];
     if (mb_strlen($params['q'], 'UTF-8') > MIYABE_SEARCH_MAX_QUERY_CHARS) {
         return ['params' => $params, 'error' => 'q は ' . MIYABE_SEARCH_MAX_QUERY_CHARS . ' 字までにしてください。'];
@@ -135,6 +146,9 @@ function miyabe_hyoka_projects_filters(array $input): array
     if (mb_strlen($params['department'], 'UTF-8') > 100) {
         return ['params' => $params, 'error' => 'department は 100 字までにしてください。'];
     }
+    if (mb_strlen($params['policy'], 'UTF-8') > 100) {
+        return ['params' => $params, 'error' => 'policy は 100 字までにしてください。'];
+    }
     $year = miyabe_hyoka_projects_int($input['evaluation_year'] ?? null, 1000, 9999);
     if ($year === PHP_INT_MIN) {
         return ['params' => $params, 'error' => 'evaluation_year は西暦 4 桁の年度にしてください。'];
@@ -144,6 +158,8 @@ function miyabe_hyoka_projects_filters(array $input): array
         'direction' => [MIYABE_HYOKA_PROJECT_DIRECTIONS, 'direction は ' . implode(' / ', MIYABE_HYOKA_PROJECT_DIRECTIONS) . ' から選んでください（カンマ区切りで複数）。'],
         'rating' => [null, 'rating は原典の評価の記載をカンマ区切りで 10 個まで（各 40 字まで）にしてください。'],
         'aspect' => [null, 'aspect は「成果:c」の形をカンマ区切りで 10 個までにしてください。'],
+        'achievement' => [MIYABE_HYOKA_PROJECT_ACHIEVEMENTS, 'achievement は ' . implode(' / ', MIYABE_HYOKA_PROJECT_ACHIEVEMENTS) . ' から選んでください（カンマ区切りで複数）。'],
+        'overall' => [MIYABE_HYOKA_PROJECT_OVERALLS, 'overall は ' . implode(' / ', MIYABE_HYOKA_PROJECT_OVERALLS) . ' から選んでください（カンマ区切りで複数）。'],
         'method' => [MIYABE_HYOKA_PROJECT_METHODS, 'method は program / ai / machine から選んでください。'],
         'flag' => [MIYABE_HYOKA_PROJECT_FLAGS, 'flag は ' . implode(' / ', MIYABE_HYOKA_PROJECT_FLAGS) . ' から選んでください（カンマ区切りで複数、すべてを持つ事業）。'],
     ];
@@ -166,6 +182,7 @@ function miyabe_hyoka_projects_filters(array $input): array
         $params[$key] = $value;
     }
     $params['has_amounts'] = miyabe_hyoka_projects_bool($input['has_amounts'] ?? null);
+    $params['is_main'] = miyabe_hyoka_projects_bool($input['is_main'] ?? null);
     foreach (['max_outcome_ratio' => '実績 ÷ 目標', 'min_cost_change_ratio' => '今年の費用 ÷ 前年の費用'] as $key => $meaning) {
         $ratio = $input[$key] ?? null;
         $params[$key] = null;
@@ -217,7 +234,12 @@ function miyabe_hyoka_projects_filter_clauses(array $params): array
     if ($params['department'] !== '') {
         $filters[] = ['match' => ['department' => ['query' => $params['department'], 'operator' => 'and']]];
     }
-    foreach (['direction' => 'direction', 'rating' => 'rating', 'aspect' => 'aspects', 'method' => 'method'] as $key => $field) {
+    if ($params['policy'] !== '') {
+        // 体系の道筋のどの段の名前・番号に含まれてもよい（「政策5-2」「市民自治」など）。
+        $filters[] = ['match' => ['policy_names' => ['query' => $params['policy'], 'operator' => 'and']]];
+    }
+    foreach (['direction' => 'direction', 'rating' => 'rating', 'aspect' => 'aspects', 'achievement' => 'achievement',
+        'overall' => 'overall', 'method' => 'method'] as $key => $field) {
         if ($params[$key] !== []) {
             $filters[] = ['terms' => [$field => $params[$key]]];
         }
@@ -228,6 +250,9 @@ function miyabe_hyoka_projects_filter_clauses(array $params): array
     }
     if ($params['has_amounts'] !== null) {
         $filters[] = ['term' => ['has_amounts' => $params['has_amounts']]];
+    }
+    if ($params['is_main'] !== null) {
+        $filters[] = ['term' => ['is_main' => $params['is_main']]];
     }
     $range = array_filter(['gte' => $params['min_cost'], 'lte' => $params['max_cost']], static fn($value): bool => $value !== null);
     if ($range !== []) {

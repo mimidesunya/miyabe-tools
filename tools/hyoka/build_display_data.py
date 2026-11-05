@@ -35,9 +35,11 @@ from pathlib import Path
 WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(WORKSPACE_ROOT / "tools" / "gijiroku"))
 sys.path.append(str(WORKSPACE_ROOT / "tools" / "hyoka" / "forms"))
+sys.path.append(str(WORKSPACE_ROOT / "tools" / "search"))
 
 import pdf_ocr  # noqa: E402
 import check as form_check  # noqa: E402
+from hyoka_projects import parse_yen  # noqa: E402
 
 JST = timezone(timedelta(hours=9))
 OCR_SOURCE = "ocr:ndlocr-lite"
@@ -171,7 +173,8 @@ FORM_PROJECT_FIELDS = (
     ("period", "implementation_period", "事業の期間"),
 )
 FORM_RAW_FIELDS = (("name_budget", "予算上の事業名"), ("account", "予算科目"), ("target", "対象"), ("legal_basis", "根拠法令"))
-STAGE_NAMES = {"budget": "予算", "plan": "計画", "settlement": "決算", "estimate": "見込", "unstated": ""}
+STAGE_NAMES = {"initial_budget": "当初予算", "revised_budget": "補正後予算", "budget": "予算", "plan": "計画",
+               "settlement": "決算", "estimate": "見込", "unstated": ""}
 DIRECTION_NAMES = {"expand": "拡充", "continue": "継続", "maintain": "現状維持", "improve": "改善・見直し", "reduce": "縮小",
                    "integrate": "統合", "suspend": "休止", "abolish": "廃止", "complete": "完了"}
 SCOPE_NAMES = {"direct": "事業費（人件費を除く）", "personnel": "人件費", "total": "総費用（人件費を含む）",
@@ -179,6 +182,27 @@ SCOPE_NAMES = {"direct": "事業費（人件費を除く）", "personnel": "人�
 SOURCE_NAMES = {"national": "国", "prefecture": "都道府県", "bond": "地方債", "fund": "基金", "user_fee": "受益者負担",
                 "other_specific": "その他の特定財源", "general": "一般財源"}
 KIND_NAMES = {"target": "対象", "activity": "活動", "outcome": "成果", "unknown": ""}
+# 形 2.0 の文章の項目の名前（doc/hyoka-format-2.md）。
+TEXT_NAMES = {"description": "事業の内容・手段", "plan": "その年度の取組内容", "performance_result": "実施結果",
+              "evaluation_reason": "評価の理由", "issues": "課題", "improvement": "改善案・見直しの内容",
+              "previous_issue_response": "前年度の課題への対応", "environment": "社会環境の変化",
+              "revision_history": "見直しの履歴", "next_plan": "次年度の取組内容"}
+LEVEL_NAMES = {"above": "目標を上回る", "on_target": "ほぼ目標どおり", "below": "目標を下回る",
+               "high": "高い", "middle": "中くらい", "low": "低い"}
+
+
+def raw_text(value: object) -> str:
+    """値の組（{raw, ref}）の原文。折り返しを詰める。"""
+    return join_wrapped_lines(value.get("raw")) if isinstance(value, dict) else ""
+
+
+def normalized(value: object) -> dict | None:
+    """そろえた評価（達成・総合）を控えの形にする。段階が決まっていなければ持たない。"""
+    if not isinstance(value, dict) or not value.get("level"):
+        return None
+    return {"level": str(value["level"]), "name": LEVEL_NAMES.get(str(value["level"]), ""), "raw": clean_label(value.get("raw")),
+            "option": clean_label(value.get("option")), "rank": value.get("rank"), "scale": value.get("scale"),
+            **({"aspect": clean_label(value.get("aspect_raw"))} if value.get("aspect_raw") else {})}
 
 
 def direction_text(evaluation: dict) -> str:
@@ -195,8 +219,12 @@ def form_values_text(values: object) -> str:
     return join_wrapped_lines(" ".join(str(item.get("raw") or "") for item in items if isinstance(item, dict)).strip())
 
 
-def pivot_table(rows: list[dict], kind_key: str, kind_names: dict) -> dict:
-    """金額などの行（1 値 1 行）を、年度と段階の列、欄名の行の表にする。値は原文のまま。"""
+def pivot_table(rows: list[dict], kind_key: str, kind_names: dict, *, money: bool = False) -> dict:
+    """金額などの行（1 値 1 行）を、年度と段階の列、欄名の行の表にする。値は原文のまま。
+
+    money なら、行ごとに円にそろえた値 `yen`（values と同じ並び。単位が読めない値と「－」・空欄は null）も持つ。
+    内部の値は円の整数で持ち、画面は「10億7,865万円」の形で出す（原文は確かめ用に添える）。
+    """
     columns: list[tuple] = []
     labels: list[str] = []
     cells: dict[tuple, str] = {}
@@ -216,11 +244,17 @@ def pivot_table(rows: list[dict], kind_key: str, kind_names: dict) -> dict:
     first_seen = {column: index for index, column in enumerate(columns)}
     columns.sort(key=lambda column: (column[0], first_seen[column]))
     common = {unit for unit in units.values()}
+    table_rows = []
+    for label in labels:
+        row = {"label": label, "kind": kinds[label], "unit": units[label] if len({*units.values()}) > 1 else "",
+               "values": [cells.get((label, column), "") for column in columns]}
+        if money:
+            row["yen"] = [parse_yen(value, units[label]) for value in row["values"]]
+        table_rows.append(row)
     return {
         "unit": common.pop() if len(common) == 1 else "",
         "columns": [{"year": year, "stage": STAGE_NAMES.get(stage, stage)} for year, stage in columns],
-        "rows": [{"label": label, "kind": kinds[label], "unit": units[label] if len({*units.values()}) > 1 else "",
-                  "values": [cells.get((label, column), "") for column in columns]} for label in labels],
+        "rows": table_rows,
     }
 
 
@@ -260,8 +294,8 @@ def compact_form_record(record: dict, doc_id: str, number: int) -> dict:
         **({"pages": pages} if len(pages) > 1 else {}),
         "fields": fields,
         "raw_fields": raw_fields,
-        "amounts": pivot_table(record.get("amounts") or [], "scope", SCOPE_NAMES) if record.get("amounts") else None,
-        "funding": pivot_table(record.get("funding") or [], "source", SOURCE_NAMES) if record.get("funding") else None,
+        "amounts": pivot_table(record.get("amounts") or [], "scope", SCOPE_NAMES, money=True) if record.get("amounts") else None,
+        "funding": pivot_table(record.get("funding") or [], "source", SOURCE_NAMES, money=True) if record.get("funding") else None,
         "staff": pivot_table(record.get("staff") or [], "label", {}) if record.get("staff") else None,
         "indicators": [{
             "name": clean_label(row.get("name")), "kind": KIND_NAMES.get(str(row.get("kind") or ""), "") or clean_label(row.get("kind_raw")),
@@ -277,8 +311,37 @@ def compact_form_record(record: dict, doc_id: str, number: int) -> dict:
             **({"direction_code": str(row.get("direction"))} if str(row.get("direction") or "") not in ("", "none") else {}),
             "aspects": [f"{clean_label(item.get('aspect_raw'))}: {clean_label(item.get('rating_raw'))}"
                         for item in row.get("aspects") or [] if isinstance(item, dict) and item.get("aspect_raw")],
+            # 形 2.0 のそろえた評価（凡例から決めた段階）と、観点ごとの段階、評価の理由の文
+            **({"achievement": achievement} if (achievement := normalized(row.get("achievement"))) else {}),
+            **({"overall": overall} if (overall := normalized(row.get("overall"))) else {}),
+            **({"aspect_levels": [{"aspect_raw": clean_label(item.get("aspect_raw")), "aspect": clean_label(item.get("aspect")),
+                                   "rating": clean_label(item.get("rating_raw")), "option": clean_label(item.get("option")),
+                                   "level": str(item.get("level") or ""), "name": LEVEL_NAMES.get(str(item.get("level") or ""), "")}
+                                  for item in row.get("aspects") or [] if isinstance(item, dict) and item.get("level")]}
+               if any(isinstance(item, dict) and item.get("level") for item in row.get("aspects") or []) else {}),
+            **({"reasons": [{"aspect": clean_label(item.get("aspect")), "label": clean_label(item.get("label_raw")),
+                             "text": raw_text(item.get("text"))} for item in row.get("reasons") or [] if isinstance(item, dict)]}
+               if row.get("reasons") else {}),
         } for row in evaluations if row.get("status") != "blank" or row.get("direction_raw") or row.get("rating_raw")],
         "checks": {"pairs": pairs, "problems": problems[:10]},
+        # 形 2.0 の体系の道筋、事業の階層、分け、主な事業か、文章の項目、そのほかの欄
+        **({"policy_path": [{"level": clean_label(item.get("level_raw")), "code": str(item.get("code") or ""), "name": clean_label(item.get("name")),
+                             **({"goal": raw_text(item.get("goal"))} if item.get("goal") else {})}
+                            for item in record.get("policy_path") or [] if isinstance(item, dict)]} if record.get("policy_path") else {}),
+        **({"level": clean_label(record.get("level_raw"))} if record.get("level_raw") else {}),
+        **({"parent": record["parent"]} if record.get("parent") else {}),
+        **({"variant": {key: str(record["variant"].get(key) or "") for key in ("base_name", "label", "kind")}}
+           if isinstance(record.get("variant"), dict) else {}),
+        **({"is_main": bool(record["is_main"].get("value"))} if isinstance(record.get("is_main"), dict) else {}),
+        **({"texts": [{"key": str(item.get("key") or ""), "name": TEXT_NAMES.get(str(item.get("key") or ""), ""),
+                       "label": clean_label(item.get("label_raw")), "text": raw_text(item.get("text"))}
+                      for item in record.get("texts") or [] if isinstance(item, dict) and raw_text(item.get("text"))]}
+           if record.get("texts") else {}),
+        **({"extra_fields": [{"section": clean_label(item.get("section_raw")), "label": clean_label((item.get("label") or {}).get("raw")),
+                              "text": " ".join(raw_text(value) for value in item.get("values") or [] if raw_text(value))}
+                             for item in record.get("extra_fields") or []
+                             if isinstance(item, dict) and any(raw_text(value) for value in item.get("values") or [])]}
+           if record.get("extra_fields") else {}),
     }
 
 

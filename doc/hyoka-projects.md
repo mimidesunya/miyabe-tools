@@ -46,6 +46,12 @@ python tools/search/build_hyoka_projects_index.py --display-dir data/hyoka \
 - 評価の文の使い回し `text_repeat_ratio`: 評価の文（実施結果・評価の理由・今後の方向性・課題の欄と、欄名に評価・理由・課題・方向・成果などを含む
   そのほかの欄）を文に分け、前の年度の同じ事業の文と同じ文の割合。12 字以上の文が 2 つ以上あるときだけ出す。目的・対象・根拠法令は比べない。
   川崎市の様式ごとの読み取りの控えには評価の理由の文が無いので、今は川崎市では出ない。
+- [形 2.0](hyoka-format-2.md) の項目（控えにあるときだけ。今は川崎市）: 体系の道筋 `policy_path`（上の段から、段の呼び名・番号・名前・目標）と、
+  絞り込み用の `policy_names`（「番号 名前」の並び）、いちばん上の段 `policy_top`・いちばん下の段 `policy_leaf`。事業の階層 `level`
+  （原典の呼び名）、区や対象で分けた事業のもとの名前 `variant_base` と分けの名前 `variant_label`、体系図で主な事業の印 `is_main`。
+  そろえた評価 `achievement`（`above`・`on_target`・`below`）と `overall`（`high`・`middle`・`low`）は、最後の評価の段階のもの。
+  文章の項目・評価の理由・そのほかの欄の文は `search_text` に入れ、語で探せるようにする。金額の明細にも `policy_top`・`policy_leaf`・
+  `variant_base` を写す（値が無ければ欄ごと置かない。集計で空の組を作らないため）。
 - 分析の印 `flags`（原典の値から機械で付けた印で、問題があると決めたものではない。絞り込みの `flag` は「すべてを持つ」）:
 
 | 印 | 付ける条件 |
@@ -80,12 +86,15 @@ python tools/search/build_hyoka_projects_index.py --display-dir data/hyoka \
 ## API
 
 - 探す: `/api/hyoka-projects.php`。`q` のほか `slug`・`municipality_code`・`pref_code`・`evaluation_year`・`department`・
-  `direction`（カンマ区切り）・`rating`・`aspect`・`method`・`flag`（カンマ区切り、すべてを持つ）・`has_amounts`・`min_cost`・`max_cost`（円）・`below_target`・
+  `policy`（体系の道筋のどこかの名前・番号の一部）・`direction`（カンマ区切り）・`rating`・`aspect`・`achievement`・`overall`（カンマ区切り）・
+  `method`・`flag`（カンマ区切り、すべてを持つ）・`is_main`・`has_amounts`・`min_cost`・`max_cost`（円）・`below_target`・
   `max_outcome_ratio`・`min_cost_change_ratio`。並びは `relevance`・`cost_desc`・`cost_asc`・`cost_change_desc`・
   `outcome_ratio`・`year_desc`（既定は `q` があれば関連度、無ければ費用の大きい順）。金額の明細は返さない。
 - 集計: `/api/hyoka-aggregate.php`。同じ条件に `year`（金額の年度、`group_by=year` 以外は必須。年度をまたいで足すと
-  毎年の金額を足した意味の無い数になるため）、`from_year`・`to_year`、`scope`（既定 `total`）、`stage`（既定 `best`）、
-  `group_by`（`none`・`municipality`・`prefecture`・`department`・`direction`・`year`）、`limit`、`top`。
+  毎年の金額を足した意味の無い数になるため）、`from_year`・`to_year`、`scope`（既定 `total`）、`stage`（既定 `best`。
+  段階だけを足すなら `settlement`・`estimate`・`revised_budget`・`budget`・`initial_budget`・`plan`）、
+  `group_by`（`none`・`municipality`・`prefecture`・`department`・`direction`・`year`・`policy_top`・`policy_leaf`・`variant`）、`limit`、`top`。
+  体系や分けの分からない事業の金額は内訳に入らず、`other_groups_yen` に入る。
   条件（方向性など）は金額を載せた記録の値で絞る。
 - 1 件: `/api/hyoka-project.php?id=…`。索引の値（金額の明細つき）、控えの記録（原典の欄と表）、その事業の頁の表を
   文字にしたもの（`include_sheet`、`max_sheet_chars`。頁は控えの `pages`、無ければ `page`。最大 5 頁）。

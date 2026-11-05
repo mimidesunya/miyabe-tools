@@ -179,6 +179,31 @@ check('金額の欄名も逃がす', str_contains($formHtml, '総コスト&lt;A+
 check('指標の目標と実績を出す', str_contains($formHtml, '受講者数') && str_contains($formHtml, '<td>612</td>') && !str_contains($formHtml, '達成率'));
 check('評価の段階を出す', str_contains($formHtml, '所管局') && str_contains($formHtml, '必要性: A'));
 check('検算の結果を出す', str_contains($formHtml, '合計と内訳を 4 組確かめ、すべて合っています'));
+// 形 2.0 の体系の道筋、分け、主な事業、そろえた評価と理由、文章の項目、そのほかの欄
+$form2 = $formRecord + [
+    'policy_path' => [['level' => '基本政策', 'code' => '5', 'name' => '市民自治の地域づくり'],
+                      ['level' => '施策', 'code' => '5-2-1', 'name' => '人権尊重のまちづくり', 'goal' => '差別の無い社会']],
+    'level' => '事務事業', 'variant' => ['base_name' => '人権関連事業', 'label' => '川崎区', 'kind' => 'area'], 'is_main' => true,
+    'texts' => [['key' => 'description', 'name' => '事業の内容・手段', 'label' => '事業内容', 'text' => '隣保館を運営する']],
+    'extra_fields' => [['section' => '事業の概要', 'label' => '事業開始年度', 'text' => '1970']],
+];
+$form2['evaluations'][0] += [
+    'achievement' => ['level' => 'below', 'name' => '目標を下回る', 'raw' => '1', 'option' => '目標を下回った'],
+    'aspect_levels' => [['aspect_raw' => '必要性', 'aspect' => '必要性', 'rating' => 'A', 'option' => '必要性が高い', 'level' => 'high', 'name' => '高い']],
+    'reasons' => [['aspect' => '必要性', 'label' => '理由', 'text' => '相談が増えている']],
+];
+$form2Html = miyabe_hyoka_display_record_body_html($form2, '');
+check('体系の道筋を上の段から出す', str_contains($form2Html, '<ol class="hyoka-record-path"><li>基本政策 5 市民自治の地域づくり</li><li>施策 5-2-1 人権尊重のまちづくり<small>差別の無い社会</small>'));
+check('階層・分け・主な事業を出す', str_contains($form2Html, '階層: 事務事業 / 分け: 人権関連事業 の 川崎区 / 主な事業（体系図の印）'));
+check('そろえた評価に原典の記載を添える', str_contains($form2Html, '達成度（そろえた段階）: 目標を下回る（原典 1「目標を下回った」）')
+    && str_contains($form2Html, '観点 必要性: 高い（原典 A「必要性が高い」）'));
+$form2['evaluations'][0]['aspect_levels'][0]['aspect_raw'] = '市民のニーズ';
+check('観点の中の問いを括弧で添える', str_contains(miyabe_hyoka_display_record_body_html($form2, ''), '観点 必要性（市民のニーズ）: 高い'));
+check('評価の理由を全文で出す', str_contains($form2Html, '<dt>評価の理由（必要性）</dt><dd>相談が増えている</dd>'));
+check('文章の項目は標準の名前と原典の欄名', str_contains($form2Html, '事業の内容・手段<small>原典の欄名: 事業内容</small></dt><dd>隣保館を運営する'));
+check('そのほかの欄は区画の名前を添えて 1 つの見出しにまとめる', substr_count($form2Html, 'そのほかの欄') === 1
+    && str_contains($form2Html, '<dt>事業開始年度<small>事業の概要</small></dt><dd>1970</dd>') && str_contains($form2Html, '人権教育法'));
+check('2.0 の項目が無い記録には出さない', !str_contains($formHtml, '体系の道筋') && !str_contains($formHtml, '事業の説明'));
 check('表の無い記録には表を出さない', !str_contains(miyabe_hyoka_display_record_body_html(
     ['id' => 'r9', 'fields' => [['key' => 'project_name', 'name' => '事業名', 'label' => '', 'text' => '広報事業']], 'raw_fields' => []], ''
 ), 'hyoka-record-table'));
@@ -191,5 +216,17 @@ array_map('unlink', glob($dir . '/records/' . $slug . '/*.json') ?: []);
 rmdir($dir . '/records/' . $slug);
 rmdir($dir . '/records');
 rmdir($dir);
+
+// --- 金額は円にそろえた値を「億・万円」で出し、原典の値は升目に添える
+check('億・万円の形', miyabe_hyoka_display_yen(1078651000) === '10億7,865万円' && miyabe_hyoka_display_yen(1000000000) === '10億円'
+    && miyabe_hyoka_display_yen(25217000) === '2,522万円' && miyabe_hyoka_display_yen(9999) === '9,999円'
+    && miyabe_hyoka_display_yen(-125129000) === '−1億2,513万円');
+$money = miyabe_hyoka_display_pivot_html(['unit' => '千円', 'columns' => [['year' => 2024, 'stage' => '決算'], ['year' => 2025, 'stage' => '見込']],
+    'rows' => [['label' => '総コスト', 'kind' => '総費用（人件費を含む）', 'unit' => '', 'values' => ['1,008,569', '－'], 'yen' => [1008569000, null]]]], '金額');
+check('金額の表は円にそろえた値と原典の値', str_contains($money, '<td title="原典 1,008,569千円">10億857万円</td>')
+    && str_contains($money, '<td>－</td>') && str_contains($money, '万円未満は四捨五入。原典の単位は千円'));
+$staff = miyabe_hyoka_display_pivot_html(['unit' => '人', 'columns' => [['year' => 2024, 'stage' => '計画']],
+    'rows' => [['label' => '人工', 'kind' => '', 'unit' => '', 'values' => ['14.56']]]], '人員');
+check('円の値の無い表は原文のまま', str_contains($staff, '<td>14.56</td>') && str_contains($staff, '（単位：人）'));
 
 exit($failures === 0 ? 0 : 1);

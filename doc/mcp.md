@@ -56,9 +56,9 @@ curl -s -X POST http://localhost:8301/mcp -H 'Content-Type: application/json' -H
 - `search_reiki`: 条例・規則などの例規集を検索します
 - `search_hyoka`: 事務事業評価を検索します。自治体・都道府県・年度・種別で絞れます
 - `get_municipal_document`: 検索結果の `id` から本文を取得します（種別は `id` の頭 `minutes:`・`reiki:`・`hyoka:` が優先）
-- `search_hyoka_projects`: 事務事業評価を事業ごとに探します。費用（円）・前年度からの増減・方向性・評価・観点・成果指標の目標割れで絞り、費用や増え方の順に並べます（`/api/hyoka-projects.php`）
-- `aggregate_hyoka_amounts`: 事業の金額を集計します。年度・費目・段階を選び、自治体・都道府県・担当部署・方向性・年度ごとの内訳と金額の大きい事業を返します（`/api/hyoka-aggregate.php`）
-- `get_hyoka_project`: 事業 1 件の全部（原典の欄と表、円にそろえた金額の明細、指標、評価、その事業の頁の表の文字）を返します（`/api/hyoka-project.php`）。`include_related: true` なら、同じ自治体の会議録・例規集から事業名が出てくるものを 3 件ずつ添えます（`/api/search` を 2 回足す）
+- `search_hyoka_projects`: 事務事業評価を事業ごとに探します。費用（円）・前年度からの増減・方向性・評価・観点・成果指標の目標割れのほか、体系の道筋（`policy`）・自治体をまたいでそろえた達成度と総合評価（`achievement`・`overall`）・主な事業（`is_main`）で絞り、費用や増え方の順に並べます（`/api/hyoka-projects.php`）
+- `aggregate_hyoka_amounts`: 事業の金額を集計します。年度・費目・段階（当初予算・補正後予算・決算など）を選び、自治体・都道府県・担当部署・方向性・年度・体系の段・分けた事業のもとの名前ごとの内訳と金額の大きい事業を返します（`/api/hyoka-aggregate.php`）
+- `get_hyoka_project`: 事業 1 件の全部（原典の欄と表、体系の道筋、事業の説明と評価の理由の全文、そのほかの欄、円にそろえた金額の明細、指標、評価、その事業の頁の表の文字）を返します（`/api/hyoka-project.php`）。`include_related: true` なら、同じ自治体の会議録・例規集から事業名が出てくるものを 3 件ずつ添えます（`/api/search` を 2 回足す）
 
 `search_hyoka_projects` の `flag` で、分析の印（成果指標が目標の半分以下、目標割れなのに拡充・費用増、目標の数のある成果指標が無い、
 評価の文が前年度とほぼ同じ、名前が年度で違う、最新の評価年度に無い）を持つ事業に絞れます。印は原典の値から機械で付けたもので、

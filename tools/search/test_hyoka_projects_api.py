@@ -145,8 +145,31 @@ def test_search_without_query_lists_by_cost(api):
     assert list(body["sort"][0]) == ["cost_yen"] and body["sort"][0]["cost_yen"]["order"] == "desc"
 
 
+def test_search_form_2_filters(api):
+    call, requests, _ = api
+    status, payload = call("hyoka-projects", policy="市民自治 5-2", achievement="below,on_target", overall="low", is_main="1")
+    assert status == 200, payload
+    filters = requests[-1][1]["query"]["bool"]["filter"]
+    for clause in ({"match": {"policy_names": {"query": "市民自治 5-2", "operator": "and"}}},
+                   {"terms": {"achievement": ["below", "on_target"]}}, {"terms": {"overall": ["low"]}}, {"term": {"is_main": True}}):
+        assert clause in filters, clause
+
+
+def test_aggregate_groups_by_policy_and_variant(api):
+    call, requests, response = api
+    response["body"] = {"hits": {"total": {"value": 0}}, "aggregations": {"facts": {"picked": {"doc_count": 0, "sum": {"value": 0},
+                                                                                               "municipalities": {"value": 0}}}}}
+    for group_by, field in (("policy_top", "amounts.policy_top"), ("policy_leaf", "amounts.policy_leaf"), ("variant", "amounts.variant_base")):
+        status, payload = call("hyoka-aggregate", year="2024", group_by=group_by, stage="initial_budget")
+        assert status == 200, payload
+        picked = requests[-1][1]["aggs"]["facts"]["aggs"]["picked"]
+        assert picked["aggs"]["groups"]["terms"]["field"] == field
+        assert {"term": {"amounts.stage": "initial_budget"}} in picked["filter"]["bool"]["filter"]
+
+
 @pytest.mark.parametrize("params", [{"direction": "bigger"}, {"flag": "wasteful"}, {"min_cost": "-1"}, {"evaluation_year": "令和6"},
-                                    {"sort": "random"}, {"per_page": "500"}, {"slug": "../x"}, {"max_outcome_ratio": "x"}])
+                                    {"sort": "random"}, {"per_page": "500"}, {"slug": "../x"}, {"max_outcome_ratio": "x"},
+                                    {"achievement": "good"}, {"overall": "A"}, {"policy": "x" * 101}])
 def test_search_rejects_bad_params_before_http(api, params):
     call, requests, _ = api
     status, payload = call("hyoka-projects", **params)

@@ -1183,6 +1183,19 @@ mark {
   font-variant-numeric: tabular-nums;
 }
 
+.hyoka-record-path {
+  margin: 4px 14px 0;
+  padding-left: 1.4em;
+  font-size: 13px;
+}
+
+.hyoka-record-path small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hyoka-record-notes,
 .hyoka-record-checks {
   margin: 6px 14px;
   color: var(--muted);

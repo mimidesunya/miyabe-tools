@@ -167,6 +167,13 @@ def main(argv: list[str] | None = None) -> int:
             counts["財源"] += bool(record.get("funding"))
             counts["指標"] += bool(record.get("indicators"))
             counts["評価の方向性"] += any(row.get("direction") not in (None, "", "none") for row in record.get("evaluations") or [])
+            # 形 2.0 の項目がどれだけ取れたか（様式に無ければ 0 でよい）
+            evaluations = [row for row in record.get("evaluations") or [] if isinstance(row, dict)]
+            counts["体系の道筋"] += bool(record.get("policy_path"))
+            counts["文章の項目"] += bool(record.get("texts"))
+            counts["そのほかの欄"] += bool(record.get("extra_fields"))
+            counts["そろえた評価"] += any(row.get("achievement") or row.get("overall") for row in evaluations)
+            counts["評価の理由"] += any(row.get("reasons") for row in evaluations)
             for problem in ref_problems(record, refs):
                 note("番地の問題", f"{where}: {problem}")
             pairs, problems = checks(record)
@@ -187,6 +194,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(" ".join(f"{key} {counts[key]}" for key in ("文書", "記録", "事業名", "金額", "金額の単位", "財源", "指標", "評価の方向性", "検算の組")))
     print(" ".join(f"{key} {counts[key]}" for key in ("番地の問題", "検算が合わない", "金額の無い記録", "記録の無い文書", "読み取りの例外")))
+    print("形 2.0: " + " ".join(f"{key} {counts[key]}" for key in ("体系の道筋", "文章の項目", "そのほかの欄", "そろえた評価", "評価の理由")))
     for kind, items in examples.items():
         print(f"■ {kind}")
         for item in items:

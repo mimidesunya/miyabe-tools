@@ -231,12 +231,16 @@ paths:
         - $ref: "#/components/parameters/ProjectMunicipalityCode"
         - $ref: "#/components/parameters/ProjectEvaluationYear"
         - $ref: "#/components/parameters/ProjectDepartment"
+        - $ref: "#/components/parameters/ProjectPolicy"
         - $ref: "#/components/parameters/ProjectDirection"
         - $ref: "#/components/parameters/ProjectRating"
         - $ref: "#/components/parameters/ProjectAspect"
+        - $ref: "#/components/parameters/ProjectAchievement"
+        - $ref: "#/components/parameters/ProjectOverall"
         - $ref: "#/components/parameters/ProjectMethod"
         - $ref: "#/components/parameters/ProjectFlag"
         - $ref: "#/components/parameters/ProjectHasAmounts"
+        - $ref: "#/components/parameters/ProjectIsMain"
         - $ref: "#/components/parameters/ProjectMinCost"
         - $ref: "#/components/parameters/ProjectMaxCost"
         - $ref: "#/components/parameters/ProjectBelowTarget"
@@ -297,12 +301,16 @@ paths:
         - $ref: "#/components/parameters/ProjectMunicipalityCode"
         - $ref: "#/components/parameters/ProjectEvaluationYear"
         - $ref: "#/components/parameters/ProjectDepartment"
+        - $ref: "#/components/parameters/ProjectPolicy"
         - $ref: "#/components/parameters/ProjectDirection"
         - $ref: "#/components/parameters/ProjectRating"
         - $ref: "#/components/parameters/ProjectAspect"
+        - $ref: "#/components/parameters/ProjectAchievement"
+        - $ref: "#/components/parameters/ProjectOverall"
         - $ref: "#/components/parameters/ProjectMethod"
         - $ref: "#/components/parameters/ProjectFlag"
         - $ref: "#/components/parameters/ProjectHasAmounts"
+        - $ref: "#/components/parameters/ProjectIsMain"
         - $ref: "#/components/parameters/ProjectMinCost"
         - $ref: "#/components/parameters/ProjectMaxCost"
         - $ref: "#/components/parameters/ProjectBelowTarget"
@@ -344,18 +352,18 @@ paths:
         - name: stage
           in: query
           required: false
-          description: best は事業ごとに決算・決算見込・予算・計画の順で1つ。settlement・estimate・budget・plan はその段階だけを足します。
+          description: best は事業ごとに決算・決算見込・予算・計画の順で1つ。settlement 決算、estimate 決算見込、revised_budget 補正後予算、budget 予算（当初か補正後か分からないもの）、initial_budget 当初予算、plan 計画は、その段階だけを足します。
           schema:
             type: string
-            enum: [best, settlement, estimate, budget, plan]
+            enum: [best, settlement, estimate, revised_budget, budget, initial_budget, plan]
             default: best
         - name: group_by
           in: query
           required: false
-          description: 内訳の分け方。
+          description: 内訳の分け方。policy_top は体系の道筋のいちばん上の段（政策など）、policy_leaf はいちばん下の段（施策など）、variant は区や対象で分けた事業をもとの事業名でまとめます。体系や分けの分からない事業は other_groups_yen に入ります。
           schema:
             type: string
-            enum: [none, municipality, prefecture, department, direction, year]
+            enum: [none, municipality, prefecture, department, direction, year, policy_top, policy_leaf, variant]
             default: none
         - name: limit
           in: query
@@ -499,6 +507,15 @@ components:
       schema:
         type: string
         maxLength: 100
+    ProjectPolicy:
+      name: policy
+      in: query
+      required: false
+      description: 体系の道筋（政策・施策など、上の段から下の段まで）のどこかの名前か番号の一部。体系の分かる自治体の事業だけが当たります。
+      schema:
+        type: string
+        maxLength: 100
+      example: 5-2-1
     ProjectDirection:
       name: direction
       in: query
@@ -521,6 +538,22 @@ components:
       description: 観点ごとの評価「観点:記号」（カンマ区切り）。例は 成果:c。
       schema:
         type: string
+    ProjectAchievement:
+      name: achievement
+      in: query
+      required: false
+      description: 自治体をまたいでそろえた達成度（カンマ区切りで複数）。above 目標を上回る、on_target ほぼ目標どおり、below 目標を下回る。原典の凡例から機械で決めた大まかな段階です。
+      schema:
+        type: string
+      example: below
+    ProjectOverall:
+      name: overall
+      in: query
+      required: false
+      description: 自治体をまたいでそろえた総合評価（カンマ区切りで複数）。high 高い、middle 中くらい、low 低い。尺度の段の数で上・中・下に分けた大まかな段階です。
+      schema:
+        type: string
+      example: low
     ProjectMethod:
       name: method
       in: query
@@ -542,6 +575,13 @@ components:
       in: query
       required: false
       description: 1 なら金額の表がある事業だけ。
+      schema:
+        type: boolean
+    ProjectIsMain:
+      name: is_main
+      in: query
+      required: false
+      description: 1 なら体系図で主な事業（○など）の印がある事業だけ。
       schema:
         type: boolean
     ProjectMinCost:
@@ -607,7 +647,7 @@ components:
           type: [integer, "null"]
         cost_stage:
           type: string
-          description: settlement 決算、estimate 決算見込、budget 予算、plan 計画。
+          description: settlement 決算、estimate 決算見込、revised_budget 補正後予算、budget 予算、initial_budget 当初予算、plan 計画。
         cost_scope:
           type: string
         cost_raw:
@@ -674,6 +714,32 @@ components:
         text_repeat_ratio:
           type: [number, "null"]
           description: 評価の文のうち、前の年度の同じ事業と同じ文の割合。
+        policy_names:
+          type: array
+          items:
+            type: string
+          description: 体系の道筋の段の番号と名前（上の段から）。段の呼び名は自治体ごとに違います。
+        policy_top:
+          type: [string, "null"]
+        policy_leaf:
+          type: [string, "null"]
+        level:
+          type: [string, "null"]
+          description: 事業の階層の原典の呼び名（事務事業、細事業など）。
+        variant_base:
+          type: [string, "null"]
+          description: 区や対象で分けた事業の、もとの事業名。
+        variant_label:
+          type: [string, "null"]
+        is_main:
+          type: [boolean, "null"]
+          description: 体系図で主な事業の印があるか。
+        achievement:
+          type: [string, "null"]
+          description: そろえた達成度（above・on_target・below）。
+        overall:
+          type: [string, "null"]
+          description: そろえた総合評価（high・middle・low）。
         method:
           type: string
         location:

@@ -170,12 +170,46 @@ class BuildTest(unittest.TestCase):
         table = shown["amounts"]
         self.assertEqual(table["unit"], "千円")
         self.assertEqual(table["columns"], [{"year": 2024, "stage": "決算"}, {"year": 2025, "stage": "予算"}])
-        self.assertEqual(table["rows"][0], {"label": "事業費A", "kind": "事業費（人件費を除く）", "unit": "", "values": ["100", "120"]})
+        # 金額は原文の値と、円にそろえた値（千円 × 1,000）を並べて持つ。
+        self.assertEqual(table["rows"][0], {"label": "事業費A", "kind": "事業費（人件費を除く）", "unit": "", "values": ["100", "120"],
+                                            "yen": [100_000, 120_000]})
         self.assertEqual(shown["indicators"][0]["values"], [{"year": 2024, "target": "560", "actual": "612", "rate": ""}])
         self.assertEqual(shown["checks"], {"pairs": 1, "problems": []})
         self.assertEqual(b.direction_text({"direction_raw": "Ⅰ", "direction": "continue"}), "Ⅰ（継続）")
         self.assertEqual(b.direction_text({"direction_raw": "改善しながら継続", "direction": "improve"}), "改善しながら継続")
         self.assertTrue((self.out / "sheets" / "14130-kawasaki-shi" / f"{DOC_A}.json.gz").is_file())
+
+    def test_form_2_fields_are_carried_to_the_display_record(self) -> None:
+        value = lambda raw, ref="p3t1r0c0": {"raw": raw, "ref": ref}
+        form = {"doc_id": DOC_A, "pages": [3], "evaluation_year": 2025,
+                "project": {"name": [value("同和対策事業（川崎区）")]}, "amounts": [], "funding": [], "staff": [], "indicators": [],
+                "level_raw": "事務事業", "parent": None, "is_main": {"value": True, **value("○")},
+                "variant": {"base_name": "同和対策事業", "label": "川崎区", "kind": "区"},
+                "policy_path": [{"level_raw": "基本政策", "code": "5", "name": "市民自治の\n地域づくり", "source": value("x")},
+                                {"level_raw": "施策", "code": "5-2-1", "name": "人権尊重", "source": value("y"), "goal": value("差別の\n無い社会")}],
+                "texts": [{"key": "description", "label_raw": "事業の内容", "text": value("隣保館を\n運営する")},
+                          {"key": "plan", "label_raw": "取組内容", "text": value("")}],
+                "extra_fields": [{"section_raw": "事業の概要", "label": value("事業開始年度"), "values": [value("1970"), value("")]},
+                                 {"section_raw": "事業の概要", "label": value("課題名"), "values": [value("")]}],
+                "evaluations": [{"stage_raw": "所管局", "status": "done", "rating_raw": "3", "direction_raw": "継続",
+                                 "achievement": {"raw": "3", "ref": "p3t1r1c1", "rank": 3, "scale": 5, "option": "ほぼ目標どおり", "level": "on_target"},
+                                 "overall": {"raw": "B", "rank": 2, "scale": 3, "option": "やや貢献", "level": "", "aspect_raw": "施策への貢献度"},
+                                 "aspects": [{"aspect_raw": "成果", "aspect": "有効性", "rating_raw": "c", "option": "上がっていない", "level": "low"}],
+                                 "reasons": [{"aspect": "有効性", "label_raw": "評価の理由", "text": value("参加者が減った")}]}]}
+        shown = b.compact_form_record(form, DOC_A, 1)
+        self.assertEqual(shown["policy_path"], [{"level": "基本政策", "code": "5", "name": "市民自治の地域づくり"},
+                                                {"level": "施策", "code": "5-2-1", "name": "人権尊重", "goal": "差別の無い社会"}])
+        self.assertEqual((shown["level"], shown["is_main"], shown["variant"]["label"]), ("事務事業", True, "川崎区"))
+        self.assertNotIn("parent", shown)
+        # 空の文は落とす。折り返しの改行は詰める
+        self.assertEqual(shown["texts"], [{"key": "description", "name": "事業の内容・手段", "label": "事業の内容", "text": "隣保館を運営する"}])
+        self.assertEqual(shown["extra_fields"], [{"section": "事業の概要", "label": "事業開始年度", "text": "1970"}])
+        evaluation = shown["evaluations"][0]
+        self.assertEqual((evaluation["achievement"]["level"], evaluation["achievement"]["name"], evaluation["achievement"]["option"]),
+                         ("on_target", "ほぼ目標どおり", "ほぼ目標どおり"))
+        self.assertNotIn("overall", evaluation)  # 段階の決まらない評価は持たない
+        self.assertEqual(evaluation["aspect_levels"][0]["level"], "low")
+        self.assertEqual(evaluation["reasons"], [{"aspect": "有効性", "label": "評価の理由", "text": "参加者が減った"}])
 
     def test_ai_records_are_used_only_where_machine_records_are_missing(self) -> None:
         other = "88888-other-shi"

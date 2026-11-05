@@ -230,3 +230,40 @@ def test_flag_names_match_php_and_mcp():
     mcp = (root / "docker" / "mcp" / "src" / "server.ts").read_text(encoding="utf-8")
     for flag in hp.FLAG_NAMES:
         assert f"'{flag}'" in php and f'"{flag}"' in mcp, flag
+
+
+def test_form_2_fields_policy_variant_and_levels():
+    base = record("r1", "同和対策事業", table=sheet(2024, ["100", "120"]))
+    base.update({
+        "policy_path": [{"level": "基本政策", "code": "5", "name": "誰もが生きがいを持てる市民自治の地域づくり"},
+                        {"level": "施策", "code": "5-2-1", "name": "人権尊重のまちづくり", "goal": "差別の無い社会"}],
+        "level": "事務事業", "variant": {"base_name": "同和対策事業", "label": "川崎区", "kind": "area"}, "is_main": True,
+        "texts": [{"key": "description", "name": "事業の内容・手段", "label": "事業内容", "text": "隣保館の運営"}],
+        "extra_fields": [{"section": "事業の概要", "label": "根拠法令", "text": "社会福祉法"}],
+    })
+    base["evaluations"][0].update({"achievement": {"level": "below", "raw": "1"}, "overall": {"level": "low", "raw": "C"},
+                                   "reasons": [{"aspect": "成果", "label": "理由", "text": "参加者が減った"}]})
+    document = hp.project_document(SLUG, {"doc_id": "a" * 16}, base, {}, {})
+    assert document["policy_top"] == "5 誰もが生きがいを持てる市民自治の地域づくり"
+    assert document["policy_leaf"] == "5-2-1 人権尊重のまちづくり"
+    assert document["policy_path"][1]["goal"] == "差別の無い社会"
+    assert (document["level"], document["variant_base"], document["variant_label"], document["is_main"]) == (
+        "事務事業", "同和対策事業", "川崎区", True)
+    assert (document["achievement"], document["overall"]) == ("below", "low")
+    for text in ("隣保館の運営", "参加者が減った", "根拠法令 社会福祉法"):
+        assert text in document["search_text"]
+    fact = document["amounts"][0]
+    assert (fact["policy_top"], fact["variant_base"]) == (document["policy_top"], "同和対策事業")
+
+    plain = hp.project_document(SLUG, {"doc_id": "b" * 16}, record("r2", "広報事業", table=sheet(2024, ["1", "2"])), {}, {})
+    assert plain["policy_top"] is None and plain["achievement"] is None and plain["is_main"] is None
+    # 値の無い欄は金額の明細に置かない（集計で空の組を作らない）
+    assert "policy_top" not in plain["amounts"][0] and "variant_base" not in plain["amounts"][0]
+
+
+def test_form_2_filter_names_in_php_and_mcp():
+    root = SEARCH_DIR.parents[1]
+    php = (root / "lib" / "hyoka_projects.php").read_text(encoding="utf-8")
+    mcp = (root / "docker" / "mcp" / "src" / "server.ts").read_text(encoding="utf-8")
+    for name in ("policy_top", "policy_leaf", "initial_budget", "revised_budget", "on_target", "middle"):
+        assert f"'{name}'" in php and f'"{name}"' in mcp, name

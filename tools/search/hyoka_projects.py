@@ -26,7 +26,8 @@ SCHEMA_VERSION = 1
 
 # build_display_data.py の STAGE_NAMES・SCOPE_NAMES・SOURCE_NAMES・DIRECTION_NAMES・KIND_NAMES の逆引き。
 # 控えには日本語の名前で入っている。名前を変えたら両方を直す（test_hyoka_projects.py が突き合わせる）。
-STAGE_NAMES = {"budget": "予算", "plan": "計画", "settlement": "決算", "estimate": "見込", "unstated": ""}
+STAGE_NAMES = {"initial_budget": "当初予算", "revised_budget": "補正後予算", "budget": "予算", "plan": "計画",
+               "settlement": "決算", "estimate": "見込", "unstated": ""}
 SCOPE_NAMES = {"direct": "事業費（人件費を除く）", "personnel": "人件費", "total": "総費用（人件費を含む）",
                "sub_project": "細事業", "breakdown": "内訳"}
 SOURCE_NAMES = {"national": "国", "prefecture": "都道府県", "bond": "地方債", "fund": "基金", "user_fee": "受益者負担",
@@ -41,7 +42,8 @@ FUNDING_CODES = {name: "funding_" + code for code, name in SOURCE_NAMES.items()}
 DIRECTION_CODES = {name: code for code, name in DIRECTION_NAMES.items()}
 KIND_CODES = {name: code for code, name in KIND_NAMES.items() if name}
 
-STAGE_RANK = {"settlement": 4, "estimate": 3, "budget": 2, "plan": 1, "unstated": 0}
+# 集計に使う値の順（形 2.0 の金額）: 決算 → 見込 → 補正後予算 → 予算（不明） → 当初予算 → 計画。
+STAGE_RANK = {"settlement": 6, "estimate": 5, "revised_budget": 4, "budget": 3, "initial_budget": 2, "plan": 1, "unstated": 0}
 # 集計に使う費目。細事業・内訳は親の事業の金額と重なるので、索引には載せるが既定の集計には使わない。
 COST_SCOPES = ("total", "direct", "personnel")
 
@@ -322,6 +324,17 @@ def project_document(slug: str, doc: dict, record: dict, meta: dict, municipalit
     texts = [str(field.get("text") or "") for field in record.get("fields") or [] if isinstance(field, dict)]
     texts += [f"{field.get('label') or ''} {field.get('text') or ''}" for field in record.get("raw_fields") or [] if isinstance(field, dict)]
     texts += [row["name"] for row in indicators]
+    # 形 2.0 の文章の項目、評価の理由、そのほかの欄も事業の語で探せるようにする
+    texts += [str(item.get("text") or "") for item in record.get("texts") or [] if isinstance(item, dict)]
+    texts += [str(reason.get("text") or "") for row in evaluations for reason in row.get("reasons") or [] if isinstance(reason, dict)]
+    texts += [f"{item.get('label') or ''} {item.get('text') or ''}" for item in record.get("extra_fields") or [] if isinstance(item, dict)]
+    path = [item for item in record.get("policy_path") or [] if isinstance(item, dict) and item.get("name")]
+    achievement = next((row["achievement"]["level"] for row in reversed(evaluations) if isinstance(row.get("achievement"), dict)), "")
+    overall = next((row["overall"]["level"] for row in reversed(evaluations) if isinstance(row.get("overall"), dict)), "")
+    variant = record.get("variant") if isinstance(record.get("variant"), dict) else {}
+    policy_top = f"{path[0].get('code') or ''} {path[0]['name']}".strip() if path else ""
+    policy_leaf = f"{path[-1].get('code') or ''} {path[-1]['name']}".strip() if path else ""
+    variant_base = str(variant.get("base_name") or "")
     source_url = str(doc.get("source_url") or meta.get("source_url") or "")
     project_name = fields.get("project_name", "")
     department = fields.get("department", "")
@@ -351,6 +364,17 @@ def project_document(slug: str, doc: dict, record: dict, meta: dict, municipalit
         "department": department,
         "purpose": fields.get("purpose", ""),
         "evaluation_year": evaluation_year or None,
+        # 形 2.0 の体系の道筋（上の段から。段の呼び名は自治体の原文）と、事業の階層・分け・主な事業か
+        "policy_path": [{key: str(item.get(key) or "") for key in ("level", "code", "name", "goal") if item.get(key)} for item in path],
+        "policy_names": [f"{item.get('code') or ''} {item.get('name')}".strip() for item in path],
+        "policy_top": policy_top or None,
+        "policy_leaf": policy_leaf or None,
+        "level": str(record.get("level") or "") or None,
+        "variant_base": variant_base or None,
+        "variant_label": str(variant.get("label") or "") or None,
+        "is_main": record.get("is_main") if isinstance(record.get("is_main"), bool) else None,
+        "achievement": achievement or None,
+        "overall": overall or None,
         "rating": rating,
         "direction": direction,
         "direction_text": direction_text,
@@ -374,7 +398,10 @@ def project_document(slug: str, doc: dict, record: dict, meta: dict, municipalit
         # 集計の内訳（自治体・部署・方向性ごと）と上位の事業を明細だけで出せるよう、事業の側の値も写す。
         "amounts": [{**fact, "best": False, "stage_best": False, "project_id": f"hyoka-project:{slug}:{doc_id}:{record_id}",
                      "project_name": project_name, "slug": slug, "pref_code": pref_code, "municipality_name": municipality_name,
-                     "department": department, "direction": direction}
+                     "department": department, "direction": direction,
+                     # 空の文字は集計で「空」の組になるので、値が無ければ欄ごと置かない
+                     **{key: value for key, value in (("policy_top", policy_top), ("policy_leaf", policy_leaf),
+                                                       ("variant_base", variant_base)) if value}}
                     for fact in facts],
         "search_text": "\n".join(text for text in texts if text.strip()),
         # 前の年度の評価の文と比べるための文。mark_best が使って消す（索引には入れない）。
@@ -626,6 +653,11 @@ def index_body(settings: dict[str, Any]) -> dict[str, Any]:
                 "purpose": {"type": "text", "analyzer": "ja_cjk"},
                 # 評価区分は機械の抽出だと文が入ることがある。長い値で投入を止めない
                 "evaluation_year": {"type": "integer"}, "rating": {"type": "keyword", "ignore_above": 256}, "direction": keyword,
+                "policy_path": {"type": "object", "enabled": False},
+                "policy_names": {"type": "text", "analyzer": "ja_cjk", "fields": {"keyword": {"type": "keyword", "ignore_above": 512}}},
+                "policy_top": {"type": "keyword", "ignore_above": 512}, "policy_leaf": {"type": "keyword", "ignore_above": 512},
+                "level": keyword, "variant_base": {"type": "keyword", "ignore_above": 512}, "variant_label": keyword,
+                "is_main": {"type": "boolean"}, "achievement": keyword, "overall": keyword,
                 "direction_text": {"type": "text", "analyzer": "ja_cjk"}, "aspects": {"type": "keyword", "ignore_above": 256}, "method": keyword,
                 "page": {"type": "integer"}, "location": {"type": "keyword", "index": False},
                 "source_url": {"type": "keyword", "index": False}, "source_page_link": {"type": "keyword", "index": False},
@@ -645,6 +677,8 @@ def index_body(settings: dict[str, Any]) -> dict[str, Any]:
                     "project_id": {"type": "keyword", "index": False}, "project_name": {"type": "keyword", "index": False},
                     "slug": keyword, "pref_code": keyword, "municipality_name": keyword,
                     "department": {"type": "keyword", "ignore_above": 512}, "direction": keyword,
+                    "policy_top": {"type": "keyword", "ignore_above": 512}, "policy_leaf": {"type": "keyword", "ignore_above": 512},
+                    "variant_base": {"type": "keyword", "ignore_above": 512},
                 }},
                 "search_text": {"type": "text", "analyzer": "ja_cjk"},
             },

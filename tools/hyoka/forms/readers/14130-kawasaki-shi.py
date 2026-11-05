@@ -39,6 +39,7 @@ def new_record(page: Page, head: Cell, evaluation_year: int | None) -> dict:
             "period": values(*period),
         },
         "amounts": [], "funding": [], "staff": [], "indicators": [], "evaluations": [], "reflection": [],
+        "level_raw": "事務事業", "parent": None, "policy_path": [], "texts": [], "extra_fields": [],
     }
 
 
@@ -189,7 +190,8 @@ ROMAN_DIRECTIONS = {'I': 'continue', 'II': 'improve', 'III': 'expand', 'IV': 're
 def empty_record(page, year=0):
     return {'pages': [page.number], 'evaluation_year': year or 0, 'target_year': 0,
             'project': {key: [] for key in PROJECT_KEYS},
-            **{key: [] for key in ('amounts', 'funding', 'staff', 'indicators', 'evaluations', 'reflection')}}
+            **{key: [] for key in ('amounts', 'funding', 'staff', 'indicators', 'evaluations', 'reflection')},
+            'level_raw': '事務事業', 'parent': None, 'policy_path': [], 'texts': [], 'extra_fields': []}
 
 
 def exact(page, text):
@@ -235,7 +237,7 @@ def evaluation(stage, rating=None, direction=None, reasons=(), aspects=()):
             'aspects': list(aspects)}
 
 
-def read_evaluation(page, record, achieved=None):
+def read_evaluation(page, record, achieved=None, achieved_legend=None):
     head = page.find(re.compile(r'^今後の方向性(?:\(|$)')) or exact(page, '今後の事業の方向性')
     if head is None:
         return
@@ -259,6 +261,7 @@ def read_evaluation(page, record, achieved=None):
     ev = evaluation(head.text, rating, answer, reasons, aspects)
     ev['rating_ref'] = rating.ref if rating else ''
     ev['direction_ref'] = answer.ref if answer else ''
+    read_normalized_evaluation(page, record, ev, rating, achieved_legend)
     record['evaluations'].append(ev)
 
 
@@ -279,7 +282,8 @@ def enrich_project(page, record):
 def read_project_sheets(document):
     records, current = [], None
     year = 0
-    achieved = None
+    achieved = achieved_legend = None
+    policy_map = read_policy_map(document)
     for page in document.pages:
         year = page_year(page) or year
         head = exact(page, '事務事業コード')
@@ -294,6 +298,10 @@ def read_project_sheets(document):
             current['project'] = {**{key: [] for key in PROJECT_KEYS}, **current['project']}
             enrich_project(page, current)
             achieved = page.right(page.find('達成度'))
+            achieved_legend = page.right(achieved) if achieved else None
+            listed = policy_map["projects"].get(norm(name.text))
+            if listed:
+                current['is_main'] = {"value": listed["is_main"], **listed["source"]}
             # 実施結果（Do）等の明記された年度のみを対象年度とする。
             for c in page.cells:
                 m = re.search(r'((?:[RH]\d+|令和(?:元|\d+)|平成\d+|20\d{2})年度).*?(?:実施結果|取組内容)', norm(c.text))
@@ -312,8 +320,11 @@ def read_project_sheets(document):
         if current:
             read_money(page, current)
             read_indicators(page, current)
-            read_evaluation(page, current, achieved)
+            read_evaluation(page, current, achieved, achieved_legend)
             read_reflection(page, current)
+            read_policy_path(page, current, policy_map)
+            read_texts(page, current)
+            read_extra_fields(page, current)
     return records
 
 
@@ -527,6 +538,235 @@ def read_priority_rows(document):
     return records
 
 
+# ---- 形 2.0 で足した項目（体系の道筋、主な事業か、そろえた評価、文章の項目、そのほかの欄、分け）
+# 欄名は川崎市の様式のもの。形は形 2.0（doc/hyoka-format-2.md）の共通の形にする。
+
+POLICY_LEVELS = (("基本政策", r"(\d+)"), ("政策", r"(\d+-\d+)"), ("施策", r"(\d+-\d+-\d+)"))
+SECTIONS = ("事業の概要", "計画(Plan)", "実施結果(Do)", "評価(Check)", "改善(Action)")
+STANDARD_ASPECTS = ("必要性", "妥当性", "有効性", "効率性", "公平性", "優先性")
+# 凡例の選択肢の文から、そろえた段階（high・middle・low）を決める語。長い語を先に見る。
+LEVEL_WORDS = (("上がっていない", "low"), ("徐々に", "middle"), ("上がっている", "high"),
+               ("薄れていない", "high"), ("薄れている", "low"), ("事例はない", "high"), ("事例がある", "low"),
+               ("余地はない", "high"), ("余地はある", "middle"), ("既に実施済み", "high"),
+               ("可能性はない", "high"), ("可能性はある", "middle"),
+               ("やや貢献", "middle"), ("度合いが薄い", "low"), ("貢献している", "high"))
+TEXT_LABELS = (
+    ("description", ("事業の内容",)),
+    ("plan", ("第3期実施計画に記載されている当該年度の取組内容",)),
+    ("performance_result", ("取組内容の実績等",)),
+    ("environment", ("事業を取り巻く社会環境の変化",)),
+    ("revision_history", ("具体的な見直し・改善内容",)),
+    ("next_plan", ("第3期実施計画に記載されている次年度の取組内容", "今後の事業の方向性を踏まえた次年度の取組内容")),
+)
+# そのほかの欄。(欄名, 値の場所)。値の場所は right（右）、below（下）、right3（右の 3 つ）。
+EXTRA_LABELS = (("組織コード", "below"), ("政策体系別計画の記載", "below"), ("実施形態", "right"),
+                ("分類1(市民サービス等)", "below"), ("分類2(内部事務)", "below"),
+                ("SDGsのゴール・ターゲットを意識した取組の方向性", "right3"), ("改革項目", "below"), ("課題名", "below"),
+                ("当初計画からの変更箇所", "right"), ("事業の見直し・改善内容", "right"), ("変更箇所", "right"), ("変更の理由", "right"))
+WARDS = ("川崎区", "幸区", "中原区", "高津区", "宮前区", "多摩区", "麻生区")
+
+
+def three_levels(rank: int, size: int, names: tuple[str, str, str]) -> str:
+    """凡例の上から rank 番目（1 から）を、上・中・下の 3 段階に寄せる（形 2.0 の「評価のそろえ方」）。"""
+    if size <= 1 or not 1 <= rank <= size:
+        return ""
+    edge = max(1, round(size / 3))
+    return names[0] if rank <= edge else names[2] if rank > size - edge else names[1]
+
+
+def read_policy_map(document):
+    """政策体系図の頁（基本政策・政策・施策・事務事業の表）から、施策ごとの体系の道筋と、事業ごとの主な事業の印（○）を引く表。"""
+    measures, projects = {}, {}
+    for page in document.pages:
+        head = exact(page, '基本政策')
+        if not head or not exact(page, '施策'):
+            continue
+        table = page.table_cells(head.table)
+        project_col = next((c.c for c in table if c.r == head.r and '事務事業' in c.text), None)
+        spans = []
+        for cell in table:
+            text = norm(cell.text)
+            for depth, (level, code_re) in enumerate(POLICY_LEVELS):
+                found = re.fullmatch(level + code_re + r"(.+)", text)
+                if found and cell.r > head.r:
+                    spans.append((depth, cell.r, cell.r + cell.rs, {"level_raw": level, "code": found.group(1), "name": found.group(2),
+                                                                     "source": cell.value()}))
+                    break
+        for cell in table:
+            if project_col is None or cell.c != project_col or cell.r <= head.r or not norm(cell.text):
+                continue
+            path = [item for depth in range(len(POLICY_LEVELS))
+                    for d, r0, r1, item in spans if d == depth and r0 <= cell.r < r1][:len(POLICY_LEVELS)]
+            name = norm(cell.text).lstrip("○◯")
+            projects[name] = {"is_main": norm(cell.text).startswith(("○", "◯")), "source": cell.value(), "path": path}
+            if path:
+                measures[norm(path[-1]["name"])] = path
+    return {"measures": measures, "projects": projects}
+
+
+def section_of(page, cell):
+    """その升目が属する見出し（事業の概要、計画（Plan）など）。見出しの無い表は、頁の中で直前の表の見出しを引き継ぐ。"""
+    current = ""
+    for table in sorted({c.table for c in page.cells}):
+        first = min(page.table_cells(table), key=lambda c: (c.r, c.c))
+        if norm(first.text) in SECTIONS:
+            current = first.text
+        if table == cell.table:
+            return current
+    return current
+
+
+def label_cell(page, label):
+    return next((c for c in page.cells if norm(c.text) == norm(label) or norm(c.text).startswith(norm(label) + "(")
+                 or (len(norm(label)) > 8 and norm(c.text).startswith(norm(label)))), None)
+
+
+def read_policy_path(page, record, policy_map):
+    """シートの「政策」「施策」「直接目標」の欄と政策体系図から、体系の道筋を作る。"""
+    if record.get("policy_path"):
+        return
+    measure = page.right(exact(page, '施策'))
+    policy = page.right(exact(page, '政策'))
+    goal = page.right(exact(page, '直接目標'))
+    if not measure or not norm(measure.text):
+        return
+    path = [dict(item) for item in policy_map["measures"].get(norm(measure.text), [])]
+    if not path:
+        path = [{"level_raw": "政策", "code": "", "name": policy.text, "source": policy.value()}] if policy and policy.text else []
+        path.append({"level_raw": "施策", "code": "", "name": measure.text, "source": measure.value()})
+    path[-1]["sheet_source"] = measure.value()
+    if goal and goal.text:
+        path[-1]["goal"] = goal.value()
+    record["policy_path"] = path
+
+
+def read_texts(page, record):
+    """文章の項目（形 2.0）。欄名の右の升目の文字を、番地付きでそのまま持つ。"""
+    seen = {item["text"]["ref"] for item in record["texts"]}
+    for key, labels in TEXT_LABELS:
+        for label in labels:
+            cell = label_cell(page, label)
+            value = page.right(cell) if cell else None
+            if value and norm(value.text) and value.ref not in seen and not value.text.startswith("（上記"):
+                record["texts"].append({"key": key, "label_raw": cell.text, "text": value.value()})
+                seen.add(value.ref)
+
+
+def read_extra_fields(page, record):
+    """そのほかの欄（形 2.0）。標準の項目に入れない欄を、見出し・欄名・値の組で持つ。空欄も空欄として持つ。"""
+    seen = {item["label"]["ref"] for item in record["extra_fields"]}
+    for label, where in EXTRA_LABELS:
+        cell = label_cell(page, label)
+        if not cell or cell.ref in seen:
+            continue
+        if where == "below":
+            found = [page.below(cell)]
+        elif where == "right3":
+            found = [page.right(cell, n) for n in (1, 2, 3)]
+        else:
+            found = [page.right(cell)]
+        found = [c for c in found if c is not None]
+        if not found:
+            continue
+        record["extra_fields"].append({"section_raw": section_of(page, cell), "label": cell.value(), "values": [c.value() for c in found]})
+        seen.add(cell.ref)
+
+
+def legend_options(text, markers):
+    """凡例「１．目標を大きく上回って達成 ４．…」を、記号ごとの文にする。記号が先頭に戻るたびに別の問いの凡例とする。"""
+    groups, current = [], {}
+    for mark, option in re.findall(rf"([{markers}])[\.．,，]\s*(.+?)(?=[{markers}][\.．,，]|$)", norm(text)):
+        if mark in current:
+            groups.append(current)
+            current = {}
+        current[mark] = option
+    if current:
+        groups.append(current)
+    return groups
+
+
+def level_of(option_text):
+    return next((level for word, level in LEVEL_WORDS if word in option_text), "")
+
+
+def read_normalized_evaluation(page, record, ev, achieved, achieved_legend):
+    """評価のそろえた値（形 2.0）: 目標の達成、総合（施策への貢献度）、観点ごとの段階、評価の理由の文。"""
+    if achieved is not None and achieved_legend is not None and norm(achieved.text).isdigit():
+        options = legend_options(achieved_legend.text, "1-9")
+        ranked = dict(sorted((int(k), v) for k, v in (options[0].items() if options else [])))
+        rank = int(norm(achieved.text))
+        if rank in ranked:
+            ev["achievement"] = {"raw": achieved.text, "ref": achieved.ref, "legend": achieved_legend.value(),
+                                 "rank": rank, "scale": len(ranked), "option": ranked[rank],
+                                 "level": three_levels(rank, len(ranked), ("above", "on_target", "below"))}
+    for legend in page.cells:
+        if not re.match(r"^A[\.．]", norm(legend.text)) or "貢献" not in legend.text:
+            continue
+        value = page.right(legend)
+        options = legend_options(legend.text, "A-C")
+        if value and options and norm(value.text) in options[0]:
+            letters = sorted(options[0])
+            rank = letters.index(norm(value.text)) + 1
+            ev["overall"] = {"raw": value.text, "ref": value.ref, "legend": legend.value(), "aspect_raw": "施策への貢献度",
+                             "rank": rank, "scale": len(letters), "option": options[0][norm(value.text)],
+                             "level": three_levels(rank, len(letters), ("high", "middle", "low"))}
+            reason = page.right(value)
+            if reason and reason.text:
+                ev.setdefault("reasons", []).append({"aspect": "施策への貢献度", "label_raw": "施策への貢献度の理由", "text": reason.value()})
+    aspects = []
+    for legend in page.cells:
+        if not re.match(r"^a[\.．,，]", norm(legend.text)):
+            continue
+        reply = page.right(legend)
+        question = page.left(legend)
+        group = page.left(question) if question else None
+        while group is not None and norm(group.text) not in STANDARD_ASPECTS:
+            group = page.left(group)
+        names = re.findall(r"【([^】]+)】", question.text) if question else []
+        option_groups = legend_options(legend.text, "a-c")
+        answers = list(norm(reply.text)) if reply else []
+        names = names or [""] * len(option_groups)
+        for i, options in enumerate(option_groups):
+            answer = answers[i] if i < len(answers) else ""
+            name = names[i] if i < len(names) else ""
+            aspects.append({"aspect_raw": name, "aspect": norm(group.text) if group else "", "rating_raw": answer,
+                            "rating_ref": reply.ref if reply else "", "legend": legend.value(),
+                            "option": options.get(answer, ""), "level": level_of(options.get(answer, ""))})
+    if aspects:
+        ev["aspects"] = aspects
+    for label in page.cells:
+        if norm(label.text) != "評価の理由":
+            continue
+        value = page.right(label)
+        group = next((c for c in sorted(page.table_cells(label.table), key=lambda c: -c.r)
+                      if c.r < label.r and norm(c.text) in STANDARD_ASPECTS), None)
+        if value and value.text:
+            ev.setdefault("reasons", []).append({"aspect": norm(group.text) if group else "", "label_raw": label.text, "text": value.value()})
+
+
+def mark_variants(records):
+    """分け（形 2.0）: 同じ事業を区・期・内容で分けた兄弟。親の記録は作らない。
+
+    区の名前で終わる事業名は 1 件でも区の分け。そのほかの括弧書きは、同じ文書に同じ元の名前が 2 件以上あるときだけ分けとする。
+    """
+    pattern = re.compile(r"^(.+?)[（(]([^（）()]+)[）)]$")
+    parsed = []
+    for record in records:
+        name = record["project"]["name"][0]["raw"] if record["project"]["name"] else ""
+        found = pattern.match(norm(name))
+        parsed.append((record, found.group(1), found.group(2)) if found else (record, "", ""))
+    bases = {}
+    for _, base, label in parsed:
+        if base:
+            bases.setdefault(base, set()).add(label)
+    for record, base, label in parsed:
+        if not base:
+            continue
+        kind = "区" if label in WARDS else "期" if re.fullmatch(r"\d+期", label) else "内容"
+        if kind == "区" or len(bases[base]) >= 2:
+            record["variant"] = {"base_name": base, "label": label, "kind": kind}
+
+
 def read_reflection(page, record):
     for c in page.cells:
         if norm(c.text) in ('変更後(上記計画上の記載に対する変更点)', '変更後'):
@@ -545,4 +785,6 @@ def read(document: Document) -> list[dict]:
         r['evaluation_year'] = r['evaluation_year'] or document_year
     codes = {norm(v['raw']) for r in sheets for v in r['project']['code']}
     rows = [r for r in rows if not any(norm(v['raw']) in codes for v in r['project']['code'])]
-    return sheets + rows + read_priority_rows(document) + read_html_blocks(document) + read_html_lists(document)
+    records = sheets + rows + read_priority_rows(document) + read_html_blocks(document) + read_html_lists(document)
+    mark_variants(records)
+    return records
