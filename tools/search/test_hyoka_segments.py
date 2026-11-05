@@ -141,6 +141,10 @@ def test_repage_rewrites_saved_text_with_page_breaks(tmp_path):
     assert gzip.decompress(text_path.read_bytes()).decode("utf-8").startswith("題名: x\n")
     # もう区切りがあれば書き直さない。原典が違えば触らない。
     assert repage_text.repage_one(str(tmp_path / "work" / SLUG), DOC, data["documents"][DOC], True, False) == "already"
+    # 頁の中に改頁文字が紛れた本文（区切りの数が頁の数と合わない）は取り出し直す。
+    text_path.write_bytes(gzip.compress(("題名: x\n年度: x\n種別: x\n出典: x\n掲載ページ: x\n\n" + old_body + "\f").encode("utf-8")))
+    assert repage_text.repage_one(str(tmp_path / "work" / SLUG), DOC, data["documents"][DOC], True, False) == "paged"
+    assert records.read_body(text_path).count("\f") == 3
     assert repage_text.repage_one(str(tmp_path / "work" / SLUG), DOC, {**data["documents"][DOC], "sha256": "b" * 64}, True, False) \
         == "sha256_mismatch"
 

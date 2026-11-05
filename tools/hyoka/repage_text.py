@@ -63,7 +63,9 @@ def repage_one(work_dir: str, doc_id: str, entry: dict, write: bool, allow_chang
     with gzip.open(text_path, "rt", encoding="utf-8", newline="") as stream:
         saved = stream.read()
     header, body = split_header(saved)
-    if "\f" in body:
+    # 区切りの数が頁の数と合っていれば済み。pypdf が頁の中に改頁文字を出すこともあり、合わなければ取り出し直す。
+    parts = body.split("\f")
+    if len(parts) == entry.get("pages") or (len(parts) == (entry.get("pages") or 0) + 1 and not parts[-1].strip()):
         return "already"
     pages = extract_pdf_pages(raw)
     if len(pages) != entry.get("pages"):
