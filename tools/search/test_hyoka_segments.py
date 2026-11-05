@@ -156,3 +156,22 @@ def test_collector_keeps_page_breaks():
     body, extra = scrape_hyoka_docs.extract_document_text("pdf", pdf_bytes(["One", "", "Three"]))
     assert extra == {"pages": 3}
     assert body.split("\f") == ["One", "", "Three"]
+
+
+def test_project_index_metadata_groups_segment_ids_by_document():
+    import build_hyoka_projects_index
+
+    class Client:
+        def __init__(self):
+            self.pages = [[{"_id": f"hyoka:{SLUG}:{DOC}:p21-22", "_source": {"slug": SLUG, "local_id": f"{DOC}:p21-22", "fiscal_year": 2025}},
+                           {"_id": f"hyoka:{SLUG}:{DOC}:p1", "_source": {"slug": SLUG, "local_id": f"{DOC}:p1", "fiscal_year": 2025}}], []]
+
+        def request(self, method, path, **kwargs):
+            if method == "DELETE":
+                return {}
+            return {"_scroll_id": "s", "hits": {"hits": self.pages.pop(0)}}
+
+    metadata = build_hyoka_projects_index.metadata_from_index(Client(), "hyoka-current")
+    assert list(metadata) == [f"{SLUG}:{DOC}"]
+    assert metadata[f"{SLUG}:{DOC}"]["ids"] == [f"hyoka:{SLUG}:{DOC}:p1", f"hyoka:{SLUG}:{DOC}:p21-22"]
+    assert hyoka_projects.document_meta(metadata, SLUG, DOC, 21)["document_id"] == f"hyoka:{SLUG}:{DOC}:p21-22"

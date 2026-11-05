@@ -84,10 +84,11 @@ def metadata_from_index(client: OpenSearchClient, alias: str) -> dict[str, dict]
             for hit in hits:
                 source = hit.get("_source") or {}
                 slug = str(source.get("slug") or "")
-                local_id = str(source.get("local_id") or "")
-                if not slug or not local_id:
+                # 頁や事業のシートに分けた文書の local_id は「<doc_id>:p21-22」。文書ごとにまとめる。
+                doc_id = str(source.get("local_id") or "").split(":", 1)[0]
+                if not slug or not doc_id:
                     continue
-                entry = metadata.setdefault(f"{slug}:{local_id}", {
+                entry = metadata.setdefault(f"{slug}:{doc_id}", {
                     "fiscal_year": source.get("fiscal_year"), "kind": source.get("kind") or "",
                     "title": source.get("title") or "", "source_url": source.get("source_url") or "",
                     "municipality_name": strip_pref(str(source.get("municipality_name") or ""), str(source.get("pref_name") or "")),

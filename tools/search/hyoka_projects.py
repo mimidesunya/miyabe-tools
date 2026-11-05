@@ -335,7 +335,8 @@ def project_document(slug: str, doc: dict, record: dict, meta: dict, municipalit
         "schema_version": SCHEMA_VERSION,
         "record_id": record_id,
         "doc_id": doc_id,
-        "document_id": meta.get("document_id") or f"hyoka:{slug}:{doc_id}",
+        # 文書の索引に無い文書（本文が無い・OCR 待ち）は空。文書全体の ID を作って当てずっぽうにしない。
+        "document_id": meta.get("document_id") or "",
         "document_title": str(meta.get("title") or ""),
         "document_fiscal_year": document_year or None,
         "document_kind": str(meta.get("kind") or ""),

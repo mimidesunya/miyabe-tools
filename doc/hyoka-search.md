@@ -26,8 +26,9 @@ AI、OCR、項目抽出は実行しない。保存済み本文を読み、検索
 **事業ごとのシートとそれ以外に分ける**: 頁に分けられる文書は、画面用の控え（`--hyoka-display-dir`、既定は
 `MIYABE_HYOKA_DISPLAY_DIR` か `data/hyoka`）の事業の記録の頁の範囲で頁をまとめる（`tools/search/hyoka_source_records.py` の
 `segment_pages`）。範囲は様式ごとの読み取りの `pages`（川崎市が基準、[様式ごとの読み取り](hyoka-forms.md)）、無ければ記録の `page`。
-1 件ごとに分類 `segment` と頁の範囲 `page`〜`page_end` を持つ。全文検索は `segment=sheet` の点を 3 倍にして、事業のシートを先に返す
-（`lib/opensearch_search.php` の `MIYABE_SEARCH_HYOKA_SHEET_WEIGHT`）。
+1 件ごとに分類 `segment` と頁の範囲 `page`〜`page_end` を持つ。全文検索は `segment=sheet` の点を 3 倍、`table`・`other` を 0.5 倍にして、
+事業のシートを先に返す（`lib/opensearch_search.php` の `MIYABE_SEARCH_HYOKA_SHEET_WEIGHT`・`MIYABE_SEARCH_HYOKA_NON_SHEET_WEIGHT`。
+川崎市の平成の HTML の一覧は題名に事業名が入り、シートの 3 倍だけでは上に来ていた）。
 
 | `segment` | 1 件の単位 |
 | --- | --- |

@@ -96,7 +96,8 @@ def test_hyoka_filters_and_source_document_roundtrip(api):
     path, body = requests[-1]
     assert path == "/test-hyoka/_search"
     scored = body["query"]["function_score"]
-    assert scored["functions"] == [{"filter": {"term": {"segment": "sheet"}}, "weight": 3}]
+    assert scored["functions"] == [{"filter": {"term": {"segment": "sheet"}}, "weight": 3},
+                                   {"filter": {"terms": {"segment": ["table", "other"]}}, "weight": 0.5}]
     filters = scored["query"]["bool"]["filter"]
     for field, value in {"doc_type": "hyoka", "fiscal_year": 2025, "kind": "project_evaluation",
                          "slug": "14130-kawasaki-shi", "municipality_code": "14130", "pref_code": "14"}.items():

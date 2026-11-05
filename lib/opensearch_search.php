@@ -287,8 +287,9 @@ function miyabe_search_simple_query_syntax(string $query): string
 // 「令和5年～6年」の ～ が半角の ~ になると、後ろの語が距離として読まれて黙って捨てられていた。
 const MIYABE_SEARCH_QUERY_FLAGS = 'AND|OR|NOT|PHRASE|PRECEDENCE|PREFIX|WHITESPACE';
 
-// 事務事業評価で、事業ごとのシートの点に掛ける数。
+// 事務事業評価で、事業ごとのシートの点に掛ける数と、事業の記録がある文書の一覧・それ以外の頁の点に掛ける数。
 const MIYABE_SEARCH_HYOKA_SHEET_WEIGHT = 3;
+const MIYABE_SEARCH_HYOKA_NON_SHEET_WEIGHT = 0.5;
 
 // 検索語の長さの上限。文字 2 つずつの組の数だけ句が増え、330 字前後で OpenSearch の句の上限
 // （maxClauseCount 1024）を超えて 500 になっていた。
@@ -625,11 +626,15 @@ function miyabe_search_build_request(array $params): array
 
     if ($docType === 'hyoka') {
         // 事務事業評価は事業ごとのシート（索引の segment=sheet。tools/search/hyoka_source_records.py）を先に出す。
-        // 政策ごとの PDF の政策体系図や総括の一覧の頁より、事業 1 件の頁が当たるほうが調べやすい。
+        // 政策ごとの PDF の政策体系図や総括の一覧の頁より、事業 1 件の頁が当たるほうが調べやすい。一覧（table）と
+        // 事業の無い頁（other）は下げる。川崎市の平成の HTML の一覧は題名に事業名が入り、シートの 3 倍でも上に来ていた。
         $bodyQuery = [
             'function_score' => [
                 'query' => $bodyQuery,
-                'functions' => [['filter' => ['term' => ['segment' => 'sheet']], 'weight' => MIYABE_SEARCH_HYOKA_SHEET_WEIGHT]],
+                'functions' => [
+                    ['filter' => ['term' => ['segment' => 'sheet']], 'weight' => MIYABE_SEARCH_HYOKA_SHEET_WEIGHT],
+                    ['filter' => ['terms' => ['segment' => ['table', 'other']]], 'weight' => MIYABE_SEARCH_HYOKA_NON_SHEET_WEIGHT],
+                ],
                 'score_mode' => 'multiply',
                 'boost_mode' => 'multiply',
             ],
