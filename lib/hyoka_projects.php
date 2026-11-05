@@ -644,6 +644,8 @@ function miyabe_hyoka_projects_execute_get(array $input): array
         // 控えの記録。欄名・値は原典の升目の原文のまま（金額の表は千円などの原典の単位）。
         'record' => is_array($record) ? array_intersect_key($record, array_flip([
             'fields', 'raw_fields', 'amounts', 'funding', 'staff', 'indicators', 'evaluations', 'checks', 'page', 'pages', 'sheet', 'cells',
+            // 形 2.0 の体系の道筋、事業の階層・親・分け・主な事業か、文章の項目、そのほかの欄
+            'policy_path', 'level', 'parent', 'variant', 'is_main', 'texts', 'extra_fields',
         ])) : null,
         'sheet' => $sheet,
         'sheet_truncated' => $truncated,

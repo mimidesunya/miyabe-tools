@@ -41,6 +41,9 @@ def api(tmp_path):
             "id": f"{DOC}-1", "layout": "form_reader", "page": 21, "pages": [21, 22],
             "fields": [{"key": "project_name", "name": "事業名", "label": "", "text": "市民ミュージアム管理運営事業"}],
             "raw_fields": [{"label": "対象", "text": "市民"}],
+            "policy_path": [{"level": "基本政策", "code": "5", "name": "市民自治の地域づくり"}], "is_main": True,
+            "texts": [{"key": "description", "name": "事業の内容・手段", "label": "事業の内容", "text": "博物館を運営する"}],
+            "extra_fields": [{"section": "事業の概要", "label": "組織コード", "text": "255000"}], "internal_note": "返さない",
             "amounts": {"unit": "千円", "columns": [{"year": 2024, "stage": "決算"}],
                         "rows": [{"label": "総コスト", "kind": "総費用（人件費を含む）", "unit": "", "values": ["1,008,569"]}]},
         }],
@@ -232,6 +235,10 @@ def test_project_detail_with_sheet_text(api):
     assert requests[-1][1]["query"] == {"ids": {"values": [PROJECT_ID]}}
     assert payload["project"]["amounts"][0]["yen"] == 1_008_569_000 and payload["project"]["amounts"][0]["best"] is True
     assert payload["record"]["raw_fields"] == [{"label": "対象", "text": "市民"}]
+    # 形 2.0 の欄も返す。控えのそのほかの鍵は返さない
+    assert payload["record"]["policy_path"][0]["code"] == "5" and payload["record"]["is_main"] is True
+    assert payload["record"]["texts"][0]["text"] == "博物館を運営する" and payload["record"]["extra_fields"][0]["label"] == "組織コード"
+    assert "internal_note" not in payload["record"]
     assert payload["record"]["amounts"]["unit"] == "千円"
     assert [page["page"] for page in payload["sheet"]] == [21, 22]
     assert payload["sheet"][0]["text"] == "令和７年度 事務事業評価シート\n[表 1]\n事務事業名 | 値"
