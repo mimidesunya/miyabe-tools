@@ -136,6 +136,14 @@ class KawasakiForm2Test(unittest.TestCase):
         self.assertTrue(policy["projects"]["防災事業"]["is_main"])
         self.assertFalse(policy["projects"]["河川事業"]["is_main"])
 
+    def test_label_cells_are_not_text_values(self) -> None:
+        # 見出しの右がもう一段の見出しの様式では、その升目を文章の値にしない
+        cell = lambda text: type("Cell", (), {"text": text})()
+        self.assertTrue(self.reader.is_label(cell("変更箇所 （上記計画上の記載に対する変更箇所）")))
+        self.assertTrue(self.reader.is_label(cell("組織コード")))
+        self.assertFalse(self.reader.is_label(cell("変更箇所はありません")))
+        self.assertFalse(self.reader.is_label(cell("①「流域治水プロジェクト」に基づく河川事業の進行管理")))
+
     def test_variants_by_ward_or_repeated_base(self) -> None:
         def record(name: str) -> dict:
             return {"project": {"name": [{"raw": name, "ref": "p1t1r0c1"}]}}

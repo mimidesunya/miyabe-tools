@@ -673,14 +673,22 @@ def read_policy_path(page, record, policy_map):
     record["policy_path"] = path
 
 
+def is_label(cell):
+    """升目が欄名（文章の項目かそのほかの欄の見出し）か。見出しの右がもう一段の見出しの様式がある
+    （令和4〜7年度の「…次年度の取組内容の変更箇所」の右は「変更箇所（上記計画上の記載に対する変更箇所）」で、値はその右）。"""
+    text = norm(cell.text)
+    names = [label for _, labels in TEXT_LABELS for label in labels] + [label for label, _ in EXTRA_LABELS]
+    return any(text == norm(name) or text.startswith(norm(name) + "(") for name in names)
+
+
 def read_texts(page, record):
-    """文章の項目（形 2.0）。欄名の右の升目の文字を、番地付きでそのまま持つ。"""
+    """文章の項目（形 2.0）。欄名の右の升目の文字を、番地付きでそのまま持つ。右が見出しなら取らない。"""
     seen = {item["text"]["ref"] for item in record["texts"]}
     for key, labels in TEXT_LABELS:
         for label in labels:
             cell = label_cell(page, label)
             value = page.right(cell) if cell else None
-            if value and norm(value.text) and value.ref not in seen and not value.text.startswith("（上記"):
+            if value and norm(value.text) and value.ref not in seen and not value.text.startswith("（上記") and not is_label(value):
                 record["texts"].append({"key": key, "label_raw": cell.text, "text": value.value()})
                 seen.add(value.ref)
 
