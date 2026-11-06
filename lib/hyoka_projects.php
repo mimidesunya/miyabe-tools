@@ -14,8 +14,9 @@ const MIYABE_HYOKA_PROJECT_DIRECTIONS = ['expand', 'continue', 'maintain', 'impr
 const MIYABE_HYOKA_PROJECT_METHODS = ['program', 'ai', 'machine'];
 // 分析の印（tools/search/hyoka_projects.py の FLAG_NAMES）。原典の値から機械で付けたもので、問題があると決めたものではない。
 const MIYABE_HYOKA_PROJECT_FLAGS = ['outcome_below_half', 'expand_below_target', 'cost_up_below_target', 'no_outcome_target',
-    'repeated_text', 'renamed', 'not_in_latest'];
-const MIYABE_HYOKA_PROJECT_SORTS = ['relevance', 'cost_desc', 'cost_asc', 'cost_change_desc', 'outcome_ratio', 'year_desc'];
+    'repeated_text', 'renamed', 'not_in_latest', 'below_target_every_year', 'actual_halved', 'blank_sheet'];
+const MIYABE_HYOKA_PROJECT_SORTS = ['relevance', 'cost_desc', 'cost_asc', 'cost_change_desc', 'outcome_ratio', 'year_desc',
+    'personnel_ratio_desc', 'cost_per_person_desc'];
 const MIYABE_HYOKA_AMOUNT_SCOPES = [
     'total', 'direct', 'personnel', 'sub_project', 'breakdown', 'other',
     'funding_national', 'funding_prefecture', 'funding_bond', 'funding_fund', 'funding_user_fee',
@@ -46,8 +47,9 @@ const MIYABE_HYOKA_PROJECT_LIST_FIELDS = [
     'aspects', 'method', 'page', 'location', 'source_url', 'source_page_link',
     'policy_names', 'policy_top', 'policy_leaf', 'level', 'variant_base', 'variant_label', 'is_main', 'achievement', 'overall',
     'cost_yen', 'cost_year', 'cost_stage', 'cost_scope', 'cost_raw', 'cost_unit', 'cost_prev_yen', 'cost_change_ratio',
-    'staff_fte', 'has_amounts',
-    'outcome_ratio_min', 'indicator_ratio_min', 'indicators', 'flags', 'project_names', 'project_first_year', 'project_last_year',
+    'staff_fte', 'personnel_yen', 'personnel_ratio', 'has_amounts',
+    'outcome_ratio_min', 'indicator_ratio_min', 'outcome_best_ratio_min', 'actual_change_min', 'cost_per_person_yen',
+    'indicators', 'flags', 'project_names', 'project_first_year', 'project_last_year',
     'text_repeat_ratio',
 ];
 
@@ -114,7 +116,7 @@ function miyabe_hyoka_projects_bool(mixed $value): ?bool
  * 事業を絞る条件（探す・集計で共通）。返すのは ['params' => …, 'error' => 断る理由（無ければ空）]。
  * 受けるのは q, slug, municipality_code, pref_code, evaluation_year, department, policy, direction, rating, aspect,
  * achievement, overall, method, flag, is_main, has_amounts, min_cost, max_cost, max_outcome_ratio, below_target,
- * min_cost_change_ratio。
+ * min_cost_change_ratio, max_outcome_best_ratio, max_actual_change_ratio, min_personnel_ratio, min_cost_per_person。
  */
 function miyabe_hyoka_projects_filters(array $input): array
 {
@@ -174,7 +176,7 @@ function miyabe_hyoka_projects_filters(array $input): array
         }
         $params[$key] = $values;
     }
-    foreach (['min_cost', 'max_cost'] as $key) {
+    foreach (['min_cost', 'max_cost', 'min_cost_per_person'] as $key) {
         $value = miyabe_hyoka_projects_int($input[$key] ?? null, 0, PHP_INT_MAX);
         if ($value === PHP_INT_MIN) {
             return ['params' => $params, 'error' => $key . ' は 0 以上の整数（円）にしてください。'];
@@ -183,13 +185,19 @@ function miyabe_hyoka_projects_filters(array $input): array
     }
     $params['has_amounts'] = miyabe_hyoka_projects_bool($input['has_amounts'] ?? null);
     $params['is_main'] = miyabe_hyoka_projects_bool($input['is_main'] ?? null);
-    foreach (['max_outcome_ratio' => '実績 ÷ 目標', 'min_cost_change_ratio' => '今年の費用 ÷ 前年の費用'] as $key => $meaning) {
+    $ratios = [
+        'max_outcome_ratio' => ['実績 ÷ 目標', 1000], 'min_cost_change_ratio' => ['今年の費用 ÷ 前年の費用', 1000],
+        'max_outcome_best_ratio' => ['成果指標ごとの年度の比のうち最良の値', 1000],
+        'max_actual_change_ratio' => ['最後の年度の実績 ÷ 最初の年度の実績', 1000],
+        'min_personnel_ratio' => ['人件費 ÷ 費用。0〜1', 1],
+    ];
+    foreach ($ratios as $key => [$meaning, $max]) {
         $ratio = $input[$key] ?? null;
         $params[$key] = null;
         if ($ratio === null || $ratio === '') {
             continue;
         }
-        if (!is_scalar($ratio) || !is_numeric(trim((string)$ratio)) || (float)$ratio < 0 || (float)$ratio > 1000) {
+        if (!is_scalar($ratio) || !is_numeric(trim((string)$ratio)) || (float)$ratio < 0 || (float)$ratio > $max) {
             return ['params' => $params, 'error' => $key . ' は 0 以上の数（' . $meaning . '）にしてください。'];
         }
         $params[$key] = (float)$ratio;
@@ -264,6 +272,13 @@ function miyabe_hyoka_projects_filter_clauses(array $params): array
     if ($params['min_cost_change_ratio'] !== null) {
         $filters[] = ['range' => ['cost_change_ratio' => ['gte' => $params['min_cost_change_ratio']]]];
     }
+    // 推移・人件費・1 人あたりの費用（索引を作るときに計算した事業の側の値）
+    foreach (['max_outcome_best_ratio' => ['outcome_best_ratio_min', 'lte'], 'max_actual_change_ratio' => ['actual_change_min', 'lte'],
+        'min_personnel_ratio' => ['personnel_ratio', 'gte'], 'min_cost_per_person' => ['cost_per_person_yen', 'gte']] as $key => [$field, $op]) {
+        if ($params[$key] !== null) {
+            $filters[] = ['range' => [$field => [$op => $params[$key]]]];
+        }
+    }
     return $filters;
 }
 
@@ -317,6 +332,11 @@ function miyabe_hyoka_projects_search_request(array $input): array
         'cost_change_desc' => [['cost_change_ratio' => ['order' => 'desc', 'missing' => '_last']], $byCost('desc'), ['project_id' => 'asc']],
         'outcome_ratio' => [['outcome_ratio_min' => ['order' => 'asc', 'missing' => '_last']], $byCost('desc'), ['project_id' => 'asc']],
         'year_desc' => [['evaluation_year' => ['order' => 'desc', 'missing' => '_last']], $byCost('desc'), ['project_id' => 'asc']],
+        // schema_version 2 の欄。作り直す前の索引でも断られないよう、型を添える。
+        'personnel_ratio_desc' => [['personnel_ratio' => ['order' => 'desc', 'missing' => '_last', 'unmapped_type' => 'float']],
+            $byCost('desc'), ['project_id' => 'asc']],
+        'cost_per_person_desc' => [['cost_per_person_yen' => ['order' => 'desc', 'missing' => '_last', 'unmapped_type' => 'long']],
+            $byCost('desc'), ['project_id' => 'asc']],
         default => ['_score', $byCost('desc'), ['project_id' => 'asc']],
     };
     return [

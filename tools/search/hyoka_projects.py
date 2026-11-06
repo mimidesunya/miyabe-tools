@@ -22,7 +22,7 @@ from typing import Any, Iterable, Iterator
 
 ALIAS = "miyabe-hyoka-projects-current"
 INDEX_PREFIX = "miyabe-hyoka-projects-v"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # build_display_data.py の STAGE_NAMES・SCOPE_NAMES・SOURCE_NAMES・DIRECTION_NAMES・KIND_NAMES の逆引き。
 # 控えには日本語の名前で入っている。名前を変えたら両方を直す（test_hyoka_projects.py が突き合わせる）。
@@ -224,8 +224,34 @@ def indicator_rows(indicators: object, own_year: int) -> list[dict]:
             "name": str(indicator.get("name") or ""), "kind": KIND_CODES.get(kind, kind), "unit": str(indicator.get("unit") or ""),
             "year": int(chosen.get("year") or 0), "target": str(chosen.get("target") or ""), "actual": str(chosen.get("actual") or ""),
             "ratio": ratio,
+            **indicator_history(values, own_year, int(chosen.get("year") or 0)),
         })
     return rows
+
+
+def indicator_history(values: list[dict], own_year: int, year: int) -> dict:
+    """評価した年度までの推移。年度ごとの比（実績 ÷ 目標）のうち最良 `best_ratio`（比の出る年度が 2 つ以上のときだけ）と、
+    実績が正の最も古い年度 `first_year` から、行の年度 `year` までで実績が何倍になったか `change_ratio`。"""
+    ratios: dict[int, float] = {}
+    actuals: dict[int, tuple[float, str]] = {}
+    for value in values:
+        value_year = int(value.get("year") or 0)
+        actual = parse_number(value.get("actual"))
+        if value_year <= 0 or (own_year and value_year > own_year) or actual is None:
+            continue
+        actuals[value_year] = (actual, str(value.get("actual") or ""))
+        target = parse_number(value.get("target"))
+        if target is not None and target > 0:
+            ratios[value_year] = actual / target
+    first = min((value_year for value_year, (actual, _) in actuals.items() if actual > 0), default=None)
+    changed = first is not None and year in actuals and year > first
+    return {
+        "ratio_years": len(ratios),
+        "best_ratio": round(max(ratios.values()), 4) if len(ratios) >= 2 else None,
+        "first_year": first if changed else None,
+        "first_actual": actuals[first][1] if changed else None,
+        "change_ratio": round(actuals[year][0] / actuals[first][0], 4) if changed else None,
+    }
 
 
 # 1 単位あたりの費用を出さない単位（割合・点数・倍率は「1 単位」が意味を持たない）。
@@ -237,14 +263,61 @@ RATIO_NAME_RE = re.compile(r"率|割合|満足度|指数|度合|平均値|得点
 
 
 def cost_per_unit(cost_yen: int | None, row: dict) -> int | None:
-    """費用 ÷ 指標の実績（参加者 1 人あたりなど）。実績が 0 以下か、単位や名前から割合・点数と分かれば出さない。"""
+    """費用 ÷ 指標の実績（参加者 1 人あたりなど）。実績が 0 以下か、単位や名前から割合・点数・金額と分かれば出さない。"""
     actual = parse_number(row.get("actual"))
     unit = nfkc(row.get("unit"))
     if cost_yen is None or actual is None or actual <= 0 or unit in RATIO_UNITS or nfkc(row.get("actual")).endswith(("%", "点")):
         return None
-    if unit == "" and RATIO_NAME_RE.search(nfkc(row.get("name"))):
+    if unit.endswith("円") or (unit == "" and RATIO_NAME_RE.search(nfkc(row.get("name")))):
         return None
     return round(cost_yen / actual)
+
+
+# 事業が働きかけた人を数える指標（参加者・利用者・受講者など）。待機児童数・配置数・定員のような人の数は入れない。
+PERSON_UNITS = {"人", "名", "者"}
+PERSON_NAME_RE = re.compile(r"参加|来場|来館|来園|入館|入場|受講|利用者|利用人数|鑑賞|体験人数|来所|来訪者|修了者|視聴者")
+
+
+def is_person_indicator(row: dict) -> bool:
+    name = nfkc(row.get("name"))
+    if row.get("kind") == "target" or not PERSON_NAME_RE.search(name) or RATIO_NAME_RE.search(name):
+        return False
+    unit = nfkc(row.get("unit"))
+    return unit in PERSON_UNITS or (unit == "" and re.search(r"人|者|名", name) is not None)
+
+
+def cost_per_person(cost_yen: int | None, indicators: list[dict]) -> int | None:
+    """費用 ÷ 人を数える指標の実績のうち最も多いもの（いちばん控えめな 1 人あたりの費用）。"""
+    people = [parse_number(row.get("actual")) for row in indicators if is_person_indicator(row)]
+    people = [count for count in people if count is not None and count > 0]
+    return round(cost_yen / max(people)) if cost_yen is not None and people else None
+
+
+def personnel_share(facts: list[dict], cost: dict | None) -> tuple[int | None, float | None]:
+    """評価した年度の費用と同じ年度・段階の人件費と、費用に占める割合（事業費しか無ければ 事業費 + 人件費 で割る）。"""
+    if cost is None:
+        return None, None
+    personnel = next((fact["yen"] for fact in facts if fact["scope"] == "personnel" and fact["year"] == cost["year"]
+                      and fact["stage"] == cost["stage"]), None)
+    if personnel is None or personnel < 0:
+        return None, None
+    whole = cost["yen"] if cost["scope"] == "total" else cost["yen"] + personnel
+    return personnel, (round(personnel / whole, 4) if whole > 0 and personnel <= whole else None)
+
+
+# 事業を見分けるだけの欄。これ以外の欄・文章の項目・指標・評価がどれも無いシートを「空欄」とみる。
+IDENTITY_FIELD_KEYS = {"project_name", "project_code", "department", "evaluation_year", "target_year", "implementation_period"}
+
+
+def has_content(fields: dict[str, str], record: dict, indicators: list[dict]) -> bool:
+    """目的・内容・実績・評価の文か指標が 1 つでもあるか。組織コード・SDGs のゴールなどのそのほかの欄は数えない。"""
+    if indicators or any(key not in IDENTITY_FIELD_KEYS for key in fields):
+        return True
+    for key in ("texts", "raw_fields"):
+        if any(isinstance(item, dict) and str(item.get("text") or "").strip() for item in record.get(key) or []):
+            return True
+    return any(isinstance(row, dict) and (str(row.get("rating") or "").strip() or str(row.get("direction") or "").strip()
+                                          or row.get("reasons")) for row in record.get("evaluations") or [])
 
 
 # 評価の文として前の年度と比べる欄。目的・対象・根拠法令は毎年同じでよいので比べない。
@@ -275,7 +348,11 @@ FLAG_NAMES = {
     "repeated_text": "評価の文が前の年度とほぼ同じ",
     "renamed": "事業名が年度によって違う",
     "not_in_latest": "その自治体の最新の評価の年度に載っていない",
+    "below_target_every_year": "比の出る年度が 2 つ以上ある成果指標が、どの年度も目標に届いていない",
+    "actual_halved": "活動・成果指標の実績が、最初の年度の半分未満に減った",
+    "blank_sheet": "費用のあるシートなのに、目的・内容・実績・評価の文も指標も無い",
 }
+ACTUAL_HALVED = 0.5
 REPEAT_THRESHOLD = 0.9
 REPEAT_MIN_SENTENCES = 2
 
@@ -343,6 +420,9 @@ def project_document(slug: str, doc: dict, record: dict, meta: dict, municipalit
     pref_code = str(municipality.get("pref_code") or meta.get("pref_code") or slug[:2])
     for row in indicators:
         row["cost_per_unit_yen"] = cost_per_unit(cost["yen"] if cost else None, row)
+    personnel_yen, personnel_ratio = personnel_share(facts, cost)
+    best_outcome = [row["best_ratio"] for row in indicators if row["kind"] == "outcome" and row["best_ratio"] is not None]
+    actual_change = [row["change_ratio"] for row in indicators if row["kind"] in ("activity", "outcome") and row["change_ratio"] is not None]
     return {
         "project_id": f"hyoka-project:{slug}:{doc_id}:{record_id}",
         "schema_version": SCHEMA_VERSION,
@@ -391,9 +471,15 @@ def project_document(slug: str, doc: dict, record: dict, meta: dict, municipalit
         "cost_raw": cost["raw"] if cost else "",
         "cost_unit": cost["unit"] if cost else "",
         "staff_fte": staff_value(record.get("staff"), evaluation_year),
+        "personnel_yen": personnel_yen,
+        "personnel_ratio": personnel_ratio,
         "has_amounts": bool(facts),
         "outcome_ratio_min": min(outcome) if outcome else None,
         "indicator_ratio_min": min(every) if every else None,
+        # 推移: 成果指標ごとの年度の比のうち最良の値の最小（1 未満なら、どの年度も届かない指標がある）と、活動・成果指標の実績の増減の最小
+        "outcome_best_ratio_min": min(best_outcome) if best_outcome else None,
+        "actual_change_min": min(actual_change) if actual_change else None,
+        "cost_per_person_yen": cost_per_person(cost["yen"] if cost else None, indicators),
         "indicators": indicators,
         # 集計の内訳（自治体・部署・方向性ごと）と上位の事業を明細だけで出せるよう、事業の側の値も写す。
         "amounts": [{**fact, "best": False, "stage_best": False, "project_id": f"hyoka-project:{slug}:{doc_id}:{record_id}",
@@ -406,6 +492,8 @@ def project_document(slug: str, doc: dict, record: dict, meta: dict, municipalit
         "search_text": "\n".join(text for text in texts if text.strip()),
         # 前の年度の評価の文と比べるための文。mark_best が使って消す（索引には入れない）。
         "_evaluation_sentences": evaluation_sentences(fields, record),
+        # 空欄のシートの印に使う。同じく mark_best が消す。
+        "_has_content": has_content(fields, record, indicators),
     }
 
 
@@ -521,9 +609,15 @@ def add_history_and_flags(documents: list[dict]) -> None:
                         ratio = same if ratio is None else max(ratio, same)
             document["_sentences_done"] = mine
             document["text_repeat_ratio"] = round(ratio, 4) if ratio is not None else None
+    # 指標を活動と成果に分ける様式か（分けない様式では成果指標の有無が分からない）。指標の無いシートは、
+    # 同じ自治体のほかの記録で分けてあれば分ける様式とみる。
+    separates = any(row["kind"] in ("activity", "outcome") for document in documents for row in document["indicators"])
     for document in documents:
         document.pop("_sentences_done", None)
+        content = document.pop("_has_content", True)
         outcome = document["outcome_ratio_min"]
+        # 事業ごとのシート（総費用の行がある記録）。総括の表の行は指標や目的が無くて当たり前なので見ない。
+        sheet = any(fact["scope"] == "total" for fact in document["amounts"])
         flags = []
         if outcome is not None and outcome <= 0.5:
             flags.append("outcome_below_half")
@@ -531,9 +625,8 @@ def add_history_and_flags(documents: list[dict]) -> None:
             flags.append("expand_below_target")
         if outcome is not None and outcome < 1 and (document["cost_change_ratio"] or 0) >= 1.1:
             flags.append("cost_up_below_target")
-        # 指標を活動と成果に分ける様式でだけ見る（分けない様式では成果指標の有無が分からない）。
         kinds = {row["kind"] for row in document["indicators"]}
-        if document["cost_yen"] and kinds & {"activity", "outcome"} and not any(
+        if document["cost_yen"] and (kinds & {"activity", "outcome"} or (separates and sheet and not document["indicators"])) and not any(
                 row["kind"] == "outcome" and parse_number(row["target"]) is not None for row in document["indicators"]):
             flags.append("no_outcome_target")
         if (document["text_repeat_ratio"] or 0) >= REPEAT_THRESHOLD:
@@ -542,6 +635,12 @@ def add_history_and_flags(documents: list[dict]) -> None:
             flags.append("renamed")
         if latest and document["project_last_year"] and document["project_last_year"] < latest:
             flags.append("not_in_latest")
+        if document["outcome_best_ratio_min"] is not None and document["outcome_best_ratio_min"] < 1:
+            flags.append("below_target_every_year")
+        if document["actual_change_min"] is not None and document["actual_change_min"] < ACTUAL_HALVED:
+            flags.append("actual_halved")
+        if document["cost_yen"] and sheet and not content:
+            flags.append("blank_sheet")
         document["flags"] = flags
 
 
@@ -664,8 +763,11 @@ def index_body(settings: dict[str, Any]) -> dict[str, Any]:
                 "cost_yen": {"type": "long"}, "cost_year": {"type": "integer"}, "cost_stage": keyword, "cost_scope": keyword,
                 "cost_raw": {"type": "keyword", "index": False}, "cost_unit": {"type": "keyword", "index": False},
                 "cost_prev_yen": {"type": "long"}, "cost_change_ratio": {"type": "float"},
-                "staff_fte": {"type": "float"}, "has_amounts": {"type": "boolean"},
+                "staff_fte": {"type": "float"}, "personnel_yen": {"type": "long"}, "personnel_ratio": {"type": "float"},
+                "has_amounts": {"type": "boolean"},
                 "outcome_ratio_min": {"type": "float"}, "indicator_ratio_min": {"type": "float"},
+                "outcome_best_ratio_min": {"type": "float"}, "actual_change_min": {"type": "float"},
+                "cost_per_person_yen": {"type": "long"},
                 "flags": keyword, "project_names": {"type": "keyword", "ignore_above": 256},
                 "project_first_year": {"type": "integer"}, "project_last_year": {"type": "integer"},
                 "text_repeat_ratio": {"type": "float"},

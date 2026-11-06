@@ -246,13 +246,17 @@ paths:
         - $ref: "#/components/parameters/ProjectBelowTarget"
         - $ref: "#/components/parameters/ProjectMaxOutcomeRatio"
         - $ref: "#/components/parameters/ProjectMinCostChangeRatio"
+        - $ref: "#/components/parameters/ProjectMaxOutcomeBestRatio"
+        - $ref: "#/components/parameters/ProjectMaxActualChangeRatio"
+        - $ref: "#/components/parameters/ProjectMinPersonnelRatio"
+        - $ref: "#/components/parameters/ProjectMinCostPerPerson"
         - name: sort
           in: query
           required: false
-          description: relevance 関連度、cost_desc 費用の大きい順、cost_asc 小さい順、cost_change_desc 前年度からの増え方の大きい順、outcome_ratio 成果指標の達成の低い順、year_desc 新しい評価から。既定は q があれば relevance、無ければ cost_desc。
+          description: relevance 関連度、cost_desc 費用の大きい順、cost_asc 小さい順、cost_change_desc 前年度からの増え方の大きい順、outcome_ratio 成果指標の達成の低い順、year_desc 新しい評価から、personnel_ratio_desc 費用に占める人件費の割合の高い順、cost_per_person_desc 1人あたりの費用の高い順。既定は q があれば relevance、無ければ cost_desc。
           schema:
             type: string
-            enum: [relevance, cost_desc, cost_asc, cost_change_desc, outcome_ratio, year_desc]
+            enum: [relevance, cost_desc, cost_asc, cost_change_desc, outcome_ratio, year_desc, personnel_ratio_desc, cost_per_person_desc]
         - name: page
           in: query
           required: false
@@ -316,6 +320,10 @@ paths:
         - $ref: "#/components/parameters/ProjectBelowTarget"
         - $ref: "#/components/parameters/ProjectMaxOutcomeRatio"
         - $ref: "#/components/parameters/ProjectMinCostChangeRatio"
+        - $ref: "#/components/parameters/ProjectMaxOutcomeBestRatio"
+        - $ref: "#/components/parameters/ProjectMaxActualChangeRatio"
+        - $ref: "#/components/parameters/ProjectMinPersonnelRatio"
+        - $ref: "#/components/parameters/ProjectMinCostPerPerson"
         - name: year
           in: query
           required: false
@@ -566,7 +574,7 @@ components:
       name: flag
       in: query
       required: false
-      description: 分析の印（カンマ区切り、すべてを持つ事業）。outcome_below_half 成果指標が目標の半分以下、expand_below_target 目標割れなのに拡充、cost_up_below_target 目標割れなのに費用が前年度の1.1倍以上、no_outcome_target 目標の数のある成果指標が無い、repeated_text 評価の文が前年度とほぼ同じ、renamed 事業名が年度で違う、not_in_latest 最新の評価年度に無い。原典の値から機械で付けた印で、問題があると決めたものではありません。
+      description: 分析の印（カンマ区切り、すべてを持つ事業）。outcome_below_half 成果指標が目標の半分以下、expand_below_target 目標割れなのに拡充、cost_up_below_target 目標割れなのに費用が前年度の1.1倍以上、no_outcome_target 目標の数のある成果指標が無い、repeated_text 評価の文が前年度とほぼ同じ、renamed 事業名が年度で違う、not_in_latest 最新の評価年度に無い、below_target_every_year 比の出る年度が2つ以上ある成果指標がどの年度も目標割れ、actual_halved 活動・成果指標の実績が最初の年度の半分未満に減った、blank_sheet 費用のあるシートなのに目的・内容・実績・評価の文も指標も無い。原典の値から機械で付けた印で、問題があると決めたものではありません。
       schema:
         type: string
       example: outcome_below_half,cost_up_below_target
@@ -623,6 +631,39 @@ components:
       schema:
         type: number
         minimum: 0
+    ProjectMaxOutcomeBestRatio:
+      name: max_outcome_best_ratio
+      in: query
+      required: false
+      description: "何年も目標に届かない事業を探す。成果指標ごとに、評価した年度までの年度の比（実績 ÷ 目標）のうち最良の値をとり、その最小がこの値以下の事業。比の出る年度が2つ以上の指標だけを見ます。例: 0.6 でどの年度も目標の6割に届かない成果指標がある事業。"
+      schema:
+        type: number
+        minimum: 0
+    ProjectMaxActualChangeRatio:
+      name: max_actual_change_ratio
+      in: query
+      required: false
+      description: "活動・成果指標の実績が減った事業を探す。実績が正の最も古い年度から評価の年度までの実績の比（後 ÷ 前）の最小の上限。例: 0.5 で半分以下に減った指標がある事業。少ない方が良い指標もあります。"
+      schema:
+        type: number
+        minimum: 0
+    ProjectMinPersonnelRatio:
+      name: min_personnel_ratio
+      in: query
+      required: false
+      description: 評価した年度の費用に占める人件費の割合の下限（0〜1）。人件費は自治体の見積もり（人工 × 単価）のことが多いです。
+      schema:
+        type: number
+        minimum: 0
+        maximum: 1
+    ProjectMinCostPerPerson:
+      name: min_cost_per_person
+      in: query
+      required: false
+      description: 参加者・利用者・受講者など人を数える指標での1人あたりの費用の下限（円）。費用 ÷ その種の指標の実績のうち最も多いもの。費用は事業全体なので、指標が事業の一部しか表さない場合は大きく出ます。
+      schema:
+        type: integer
+        minimum: 0
   schemas:
     HyokaProject:
       type: object
@@ -663,6 +704,12 @@ components:
         staff_fte:
           type: [number, "null"]
           description: 人工（職員の数の換算）。
+        personnel_yen:
+          type: [integer, "null"]
+          description: 評価した年度の費用と同じ年度・段階の人件費（円）。
+        personnel_ratio:
+          type: [number, "null"]
+          description: 費用に占める人件費の割合（0〜1）。
         rating:
           type: string
         direction:
@@ -694,9 +741,33 @@ components:
                 type: [number, "null"]
               cost_per_unit_yen:
                 type: [integer, "null"]
-                description: 費用 ÷ 実績（1単位あたりの費用、円）。割合・点数の指標では出しません。
+                description: 費用 ÷ 実績（1単位あたりの費用、円）。割合・点数・金額の指標では出しません。
+              ratio_years:
+                type: integer
+                description: 目標と実績の両方がある年度の数（評価した年度まで）。
+              best_ratio:
+                type: [number, "null"]
+                description: 年度ごとの比のうち最良の値（比の出る年度が2つ以上のとき）。
+              first_year:
+                type: [integer, "null"]
+                description: 実績が正の最も古い年度。
+              first_actual:
+                type: [string, "null"]
+                description: その年度の実績（原典の記載）。
+              change_ratio:
+                type: [number, "null"]
+                description: year の実績 ÷ first_year の実績。
         outcome_ratio_min:
           type: [number, "null"]
+        outcome_best_ratio_min:
+          type: [number, "null"]
+          description: 成果指標ごとの年度の比のうち最良の値の、指標のうち最小のもの。1 未満なら、どの年度も目標に届かない成果指標があります。
+        actual_change_min:
+          type: [number, "null"]
+          description: 活動・成果指標の実績の、最初の年度から評価の年度までの比の最小。
+        cost_per_person_yen:
+          type: [integer, "null"]
+          description: 参加者・利用者など人を数える指標での1人あたりの費用（円）。
         flags:
           type: array
           items:

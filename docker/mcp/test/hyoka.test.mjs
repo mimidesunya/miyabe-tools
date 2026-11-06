@@ -32,7 +32,8 @@ const projectFixture = {
   cost_prev_yen: 951217000, cost_change_ratio: 1.0603, staff_fte: 14.56, rating: "3", direction: "improve",
   direction_text: "Ⅱ（改善・見直し）", aspects: ["成果:b"], outcome_ratio_min: null, score: null,
   indicators: [{ name: "展覧会等の開催回数", kind: "activity", unit: "回", year: 2024, target: "4", actual: "10", ratio: 2.5,
-    cost_per_unit_yen: 100856900 }],
+    cost_per_unit_yen: 100856900, best_ratio: 2.5, first_year: 2022, first_actual: "20", change_ratio: 0.5 }],
+  personnel_yen: 160000000, personnel_ratio: 0.1586, cost_per_person_yen: 56000, outcome_best_ratio_min: 0.537, actual_change_min: 0.5,
   flags: ["no_outcome_target", "renamed"], project_names: ["市民ミュージアム運営事業", "市民ミュージアム管理運営事業"],
   project_first_year: 2011, project_last_year: 2025, slug: "14130-kawasaki-shi",
   policy_names: ["5 市民自治の地域づくり", "5-2-1 人権尊重のまちづくり"], is_main: true, achievement: "below", overall: "middle",
@@ -255,13 +256,24 @@ test("hyoka MCP contract through a local public API mock", { timeout: 30000 }, a
     assert.match(text, /原典 1,008,569千円/);
     assert.match(text, /前年度比 106%（前年度 9億5,122万円）/);
     assert.match(text, /方向性 改善・見直し/);
-    assert.match(text, /展覧会等の開催回数 2024年度 目標 4 実績 10回（250%） \/ 1回あたり 1億86万円/);
+    assert.match(text, /展覧会等の開催回数 2024年度 目標 4 実績 10回（250%） \/ 1回あたり 1億86万円 \/ 最良の年度 250% \/ 2022年度の 20 から 50%/);
+    assert.match(text, /計算: 人件費 1億6,000万円（費用の 15.9%） \/ 参加者・利用者など 1 人あたり 6万円 \/ 成果指標の最良の年度の比（指標のうち最も低いもの） 53.7% \/ 指標の実績の増減（最初の年度から） 最小 50%/);
     assert.match(text, /印: 目標の数のある成果指標が無い \/ 事業名が年度で違う/);
     assert.match(text, /履歴: 2011〜2025年度の評価に載る \/ 名前: 市民ミュージアム運営事業 → 市民ミュージアム管理運営事業/);
     const flagged = await rpc(base, "tools/call", { name: "search_hyoka_projects", arguments: {
       flag: ["outcome_below_half", "cost_up_below_target"] } });
     assert.notEqual(flagged.isError, true, JSON.stringify(flagged));
     assert.equal(requests.at(-1).searchParams.get("flag"), "outcome_below_half,cost_up_below_target");
+    const trends = await rpc(base, "tools/call", { name: "search_hyoka_projects", arguments: {
+      max_outcome_best_ratio: 0.6, max_actual_change_ratio: 0.5, min_personnel_ratio: 0.7, min_cost_per_person: 50000,
+      flag: ["below_target_every_year", "actual_halved", "blank_sheet"], sort: "personnel_ratio_desc" } });
+    assert.notEqual(trends.isError, true, JSON.stringify(trends));
+    for (const [key, value] of Object.entries({ max_outcome_best_ratio: "0.6", max_actual_change_ratio: "0.5", min_personnel_ratio: "0.7",
+      min_cost_per_person: "50000", flag: "below_target_every_year,actual_halved,blank_sheet", sort: "personnel_ratio_desc" })) {
+      assert.equal(requests.at(-1).searchParams.get(key), value);
+    }
+    const tooHigh = await rpc(base, "tools/call", { name: "search_hyoka_projects", arguments: { min_personnel_ratio: 1.5 } });
+    assert.equal(tooHigh.isError, true);
     const rejected = await rpc(base, "tools/call", { name: "search_hyoka_projects", arguments: { flag: ["wasteful"] } });
     assert.equal(rejected.isError, true);
     // 形 2.0 の体系・そろえた評価・主な事業での絞り込み

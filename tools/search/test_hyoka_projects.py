@@ -187,6 +187,70 @@ def test_cost_per_unit_skips_ratios_and_zero():
     assert hp.cost_per_unit(None, {"actual": "10", "unit": "回"}) is None
     assert hp.cost_per_unit(1_000_000, {"name": "重要な管路の耐震化率", "actual": "98.5", "unit": ""}) is None
     assert hp.cost_per_unit(1_000_000, {"name": "工業用水道管路の更新延長", "actual": "0.9", "unit": ""}) == 1_111_111
+    assert hp.cost_per_unit(1_000_000, {"name": "会費の収納額", "actual": "67,880", "unit": "千円"}) is None
+
+
+def test_indicator_history_best_ratio_and_change():
+    indicators = [
+        {"name": "交流イベントへの参加人数", "kind": "成果", "unit": "人", "values": [
+            {"year": 2022, "target": "4,000", "actual": "3,097"}, {"year": 2023, "target": "4,000", "actual": "188"},
+            {"year": 2024, "target": "4,000", "actual": "83"}, {"year": 2025, "target": "4,000", "actual": ""}]},
+        {"name": "協議会の開催回数", "kind": "活動", "unit": "回", "values": [{"year": 2024, "target": "2", "actual": "2"}]},
+    ]
+    outcome, activity = hp.indicator_rows(indicators, 2025)
+    assert (outcome["year"], outcome["ratio_years"], outcome["best_ratio"]) == (2024, 3, round(3097 / 4000, 4))
+    assert (outcome["first_year"], outcome["first_actual"], outcome["change_ratio"]) == (2022, "3,097", round(83 / 3097, 4))
+    # 年度が 1 つだけなら推移は出さない
+    assert (activity["best_ratio"], activity["first_year"], activity["change_ratio"]) == (None, None, None)
+
+
+def test_person_cost_counts_only_people_served():
+    rows = [{"name": "平和館の入館者数", "kind": "outcome", "unit": "", "actual": "20,000"},
+            {"name": "講座の参加者数", "kind": "activity", "unit": "人", "actual": "500"},
+            {"name": "待機児童数", "kind": "outcome", "unit": "人", "actual": "3"},
+            {"name": "講座の参加率", "kind": "outcome", "unit": "%", "actual": "80"},
+            {"name": "市内の利用者数", "kind": "target", "unit": "人", "actual": "1,500,000"}]
+    assert [hp.is_person_indicator(row) for row in rows] == [True, True, False, False, False]
+    # いちばん多い人数で割る（控えめな値）
+    assert hp.cost_per_person(10_000_000, rows) == 500
+    assert hp.cost_per_person(10_000_000, rows[2:]) is None
+
+
+def test_personnel_share_uses_same_year_and_stage():
+    table = amounts("千円", [(2024, "決算"), (2025, "見込")], [
+        ("事業費", "事業費（人件費を除く）", ["100", "200"]), ("人件費", "人件費", ["300", "600"]),
+        ("総コスト", "総費用（人件費を含む）", ["400", "800"])])
+    document = hp.project_document(SLUG, {"doc_id": "a" * 16}, record("r1", "区役所改革推進事業", year=2025, table=table), {}, {})
+    assert (document["cost_year"], document["personnel_yen"], document["personnel_ratio"]) == (2025, 600_000, 0.75)
+    direct_only = amounts("千円", [(2025, "予算")], [("事業費", "事業費（人件費を除く）", ["100"]), ("人件費", "人件費", ["300"])])
+    document = hp.project_document(SLUG, {"doc_id": "b" * 16}, record("r2", "広報事業", year=2025, table=direct_only), {}, {})
+    assert (document["cost_scope"], document["personnel_ratio"]) == ("direct", 0.75)
+
+
+def test_flags_for_trends_and_blank_sheets():
+    missed = [{"name": "利用者数", "kind": "成果", "unit": "人", "values": [
+        {"year": 2023, "target": "100", "actual": "50"}, {"year": 2024, "target": "100", "actual": "60"}]}]
+    dropped = [{"name": "参加者数", "kind": "活動", "unit": "人", "values": [
+        {"year": 2022, "target": "", "actual": "300"}, {"year": 2024, "target": "", "actual": "100"}]}]
+    blank = record("r3", "地域課題対応事業（中原区）", table=sheet(2024, ["100", "120"]))
+    blank["fields"] = [field for field in blank["fields"] if field["key"] != "future_direction"]
+    blank["evaluations"] = []
+    blank["extra_fields"] = [{"section": "", "label": "組織コード", "text": "651650"}]
+    summary_row = record("r4", "総括の行", table=amounts("千円", [(2024, "決算")], [("事業費", "事業費（人件費を除く）", ["50"])]))
+    summary_row["fields"] = summary_row["fields"][:1]
+    summary_row["evaluations"] = []
+    documents = [hp.project_document(SLUG, {"doc_id": "a" * 16}, base, {"fiscal_year": 2024}, {}) for base in (
+        record("r1", "市民プラザ管理運営事業", table=sheet(2024, ["100", "120"]), indicators=missed),
+        record("r2", "国際交流推進事業", table=sheet(2024, ["100", "120"]), indicators=dropped),
+        blank, summary_row)]
+    hp.mark_best(documents)
+    flags = {document["record_id"]: document["flags"] for document in documents}
+    assert documents[0]["outcome_best_ratio_min"] == 0.6 and "below_target_every_year" in flags["r1"]
+    assert documents[1]["actual_change_min"] == round(100 / 300, 4) and "actual_halved" in flags["r2"]
+    # 指標の無いシートは、同じ自治体で指標を分ける様式なら成果指標が無いとみる。総括の表の行には付けない
+    assert flags["r3"] == ["no_outcome_target", "blank_sheet"]
+    assert flags["r4"] == []
+    assert documents[1]["cost_per_person_yen"] == 1_200
 
 
 def with_reason(base: dict, text: str) -> dict:
@@ -209,7 +273,8 @@ def test_flags_history_and_repeated_text():
         {"fiscal_year": 2024}, {})
     hp.mark_best([first, second, activity_only])
     assert second["text_repeat_ratio"] == 1.0 and first["text_repeat_ratio"] is None
-    assert set(second["flags"]) == {"outcome_below_half", "expand_below_target", "cost_up_below_target", "repeated_text", "renamed"}
+    assert set(second["flags"]) == {"outcome_below_half", "expand_below_target", "cost_up_below_target", "repeated_text", "renamed",
+                                    "below_target_every_year", "actual_halved"}
     assert second["project_names"] == ["広報事業", "広報推進事業"] and (second["project_first_year"], second["project_last_year"]) == (2023, 2024)
     assert "not_in_latest" not in first["flags"] and first["flags"] == ["renamed"]
     assert activity_only["flags"] == ["no_outcome_target"]

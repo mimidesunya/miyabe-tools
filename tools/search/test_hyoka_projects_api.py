@@ -158,6 +158,25 @@ def test_search_form_2_filters(api):
         assert clause in filters, clause
 
 
+def test_search_trend_personnel_and_person_cost_filters(api):
+    call, requests, _ = api
+    status, payload = call("hyoka-projects", max_outcome_best_ratio="0.6", max_actual_change_ratio="0.5", min_personnel_ratio="0.7",
+                           min_cost_per_person="50000", flag="below_target_every_year,actual_halved,blank_sheet",
+                           sort="personnel_ratio_desc")
+    assert status == 200, payload
+    body = requests[-1][1]
+    filters = body["query"]["bool"]["filter"]
+    for clause in ({"range": {"outcome_best_ratio_min": {"lte": 0.6}}}, {"range": {"actual_change_min": {"lte": 0.5}}},
+                   {"range": {"personnel_ratio": {"gte": 0.7}}}, {"range": {"cost_per_person_yen": {"gte": 50000}}},
+                   {"term": {"flags": "below_target_every_year"}}, {"term": {"flags": "actual_halved"}}, {"term": {"flags": "blank_sheet"}}):
+        assert clause in filters, clause
+    assert list(body["sort"][0]) == ["personnel_ratio"]
+    for field in ("personnel_ratio", "outcome_best_ratio_min", "actual_change_min", "cost_per_person_yen"):
+        assert field in body["_source"]
+    status, _ = call("hyoka-projects", sort="cost_per_person_desc")
+    assert status == 200 and list(requests[-1][1]["sort"][0]) == ["cost_per_person_yen"]
+
+
 def test_aggregate_groups_by_policy_and_variant(api):
     call, requests, response = api
     response["body"] = {"hits": {"total": {"value": 0}}, "aggregations": {"facts": {"picked": {"doc_count": 0, "sum": {"value": 0},
@@ -172,7 +191,8 @@ def test_aggregate_groups_by_policy_and_variant(api):
 
 @pytest.mark.parametrize("params", [{"direction": "bigger"}, {"flag": "wasteful"}, {"min_cost": "-1"}, {"evaluation_year": "令和6"},
                                     {"sort": "random"}, {"per_page": "500"}, {"slug": "../x"}, {"max_outcome_ratio": "x"},
-                                    {"achievement": "good"}, {"overall": "A"}, {"policy": "x" * 101}])
+                                    {"achievement": "good"}, {"overall": "A"}, {"policy": "x" * 101},
+                                    {"min_personnel_ratio": "1.5"}, {"min_cost_per_person": "1.5"}, {"max_actual_change_ratio": "x"}])
 def test_search_rejects_bad_params_before_http(api, params):
     call, requests, _ = api
     status, payload = call("hyoka-projects", **params)

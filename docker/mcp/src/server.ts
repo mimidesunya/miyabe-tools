@@ -305,14 +305,17 @@ function formatDocumentText(document: any): string {
 
 // 事務事業評価の事業ごとの索引（/api/hyoka-projects.php・hyoka-aggregate.php・hyoka-project.php）。
 const PROJECT_DIRECTIONS = ["expand", "continue", "maintain", "improve", "reduce", "integrate", "suspend", "abolish", "complete", "other"] as const;
-const PROJECT_SORTS = ["relevance", "cost_desc", "cost_asc", "cost_change_desc", "outcome_ratio", "year_desc"] as const;
+const PROJECT_SORTS = ["relevance", "cost_desc", "cost_asc", "cost_change_desc", "outcome_ratio", "year_desc",
+  "personnel_ratio_desc", "cost_per_person_desc"] as const;
 // 分析の印（tools/search/hyoka_projects.py の FLAG_NAMES）。原典の値から機械で付けたもので、問題があると決めたものではない。
 const PROJECT_FLAGS = ["outcome_below_half", "expand_below_target", "cost_up_below_target", "no_outcome_target",
-  "repeated_text", "renamed", "not_in_latest"] as const;
+  "repeated_text", "renamed", "not_in_latest", "below_target_every_year", "actual_halved", "blank_sheet"] as const;
 const FLAG_LABELS: Record<string, string> = {
   outcome_below_half: "成果指標が目標の半分以下", expand_below_target: "目標割れなのに拡充",
   cost_up_below_target: "目標割れなのに費用が前年度より1割以上増", no_outcome_target: "目標の数のある成果指標が無い",
-  repeated_text: "評価の文が前年度とほぼ同じ", renamed: "事業名が年度で違う", not_in_latest: "最新の評価年度に無い"
+  repeated_text: "評価の文が前年度とほぼ同じ", renamed: "事業名が年度で違う", not_in_latest: "最新の評価年度に無い",
+  below_target_every_year: "成果指標がどの年度も目標割れ", actual_halved: "指標の実績が最初の年度の半分未満に減った",
+  blank_sheet: "費用があるのにシートの目的・内容・実績・指標が空欄"
 };
 const AMOUNT_SCOPES = [
   "total", "direct", "personnel", "sub_project", "breakdown", "other",
@@ -371,7 +374,8 @@ function formatRatio(value: unknown): string {
 function buildProjectFilterParams(args: any): URLSearchParams {
   const params = new URLSearchParams();
   for (const key of ["q", "slug", "municipality_code", "pref_code", "evaluation_year", "department", "policy", "method", "has_amounts",
-    "is_main", "min_cost", "max_cost", "below_target", "max_outcome_ratio", "min_cost_change_ratio"]) {
+    "is_main", "min_cost", "max_cost", "below_target", "max_outcome_ratio", "min_cost_change_ratio",
+    "max_outcome_best_ratio", "max_actual_change_ratio", "min_personnel_ratio", "min_cost_per_person"]) {
     addOptional(params, key, args[key]);
   }
   for (const key of ["direction", "rating", "aspect", "achievement", "overall", "flag"]) {
@@ -411,6 +415,23 @@ function projectCostText(item: any): string {
   return `${item.cost_year}年度${STAGE_LABELS[item.cost_stage] || ""}の${scope} ${formatYen(item.cost_yen)}${raw}${change}`;
 }
 
+// 索引を作るときに計算した値（推移・人件費の割合・1 人あたりの費用）。
+function projectAnalysisText(item: any): string {
+  const has = (value: unknown) => value !== null && value !== undefined;
+  return [
+    has(item?.personnel_ratio) ? `人件費 ${formatYen(item.personnel_yen)}（費用の ${formatRatio(item.personnel_ratio)}）` : "",
+    has(item?.cost_per_person_yen) ? `参加者・利用者など 1 人あたり ${formatYen(item.cost_per_person_yen)}` : "",
+    has(item?.outcome_best_ratio_min) ? `成果指標の最良の年度の比（指標のうち最も低いもの） ${formatRatio(item.outcome_best_ratio_min)}` : "",
+    has(item?.actual_change_min) ? `指標の実績の増減（最初の年度から） 最小 ${formatRatio(item.actual_change_min)}` : ""
+  ].filter(Boolean).join(" / ");
+}
+
+function indicatorTrendText(row: any): string {
+  return (row.best_ratio !== null && row.best_ratio !== undefined ? ` / 最良の年度 ${formatRatio(row.best_ratio)}` : "")
+    + (row.change_ratio !== null && row.change_ratio !== undefined
+      ? ` / ${row.first_year}年度の ${row.first_actual} から ${formatRatio(row.change_ratio)}` : "");
+}
+
 function flagsText(item: any): string {
   return (Array.isArray(item?.flags) ? item.flags : []).map((flag: string) => FLAG_LABELS[flag] || flag).join(" / ");
 }
@@ -434,7 +455,8 @@ function formatProjectsText(payload: any): string {
       .slice(0, 4)
       .map((row: any) => `${row.name || "(指標名なし)"} ${row.year || ""}年度 目標 ${row.target || "-"} 実績 ${row.actual || "-"}${row.unit || ""}`
         + (row.ratio !== null && row.ratio !== undefined ? `（${formatRatio(row.ratio)}）` : "")
-        + (row.cost_per_unit_yen ? ` / 1${row.unit || "単位"}あたり ${formatYen(row.cost_per_unit_yen)}` : ""));
+        + (row.cost_per_unit_yen ? ` / 1${row.unit || "単位"}あたり ${formatYen(row.cost_per_unit_yen)}` : "")
+        + indicatorTrendText(row));
     const evaluation = [
       item.rating ? `評価 ${item.rating}` : "",
       item.achievement ? `達成度 ${LEVEL_LABELS[item.achievement] || item.achievement}` : "",
@@ -455,6 +477,7 @@ function formatProjectsText(payload: any): string {
         ? `   体系: ${item.policy_names.join(" > ")}${item.is_main === true ? "（主な事業）" : ""}` : "",
       item.variant_base && item.variant_base !== item.project_name ? `   分け: ${item.variant_base} の ${item.variant_label || ""}` : "",
       projectCostText(item) ? `   費用: ${projectCostText(item)}${item.staff_fte ? ` / 人工 ${item.staff_fte}` : ""}` : "",
+      projectAnalysisText(item) ? `   計算: ${projectAnalysisText(item)}` : "",
       evaluation.length > 0 ? `   ${evaluation.join(" / ")}` : "",
       Array.isArray(item.aspects) && item.aspects.length > 0 ? `   観点: ${item.aspects.join(" ")}` : "",
       ...indicators.map((text: string) => `   指標: ${text}`),
@@ -528,6 +551,7 @@ function formatProjectText(payload: any): string {
     project.source_page_link ? `source page: ${project.source_page_link}` : "",
     project.detail_url ? `detail: ${project.detail_url}` : "",
     projectCostText(project) ? `費用: ${projectCostText(project)}` : "",
+    projectAnalysisText(project) ? `計算: ${projectAnalysisText(project)}` : "",
     flagsText(project) ? `印: ${flagsText(project)}（原典の値から機械で付けた印。問題と決めたものではない）` : "",
     historyText(project) ? `履歴: ${historyText(project)}` : ""
   ];
@@ -805,14 +829,22 @@ const projectFilterShape = {
   below_target: z.boolean().optional().describe("true なら成果指標のどれかが目標に届いていない（実績 ÷ 目標 < 1）事業だけ。少ない方が良い指標もあるので原典で確かめる。"),
   max_outcome_ratio: z.number().min(0).max(1000).optional().describe("成果指標の実績 ÷ 目標の最小値の上限。例: 0.5 で目標の半分以下の指標がある事業。"),
   min_cost_change_ratio: z.number().min(0).max(1000).optional().describe("前の年度からの費用の比（今年 ÷ 前年）の下限。例: 1.5 で 5 割以上増えた事業。"),
-  flag: z.array(z.enum(PROJECT_FLAGS)).max(7).optional()
-    .describe("分析の印（複数はすべてを持つ事業）。outcome_below_half 成果指標が目標の半分以下、expand_below_target 目標割れなのに拡充、cost_up_below_target 目標割れなのに費用が前年度より1割以上増、no_outcome_target 費用があるのに目標の数のある成果指標が無い、repeated_text 評価の文が前年度とほぼ同じ、renamed 事業名が年度で違う、not_in_latest その自治体の最新の評価年度に無い。原典の値から機械で付けた印で、問題と決めたものではない。")
+  max_outcome_best_ratio: z.number().min(0).max(1000).optional()
+    .describe("何年も目標に届かない事業を探す。成果指標ごとに評価した年度までの年度の比（実績 ÷ 目標）のうち最良の値をとり、その最小がこの値以下の事業。比の出る年度が 2 つ以上の指標だけを見る。例: 0.6 でどの年度も目標の 6 割に届かない成果指標がある事業。"),
+  max_actual_change_ratio: z.number().min(0).max(1000).optional()
+    .describe("活動・成果指標の実績が減った事業を探す。実績が正の最も古い年度から評価の年度までの実績の比（後 ÷ 前）の最小の上限。例: 0.5 で半分以下に減った指標がある事業。少ない方が良い指標もあるので原典で確かめる。"),
+  min_personnel_ratio: z.number().min(0).max(1).optional()
+    .describe("評価した年度の費用に占める人件費の割合の下限（0〜1）。例: 0.7 で費用の 7 割以上が人件費の事業。人件費は自治体の見積もり（人工 × 単価）のことが多い。"),
+  min_cost_per_person: z.number().int().min(0).optional()
+    .describe("参加者・利用者・受講者など人を数える指標での 1 人あたりの費用の下限（円）。費用 ÷ その種の指標の実績のうち最も多いもの。費用は事業全体なので、指標が事業の一部しか表さない場合は大きく出る。"),
+  flag: z.array(z.enum(PROJECT_FLAGS)).max(10).optional()
+    .describe("分析の印（複数はすべてを持つ事業）。outcome_below_half 成果指標が目標の半分以下、expand_below_target 目標割れなのに拡充、cost_up_below_target 目標割れなのに費用が前年度より1割以上増、no_outcome_target 費用があるのに目標の数のある成果指標が無い、repeated_text 評価の文が前年度とほぼ同じ、renamed 事業名が年度で違う、not_in_latest その自治体の最新の評価年度に無い、below_target_every_year 比の出る年度が 2 つ以上ある成果指標がどの年度も目標割れ、actual_halved 活動・成果指標の実績が最初の年度の半分未満に減った、blank_sheet 費用のあるシートなのに目的・内容・実績・評価の文も指標も無い。原典の値から機械で付けた印で、問題と決めたものではない。")
 };
 
 const projectsInputSchema = z.object({
   ...projectFilterShape,
   sort: z.enum(PROJECT_SORTS).optional()
-    .describe("relevance 関連度、cost_desc 費用の大きい順、cost_asc 小さい順、cost_change_desc 前年度からの増え方の大きい順、outcome_ratio 成果指標の達成の低い順、year_desc 新しい評価から。既定は q があれば relevance、無ければ cost_desc。"),
+    .describe("relevance 関連度、cost_desc 費用の大きい順、cost_asc 小さい順、cost_change_desc 前年度からの増え方の大きい順、outcome_ratio 成果指標の達成の低い順、year_desc 新しい評価から、personnel_ratio_desc 費用に占める人件費の割合の高い順、cost_per_person_desc 1 人あたりの費用の高い順。既定は q があれば relevance、無ければ cost_desc。"),
   page: z.number().int().min(1).default(1).describe("結果のページ番号。page × per_page は 10000 まで。"),
   per_page: z.number().int().min(1).max(50).default(10).describe("1ページの件数。MCPでは最大50件。")
 });
@@ -839,6 +871,11 @@ const projectItemShape = {
   cost_yen: z.number().nullable().optional().describe("評価した年度の費用（円）。総費用、無ければ事業費（cost_scope）。原典の値は cost_raw と cost_unit。"),
   cost_change_ratio: z.number().nullable().optional().describe("前の年度からの費用の比（今年 ÷ 前年）。"),
   outcome_ratio_min: z.number().nullable().optional().describe("成果指標の実績 ÷ 目標の最小値。"),
+  outcome_best_ratio_min: z.number().nullable().optional().describe("成果指標ごとの年度の比のうち最良の値の、指標のうち最小のもの。1 未満なら、どの年度も目標に届かない成果指標がある。"),
+  actual_change_min: z.number().nullable().optional().describe("活動・成果指標の実績の、最初の年度から評価の年度までの比の最小。"),
+  personnel_yen: z.number().nullable().optional().describe("評価した年度の費用と同じ年度・段階の人件費（円）。"),
+  personnel_ratio: z.number().nullable().optional().describe("費用に占める人件費の割合（0〜1）。"),
+  cost_per_person_yen: z.number().nullable().optional().describe("参加者・利用者など人を数える指標での 1 人あたりの費用（円）。"),
   direction: z.string().nullable().optional().describe("今後の方向性の区分。"),
   achievement: z.string().nullable().optional().describe("そろえた達成度（above・on_target・below）。"),
   overall: z.string().nullable().optional().describe("そろえた総合評価（high・middle・low）。"),
