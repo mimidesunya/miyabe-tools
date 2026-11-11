@@ -35,6 +35,9 @@ reiki_priority = scraping_priority.PriorityCalculator(
     # 例規のスクレイパは取り切れなくても n/n で正常終了する。走査記録を
     # 見ないと、取り切れなかった区間が残っていてもキューは完了と読む。
     extra_progress_reader=scraping_priority.reiki_coverage_progress,
+    # 取得元の取りすぎの制限（HTTP 429）で途中で止めた走査は、取得元が求めた
+    # 時刻まで待ち、そのあと 24 時間の待ちをかけずに取り直す。
+    deferral_reader=scraping_priority.reiki_rate_limit_deferral,
 )
 
 
@@ -164,6 +167,12 @@ def actual_scrape_progress(target: dict) -> tuple[int, int]:
     return max(0, current_count), max(0, max(total_count, current_count))
 
 
+def rate_limit_deferred(target: dict) -> bool:
+    """直近の走査を、取得元の取りすぎの制限（HTTP 429）で途中で止めたか。"""
+    work_root = Path(str(target.get("work_root") or ""))
+    return reiki_io.rate_limit_deferral(reiki_io.load_source_coverage(work_root)) is not None
+
+
 def coverage_incomplete_reason(target: dict) -> str:
     """走査記録から見て取り切れていないなら、その理由を返す。
 
@@ -195,6 +204,11 @@ def coverage_incomplete_reason(target: dict) -> str:
 
 # 子スクレイパが returncode=0 でも、取得件数が完了していなければ成功扱いしない。
 def scrape_completion_error(target: dict, progress: dict | None) -> str:
+    if rate_limit_deferred(target):
+        # 取得元の取りすぎの制限で途中で止めた走査は、件数が揃わなくても失敗にしない。
+        # 失敗にすると 7 日待ちになり、取得元が求めた待ちよりずっと遅れる。
+        # 次に取り直す時刻までは priority.reiki_rate_limit_deferral が待たせる。
+        return ""
     coverage_reason = coverage_incomplete_reason(target)
     if coverage_reason:
         return coverage_reason

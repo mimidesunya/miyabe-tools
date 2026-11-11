@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from collections.abc import Callable
 from datetime import timedelta
 from pathlib import Path
@@ -29,6 +30,20 @@ if str(_GIJIROKU_TOOLS) not in sys.path:
 _REIKI_TOOLS = Path(__file__).resolve().parents[1] / "reiki"
 if str(_REIKI_TOOLS) not in sys.path:
     sys.path.append(str(_REIKI_TOOLS))
+try:
+    from reiki_io import rate_limit_deferral as reiki_rate_limit_record
+except Exception:
+    def reiki_rate_limit_record(payload: Any) -> dict[str, Any] | None:
+        # reiki_io.rate_limit_deferral と同じ規則。
+        if not isinstance(payload, dict):
+            return None
+        record = payload.get("rate_limit")
+        if not isinstance(record, dict) or record.get("deferred") is not True:
+            return None
+        started = str(payload.get("walk_started_at") or "")
+        observed = str(payload.get("observed_at") or "")
+        return None if started and started > observed else record
+
 try:
     from reiki_io import effective_coverage_complete as reiki_coverage_complete
 except Exception:
@@ -76,6 +91,8 @@ RESIDUAL_FAILURE_MAX_COUNT = 5
 RESIDUAL_FAILURE_MAX_RATIO = 0.01
 _TASK_STATUS_CACHE: dict[str, dict[str, Any]] = {}
 ProgressReader = Callable[[dict[str, Any]], tuple[int, int]]
+# (直近の走査を取得元の取りすぎの制限で止めたか, まだ待つならその理由)
+DeferralReader = Callable[[dict[str, Any]], tuple[bool, str]]
 
 
 # background_tasks JSON を読み、同じプロセス内ではキャッシュして使い回す。
@@ -624,6 +641,34 @@ def reiki_coverage_progress(target: dict[str, Any]) -> tuple[int, int]:
     return collected, collected + 1
 
 
+def reiki_rate_limit_deferral(target: dict[str, Any], *, now: float | None = None) -> tuple[bool, str]:
+    """例規の直近の走査を、取得元の取りすぎの制限（HTTP 429）で途中で止めたか。
+
+    止めた走査は失敗ではなく「後で取り直す」（legal_square.py）。取得元が
+    求めた待ち（記録の retry_at、epoch 秒）までは待たせ、過ぎたら取り切れて
+    いない自治体として、ふつうの 24 時間の待ち（incomplete_wait_reason）を
+    かけずに取り直す。止めた走査は件数が前回より減って見えるので、その待ちに
+    かかると 1 日遅れる。
+    """
+    work_root = Path(str(target.get("work_root") or target.get("work_dir") or ""))
+    try:
+        payload = json.loads((work_root / "source_coverage.json").read_text(encoding="utf-8"))
+    except Exception:
+        return False, ""
+    record = reiki_rate_limit_record(payload)
+    if record is None:
+        return False, ""
+    try:
+        retry_at = int(record.get("retry_at") or 0)
+    except (TypeError, ValueError):
+        retry_at = 0
+    current = time.time() if now is None else now
+    if retry_at > current:
+        until = str(record.get("retry_at_text") or "").strip() or str(retry_at)
+        return True, f"取得元の取りすぎの制限（HTTP 429）で止めたため {until} まで待機"
+    return True, ""
+
+
 class PriorityCalculator:
     """分野ごとの差分だけを受け取り、共通の優先度計算 API を提供する。"""
 
@@ -633,12 +678,15 @@ class PriorityCalculator:
         *,
         count_field: str,
         extra_progress_reader: ProgressReader | None = None,
+        deferral_reader: DeferralReader | None = None,
     ) -> None:
         self.task_name = str(task_name).strip()
         self.snapshot_task_name = f"{self.task_name}_snapshot"
         self.reflect_task_name = f"{self.task_name}_reflect"
         self.count_field = str(count_field).strip()
         self.extra_progress_reader = extra_progress_reader
+        # 取得元の取りすぎの制限で止めた走査の待ち（例規だけ）。
+        self.deferral_reader = deferral_reader
         # 同一プロセス内では slug ごとに 1 回だけ計算する。
         # バッチ起動時は選定・ソート・キュー投入の 3 箇所から呼ばれるが、
         # 実行順は起動時点の状態で固定する仕様なのでキャッシュしてよい。
@@ -729,10 +777,29 @@ class PriorityCalculator:
             # index失敗などが最大30日眠る。待ち終えた失敗は今回の対象に戻す。
             recently_complete = False
 
+        deferred, deferral_wait = (
+            self.deferral_reader(target) if self.deferral_reader is not None else (False, "")
+        )
+        if deferral_wait:
+            # 取得元が求めた待ちのあいだは、ほかの待ちより先にこれで止める。
+            return {
+                "priority_group": 5,
+                "priority_score": 0,
+                "priority_label": "rate_limited_wait",
+                "progress_ratio": ratio,
+                "current_count": current_count,
+                "total_count": total_count,
+                self.count_field: current_count,
+                "finished_at": finished_at,
+                "previously_failed": False,
+                "wait_reason": deferral_wait,
+                **freshness,
+            }
+
         if total_count > 0 and current_count < total_count:
             priority_group = 1
             priority_label = "incomplete"
-            wait_reason = "" if retry_after_failure else incomplete_wait_reason(
+            wait_reason = "" if retry_after_failure or deferred else incomplete_wait_reason(
                 self.task_name, slug, current_count, target
             )
             if wait_reason:

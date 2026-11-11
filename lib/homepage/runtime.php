@@ -888,9 +888,18 @@ function homepage_reiki_acquisition_status(
                 : 0;
             $missingAtSource = max(0, (int)($coverage['missing_at_source'] ?? 0));
             $shareExceeded = !empty($coverage['missing_share_exceeded']);
+            // 取得元の取りすぎの制限（HTTP 429）で途中で止めた走査。失敗ではなく
+            // 後で取り直す（tools/reiki/reiki_io.py の rate_limit_deferral と同じ読み方）。
+            $rateLimit = is_array($coverage['rate_limit'] ?? null) ? $coverage['rate_limit'] : [];
+            $rateLimitDeferred = ($rateLimit['deferred'] ?? null) === true;
             if ($shareExceeded && $missingAtSource > 0) {
                 $detail = '目録に載っている本文のうち ' . $missingAtSource
                     . ' 件が取得元から消えています。取得元が入れ替わった可能性があります。';
+            } elseif ($rateLimitDeferred && !$rewalking) {
+                $retryAtText = trim((string)($rateLimit['retry_at_text'] ?? ''));
+                $detail = '取得元から取りすぎの制限（HTTP 429）を受けたので、更新の確認を途中で止めました。'
+                    . ($retryAtText !== '' ? '残りは ' . substr($retryAtText, 0, 16) . ' 以降に' : '残りは後で')
+                    . '取り直します。検索できるのは前回までに取れた分と、今回取れた分です。';
             } elseif ($rewalking) {
                 $detail = '取得元を確認し直している途中です。';
             } elseif ($unresolved > 0) {

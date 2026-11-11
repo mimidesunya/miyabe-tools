@@ -120,6 +120,25 @@ def effective_coverage_complete(payload: dict | None) -> bool:
     return not (started and started > observed)
 
 
+def rate_limit_deferral(payload: dict | None) -> dict | None:
+    """直近の走査を、取得元の取りすぎの制限（HTTP 429）で途中で止めたなら、その記録。
+
+    止めた走査は失敗ではなく「後で取り直す」。記録の retry_at（epoch 秒）より
+    後に取り直す。止めたあとに歩き直しを始めた（終わっていない）なら、もう
+    その記録には従わない。legal_square.py が書く。
+    """
+    if not isinstance(payload, dict):
+        return None
+    record = payload.get("rate_limit")
+    if not isinstance(record, dict) or record.get("deferred") is not True:
+        return None
+    started = str(payload.get("walk_started_at") or "")
+    observed = str(payload.get("observed_at") or "")
+    if started and started > observed:
+        return None
+    return record
+
+
 def save_source_coverage(work_root: Path, payload: dict) -> Path:
     """母数の記録を保存する。
 

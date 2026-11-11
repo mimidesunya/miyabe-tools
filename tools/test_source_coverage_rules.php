@@ -93,6 +93,37 @@ if (($status['state'] ?? '') !== 'coverage_incomplete') {
     );
 }
 
+// 取得元の取りすぎの制限（HTTP 429）で途中で止めた走査は、失敗ではなく
+// 「後で取り直す」と出す（legal_square.py が rate_limit を書く）。
+$deferredCoverage = [
+    'version' => 2, 'complete' => false, 'unresolved' => [], 'failed' => 0,
+    'observed_at' => '20261111_120000',
+    'rate_limit' => [
+        'deferred' => true,
+        'reason' => '5 回待っても取りすぎの制限が解けなかった',
+        'retry_at' => 1762840800,
+        'retry_at_text' => '2026-11-11 15:00:00+09:00',
+    ],
+];
+file_put_contents($coveragePath, json_encode($deferredCoverage));
+$status = homepage_reiki_acquisition_status(10, 10, ['work_dir' => $tempWork]);
+$detail = (string)($status['detail'] ?? '');
+if (($status['state'] ?? '') !== 'coverage_incomplete'
+    || !str_contains($detail, '取りすぎの制限')
+    || !str_contains($detail, '2026-11-11 15:00 以降')) {
+    $failures[] = sprintf(
+        "例規: 取りすぎの制限で止めた走査を「後で取り直す」と出していない\n  状態 %s / 説明 %s",
+        (string)($status['state'] ?? '(空)'),
+        $detail
+    );
+}
+// 止めたあとに歩き直しを始めたなら、もうその記録には従わない。
+file_put_contents($coveragePath, json_encode($deferredCoverage + ['walk_started_at' => '20261111_180000']));
+$status = homepage_reiki_acquisition_status(10, 10, ['work_dir' => $tempWork]);
+if (str_contains((string)($status['detail'] ?? ''), '取りすぎの制限')) {
+    $failures[] = '例規: 歩き直しの途中なのに、前の走査の取りすぎの制限を出している';
+}
+
 @unlink($coveragePath);
 @rmdir($tempWork);
 

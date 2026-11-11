@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT / "tools" / "reiki" / "scrapers"), str(ROOT / "tools" / "reiki")]
 
 import legal_square  # noqa: E402
+from playwright.sync_api import Error as PlaywrightError  # noqa: E402
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError  # noqa: E402
 
 # 本番の WARN に出ていた処理エラー画面の文面。
@@ -121,6 +122,12 @@ class FakeSource:
 
     spread_dates なら制定年月日を平成2〜30年にばらし、件数が上限を超えると
     期間で割って取る形になる。そうでなければ全件が同じ日。
+
+    取りすぎの制限（429）: too_many は本文の題名ごとに、何回 429 を返して
+    から開かせるか。too_many_from は、その件数目（開いた回数、1 始まり）から
+    あとの本文を全部 429 にする。too_many_searches は 429 を返す検索の回目、
+    too_many_logins は 429 で入口が開けない回目（0 なら毎回）。
+    retry_after は 429 に付ける Retry-After の値（None なら付けない）。
     """
 
     def __init__(
@@ -132,6 +139,11 @@ class FakeSource:
         expire_on_next=0,
         expire_on_search=0,
         spread_dates=False,
+        too_many=None,
+        too_many_from=0,
+        too_many_searches=(),
+        too_many_logins=(),
+        retry_after=None,
     ) -> None:
         self.rows = []
         for n in range(1, count + 1):
@@ -158,6 +170,22 @@ class FakeSource:
         self.searches = 0
         self.logins = 0
         self.opened: list[str] = []
+        self.too_many = dict(too_many or {})
+        self.too_many_from = too_many_from
+        self.too_many_searches = set(too_many_searches)
+        self.too_many_logins = set(too_many_logins)
+        self.retry_after = retry_after
+        self.rate_limited = 0
+
+    def rate_limits(self, title: str) -> bool:
+        """この本文の開き方に 429 を返すか。"""
+        if self.too_many_from and len(self.opened) >= self.too_many_from:
+            return True
+        left = self.too_many.get(title, 0)
+        if left > 0:
+            self.too_many[title] = left - 1
+            return True
+        return False
 
     def search(self, payload) -> list[dict]:
         rows = self.rows
@@ -169,10 +197,22 @@ class FakeSource:
         return rows
 
 
+# 本番の WARN に出ていた 429 の画面の文面。
+TOO_MANY_TEXT = "429 Too Many Requests Too Many Requests"
+
+
+class FakeResponse:
+    def __init__(self, status: int, headers: dict) -> None:
+        self.status = status
+        self.headers = headers
+        self.url = HOST + "../jsp/SVDocumentView"
+
+
 class FakePopup:
-    def __init__(self, title: str, error: bool) -> None:
+    def __init__(self, title: str, error: bool, too_many: bool = False) -> None:
         self.title = title
         self.error = error
+        self.too_many = too_many
         self.url = HOST + ("OpenEditor.jsf?appl-id=SJ0010" if error else "../jsp/SVDocumentView")
 
     def wait_for_load_state(self, *args, **kwargs) -> None:
@@ -185,7 +225,7 @@ class FakePopup:
         pass
 
     def eval_on_selector_all(self, selector, script):
-        return [] if self.error else [f"<p>{self.title}の本文</p>"]
+        return [] if self.error or self.too_many else [f"<p>{self.title}の本文</p>"]
 
     def query_selector(self, selector):
         return object() if self.error and selector == "body#ERROR" else None
@@ -193,6 +233,8 @@ class FakePopup:
     def evaluate(self, script, arg=None):
         if self.error:
             return {"id": "ERROR", "text": ERROR_PAGE_TEXT}
+        if self.too_many:
+            return {"id": "", "text": TOO_MANY_TEXT}
         return {"id": "", "text": self.title}
 
     def inner_text(self, selector) -> str:
@@ -218,7 +260,10 @@ class FakeAnchor:
         if error:
             # 取得元はこの時点でセッションを捨てる。
             self.page.alive = False
-        self.page.popup = FakePopup(title, error)
+        too_many = not error and source.rate_limits(title)
+        if too_many:
+            self.page.respond_too_many()
+        self.page.popup = FakePopup(title, error, too_many)
 
 
 class FakeNext:
@@ -259,12 +304,21 @@ class FakePage:
         self.results = list(source.rows)
         self.pending = None
         self.stamped = False
+        # コンテキストの on("response") に登録された受け手。
+        self.response_handlers = []
 
     # 取得元の振る舞い
     def redirect_to_login(self) -> None:
         # 古いセッションの要求は、入口へ http:// で転送されて止められる。
         for handler in self.handlers:
             handler(FakeRequest("xhr", LOGIN_URL.replace("https://", "http://")))
+
+    def respond_too_many(self) -> None:
+        """取得元が 429 を返した（本文ビューアも検索も、同じコンテキストで見える）。"""
+        self.source.rate_limited += 1
+        headers = {} if self.source.retry_after is None else {"retry-after": str(self.source.retry_after)}
+        for handler in self.response_handlers:
+            handler(FakeResponse(429, headers))
 
     def shown(self) -> list[dict]:
         return self.results[:SEARCH_CAP]
@@ -290,6 +344,9 @@ class FakePage:
 
     def goto(self, url, **kwargs) -> None:
         self.source.logins += 1
+        if self.source.logins in self.source.too_many_logins or 0 in self.source.too_many_logins:
+            self.respond_too_many()
+            raise PlaywrightError("net::ERR_HTTP_RESPONSE_CODE_FAILURE (429)")
         self.alive = True
         self.index = 0
         self.pending = None
@@ -300,6 +357,10 @@ class FakePage:
             source.searches += 1
             if source.expire_on_search and source.searches == source.expire_on_search:
                 self.alive = False
+            if source.searches in source.too_many_searches:
+                # 検索の要求に 429。結果は差し替わらない。
+                self.respond_too_many()
+                return
         if not self.alive:
             self.redirect_to_login()
             return
@@ -354,12 +415,19 @@ class FakePage:
 class FakeContext:
     def __init__(self, source: FakeSource) -> None:
         self.source = source
+        self.response_handlers = []
 
     def set_default_timeout(self, ms) -> None:
         pass
 
+    def on(self, event, handler) -> None:
+        if event == "response":
+            self.response_handlers.append(handler)
+
     def new_page(self) -> FakePage:
-        return FakePage(self.source)
+        page = FakePage(self.source)
+        page.response_handlers = self.response_handlers
+        return page
 
     def close(self) -> None:
         pass
@@ -382,7 +450,17 @@ class FakePlaywright:
         self.chromium.launch.return_value = FakeBrowser(source)
 
 
+def fake_work_root(work: Path) -> Path:
+    """偽の自治体の作業ディレクトリ。本番と同じく work/reiki/<slug> の形にする。
+
+    429 の記憶（host_rate_limits.json）は、その 1 つ上（work/reiki）に置かれる。
+    """
+    return work / "reiki" / "99999-test"
+
+
 def run_fake(source: FakeSource, work: Path, *, check_updates: bool = False) -> dict:
+    log_path = work / "log.txt"
+    work = fake_work_root(work)
     target = {
         "name": "テスト町",
         "slug": "99999-test",
@@ -404,7 +482,8 @@ def run_fake(source: FakeSource, work: Path, *, check_updates: bool = False) -> 
         )
         stack.enter_context(mock.patch.object(legal_square, "SESSION_RENEW_WAIT_SECONDS", 0))
         stack.enter_context(mock.patch.object(legal_square.time, "sleep", lambda seconds: None))
-        log = stack.enter_context(open(work / "log.txt", "a", encoding="utf-8"))
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log = stack.enter_context(open(log_path, "a", encoding="utf-8"))
         stack.enter_context(contextlib.redirect_stdout(log))
         legal_square.run(
             "99999-test",
@@ -417,7 +496,9 @@ def run_fake(source: FakeSource, work: Path, *, check_updates: bool = False) -> 
         )
     coverage = legal_square.reiki_io.load_source_coverage(work)
     manifest_path = legal_square.reiki_io.existing_path(work / "source_manifest.json.gz")
-    manifest = json.loads(legal_square.reiki_io.read_text_auto(manifest_path))
+    manifest = (
+        json.loads(legal_square.reiki_io.read_text_auto(manifest_path)) if manifest_path is not None else []
+    )
     return {"coverage": coverage, "manifest": manifest}
 
 

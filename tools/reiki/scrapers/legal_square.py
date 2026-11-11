@@ -32,6 +32,7 @@ import argparse
 import calendar
 import datetime
 import hashlib
+import json
 import re
 import sys
 import time
@@ -46,6 +47,7 @@ SCRAPER_DIR = Path(__file__).resolve().parent
 MODULE_DIR = SCRAPER_DIR.parent
 sys.path.append(str(MODULE_DIR))
 sys.path.append(str(SCRAPER_DIR))
+import host_rate_limit  # noqa: E402
 import reiki_io  # noqa: E402
 import reiki_targets  # noqa: E402
 import static_catalog  # noqa: E402
@@ -522,6 +524,32 @@ HARVEST_RESUME_LIMIT = 5
 # して失敗に数えない。数が多いときは取得元かこちらの不具合なので完了にしない。
 MAX_MISSING_AT_SOURCE = 5
 
+# ---- 取りすぎの制限（HTTP 429 Too Many Requests） ----
+# 2026-09〜11 に本文ビューアが 429 を返し、本文が空のまま 1.5 秒あけて 1 度だけ
+# 開き直して失敗にしていた（20 自治体で 146 本の更新が取れなかった）。
+# 取得元は全自治体で裏側が 1 つ（*.legal-square.com）なので、速さは
+# 取得元全体で抑える（host_rate_limit.rate_limit_host）。
+#
+# 本文を開く間隔。ふだんは本文ビューアの読み込み（1〜3 秒）より短く、
+# ほとんど待たない。
+BODY_INTERVAL_SECONDS = 1.0
+# 429 を受けたら（この 1 日に受けたと覚えていたら最初から）広げる。
+# 続けて受けるたびに倍にし、上限まで。
+BODY_INTERVAL_AFTER_RATE_LIMIT_SECONDS = 4.0
+BODY_INTERVAL_MAX_SECONDS = 15.0
+# 429 のあとの待ち。30 秒から倍にしていき、1 回は 10 分まで。Retry-After が
+# それより長ければそちらを守る。10 分を超えて待てと言われたら待たない。
+RATE_LIMIT_BASE_WAIT_SECONDS = 30
+RATE_LIMIT_MAX_WAIT_SECONDS = 600
+# 同じものに対して待つ回数（30+60+120+240+480 秒で約 15 分）。
+RATE_LIMIT_MAX_ATTEMPTS = 5
+# 1 回の走査で 429 のために待つ合計の上限。
+RATE_LIMIT_WAIT_BUDGET_SECONDS = 3600
+# 待ちきれずに残りを後で取り直すとき、次に試すまで最低これだけ空ける。
+RATE_LIMIT_DEFER_MIN_SECONDS = 3 * 3600
+# 長く待つあいだも、見張り（--target-stall-seconds）に動いていると知らせる。
+RATE_LIMIT_HEARTBEAT_SECONDS = 60
+
 
 class SessionLost(Exception):
     """取得元がセッションを捨てた。入り直さないと先へ進めない。"""
@@ -573,6 +601,51 @@ def missing_at_source_exceeded(missing: int, collected: int) -> bool:
     if missing <= 0:
         return False
     return missing > MAX_MISSING_AT_SOURCE or missing * 5 >= collected + missing
+
+
+def last_retry_after(hits: list[float | None]) -> float | None:
+    """受けた 429 のうち、最後に Retry-After が付いていたものの秒数。"""
+    for value in reversed(hits):
+        if value is not None:
+            return value
+    return None
+
+
+def load_manifest_rows(path: Path) -> list[dict]:
+    """保存済みの一覧の行。無ければ空。"""
+    try:
+        existing = reiki_io.existing_path(path)
+        if existing is None:
+            return []
+        rows = json.loads(reiki_io.read_text_auto(existing))
+    except Exception:
+        return []
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def merge_previous_manifest(previous: list[dict], current: list[dict]) -> list[dict]:
+    """途中で止めた走査の一覧に、前回の一覧のうち今回まだ歩いていない行を足す。
+
+    取りすぎの制限で途中で止めたとき、歩けた分だけで一覧を書こうとすると
+    縮みのガードで書かれず、新しく取れた本文も一覧に載らない。今回の行を
+    先に置き、前回の行は source_file が重ならないものだけ足す。
+    """
+    seen = {str(row.get("source_file") or "") for row in current}
+    merged = list(current)
+    for row in previous:
+        key = str(row.get("source_file") or "")
+        if key and key not in seen:
+            seen.add(key)
+            merged.append(row)
+    return merged
+
+
+def rate_limit_retry_at(retry_after: float | None, *, now: float) -> int:
+    """後で取り直すとき、次に試してよい時刻（epoch 秒）。"""
+    delay = max(float(RATE_LIMIT_DEFER_MIN_SECONDS), float(retry_after or 0))
+    return int(now + delay)
 
 
 def run_search(page, timeout_ms: int) -> str:
@@ -670,6 +743,32 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
     print(f"Target: {target['name']} ({target['slug']}, {target['system_type']})", flush=True)
     print(f"Source URL: {source_url}", flush=True)
 
+    # 取りすぎの制限への備え。429 を受けた記憶は taikei.php と同じ
+    # work/reiki/host_rate_limits.json に置き、取得元全体（legal-square.com）で覚える。
+    rate_host = host_rate_limit.rate_limit_host(source_url)
+    rate_memory_path = host_rate_limit.host_rate_limit_path(work_root.parent)
+    rate_remembered = host_rate_limit.host_rate_limited_recently(rate_host, rate_memory_path)
+    pacer = host_rate_limit.Pacer(
+        normal_interval=BODY_INTERVAL_SECONDS,
+        slow_interval=BODY_INTERVAL_AFTER_RATE_LIMIT_SECONDS,
+        max_interval=BODY_INTERVAL_MAX_SECONDS,
+        remembered=rate_remembered,
+        # テストが差し替える time.sleep を使う。
+        sleep=lambda seconds: time.sleep(seconds),
+    )
+    backoff = host_rate_limit.Backoff(
+        base=RATE_LIMIT_BASE_WAIT_SECONDS,
+        max_wait=RATE_LIMIT_MAX_WAIT_SECONDS,
+        max_attempts=RATE_LIMIT_MAX_ATTEMPTS,
+        budget=RATE_LIMIT_WAIT_BUDGET_SECONDS,
+    )
+    if rate_remembered:
+        print(
+            f"[INFO] {rate_host} からはこの 1 日のうちに取りすぎの制限（HTTP 429）を受けているので、"
+            f"本文を {pacer.interval:g} 秒おきに開きます",
+            flush=True,
+        )
+
     manifest: list[dict] = []
     seen_stems: set[str] = set()
     downloaded = failed = 0
@@ -688,16 +787,69 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
         renew_failures = 0
         # いまのセッションで開いた本文の数。0 なら入り直した直後。
         bodies_in_session = 0
+        # 取得元が返した 429。値は Retry-After の秒数（無ければ None）。
+        # メイン画面の検索・「次へ」も、本文ビューアも、同じコンテキストで見る。
+        rate_limit_responses: list[float | None] = []
+        rate_limit_marked = False
+        # 待ちきれずに走査を止めた理由。止めたら残りは後で取り直す。
+        deferral: host_rate_limit.RateLimitDeferred | None = None
+        stopped = False
 
         def on_main_request(request) -> None:
             nonlocal session_lost
             if is_session_lost_request(request.resource_type, request.url):
                 session_lost = True
 
+        def on_response(response) -> None:
+            try:
+                if int(response.status) != 429:
+                    return
+                headers = response.headers or {}
+                rate_limit_responses.append(host_rate_limit.parse_retry_after(headers.get("retry-after")))
+            except Exception:
+                pass
+
+        def wait_for_rate_limit(where: str, attempt: int, retry_after: float | None) -> None:
+            """429 を受けた。覚えて、間隔を広げ、待つ。
+
+            attempt は同じものに対して何回目の待ちか（1 始まり）。待ちきれない
+            ときは host_rate_limit.RateLimitDeferred を投げる（defer_rest で受ける）。
+            """
+            nonlocal rate_limit_marked
+            if not rate_limit_marked:
+                host_rate_limit.remember_host_rate_limit(rate_host, rate_memory_path)
+                rate_limit_marked = True
+            interval = pacer.slow_down()
+            wait = backoff.next_wait(attempt, retry_after)
+            print(
+                f"[WARN] {where}: 取得元が取りすぎの制限（HTTP 429）を返したので、{int(wait)}秒待って"
+                f"取り直します（{attempt}回目。以後は本文を{interval:g}秒おきに開きます）",
+                flush=True,
+            )
+            remaining = float(wait)
+            while remaining > 0:
+                step = min(remaining, float(RATE_LIMIT_HEARTBEAT_SECONDS))
+                time.sleep(step)
+                remaining -= step
+                if remaining > 0:
+                    print(f"[INFO] 取りすぎの制限が解けるのを待っています（残り{int(remaining)}秒）", flush=True)
+
+        def defer_rest(exc: host_rate_limit.RateLimitDeferred) -> None:
+            """待ちきれない。ここで走査を止め、残りは後で取り直す（失敗に数えない）。"""
+            nonlocal deferral, stopped
+            if deferral is None:
+                deferral = exc
+                print(
+                    f"[WARN] {exc.reason}ので、走査をここで止めて残りは後で取り直します（失敗には数えません）",
+                    flush=True,
+                )
+            stopped = True
+
         def start_session() -> None:
             """クッキーの無い新しいコンテキストで入口から入り、検索画面を開く。"""
             nonlocal context, page, session_lost, bodies_in_session
             context = browser.new_context(ignore_https_errors=True, locale="ja-JP", user_agent=USER_AGENT)
+            context.on("response", on_response)
             # ポップアップ(本文ビューア)にも既定のタイムアウトを効かせる。
             context.set_default_timeout(timeout_ms)
             page = context.new_page()
@@ -744,10 +896,32 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             renew_failures = 0
             return True
 
-        start_session()
+        def open_first_session() -> None:
+            """最初の入口を開く。429 で開けなければ待って開き直す。"""
+            attempt = 0
+            while True:
+                seen = len(rate_limit_responses)
+                try:
+                    start_session()
+                    return
+                except PlaywrightError:
+                    hits = rate_limit_responses[seen:]
+                    if not hits:
+                        raise
+                attempt += 1
+                try:
+                    context.close()
+                except Exception:
+                    pass
+                try:
+                    wait_for_rate_limit("入口", attempt, last_retry_after(hits))
+                except host_rate_limit.RateLimitDeferred as exc:
+                    defer_rest(exc)
+                    return
+
+        open_first_session()
 
         emit_total = 0
-        stopped = False
         stale_searches = 0
         # 取り切れた区間と、取り切れなかった区間を分けて控える。
         # 総数ひとつでは完了判定にならない（上限に当たると総数自体が上限値になる）。
@@ -789,6 +963,10 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             days: tuple[int, int] | None = None,
             words: tuple[tuple[str, bool], ...] = (),
         ) -> None:
+            if deferral is not None:
+                # 取りすぎの制限で止めた走査。止めたあとの区間は歩いていないだけで、
+                # 取り切れなかった区間ではない（次の走査で確かめる）。
+                return
             coverage_unresolved.append(
                 {
                     "kind": kind["text"],
@@ -808,14 +986,24 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             取得元が処理エラー画面を返したら SessionLost を投げる。取得元は
             もうセッションを捨てているので、同じ画面で開き直しても処理エラーが
             返るだけになる。入り直すのは呼んだ側（walk_result_pages）。
+
+            取得元が取りすぎの制限（429）を返したら、Retry-After と指数的な
+            待ちを守って同じ本文を開き直す（開き直しの回数には数えない）。
+            待ちきれないときは host_rate_limit.RateLimitDeferred を投げる。
+            本文を開く間隔は pacer が保つ。
             """
             nonlocal empty_body_reports, bodies_in_session
-            for attempt in range(BODY_FETCH_ATTEMPTS):
+            attempt = 0
+            rate_waits = 0
+            while attempt < BODY_FETCH_ATTEMPTS:
                 body_html = ""
                 popup_url = ""
                 snippet = ""
                 source_error = False
+                rate_limited = False
                 fresh_session = bodies_in_session == 0
+                pacer.wait_turn()
+                seen = len(rate_limit_responses)
                 try:
                     with page.expect_popup(timeout=timeout_ms) as pi:
                         anchor.click()
@@ -829,6 +1017,7 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                                 shown = popup.evaluate(SOURCE_ERROR_EVAL) or {}
                                 text = str(shown.get("text") or "")
                                 source_error = is_source_error_page(str(shown.get("id") or ""), text)
+                                rate_limited = host_rate_limit.is_rate_limited_text(text)
                                 snippet = re.sub(r"\s+", " ", text)[:120]
                             except Exception:
                                 snippet = ""
@@ -850,13 +1039,19 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                         f"本文「{title[:30]}」で取得元が処理エラーを返した",
                         fresh_session=fresh_session,
                     )
+                hits = rate_limit_responses[seen:]
+                if rate_limited or hits:
+                    rate_waits += 1
+                    wait_for_rate_limit(f"本文「{title[:30]}」", rate_waits, last_retry_after(hits))
+                    continue
                 if empty_body_reports < EMPTY_BODY_REPORT_LIMIT:
                     empty_body_reports += 1
                     print(
                         f"[WARN] 本文が空でした {title[:30]}: {popup_url[:80]} {snippet}",
                         flush=True,
                     )
-                if attempt + 1 < BODY_FETCH_ATTEMPTS:
+                attempt += 1
+                if attempt < BODY_FETCH_ATTEMPTS:
                     page.wait_for_timeout(1500)
             return ""
 
@@ -873,15 +1068,37 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             白浜町・平戸市は同じコンテキストのまま開き直しても時間切れが
             続いたので、クッキーごと捨てて入り直す。検索の要求が入口へ戻されたとき
             （is_session_lost_request）も、結果は差し替わらないので入り直す。
-            諦めたときは None を返す。
+            検索の要求に取得元が取りすぎの制限（429）を返したときは、入り直さずに
+            待って同じ検索をやり直す（入り直すと要求がかえって増える）。待ちきれ
+            なければ走査を止める（defer_rest）。
+            諦めたとき・止めたときは None を返す。
             """
+            if deferral is not None:
+                return None
             label = f"{kind['text']} {span_label(span, days)}{words_label(words)}"
             for attempt in range(SEARCH_RECOVERY_ATTEMPTS + 1):
-                try:
-                    reopen_detail(page, timeout_ms)
-                    apply_filters(page, kind["id"], span, days, words)
-                    outcome = run_search(page, timeout_ms)
-                except PlaywrightTimeoutError:
+                rate_waits = 0
+                while True:
+                    seen = len(rate_limit_responses)
+                    timed_out = False
+                    outcome = None
+                    try:
+                        reopen_detail(page, timeout_ms)
+                        apply_filters(page, kind["id"], span, days, words)
+                        outcome = run_search(page, timeout_ms)
+                    except PlaywrightTimeoutError:
+                        timed_out = True
+                    hits = rate_limit_responses[seen:]
+                    if not hits or outcome == SEARCH_OK:
+                        break
+                    # 429 のあとの「0件」や差し替わらない結果は当てにならない。
+                    rate_waits += 1
+                    try:
+                        wait_for_rate_limit(f"{label} の検索", rate_waits, last_retry_after(hits))
+                    except host_rate_limit.RateLimitDeferred as exc:
+                        defer_rest(exc)
+                        return None
+                if timed_out:
                     if attempt >= SEARCH_RECOVERY_ATTEMPTS:
                         print(f"[WARN] {label}: 画面操作がタイムアウトしたので諦めます", flush=True)
                         return None
@@ -1020,6 +1237,11 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                             note_missing_at_source(stem, title, number, iso_date, filename, clean_path)
                         # この行から先は処理していない。
                         return walked - (count - i), lost.reason
+                    except host_rate_limit.RateLimitDeferred as exc:
+                        # 失敗に数えない。前回までの本文は、最後に前回の一覧と
+                        # 合わせるときに残る（merge_previous_manifest）。
+                        defer_rest(exc)
+                        return walked - (count - i), None
 
                     if not body_html.strip():
                         failed += 1
@@ -1070,21 +1292,47 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                 cls = (nxt.get_attribute("class") or "")
                 if "disable" in cls.lower():
                     break
-                try:
-                    nxt.click()
-                except Exception:
+                advanced = False
+                click_failed = False
+                rate_waits = 0
+                while True:
+                    seen = len(rate_limit_responses)
+                    try:
+                        nxt.click()
+                    except Exception:
+                        click_failed = True
+                        break
+                    # 固定時間で待つと、遅い応答を「進めない」と誤判定して
+                    # 残りのページを捨ててしまう。表示が変わるまで待つ。
+                    try:
+                        page.wait_for_function(
+                            "(previous) => {"
+                            " const d = document.querySelector('#pager dt');"
+                            " return d && d.innerText.trim() !== previous; }",
+                            arg=pager_text,
+                            timeout=timeout_ms,
+                        )
+                        advanced = True
+                        break
+                    except PlaywrightTimeoutError:
+                        pass
+                    hits = rate_limit_responses[seen:]
+                    if not hits or session_lost:
+                        break
+                    # 「次へ」の要求に 429 が返った。待って同じページから押し直す。
+                    rate_waits += 1
+                    try:
+                        wait_for_rate_limit(f"{label}: {page_no}ページ目の「次へ」", rate_waits, last_retry_after(hits))
+                    except host_rate_limit.RateLimitDeferred as exc:
+                        defer_rest(exc)
+                        return walked, None
+                    nxt = page.query_selector("a:has-text('次へ')")
+                    if nxt is None:
+                        click_failed = True
+                        break
+                if click_failed:
                     break
-                # 固定時間で待つと、遅い応答を「進めない」と誤判定して
-                # 残りのページを捨ててしまう。表示が変わるまで待つ。
-                try:
-                    page.wait_for_function(
-                        "(previous) => {"
-                        " const d = document.querySelector('#pager dt');"
-                        " return d && d.innerText.trim() !== previous; }",
-                        arg=pager_text,
-                        timeout=timeout_ms,
-                    )
-                except PlaywrightTimeoutError:
+                if not advanced:
                     if session_lost:
                         # 「次へ」の要求が入口へ戻された。入り直せば続きを歩ける。
                         return walked, f"{page_no}ページ目の「次へ」の要求が入口へ戻された（セッション切れ）"
@@ -1408,63 +1656,96 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
                 return None if any(count is None for count in counts) else sum(counts)
             return settle_split(kind, span, days, words, total, label, halves)
 
-        total0 = read_result_total(page)
-        cap = detect_cap(page, total0)
-        if cap == 0:
-            print(f"[INFO] 条件なしで全{total0}件を取得します", flush=True)
-            _got, walked_all = harvest_pages("全件")
-            if total0 <= 0:
-                # 件数表示が読めないと歩数と突き合わせられない。
-                # 取り切れた証拠が無いので、完了とは言わない。
-                coverage_unresolved.append(
-                    {"kind": "全件", "span": "指定なし", "reason": "件数表示を読めなかった"}
-                )
-            elif walked_all < total0:
-                # 上限が無いはずでも、途中で「次へ」が止まれば取り落とす。
-                # 分割走査と同じく、申告件数と歩いた行数を突き合わせる。
-                coverage_unresolved.append(
-                    {
-                        "kind": "全件",
-                        "span": "指定なし",
-                        "reason": f"{total0}件のうち{walked_all}件しか辿れなかった",
-                    }
-                )
-        else:
-            print(f"[INFO] 1回の検索は{cap}件で打ち切られます。種別と制定年月日で分割します。", flush=True)
-            # 分割の前に、条件なしの結果をそのまま取り込む。上限までしか取れないが、
-            # 種別ツリーの読み取りが漏らした例規や、どの種別にも属さない例規の保険になる。
-            got, _walked = harvest_pages("条件なし")
-            print(f"[INFO] 条件なし: 総数{total0}件 → 新規{got}件", flush=True)
-            reopen_detail(page, timeout_ms)
-            segments = list_kind_segments(page)
-            if not segments:
-                print("[INFO] 種別ツリーが無いので制定年月日だけで分割します", flush=True)
-                segments = [{"id": "", "text": "全件", "children": []}]
+        # 入口から取りすぎの制限で開けず、待ちきれなかったときは歩かない。
+        cap = 0
+        if deferral is None:
+            total0 = read_result_total(page)
+            cap = detect_cap(page, total0)
+            if cap == 0:
+                print(f"[INFO] 条件なしで全{total0}件を取得します", flush=True)
+                _got, walked_all = harvest_pages("全件")
+                if deferral is not None:
+                    # 取りすぎの制限で途中で止めた。歩いていない分は取りこぼしではない。
+                    pass
+                elif total0 <= 0:
+                    # 件数表示が読めないと歩数と突き合わせられない。
+                    # 取り切れた証拠が無いので、完了とは言わない。
+                    coverage_unresolved.append(
+                        {"kind": "全件", "span": "指定なし", "reason": "件数表示を読めなかった"}
+                    )
+                elif walked_all < total0:
+                    # 上限が無いはずでも、途中で「次へ」が止まれば取り落とす。
+                    # 分割走査と同じく、申告件数と歩いた行数を突き合わせる。
+                    coverage_unresolved.append(
+                        {
+                            "kind": "全件",
+                            "span": "指定なし",
+                            "reason": f"{total0}件のうち{walked_all}件しか辿れなかった",
+                        }
+                    )
             else:
-                print(f"[INFO] 種別 {len(segments)} 件で分割します", flush=True)
-            before_segments = emit_total
-            for seg_index, segment in enumerate(segments, 1):
-                if stopped:
-                    break
-                collect(segment, None, 0)
-                print(
-                    f"[INFO] {seg_index}/{len(segments)} {segment['text']} 完了（累計 {emit_total}件）",
-                    flush=True,
-                )
-            # 種別で絞ると 1 件も返らない取得元がある。浦安市はどの種別を
-            # 選んでも「0件」で、上限 100 件のまま終わっていた。種別の分割が
-            # 何も足さなかったのなら、種別を使わず日付だけで割り直す。
-            if emit_total == before_segments and segments and segments[0]["id"]:
-                print(
-                    "[INFO] 種別で絞ると 0 件になる取得元です。制定年月日だけで分割し直します。",
-                    flush=True,
-                )
-                collect({"id": "", "text": "全件", "children": []}, None, 0)
-                print(f"[INFO] 制定年月日での分割 完了（累計 {emit_total}件）", flush=True)
+                print(f"[INFO] 1回の検索は{cap}件で打ち切られます。種別と制定年月日で分割します。", flush=True)
+                # 分割の前に、条件なしの結果をそのまま取り込む。上限までしか取れないが、
+                # 種別ツリーの読み取りが漏らした例規や、どの種別にも属さない例規の保険になる。
+                got, _walked = harvest_pages("条件なし")
+                print(f"[INFO] 条件なし: 総数{total0}件 → 新規{got}件", flush=True)
+                segments = []
+                if deferral is None:
+                    reopen_detail(page, timeout_ms)
+                    segments = list_kind_segments(page)
+                    if not segments:
+                        print("[INFO] 種別ツリーが無いので制定年月日だけで分割します", flush=True)
+                        segments = [{"id": "", "text": "全件", "children": []}]
+                    else:
+                        print(f"[INFO] 種別 {len(segments)} 件で分割します", flush=True)
+                before_segments = emit_total
+                for seg_index, segment in enumerate(segments, 1):
+                    if stopped:
+                        break
+                    collect(segment, None, 0)
+                    print(
+                        f"[INFO] {seg_index}/{len(segments)} {segment['text']} 完了（累計 {emit_total}件）",
+                        flush=True,
+                    )
+                # 種別で絞ると 1 件も返らない取得元がある。浦安市はどの種別を
+                # 選んでも「0件」で、上限 100 件のまま終わっていた。種別の分割が
+                # 何も足さなかったのなら、種別を使わず日付だけで割り直す。
+                if not stopped and emit_total == before_segments and segments and segments[0]["id"]:
+                    print(
+                        "[INFO] 種別で絞ると 0 件になる取得元です。制定年月日だけで分割し直します。",
+                        flush=True,
+                    )
+                    collect({"id": "", "text": "全件", "children": []}, None, 0)
+                    print(f"[INFO] 制定年月日での分割 完了（累計 {emit_total}件）", flush=True)
 
         browser.close()
 
-    if not manifest:
+    rate_limit_record = {
+        # 取得元全体で数える単位（*.legal-square.com はまとめて legal-square.com）。
+        "host": rate_host,
+        # この走査で 429 を受けて待つか止めるかした回数と、待った秒数の合計。
+        "hits": backoff.hits,
+        "waited_seconds": int(backoff.total_waited),
+        # 走査の終わりの、本文を開く間隔。
+        "body_interval_seconds": pacer.interval,
+        "remembered_at_start": rate_remembered,
+        # 待ちきれずに止めたか。止めたら残りは後で取り直す（失敗に数えない）。
+        "deferred": deferral is not None,
+        "reason": deferral.reason if deferral is not None else "",
+        "retry_at": None,
+        "retry_at_text": "",
+    }
+    if deferral is not None:
+        retry_at = rate_limit_retry_at(deferral.retry_after, now=time.time())
+        rate_limit_record["retry_at"] = retry_at
+        rate_limit_record["retry_at_text"] = datetime.datetime.fromtimestamp(
+            retry_at, tz=datetime.timezone(datetime.timedelta(hours=9))
+        ).strftime("%Y-%m-%d %H:%M:%S+09:00")
+        # 歩けたところまでの一覧に、前回の一覧のうちまだ歩いていない行を足す。
+        # 前回の本文は消さず、新しく取れた本文も一覧に載せる。
+        manifest = merge_previous_manifest(load_manifest_rows(manifest_path), manifest)
+
+    if not manifest and deferral is None:
         raise RuntimeError("No ordinances collected; refusing to mark target as scraped.")
 
     # 母数の記録は manifest が確定してから書く。先に書くと、
@@ -1487,12 +1768,16 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
         and limit <= 0
         and not missing_exceeded
     )
-    manifest_result = reiki_io.write_manifest_guarded(
-        manifest_path,
-        manifest,
-        label=f"{target['name']}の例規一覧",
-        walk_complete=walk_complete,
-    )
+    if manifest:
+        manifest_result = reiki_io.write_manifest_guarded(
+            manifest_path,
+            manifest,
+            label=f"{target['name']}の例規一覧",
+            walk_complete=walk_complete,
+        )
+    else:
+        # 取りすぎの制限で入口から先へ進めず、前回の一覧も無い。何も書かない。
+        manifest_result = {"written": False, "previous": 0, "current": 0}
     reiki_io.save_source_coverage(
         work_root,
         {
@@ -1534,10 +1819,26 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
             # 取得元がセッションを捨てたなどで入り直した回数。
             "session_renewals": session_renewals,
             # 前回より少ない行数で終わったなら、走査が短かった可能性がある。
-            "manifest_shrunk": not manifest_result["written"],
+            "manifest_shrunk": bool(manifest) and not manifest_result["written"],
             "manifest_previous": manifest_result["previous"],
+            # 取りすぎの制限（HTTP 429）。deferred なら途中で止めたので、残りは
+            # retry_at（epoch 秒）より後に取り直す。失敗ではない
+            # （scrape_all_reiki.scrape_completion_error・priority.reiki_rate_limit_deferral）。
+            "rate_limit": rate_limit_record,
         },
     )
+    if deferral is not None:
+        print(
+            f"[WARN] 取りすぎの制限（HTTP 429）で走査を途中で止めました（{deferral.reason}）。"
+            f"残りは {rate_limit_record['retry_at_text']} より後に取り直します。失敗には数えません。",
+            flush=True,
+        )
+    elif backoff.hits:
+        print(
+            f"[INFO] 取りすぎの制限（HTTP 429）を {backoff.hits} 回受け、合わせて"
+            f"{int(backoff.total_waited)}秒待って取り直しました",
+            flush=True,
+        )
     if coverage_unresolved:
         print(
             f"[WARN] 取り切れなかった区間が {len(coverage_unresolved)} 件あります",
@@ -1563,6 +1864,8 @@ def run(slug: str, expected_system: str, *, force: bool, check_updates: bool, li
     shortfall = len(coverage_unresolved) + failed
     if missing_exceeded:
         shortfall += len(missing_at_source)
+    if deferral is not None:
+        shortfall += 1
     static_catalog.emit_progress(emit_total, emit_total + shortfall, state_path)
     print(f"Finished. downloaded={downloaded} failed={failed} manifest={len(manifest)} -> {manifest_path}", flush=True)
     return 0
