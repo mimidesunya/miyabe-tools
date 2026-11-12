@@ -30,6 +30,7 @@
 - `funding`: `{label, fiscal_year, raw, ref, stage, source, unit}`。source は national、prefecture、bond、fund、user_fee、other_specific、general
 - `staff`: 人数、人工、平均給与、人件費単価。`{label, fiscal_year, raw, ref, unit}`
 - `indicators`: `{name, name_ref, kind_raw, kind, unit, note, values: [{fiscal_year, target_raw, actual_raw, rate_raw}]}`。kind は target（対象）、activity（活動）、outcome（成果）、unknown。表の書き方に従い、kind_raw に原文
+  - 値の升目に数字が空白で並ぶ（「4. 83. 0. 0.」）のは、点線で区切った複数の指標の行が 1 つの升目に入った印。`Cell.lines`・`line_values()` で行ごとに分け、指標ごとの値にする。1 つの値に複数の数字を入れない
 - `evaluations`: 評価の段階ごとに 1 件。`{stage_raw, actor, status, rating_raw, direction_raw, direction, reason_refs, aspects}`
   - actor: 担当、課長、部長、行革担当、首長、外部、市民、議会、その他
   - status: done、blank（欄はあるが空）、partial
@@ -66,6 +67,7 @@
 ## 守ること
 
 - `reader.py` は `cells` と標準ライブラリ（re、decimal など）だけを使う。ネットワーク、ファイルの読み書きをしない。
+- 作業でもネットワークを使わない（自治体のサイトから原本を取ってこない）。原本は `pdf/` にある分だけを見る。
 - 推測で値を埋めない。原典に無い値は入れない。
 - このフォルダの外を変えない。`check.py` と `cells.py` は変えない。
 - 途中で質問しない。迷ったら notes.md に書いて進む。

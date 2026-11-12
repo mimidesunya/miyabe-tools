@@ -227,6 +227,12 @@ class CheckTest(unittest.TestCase):
         self.assertEqual(len(check.funding_problems(record)), 1)
         record["funding"].append({"fiscal_year": 2024, "stage": "budget", "raw": "10"})
         self.assertEqual(check.funding_problems(record), [])
+        # 財源が人件費を含む総費用に対応する様式（足立区）も合っているとする
+        record["amounts"].append({"fiscal_year": 2024, "stage": "budget", "scope": "total", "raw": "130"})
+        record["funding"].append({"fiscal_year": 2024, "stage": "budget", "raw": "30"})
+        self.assertEqual(check.funding_problems(record), [])
+        record["funding"].append({"fiscal_year": 2024, "stage": "budget", "raw": "1"})
+        self.assertEqual(len(check.funding_problems(record)), 1)
 
 
 if __name__ == "__main__":

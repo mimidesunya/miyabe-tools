@@ -80,8 +80,11 @@ def project_text(record: dict) -> dict:
 
 
 def funding_problems(record: dict) -> list[str]:
-    """財源の合計 = 事業費（同じ年度、同じ段階）。"""
-    groups: dict = defaultdict(lambda: {"funding": Decimal(0), "count": 0, "direct": None})
+    """財源の合計 = 事業費か、人件費を含む総費用（同じ年度、同じ段階）。
+
+    財源を総費用に対応させる様式がある（足立区、久山町の旧様式）。どちらかと合えば合っているとする。
+    """
+    groups: dict = defaultdict(lambda: {"funding": Decimal(0), "count": 0, "direct": None, "costs": set()})
     for row in record.get("funding") or []:
         amount = cells.number(row.get("raw"))
         if amount is not None:
@@ -91,11 +94,13 @@ def funding_problems(record: dict) -> list[str]:
     for row in record.get("amounts") or []:
         amount = cells.number(row.get("raw"))
         key = (row.get("fiscal_year"), row.get("stage"))
-        if row.get("scope") == "direct" and amount is not None and key in groups:
-            groups[key]["direct"] = max(amount, groups[key]["direct"] or amount)
+        if row.get("scope") in ("direct", "total") and amount is not None and key in groups:
+            groups[key]["costs"].add(amount)
+            if row.get("scope") == "direct":
+                groups[key]["direct"] = max(amount, groups[key]["direct"] or amount)
     return [f"{year} {stage}: 財源の合計 {group['funding']} が事業費 {group['direct']} と合わない"
             for (year, stage), group in groups.items()
-            if group["count"] >= 2 and group["direct"] is not None and group["funding"] != group["direct"]]
+            if group["count"] >= 2 and group["direct"] is not None and group["funding"] not in group["costs"]]
 
 
 def checks(record: dict) -> tuple[int, list[str]]:
