@@ -408,15 +408,26 @@ def write_snapshot(task_name: str, *, fast: bool = False) -> tuple[Path, Path, i
 
 
 def parse_status_timestamp(value: object) -> float | None:
+    """状況の記録の時刻を epoch 秒にする。
+
+    記録は日本時間を、タイムゾーンの印なしで書く（status.now_text）。印の無い
+    時刻を容器の時計（UTC）で読むと 9 時間先に見える。そうすると、異常終了した
+    実行を「まだ動いている」と判断して、片付けを断ってしまう。2026-11-11 の
+    停電のあと、例規の周回は 9 時間始まらなかった。celery の
+    runtime.parse_status_timestamp と同じく、印の無い時刻は日本時間として読む。
+    """
     text = str(value or "").strip()
     if text == "":
         return None
     normalized = text[:-1] + "+00:00" if text.endswith("Z") else text
     for parser in (datetime.fromisoformat, lambda raw: datetime.strptime(raw, "%Y-%m-%d %H:%M:%S")):
         try:
-            return parser(normalized).timestamp()
+            parsed = parser(normalized)
         except Exception:
             continue
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=batch_status.TOKYO)
+        return parsed.timestamp()
     return None
 
 
