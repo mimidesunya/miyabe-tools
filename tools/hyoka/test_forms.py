@@ -184,6 +184,36 @@ class HtmlLayoutTest(unittest.TestCase):
         self.assertEqual(sorted(cell["text"] for table in layout["tables"] for cell in table["cells"]), ["内", "外"])
 
 
+class RemotePickTest(unittest.TestCase):
+    def test_included_documents_come_first(self) -> None:
+        import remote_pick
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            slug = "40348-hisayama-cho"
+            documents = {}
+            for index in range(6):
+                doc_id = f"{index:016d}"
+                documents[doc_id] = {"origin": "listed:sheet", "fiscal_year": 2020 + index % 3, "pages": index, "file": f"source/{doc_id}.pdf"}
+                (root / "work" / slug / "source").mkdir(parents=True, exist_ok=True)
+                (root / "work" / slug / "source" / f"{doc_id}.pdf").write_bytes(b"%PDF")
+                (root / "ai" / slug / "layouts").mkdir(parents=True, exist_ok=True)
+                (root / "ai" / slug / "layouts" / f"{doc_id}.json.gz").write_bytes(b"x")
+            (root / "work" / slug / "manifest.json").write_text(json.dumps({"documents": documents}), encoding="utf-8")
+            must = f"{0:016d}"  # 頁が最も少なく、年度で散らすと選ばれない文書
+            argv = ["remote_pick.py", "--work-root", str(root / "work"), "--layouts-root", str(root / "ai"), "--stage", str(root / "stage"),
+                    "--slug", slug, "--layouts", "3", "--pdfs", "2", "--include", must, "--include", "f" * 16]
+            with mock.patch.object(sys, "argv", argv), mock.patch("builtins.print"):
+                remote_pick.main()
+            layouts = sorted(path.name[:16] for path in (root / "stage" / slug / "layouts").iterdir())
+            pdfs = sorted(path.name[:16] for path in (root / "stage" / slug / "pdf").iterdir())
+        self.assertEqual(len(layouts), 3)
+        self.assertIn(must, layouts)
+        self.assertEqual(len(pdfs), 2)
+        self.assertIn(must, pdfs)
+
+
 class CheckTest(unittest.TestCase):
     def test_refs_must_hold_the_raw_text(self) -> None:
         refs = document().refs()

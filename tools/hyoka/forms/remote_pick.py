@@ -39,6 +39,7 @@ def main() -> None:
     parser.add_argument("--slug", action="append", default=[])
     parser.add_argument("--layouts", type=int, default=80)
     parser.add_argument("--pdfs", type=int, default=12)
+    parser.add_argument("--include", action="append", default=[], help="必ず升目と原本を入れる文書（正解のある文書など）。升目があるときだけ")
     args = parser.parse_args()
     for slug in args.slug:
         manifest = json.loads((args.work_root / slug / "manifest.json").read_text(encoding="utf-8"))
@@ -46,8 +47,10 @@ def main() -> None:
         docs = [(doc_id, doc) for doc_id, doc in manifest["documents"].items()
                 if str(doc.get("origin", "")).rsplit(":", 1)[-1] in ROLES and (layouts / f"{doc_id}.json.gz").is_file()]
         sheets = [item for item in docs if str(item[1].get("origin", "")).endswith(":sheet")] or docs
-        chosen = spread(sheets, args.layouts)
-        originals = spread([item for item in sheets if item[0] in set(chosen)], args.pdfs)
+        must = [doc_id for doc_id, _ in docs if doc_id in set(args.include)]
+        chosen = must + [doc_id for doc_id in spread(sheets, args.layouts) if doc_id not in must][:max(0, args.layouts - len(must))]
+        originals = must + [doc_id for doc_id in spread([item for item in sheets if item[0] in set(chosen)], args.pdfs)
+                            if doc_id not in must][:max(0, args.pdfs - len(must))]
         out = args.stage / slug
         (out / "layouts").mkdir(parents=True, exist_ok=True)
         (out / "pdf").mkdir(exist_ok=True)

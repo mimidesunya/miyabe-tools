@@ -147,6 +147,9 @@ def test_repage_rewrites_saved_text_with_page_breaks(tmp_path):
     assert records.read_body(text_path).count("\f") == 3
     assert repage_text.repage_one(str(tmp_path / "work" / SLUG), DOC, {**data["documents"][DOC], "sha256": "b" * 64}, True, False) \
         == "sha256_mismatch"
+    # 壊れた本文（gzip でない）は印にして、全体を止めない。
+    text_path.write_bytes(b"not gzip")
+    assert repage_text.repage_one(str(tmp_path / "work" / SLUG), DOC, data["documents"][DOC], True, False) == "error:BadGzipFile"
 
 
 def test_collector_keeps_page_breaks():

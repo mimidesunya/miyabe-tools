@@ -49,7 +49,14 @@ def squeeze(text: str) -> str:
 
 
 def repage_one(work_dir: str, doc_id: str, entry: dict, write: bool, allow_changed: bool) -> str:
-    """1 文書を書き直す。返すのは結果の印（paged、already、changed など）。"""
+    """1 文書を書き直す。返すのは結果の印（paged、already、changed など）。思わぬ失敗も印にして全体を止めない。"""
+    try:
+        return repage_one_unchecked(work_dir, doc_id, entry, write, allow_changed)
+    except Exception as exc:
+        return f"error:{type(exc).__name__}"
+
+
+def repage_one_unchecked(work_dir: str, doc_id: str, entry: dict, write: bool, allow_changed: bool) -> str:
     # pypdf は読めない文字の符号化を頁ごとに警告する（川崎市で数百行）。結果の印には関係しない。
     logging.getLogger("pypdf").setLevel(logging.ERROR)
     work = Path(work_dir)

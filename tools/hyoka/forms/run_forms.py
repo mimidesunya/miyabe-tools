@@ -33,6 +33,7 @@ import run_survey  # noqa: E402
 TOOLS = {"cells.py": HERE / "cells.py", "check.py": HERE / "check.py", "score.py": HERE.parent / "format2" / "score.py",
          "extract.py": HERE.parent / "format2" / "extract.py", "example_reader.py": HERE / "readers" / "14130-kawasaki-shi.py",
          "brief.md": HERE / "brief.md"}
+TRUTH = HERE.parent / "format2" / "truth"
 PROMPT = "作業フォルダの brief.md を読み、その指示どおりに最後まで実行してください。"
 TIMEOUT = 3 * 3600
 
@@ -114,6 +115,11 @@ def cmd_fetch(args: argparse.Namespace) -> None:
     stage = "/tmp/hyoka_forms_stage"
     subprocess.run(["scp", "-q", "-i", SSH[2], str(HERE / "remote_pick.py"), f"{REMOTE}:{REMOTE_TOOLS}/tools/hyoka/forms/remote_pick.py"], check=True)
     picks = " ".join(f"--slug {slug}" for slug in slugs)
+    if args.include_truth:  # 正解のある文書を必ず見本に入れる（report で突き合わせられるように）
+        for path in sorted(TRUTH.glob("*.json")):
+            source = json.loads(path.read_text(encoding="utf-8")).get("source") or {}
+            if source.get("slug") in slugs and source.get("doc_id"):
+                picks += f" --include {source['doc_id']}"
     script = (f"set -e; rm -rf {stage}; python3 {REMOTE_TOOLS}/tools/hyoka/forms/remote_pick.py --work-root /mnt/big/miyabe-tools/work/hyoka2 "
               f"--layouts-root /mnt/big/miyabe-tools/work/hyoka2-ai --stage {stage} {picks}; tar czf {stage}.tgz -C {stage} .; rm -rf {stage}")
     subprocess.run(SSH + [script], check=True)
@@ -148,7 +154,7 @@ def cmd_report(args: argparse.Namespace) -> None:
             print(f"== {folder.name}: reader.py が無い")
             continue
         command = [sys.executable, str(folder / "check.py"), "--layouts", str(folder / "layouts"), "--reader", str(reader),
-                   "--truth", str(HERE.parent / "format2" / "truth"), "--show", str(args.show)]
+                   "--truth", str(TRUTH), "--show", str(args.show)]
         result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", cwd=folder, check=False)
         print(f"== {folder.name}")
         print(result.stdout.strip() or result.stderr.strip()[-800:])
@@ -161,6 +167,7 @@ def main() -> None:
     parser.add_argument("--work", default="")
     parser.add_argument("--slug", action="append", default=[])
     parser.add_argument("--slugs", default="", help="fetch: 団体の slug を並べたファイル")
+    parser.add_argument("--include-truth", action="store_true", help="fetch: 正解のある文書を必ず見本に入れる")
     parser.add_argument("--layouts-root", default="", help="apply: 升目の置き場（<slug>/layouts）")
     parser.add_argument("--out", default="", help="apply: 記録の置き場")
     parser.add_argument("--source", default="")
@@ -169,7 +176,7 @@ def main() -> None:
     parser.add_argument("--model", default="gpt-6.1-sol")
     parser.add_argument("--effort", default="medium")
     parser.add_argument("--parallel", type=int, default=3)
-    parser.add_argument("--max-quota", type=float, default=80.0, help="週の枠がこの % に達したら新しい団体を始めない")
+    parser.add_argument("--max-quota", type=float, default=80.0, help="週の枠がこの %% に達したら新しい団体を始めない")
     parser.add_argument("--show", type=int, default=3)
     args = parser.parse_args()
     {"fetch": cmd_fetch, "prepare": cmd_prepare, "run": cmd_run, "report": cmd_report, "apply": cmd_apply}[args.command](args)

@@ -51,6 +51,16 @@ PART_MAX_LINES = 40000
 MAX_DRAWINGS = 20000  # 図形がこれより多い頁は表を探さず文字だけにする（極端に遅くなる頁の用心）
 OCR_SOURCE = "ocr:ndlocr-lite"
 SLUG_RE = re.compile(r"[0-9]{5}-[a-z0-9-]+")
+# PDF から取り出した文字に、対の無いサロゲート（U+D800〜U+DFFF）が混ざることがある。UTF-8 で書けないので置換文字にする。
+# 2026-11-04 の升目づくり g5 は、これ 1 文書で 90,400 文書目に全体が止まった。
+LONE_SURROGATE_RE = re.compile("[" + chr(0xD800) + "-" + chr(0xDFFF) + "]")
+REPLACEMENT_CHAR = chr(0xFFFD)
+
+
+def json_line(payload: object) -> str:
+    """UTF-8 で必ず書ける JSON の 1 行にする。"""
+    text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    return LONE_SURROGATE_RE.sub(REPLACEMENT_CHAR, text)
 
 
 def now_text() -> str:
@@ -161,7 +171,7 @@ def write_gzip_lines(path: Path, lines: list[dict]) -> None:
     temporary = path.with_suffix(".tmp")
     with gzip.open(temporary, "wt", encoding="utf-8") as stream:
         for line in lines:
-            stream.write(json.dumps(line, ensure_ascii=False, separators=(",", ":")) + "\n")
+            stream.write(json_line(line) + "\n")
     temporary.replace(path)
 
 
@@ -171,7 +181,15 @@ def read_gzip_lines(path: Path) -> list[dict]:
 
 
 def build_doc_grid(task: tuple[str, str, str]) -> tuple[str, str, int, str]:
-    """1 文書の升目の一覧と頁の表の構造を作って書く（別の処理で動く）。HTML のシートは 1 頁として扱う。"""
+    """1 文書の升目を作る（別の処理で動く）。思わぬ失敗も結果として返し、全体を止めない（書けなかった文書は次の回にやり直す）。"""
+    try:
+        return build_doc_grid_unchecked(task)
+    except Exception as exc:
+        return task[2], task[1], 0, f"書けなかった {type(exc).__name__}: {exc}"[:300]
+
+
+def build_doc_grid_unchecked(task: tuple[str, str, str]) -> tuple[str, str, int, str]:
+    """1 文書の升目の一覧と頁の表の構造を作って書く。HTML のシートは 1 頁として扱う。"""
     pdf_path, dest, doc_id = task
     import grid
     pages = []
@@ -221,7 +239,7 @@ def write_doc_grid(dest: str, doc_id: str, pages: list, layouts: list, error: st
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".tmp")
     with gzip.open(temporary, "wt", encoding="utf-8") as stream:
-        json.dump(payload, stream, ensure_ascii=False)
+        stream.write(json_line(payload))
     temporary.replace(path)
     head = {"doc_id": doc_id, "grid_version": rec.GRID_VERSION, "pages": [p["page"] for p in layouts], "error": error}
     write_gzip_lines(layouts_path(path), [head, *layouts])
@@ -249,6 +267,8 @@ def cmd_grids(args) -> int:
             done += 1
             pages += n
             errors += bool(error)
+            if error:
+                print(f"[HYOKA-AI] grids 失敗 {doc_id}: {error}", flush=True)
             if done % 200 == 0 or done == len(tasks):
                 rate = done / max(time.time() - started, 1)
                 print(f"[HYOKA-AI] grids {done}/{len(tasks)} 頁 {pages} 失敗 {errors} "

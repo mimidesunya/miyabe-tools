@@ -142,6 +142,23 @@ class PlanRoleTest(unittest.TestCase):
 
 
 class RunTest(unittest.TestCase):
+    def test_lone_surrogate_is_written_as_replacement(self) -> None:
+        # PDF の文字に対の無いサロゲートが混ざっても書ける（2026-11-04 の g5 は、これで全体が止まった）
+        broken = "事業" + chr(0xDBC0) + "名"
+        with tempfile.TemporaryDirectory() as temporary:
+            dest = Path(temporary) / "s" / "inputs" / "d.json.gz"
+            run_ai.write_doc_grid(str(dest), "d", [[1, broken]], [{"page": 1, "lines": [{"text": broken}]}], "")
+            inputs = json.loads(gzip.open(dest, "rt", encoding="utf-8").read())
+            layouts = run_ai.read_gzip_lines(run_ai.layouts_path(dest))
+        self.assertEqual(inputs["pages"][0][1], "事業" + chr(0xFFFD) + "名")
+        self.assertEqual(layouts[1]["lines"][0]["text"], "事業" + chr(0xFFFD) + "名")
+
+    def test_unexpected_failure_does_not_stop_grids(self) -> None:
+        with mock.patch.object(run_ai, "build_doc_grid_unchecked", side_effect=OSError("disk")):
+            doc_id, dest, pages, error = run_ai.build_doc_grid(("x.pdf", "out/d.json.gz", "d"))
+        self.assertEqual((doc_id, dest, pages), ("d", "out/d.json.gz", 0))
+        self.assertIn("OSError", error)
+
     def test_chunks_split_by_pages_and_size(self) -> None:
         pages = [[n, "あ" * 100] for n in range(1, 14)]
         chunks = run_ai.chunk_pages(pages)
