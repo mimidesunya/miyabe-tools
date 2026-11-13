@@ -263,6 +263,37 @@ def build_scraping_compose(
                     "reiki-index@%h",
                 ],
             },
+            # 自治体の新着情報のフィードを読む（3 時間おき、1 回 2 分ほど）。
+            # 取得元はホストごとに 1 本ずつなので、CPU はほとんど使わない。
+            "scraper-news": {
+                "image": image_name,
+                "restart": "unless-stopped",
+                "cpus": "0.5",
+                "init": True,
+                "stop_grace_period": "1m",
+                "user": f"{uid}:{gid}",
+                "working_dir": "/workspace",
+                "depends_on": ["scraper-redis"],
+                "environment": common_environment,
+                "volumes": [
+                    ".:/workspace",
+                    f"{shared_data_dir}/news:/workspace/data/news",
+                    f"{shared_data_dir}/work/news:/workspace/work/news",
+                ],
+                "command": [
+                    "celery",
+                    "-A",
+                    "deploy.scraper_runtime.celery.app:app",
+                    "worker",
+                    "--loglevel=INFO",
+                    "--pool=solo",
+                    "--concurrency=1",
+                    "-Q",
+                    "news",
+                    "-n",
+                    "news@%h",
+                ],
+            },
             "scraper-beat": {
                 "image": image_name,
                 "restart": "unless-stopped",

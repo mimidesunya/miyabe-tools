@@ -7,6 +7,7 @@
 - [reiki.md](reiki.md) — 例規集ツール。保存済み HTML / Markdown / JSON からの index 作成と画面・API
 - [hyoka-search.md](hyoka-search.md) — 事務事業評価の全文検索。頁・出典、索引の作成と本番実行、OCR・項目抽出との境界
 - [hyoka-projects.md](hyoka-projects.md) — 事務事業評価の事業ごとの索引。費用・方向性・評価・目標割れで探す、金額を集計する（二重に数えない仕組み）、MCP の 3 つの道具
+- [news.md](news.md) — 自治体の新着情報。フィードの台帳 `news_feed_urls.tsv`、3 時間おきの取得と保存（項目は消さない・版の付け方）、本番の worker
 - [mcp.md](mcp.md) — MCP 連携。`/mcp` エンドポイント、ツール定義、設定項目
 
 ## 設計・運用
@@ -37,6 +38,7 @@
 - [hyoka-verification-review.md](hyoka-verification-review.md) — 事務事業評価の設計の見直し（案）。目的は税金の無駄遣いの検証。取り違え、検証の問い、実物を読んだ頻出項目の調査
 - [hyoka-format-2.md](hyoka-format-2.md) — 事務事業評価の形 2.0（共通形式、2026-11-05 採用）。全欄の層と検証の層、体系の道筋と事業の階層、金額の段階と円、評価のそろえ方、文章の項目、値の状態、検算、実装の状況
 - [kansa-url-survey.md](kansa-url-survey.md) — 包括外部監査の報告書の公開先 `gaibu_kansa_system_urls.tsv` の調査と、報告書の取得
+- [news-feed-survey.md](news-feed-survey.md) — 自治体の新着情報の RSS・新着一覧ページの全国調査（2026-11-13）と、作るときの案
 - [collection-gap-survey.md](collection-gap-survey.md) — 会議録・例規集の収集取りこぼしの現況。取りこぼしの型、直したもの、残っている課題、調査の再現手順
 - [collection-gap-survey-history.md](collection-gap-survey-history.md) — 収集取りこぼしの調査と修正の記録。ラウンドごとの時系列の全記録
 - [collection-design-issues.md](collection-design-issues.md) — 収集の不具合が繰り返し出る原因の分類と、直す順序

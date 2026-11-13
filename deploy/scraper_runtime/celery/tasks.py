@@ -694,6 +694,19 @@ def sweep_reiki_source_discovery(limit: int = 0) -> dict[str, object]:
     return _run_source_discovery("reiki", limit)
 
 
+# 自治体の新着情報のフィードを 1 回り読む（`tools/news/fetch_news_feeds.py`）。
+# 結果は work/news/last_run.json と runs.jsonl にも残る。
+@app.task(name="deploy.scraper_runtime.celery.tasks.run_news_fetch")
+def run_news_fetch(codes: list[str] | None = None) -> dict[str, object]:
+    from tools.news import fetch_news_feeds
+
+    try:
+        summary = fetch_news_feeds.run(codes=set(codes) if codes else None)
+    except Exception as exc:
+        return {"task": "news_fetch", "error": f"{type(exc).__name__}: {exc}"}
+    return {key: value for key, value in summary.items() if key != "errors"}
+
+
 # 待ち行列に残っている自治体を投げ直す。**取得のやり直しを待たない。**
 #
 # celery の retry はメッセージが生きている間しか効かない。worker が強制終了

@@ -459,9 +459,9 @@ def remote_stop_scraping_stack_cmd(scraper_image_name: str = DEFAULT_SCRAPER_IMA
     return f"""
 if [ -f docker-compose.scraping.yml ]; then
   docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml stop scraper-beat scraper-gijiroku scraper-reiki scraper-redis >/dev/null 2>&1 || true
-  docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml stop scraper-gijiroku-index scraper-reiki-index >/dev/null 2>&1 || true
+  docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml stop scraper-gijiroku-index scraper-reiki-index scraper-news >/dev/null 2>&1 || true
   docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml rm -f scraper-beat scraper-gijiroku scraper-reiki scraper-redis >/dev/null 2>&1 || true
-  docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml rm -f scraper-gijiroku-index scraper-reiki-index >/dev/null 2>&1 || true
+  docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml rm -f scraper-gijiroku-index scraper-reiki-index scraper-news >/dev/null 2>&1 || true
 fi
 {remote_scraper_cleanup_cmd(scraper_image_name)}
 """.strip()
@@ -534,6 +534,7 @@ echo "$running" | grep -qx 'scraper-gijiroku'
 echo "$running" | grep -qx 'scraper-reiki'
 echo "$running" | grep -qx 'scraper-gijiroku-index'
 echo "$running" | grep -qx 'scraper-reiki-index'
+echo "$running" | grep -qx 'scraper-news'
 echo "$running" | grep -qx 'scraper-beat'
 """
     return ssh_exec(config, verify_cmd)
@@ -589,17 +590,18 @@ def ensure_remote_shared_data_permissions(config, shared_data_dir, *, recursive=
     web_group = str(config.get('web_group', 'www-data')).strip() or 'www-data'
     top_cmd = f"""
 mkdir -p {shared_data_dir}
-mkdir -p {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery
+mkdir -p {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery {shared_data_dir}/news {shared_data_dir}/work/news
 chgrp {web_group} {shared_data_dir}
-chgrp {web_group} {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery
+chgrp {web_group} {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery {shared_data_dir}/news {shared_data_dir}/work/news
 chmod 2775 {shared_data_dir}
-chmod 2775 {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery
+chmod 2775 {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery {shared_data_dir}/news {shared_data_dir}/work/news
 """
     if not recursive:
         ssh_exec(config, top_cmd)
         return
     permission_cmd = top_cmd + f"""if [ -d {shared_data_dir}/reiki ]; then find {shared_data_dir}/reiki -type d -exec chgrp {web_group} {{}} + -exec chmod 2775 {{}} +; fi
 if [ -d {shared_data_dir}/gijiroku ]; then find {shared_data_dir}/gijiroku -type d -exec chgrp {web_group} {{}} + -exec chmod 2775 {{}} +; fi
+if [ -d {shared_data_dir}/news ]; then find {shared_data_dir}/news -type d -exec chgrp {web_group} {{}} + -exec chmod 2775 {{}} +; fi
 if [ -d {shared_data_dir}/work ]; then find {shared_data_dir}/work -type d -exec chgrp {web_group} {{}} + -exec chmod 2775 {{}} +; fi
 if [ -d {shared_data_dir}/reiki ]; then find {shared_data_dir}/reiki -type f -name '*.sqlite' -exec chgrp {web_group} {{}} + -exec chmod 664 {{}} +; fi
 if [ -d {shared_data_dir}/gijiroku ]; then find {shared_data_dir}/gijiroku -type f -name '*.sqlite' -exec chgrp {web_group} {{}} + -exec chmod 664 {{}} +; fi
@@ -631,7 +633,7 @@ def normalize_remote_municipality_storage(config, dest_dir, shared_data_dir):
     normalization_cmd = f"""
 set -eu
 echo '[deploy] prepare municipality storage'
-mkdir -p {dest_dir}/tools {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery
+mkdir -p {dest_dir}/tools {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery {shared_data_dir}/news {shared_data_dir}/work/news
 if [ -f {dest_dir}/docker-compose.scraping.yml ]; then
   cd {dest_dir}
   # 正規化のために全部の worker を止めると、福岡県のような長い取得（25 時間）も殺す。
@@ -644,7 +646,7 @@ if [ -f {dest_dir}/docker-compose.scraping.yml ]; then
       exit 0
       ;;
   esac
-  running_scrapers="$(docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml ps --status running --services | grep -E '^(scraper-gijiroku|scraper-reiki|scraper-gijiroku-index|scraper-reiki-index|scraper-beat)$' || true)"
+  running_scrapers="$(docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml ps --status running --services | grep -E '^(scraper-gijiroku|scraper-reiki|scraper-gijiroku-index|scraper-reiki-index|scraper-news|scraper-beat)$' || true)"
   restore_scrapers() {{
     if [ -n "$running_scrapers" ]; then
       echo '[deploy] restore scraper workers after normalization'
@@ -700,7 +702,7 @@ cd {dest_dir}
     )
     restart_cmd = f"""
 set -eu
-{remote_scraping_compose_cmd(dest_dir, 'up -d --force-recreate --remove-orphans scraper-redis scraper-gijiroku scraper-reiki scraper-gijiroku-index scraper-reiki-index scraper-beat')}
+{remote_scraping_compose_cmd(dest_dir, 'up -d --force-recreate --remove-orphans scraper-redis scraper-gijiroku scraper-reiki scraper-gijiroku-index scraper-reiki-index scraper-news scraper-beat')}
 """
     restart_output = ssh_exec(config, restart_cmd)
     verify_output = verify_scraping_services_running(config, dest_dir)
@@ -769,7 +771,7 @@ def sync_files(config, dest_dir, shared_data_dir, dry_run=False):
     # Ensure remote directories exist
     ssh_exec(
         config,
-        f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/domains {dest_dir}/nginx {dest_dir}/docker/php {dest_dir}/deploy/scraper_runtime {dest_dir}/tools {dest_dir}/data {dest_dir}/data/boards {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {dest_dir}/work {dest_dir}/work/celery {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery"
+        f"mkdir -p {dest_dir}/app {dest_dir}/lib {dest_dir}/domains {dest_dir}/nginx {dest_dir}/docker/php {dest_dir}/deploy/scraper_runtime {dest_dir}/tools {dest_dir}/data {dest_dir}/data/boards {dest_dir}/data/background_tasks {dest_dir}/data/municipalities {dest_dir}/work {dest_dir}/work/celery {shared_data_dir} {shared_data_dir}/reiki {shared_data_dir}/gijiroku {shared_data_dir}/work {shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery {shared_data_dir}/news {shared_data_dir}/work/news"
     )
 
     # Use rsync for better handling of large number of files

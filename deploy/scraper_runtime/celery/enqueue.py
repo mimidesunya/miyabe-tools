@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[3]))
 
-from deploy.scraper_runtime.celery.app import app, GIJIROKU_INDEX_QUEUE, REIKI_INDEX_QUEUE
+from deploy.scraper_runtime.celery.app import app, GIJIROKU_INDEX_QUEUE, NEWS_QUEUE, REIKI_INDEX_QUEUE
 from deploy.scraper_runtime.celery import index_enqueue
 
 
@@ -19,6 +19,7 @@ TASK_CHOICES = {
     "reiki-cycle": ("deploy.scraper_runtime.celery.tasks.run_reiki_cycle", "reiki"),
     "reiki-rebuild": ("deploy.scraper_runtime.celery.tasks.run_reiki_rebuild", "reiki"),
     "reiki-index": ("deploy.scraper_runtime.celery.tasks.run_reiki_index_update", REIKI_INDEX_QUEUE),
+    "news-fetch": ("deploy.scraper_runtime.celery.tasks.run_news_fetch", NEWS_QUEUE),
 }
 
 

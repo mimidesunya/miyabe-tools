@@ -9,6 +9,9 @@ GIJIROKU_QUEUE = "gijiroku"
 REIKI_QUEUE = "reiki"
 GIJIROKU_INDEX_QUEUE = "gijiroku-index"
 REIKI_INDEX_QUEUE = "reiki-index"
+# 新着情報のフィードの取得。会議録・例規の取得や索引の待ち行列の後ろに
+# 並ばないよう、専用の worker（scraper-news）で受ける。
+NEWS_QUEUE = "news"
 DISPATCH_INTERVAL_SECONDS = celery_runtime.env_int(
     "CELERY_DISPATCH_INTERVAL_SECONDS",
     60,
@@ -64,6 +67,13 @@ SOURCE_DISCOVERY_SECONDS = celery_runtime.env_int(
     "CELERY_SOURCE_DISCOVERY_SECONDS",
     6 * 60 * 60,
     minimum=600,
+)
+# 自治体の新着情報のフィードを読む間隔。全国 2,556 本を 2 分ほどで読み終える。
+# 相手 1 団体あたり 1 日 8 回で、半分以上は 304（変わっていない）で終わる。
+NEWS_FETCH_SECONDS = celery_runtime.env_int(
+    "CELERY_NEWS_FETCH_SECONDS",
+    3 * 60 * 60,
+    minimum=15 * 60,
 )
 
 app = Celery(
@@ -206,6 +216,17 @@ app.conf.update(
                 "expires": max(5, COVERAGE_LEDGER_SECONDS - 5),
             },
         },
+        # 自治体の新着情報のフィードを読み、項目をためる。自治体のサイトは
+        # 古いお知らせを消し、フィードには中央値で 36 日分しか出ないので、
+        # 間を空けすぎると取りこぼす。
+        "fetch-news-feeds": {
+            "task": "deploy.scraper_runtime.celery.tasks.run_news_fetch",
+            "schedule": float(NEWS_FETCH_SECONDS),
+            "options": {
+                "queue": NEWS_QUEUE,
+                "expires": max(5, NEWS_FETCH_SECONDS - 5),
+            },
+        },
     },
     task_routes={
         # 判定は maintenance（索引 worker）で動かす。取得は run_*_cycle として
@@ -222,5 +243,6 @@ app.conf.update(
         "deploy.scraper_runtime.celery.tasks.sweep_pdf_ocr": {"queue": GIJIROKU_INDEX_QUEUE},
         "deploy.scraper_runtime.celery.tasks.sweep_gijiroku_source_discovery": {"queue": GIJIROKU_INDEX_QUEUE},
         "deploy.scraper_runtime.celery.tasks.sweep_reiki_source_discovery": {"queue": REIKI_INDEX_QUEUE},
+        "deploy.scraper_runtime.celery.tasks.run_news_fetch": {"queue": NEWS_QUEUE},
     },
 )

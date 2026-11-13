@@ -160,6 +160,7 @@ def main() -> int:
             f"{dest_dir}/data/municipalities "
             f"{dest_dir}/work/gijiroku {dest_dir}/work/reiki {dest_dir}/work/celery "
             f"{shared_data_dir}/work/gijiroku {shared_data_dir}/work/reiki {shared_data_dir}/work/celery "
+            f"{shared_data_dir}/news {shared_data_dir}/work/news "
             f"{dest_dir}/docker/scraper"
         ),
     )
@@ -207,7 +208,7 @@ def main() -> int:
     print(f"docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml logs -f scraper-beat")
     print(
         f"docker compose -p {SCRAPING_COMPOSE_PROJECT} -f docker-compose.scraping.yml "
-        "restart scraper-gijiroku scraper-reiki scraper-gijiroku-index scraper-reiki-index scraper-beat"
+        "restart scraper-gijiroku scraper-reiki scraper-gijiroku-index scraper-reiki-index scraper-news scraper-beat"
     )
     print(
         "docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml exec scraper-gijiroku "

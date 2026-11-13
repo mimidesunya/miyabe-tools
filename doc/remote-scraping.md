@@ -160,6 +160,15 @@ python3 deploy/remote_exec.py deploy.json -- "cd ~/services/miyabe-tools && dock
 python3 deploy/scraper_runtime/celery/enqueue.py reiki-cycle --filter reiki-pdf
 ```
 
+## 新着情報のフィード
+
+自治体の新着情報のフィードは、専用の worker `scraper-news`（`news` キュー）が 3 時間おきに読みます（`CELERY_NEWS_FETCH_SECONDS`）。置き場所は共有領域の `news` と `work/news` です。詳しくは `doc/news.md`。
+
+```bash
+docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml logs -f scraper-news
+docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml exec -T scraper-news   sh -lc 'cd /workspace && PYTHONPATH=/workspace python3 deploy/scraper_runtime/celery/enqueue.py news-fetch'
+```
+
 ## 索引 worker の数
 
 会議録の索引 worker（`scraper-gijiroku-index`）は既定で 5 replica 動きます（`deploy/scraping_stack.py` の `DEFAULT_GIJIROKU_INDEX_REPLICAS`、`prepare_remote_scraping.py --gijiroku-index-replicas N` で変更）。1 自治体の再索引に 13〜28 分かかり、世代の追いつきや取り直しで 1,000 自治体単位の待ち行列ができるためです。同じ自治体が同時に走らないことは、broker の Redis に置く印（`deploy/scraper_runtime/celery/index_enqueue.py`）が保証します。印は「積んだか実行中」を意味し、終わると消えます。
