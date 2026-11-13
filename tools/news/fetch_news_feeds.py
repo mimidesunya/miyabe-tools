@@ -3,7 +3,8 @@
 
 台帳 `data/municipalities/news_feed_urls.tsv` の `enabled` のフィードを読み、
 新しい項目を自治体ごとに追記する。Celery beat から 3 時間おきに呼ぶ
-（`run_news_fetch`）。調べた結果と作り方は `doc/news-feed-survey.md`。
+（`run_news_fetch`。同じタスクで続けて `fetch_news_bodies.py` がリンク先の
+本文を読む）。調べた結果と作り方は `doc/news-feed-survey.md`・`doc/news.md`。
 
     data/news/<slug>/
         items/<年>.jsonl   項目（初めて見た年ごと。1 行 1 項目）
@@ -12,6 +13,7 @@
         feed_state.json    フィードごとの ETag・Last-Modified・失敗の回数
         last_run.json      直近の 1 回の結果
         runs.jsonl         1 回ごとの結果の記録
+        latest/            トップページの「各地のお知らせ」（latest_news.py）
 
 **自治体のサイトは古いお知らせを消す。** フィードに出ているのは中央値で
 36 日分しかないので、ためたものが記録になる。項目は消さない。
@@ -63,6 +65,7 @@ from tools.document_crawl import (  # noqa: E402
     write_json,
 )
 from tools.news.news_feed import FeedError, FeedItem, parse_feed  # noqa: E402
+from tools.news.latest_news import build_latest  # noqa: E402
 
 REGISTRY = WORKSPACE_ROOT / "data" / "municipalities" / "news_feed_urls.tsv"
 DEFAULT_DATA_ROOT = WORKSPACE_ROOT / "data" / "news"
@@ -459,6 +462,14 @@ def run(*, registry: Path = REGISTRY, data_root: Path = DEFAULT_DATA_ROOT, work_
                 print(f"[NEWS] {done}/{len(jobs)} 自治体", flush=True)
     fetcher.save_state()
 
+    # トップページの「各地のお知らせ」。書けなくても取得の結果は残す。
+    latest: dict[str, object] = {}
+    if not dry_run:
+        try:
+            latest = dict(build_latest(data_root=data_root, work_root=work_root))
+        except Exception as exc:
+            latest = {"latest_error": f"{type(exc).__name__}: {exc}"[:300]}
+
     finished = now_jst()
     summary: dict[str, object] = {
         "task": "news_fetch",
@@ -475,6 +486,7 @@ def run(*, registry: Path = REGISTRY, data_root: Path = DEFAULT_DATA_ROOT, work_
         "revised_items": revised_items,
         "municipalities_with_new": municipalities_with_new,
         "dry_run": dry_run,
+        **latest,
         "errors": errors,
     }
     if not dry_run:

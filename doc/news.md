@@ -2,7 +2,7 @@
 
 自治体のホームページの新着情報（お知らせ・報道発表など）を、フィード（RSS 1.0・RSS 2.0・Atom）から集めてためる。調べた結果と全体の案は [news-feed-survey.md](news-feed-survey.md)。
 
-いまできているのは **1 段目の取得と保存**まで。リンク先の本文、検索の索引、MCP の道具、画面はまだ無い。
+いまできているのは **フィードの取得と保存**、**リンク先の本文**、**トップページの「各地のお知らせ」**まで。検索の索引と MCP の道具はまだ無い。
 
 ## 台帳
 
@@ -69,6 +69,7 @@ work/news/
     feed_state.json    フィードごとの ETag・Last-Modified・最後に読めた日時・続けた失敗の回数・最後の失敗
     last_run.json      直近の 1 回の結果（失敗の例を 30 件まで）
     runs.jsonl         1 回ごとの結果
+    latest/            トップページの「各地のお知らせ」の一覧（下の「トップページ」）
 ```
 
 **項目は消さない。** 自治体のサイトは古いお知らせを消し、フィードには中央値で 36 日分しか出ない。ためたものが記録になる。
@@ -104,6 +105,47 @@ work/news/
 
 フィードの読み方（題名の整え方・日付の読み方）を変えると、そのときフィードに出ている項目の印が変わり、1 回だけ版を上げた行が足される。
 
+## 本文
+
+`tools/news/fetch_news_bodies.py`。ためた項目を後ろから追いかけ、まだ本文の無い項目のリンク先を読む。本文の抜き出しは `tools/news/news_body.py`。
+
+```
+data/news/<slug>/bodies/
+    <年>.jsonl    本文（読んだ年ごと、1 行 1 件）。追記だけで消さない
+    state.json    項目のファイルをどこまで見たか・まだ読んでいない項目・読んだ項目の版と本文の印
+```
+
+**お知らせのページは消える。** 2026-11-14 に手元で 100 自治体 × 5 件を読んだら、出てから数日のものでも 7 件（1.4%）が 404 だった。見つけた回のうちに読み、消えていたら `kind: gone` の行を残す。
+
+- 新しく見つけた順（時の単位。同じなら日付の新しい順）に読む。版が上がった項目は読み直し、本文が前と同じなら行を足さない。
+- 1 回に読むのは 1 自治体あたり `4,000 ÷ 待っている自治体の数`（5〜200 件）。1 回目のフィードの 10 万 6 千件のような溜まった分は何回かに分け、どの自治体も少しずつ進む。待っている自治体が減るほど 1 自治体の件数が増える。
+- 同じホストへは 1 秒以上空け、同時に 1 本。robots.txt は見ない（会議録・例規と同じ方針。`tools/gijiroku/crawl_policy.py`）。
+- つながらない・5xx は次の回に読み直し、4 回続けて駄目なら `kind: failed` の行を残して諦める。404・410 は `gone`。
+- http でつながらないときは https で読み直し、そのホストはその回のあいだ https で読む（鶴岡市はフィードのリンクが http のままで、http を閉じている）。
+- 大きさは 20MB まで、本文は 30,000 字まで。
+
+抜き出し方（全国 300 件で試した）:
+
+1. 見出し・メニュー・パンくず・フッター・`aside` などを外す。
+2. よくある本文の枠（`article`・`main`・`#main`・`#tmp_contents`・`#contents`・`#content`・`.contents` など）を順に探し、100 字以上あればそれを使う。
+3. 無ければ `body` から、リンクでない文字の 7 割以上を持つ子へ降りていく（`.mol_contents`・`#contentBody`・`#ContentPane` などに行き着く）。
+
+100 自治体 × 5 件では、本文の中央値は 801 字、100 字未満は 8 件（1.6%。中身を JavaScript で出すサイト）。段落ごとに改行を入れる。
+
+- PDF のリンクは PDF の本文を抜く（`kind: pdf`・`pages`）。Excel・Word などは形式だけ（`kind: xlsx` など）、画像などは `kind: other` と `media_type`。
+- **添付は URL とリンクの文字だけ**控える（`attachments`）。お知らせの 55% に添付があり、報道発表のように中身が PDF だけのものも多い。添付の中身はまだ読まない。
+
+行の欄: `id`・`jis_code`・`revision`（読んだ項目の版）・`url`・`final_url`（転送された先）・`fetched_at`・`status`・`kind`（`html` / `pdf` / `gone` / `failed` / `unreadable` / 形式）・`page_title`・`text`・`chars`・`method`（どこから抜いたか）・`attachments`・`text_hash`・`error`。
+
+Celery の `run_news_fetch` が、フィードを読んだすぐ後に呼ぶ。結果は `work/news/bodies_last_run.json` と `bodies_runs.jsonl`。
+
+```bash
+python tools/news/fetch_news_bodies.py --code 01100
+python tools/news/fetch_news_bodies.py --per-run 500 --data-root /tmp/news --work-root /tmp/news-work
+```
+
+手元で 100 自治体 × 5 件（494 リクエスト）を読んで 159 秒。本番の 1 回目（10 万 6 千件の待ち、1 回に 7 千件ほど）は 30〜40 分かかる見込み。
+
 ## 本番
 
 スクレイパの Celery に組み込んである（[remote-scraping.md](remote-scraping.md)）。
@@ -119,15 +161,47 @@ docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml exec -T s
   sh -lc 'cd /workspace && PYTHONPATH=/workspace python3 deploy/scraper_runtime/celery/enqueue.py news-fetch'
 ```
 
-結果を見るには `work/news/last_run.json`。
+結果を見るには `work/news/last_run.json`（フィード）と `work/news/bodies_last_run.json`（本文）。
+
+## トップページ
+
+トップページの「02 各地のお知らせ」。取得の 1 回の終わりに `tools/news/latest_news.py` がためた項目から一覧を書き、web はそれを読むだけ。
+
+```
+work/news/latest/all.json        全国。1 自治体 1 件まで、20 件
+work/news/latest/<01〜47>.json   都道府県。1 自治体 3 件まで、20 件
+```
+
+- 直近 7 日（きょうを含む）の項目から選ぶ。日付の無い項目（全体の 2.4%）と、見つけた日より後の日付の項目（催しの日を日付にするフィード）は出さない。
+- 日付の新しい順。同じ日付なら見つけた時刻（時の単位）の新しい順、同じ回に見つけたものは項目の id（URL の SHA-1）の順。取得は自治体コードの順に回るので、見つけた時刻の順だと毎回同じ地方が上に来る。id の順なら地方が混ざり、次の取得までは並びが変わらない。
+- 同じ自治体の同じ題名・同じ日付は 1 つにする（新着と分野のフィードで URL が違うことがある）。
+- 項目の記録は後ろから読み、7 日より前に書いた行に当たったらやめる。手元の全国の 1 回目（10 万 6 千件がみな 7 日以内）で 2 秒。
+- 書けなかったときも取得の結果は残し、`last_run.json` の `latest_error` に書く。書けたときは候補の数（`latest_candidates`）と、お知らせのあった都道府県の数（`latest_prefectures`）。
+
+web 側:
+
+- `lib/news.php` が一覧を読んで並べる。リンクは http(s) だけ、題名はエスケープする。全国の一覧だけ都道府県名を付ける。
+- `app/index.php` が全国の一覧を最初から出す。一覧がまだ無ければ（手元など）この欄ごと出さない。
+- 都道府県を選ぶと `app/assets/js/home-news.js` が `/api/news-latest.php?pref=13` から並べた HTML をもらって差し替える。選んだ都道府県はそのブラウザにだけ覚える。ページの中の部品なので、公開の API（OpenAPI・MCP）には載せない。
+- スマホの幅では 8 件で止め、残りはボタンで開く。
+- 本番の web は共有領域の `work` を `/var/www/work` に重ねているので、置き場所を足さずに読める。
+
+一覧だけ書き直すには:
+
+```bash
+python tools/news/latest_news.py --data-root data/news --work-root work/news
+```
+
+テストは `tools/news/test_latest_news.py` と `php tests/news_latest_test.php`。
 
 ## 量と負荷
 
 - 1 日に 2,556 本 × 8 回 ≒ 2 万リクエスト。半分以上は 304 で中身を送らない。相手 1 団体あたりは 1 日 8 回 × フィードの本数。
 - 保存は 1 項目 600 バイトほど。1 回目の 10 万 6 千件で 62MB。その後は 1 日 2,400 件ほど（1.4MB）で、年に 500MB ほど。
+- 本文は 1 件 4.5KB ほど（添付の一覧を含む）。溜まった 10 万 6 千件で 480MB、その後は 1 日 13MB・年に 5GB ほど。リンク先へのリクエストは 1 日 2,900 件ほど（相手 1 団体あたり 1 日数件）。
 
 ## 残り
 
 - 直方市の 2 本（証明書の検証に落ちる）。中間証明書を送ってこない形なら、例規の取得（`tools/reiki/scrapers/static_catalog.py` の `ca_bundle_path`）と同じく足せば通る見込み。まだ確かめていない。
-- 次の段: リンク先の本文、検索の索引と MCP の道具、自治体の詳細ページへの表示、フィードの無い団体の読み取り（[news-feed-survey.md](news-feed-survey.md) の「作るときの案」）。
+- 次の段: 添付（PDF など）の中身、検索の索引と MCP の道具、地図の自治体の欄への表示、フィードの無い団体の読み取り（[news-feed-survey.md](news-feed-survey.md) の「作るときの案」）。
 - 実行状態（`management_task_statuses`）や収集状況のページにはまだ出していない。

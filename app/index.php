@@ -2,11 +2,16 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'site_assets.php';
+require_once dirname(__DIR__) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'municipalities.php';
+require_once dirname(__DIR__) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'news.php';
 
 function home_h(?string $value): string
 {
     return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
+
+// 各地のお知らせ。一覧がまだ無ければ（取得の worker が 1 回も書いていない手元など）出さない。
+$homeNews = news_latest_load('all');
 
 ?><!doctype html>
 <html lang="ja">
@@ -95,9 +100,33 @@ function home_h(?string $value): string
             </form>
         </section>
 
+        <?php if ($homeNews !== null): ?>
+        <section class="news-latest" aria-labelledby="home-news-title" data-home-news>
+            <div class="section-head">
+                <div><span>02</span><h2 id="home-news-title">各地のお知らせ</h2></div>
+                <label class="control-field" for="home-news-prefecture">
+                    <span>都道府県</span>
+                    <select id="home-news-prefecture" data-home-news-prefecture>
+                        <option value="all">全国</option>
+                        <?php foreach (municipality_prefecture_names() as $prefCode => $prefName): ?>
+                        <option value="<?php echo home_h((string)$prefCode); ?>"><?php echo home_h($prefName); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+            </div>
+            <ol class="news-list" data-home-news-list aria-live="polite"><?php echo news_render_items($homeNews); ?></ol>
+            <button type="button" class="news-more" data-home-news-more hidden>残りも見る</button>
+            <p class="news-note">
+                自治体のホームページの新着情報（RSS）から 3 時間おきに集めた、この 7 日のお知らせです。
+                日付の新しい順で、全国は 1 自治体 1 件、都道府県は 1 自治体 3 件まで並べます。題名を選ぶと自治体のサイトが開きます。
+                <span data-home-news-updated><?php echo home_h(news_render_updated($homeNews)); ?></span>
+            </p>
+        </section>
+        <?php endif; ?>
+
         <section class="map-intro" aria-label="自治体マップの概要">
             <div class="map-intro-copy">
-                <p class="eyebrow"><span>02</span> このサイトについて</p>
+                <p class="eyebrow"><span>03</span> このサイトについて</p>
                 <h2 class="intro-title">自治体の文書そのものを検索できます</h2>
                 <p class="intro-lead">
                     全国の自治体が公開している会議録と例規集を集めて、
@@ -120,7 +149,7 @@ function home_h(?string $value): string
 
         <section class="coverage-dashboard" aria-label="自治体対応状況">
             <div class="coverage-head">
-                <p class="eyebrow"><span>03</span> 地図から探す</p>
+                <p class="eyebrow"><span>04</span> 地図から探す</p>
                 <span class="coverage-count" data-home-display-count>表示自治体: 0</span>
             </div>
             <div class="toolbar">
@@ -184,7 +213,7 @@ function home_h(?string $value): string
 
         <section class="municipality-results" aria-label="表示中の自治体">
             <div class="section-head">
-                <div><span>04</span><h2>自治体索引</h2></div>
+                <div><span>05</span><h2>自治体索引</h2></div>
                 <p>地図に出ている自治体を、都道府県ごとに並べています。</p>
             </div>
             <div class="municipality-list" data-home-grid>
@@ -224,5 +253,6 @@ window.HOMEPAGE_REFRESH_MS = 600000;
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="<?php echo home_h(site_asset_url('assets/js/municipality-coordinates.js')); ?>" defer></script>
 <script src="<?php echo home_h(site_asset_url('assets/js/home.js')); ?>" defer></script>
+<script src="<?php echo home_h(site_asset_url('assets/js/home-news.js')); ?>" defer></script>
 </body>
 </html>

@@ -162,7 +162,7 @@ python3 deploy/scraper_runtime/celery/enqueue.py reiki-cycle --filter reiki-pdf
 
 ## 新着情報のフィード
 
-自治体の新着情報のフィードは、専用の worker `scraper-news`（`news` キュー）が 3 時間おきに読みます（`CELERY_NEWS_FETCH_SECONDS`）。置き場所は共有領域の `news` と `work/news` です。詳しくは `doc/news.md`。
+自治体の新着情報のフィードは、専用の worker `scraper-news`（`news` キュー）が 3 時間おきに読みます（`CELERY_NEWS_FETCH_SECONDS`）。同じタスクの中で、続けて新しい項目のリンク先の本文も読みます。置き場所は共有領域の `news` と `work/news` です。詳しくは `doc/news.md`。
 
 ```bash
 docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml logs -f scraper-news

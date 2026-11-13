@@ -191,6 +191,9 @@ class FetchTest(unittest.TestCase):
                             session=session, quiet=True, workers=1)
         self.assertEqual((summary["feeds"], summary["fetched"], summary["new_items"]), (1, 1, 1))
         self.assertTrue((self.work_root / "last_run.json").exists())
+        # トップページの「各地のお知らせ」の一覧も書く。
+        self.assertIn("latest_candidates", summary)
+        self.assertTrue((self.work_root / "latest" / "all.json").exists())
         self.assertEqual(len((self.work_root / "runs.jsonl").read_text(encoding="utf-8").splitlines()), 1)
 
 
