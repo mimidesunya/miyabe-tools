@@ -33,8 +33,8 @@ function health_parse_http_status(array $headers): int
 
 function health_check_php(): array
 {
+    // PHP の版は外に出さない（誰でも見られる入口なので、攻める側の手掛かりを減らす）。
     return health_ok([
-        'version' => PHP_VERSION,
         'sapi' => PHP_SAPI,
     ]);
 }
@@ -107,8 +107,9 @@ function health_check_postgres(): array
             'latency_ms' => (int)round((microtime(true) - $started) * 1000),
         ]);
     } catch (Throwable $error) {
+        // 例外の文には内部のホスト名や DB の利用者名が入るので、応答には出さずログに残す。
+        error_log('[health] management database: ' . $error->getMessage());
         return health_ng('management database is unavailable', [
-            'detail' => $error->getMessage(),
             'latency_ms' => (int)round((microtime(true) - $started) * 1000),
         ]);
     }

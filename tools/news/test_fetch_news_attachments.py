@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import requests
@@ -43,6 +43,8 @@ class AttachmentsTest(unittest.TestCase):
         (self.data_root / SLUG / "items").mkdir(parents=True)
         self.bodies_path = self.data_root / SLUG / "bodies" / "2026.jsonl"
         self.bodies_path.parent.mkdir(parents=True)
+        # 読み直しの待ちを確かめるときは、この時刻を進める。
+        self.now = datetime.now(JST)
 
     def tearDown(self) -> None:
         self.temp.cleanup()
@@ -57,12 +59,12 @@ class AttachmentsTest(unittest.TestCase):
         session = FakeSession(responses)
         summary = attachments.run(data_root=self.data_root, work_root=self.work_root, session=session,
                                   pacer=HostPacer(interval=0), per_run=per_run, workers=1, budget_seconds=budget,
-                                  quiet=True)
+                                  quiet=True, clock=lambda: self.now)
         summary["calls"] = session.calls
         return summary
 
     def lines(self) -> list[dict]:
-        path = self.data_root / SLUG / "attachments" / f"{datetime.now(JST).year}.jsonl"
+        path = self.data_root / SLUG / "attachments" / f"{self.now.year}.jsonl"
         if not path.exists():
             return []
         return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
@@ -118,13 +120,17 @@ class AttachmentsTest(unittest.TestCase):
         self.assertEqual((line["kind"], line["pages"]), ("pdf", 2))
         self.assertNotIn("text", line)
 
-    def test_failures_are_retried_then_given_up(self) -> None:
+    def test_failures_are_retried_with_longer_waits_then_given_up(self) -> None:
         self.add_bodies(body_line("a", "slow.pdf"))
         url = f"{SITE}/files/slow.pdf"
         for attempt in range(1, attachments.MAX_TRIES):
             summary = self.run_once({url: requests.ConnectTimeout("no answer")})
             self.assertEqual((summary["retry"], summary["waiting_after"]), (1, 1))
             self.assertEqual(self.state()["pending"][url]["tries"], attempt)
+            # 待ちが明ける前の回では読みに行かない。
+            self.now += timedelta(hours=attachments.RETRY_WAIT_HOURS[attempt - 1]) - timedelta(minutes=1)
+            self.assertEqual(self.run_once({})["calls"], [])
+            self.now += timedelta(minutes=2)
         summary = self.run_once({url: FakeResponse(503)})
         self.assertEqual((summary["failed"], summary["waiting_after"]), (1, 0))
         self.assertEqual((self.lines()[0]["kind"], self.lines()[0]["error"]), ("failed", "HTTP 503"))

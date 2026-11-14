@@ -15,7 +15,9 @@
 - [search-ranking.md](search-ranking.md) — 検索の並び順。日付順での近接優先、しきい値の根拠、速度への影響
 - [multi-municipality.md](multi-municipality.md) — 複数自治体対応の共通設計。slug 正規化、URL ルール、自治体追加手順
 - [domain-boundaries.md](domain-boundaries.md) — 自治体文書と選挙ポスター掲示場の所有範囲、許可する共有、互換入口
+- [site-design.md](site-design.md) — 画面の作りと言葉。だれのために作るか、共通のヘッダーと 5 つの行き先、資料の色、検索の箱、手元で画面を確かめる方法
 - [home-page.md](home-page.md) — トップページ（自治体マップ）の描画方式と表示ルール
+- [system-review-2026-11-14.md](system-review-2026-11-14.md) — システム全体のレビュー（公開面・収集と運用・構造）。直したものと、残っている指摘
 - [municipalities-page.md](municipalities-page.md) — 自治体一覧。原典（自治体サイト）への入口を地方別・都道府県別の表で見せる画面
 - [status-architecture.md](status-architecture.md) — 実行状態管理。PostgreSQL 正本のテーブル構成、表示ルール、JSON 控えの扱いと経緯
 - [remote-scraping.md](remote-scraping.md) — リモートスクレイピング運用。事前同期、Celery 巡回、再起動・停止手順

@@ -22,6 +22,9 @@
 - 同じホストへは 1 秒以上空け、同時に 1 本。http でつながらなければ https で読み直す。
 - 30MB を超えるもの（大きさを告げていればその場で）は読まずに 1 行残す。頁は先頭の
   300 頁まで読む。文字の無い PDF（画像だけ）は頁数だけ残す。
+- つながらない・5xx は、本文と同じ間隔で読み直してから諦める（2 週間ほど）。
+- 読んだ分は自治体ごとにすぐ保存する。PDF そのものは残さないので、回の途中で止められて
+  読み直しになると、その間に消えた PDF は戻らない。
 
     python tools/news/fetch_news_attachments.py --code 01100
     python tools/news/fetch_news_attachments.py --budget-minutes 10 --data-root /tmp/news --work-root /tmp/news-work
@@ -37,7 +40,7 @@ import threading
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -51,6 +54,7 @@ from tools.document_crawl import join_pdf_pages, sniff_document_type, write_json
 from tools.news.fetch_news_bodies import (  # noqa: E402
     GONE_STATUSES,
     MAX_TRIES,
+    RETRY_WAIT_HOURS,
     BodyFetcher,
     TooLarge,
     municipality_dirs,
@@ -86,7 +90,7 @@ class AttachmentStore:
 
     `state.json`:
         cursor   本文のファイルごとに、どこまで読んだか（バイト）
-        pending  URL → {item, text, seen, tries, error}  まだ読んでいない PDF
+        pending  URL → {item, text, seen, tries, error, retry_after}  まだ読んでいない PDF
         done     URL の印 → 本文の印 か "gone" / "failed" / "too_large" / 形式
     """
 
@@ -99,6 +103,8 @@ class AttachmentStore:
         self.pending: dict[str, dict] = dict(state.get("pending") or {})
         self.done: dict[str, str] = dict(state.get("done") or {})
         self.lines: list[dict] = []
+        # 前の保存から変わったか。変わっていない自治体の state.json は書き直さない。
+        self.changed = False
 
     def _load(self) -> dict:
         try:
@@ -138,6 +144,7 @@ class AttachmentStore:
                     continue
                 added += self._enqueue(record)
             self.cursor[path.name] = offset + end + 1
+            self.changed = True
         return added
 
     def _enqueue(self, record: dict) -> int:
@@ -158,30 +165,43 @@ class AttachmentStore:
             added += 1
         return added
 
-    def take(self, limit: int) -> list[tuple[str, dict]]:
-        """本文を新しく読んだ順（時の単位。同じならページに並んだ順）に `limit` 本。"""
-        ordered = sorted(enumerate(self.pending.items()),
-                         key=lambda pair: (str(pair[1][1].get("seen", ""))[:13], -pair[0]), reverse=True)
+    def take(self, limit: int, now: datetime) -> list[tuple[str, dict]]:
+        """本文を新しく読んだ順（時の単位。同じならページに並んだ順）に `limit` 本。
+
+        読めなくて待っている PDF は、待ちが明けるまで出さない。
+        """
+        now_text = time_text(now)
+        ready = [pair for pair in enumerate(self.pending.items())
+                 if str(pair[1][1].get("retry_after") or "") <= now_text]
+        ordered = sorted(ready, key=lambda pair: (str(pair[1][1].get("seen", ""))[:13], -pair[0]), reverse=True)
         return [pair for _, pair in ordered[:max(0, limit)]]
 
     def oldest_wait(self) -> str:
         return min((str(entry.get("seen") or "") for entry in self.pending.values()), default="")
 
     def finish(self, url: str, line: dict, mark: str) -> None:
+        self.changed = True
         self.pending.pop(url, None)
         self.done[url_key(url)] = mark
         self.lines.append(line)
 
-    def retry_later(self, url: str, error: str) -> bool:
-        """読めなかった。諦めたら True。"""
+    def retry_later(self, url: str, error: str, now: datetime) -> bool:
+        """読めなかった。次に読み直す時刻を決める。諦めたら True。"""
         entry = self.pending.get(url)
         if entry is None:
             return False
+        self.changed = True
         entry["tries"] = int(entry.get("tries", 0)) + 1
         entry["error"] = error[:300]
-        return entry["tries"] >= MAX_TRIES
+        if entry["tries"] >= MAX_TRIES:
+            return True
+        entry["retry_after"] = time_text(now + timedelta(hours=RETRY_WAIT_HOURS[entry["tries"] - 1]))
+        return False
 
     def save(self, now: datetime) -> None:
+        """足した行と状態を書く。前の保存から変わっていなければ何もしない。"""
+        if not self.changed and not self.lines:
+            return
         if self.lines:
             path = self.directory / "attachments" / f"{now.year}.jsonl"
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -190,6 +210,7 @@ class AttachmentStore:
                     handle.write(json.dumps(line, ensure_ascii=False) + "\n")
             self.lines = []
         write_json(self.state_path, {"cursor": self.cursor, "pending": self.pending, "done": self.done})
+        self.changed = False
 
 
 class AttachmentReader:
@@ -257,7 +278,7 @@ class AttachmentReader:
         return "fetched"
 
     def _failure(self, store: AttachmentStore, url: str, entry: dict, line: dict, error: str) -> str:
-        if not store.retry_later(url, error):
+        if not store.retry_later(url, error, self.clock()):
             return "retry"
         line.update({"kind": "failed", "error": error[:300], "tries": int(entry.get("tries", 0))})
         store.finish(url, line, "failed")
@@ -265,7 +286,7 @@ class AttachmentReader:
 
     def read_municipality(self, store: AttachmentStore, code: str, limit: int) -> Counter[str]:
         counts: Counter[str] = Counter()
-        for url, entry in store.take(limit):
+        for url, entry in store.take(limit, self.clock()):
             if time.monotonic() >= self.deadline:
                 counts["deferred"] += 1
                 continue
@@ -283,9 +304,10 @@ def per_municipality_limit(per_run: int, waiting: int) -> int:
 
 def run(*, data_root: Path = DEFAULT_DATA_ROOT, work_root: Path = DEFAULT_WORK_ROOT, codes: set[str] | None = None,
         per_run: int = DEFAULT_PER_RUN, workers: int = DEFAULT_WORKERS, budget_seconds: float = DEFAULT_BUDGET_SECONDS,
-        session: requests.Session | None = None, pacer: HostPacer | None = None, quiet: bool = False) -> dict[str, object]:
-    """待っている PDF を読む。結果の要約を返す。"""
-    started = now_jst()
+        session: requests.Session | None = None, pacer: HostPacer | None = None, quiet: bool = False,
+        clock=now_jst) -> dict[str, object]:
+    """待っている PDF を読む。結果の要約を返す。`clock` は試験で時刻を進めるためのもの。"""
+    started = clock()
     deadline = time.monotonic() + max(0.0, budget_seconds)
     stores: list[tuple[str, AttachmentStore]] = []
     queued = 0
@@ -306,10 +328,18 @@ def run(*, data_root: Path = DEFAULT_DATA_ROOT, work_root: Path = DEFAULT_WORK_R
     limit = per_municipality_limit(per_run, len(with_pending))
 
     parser = PdfTextWorker(PARSE_TIMEOUT_SECONDS)
-    reader = AttachmentReader(fetcher=BodyFetcher(data_root=data_root, session=session, pacer=pacer),
-                              parser=parser, deadline=deadline)
+    reader = AttachmentReader(fetcher=BodyFetcher(data_root=data_root, session=session, pacer=pacer, clock=clock),
+                              parser=parser, deadline=deadline, clock=clock)
     counts: Counter[str] = Counter()
     lock = threading.Lock()
+
+    def save(store: AttachmentStore) -> None:
+        try:
+            store.save(clock())
+        except Exception as exc:
+            with lock:
+                if len(errors) < 30:
+                    errors.append({"slug": store.slug, "error": f"保存できません {type(exc).__name__}: {exc}"[:300]})
 
     def work(pair: tuple[str, AttachmentStore]) -> None:
         code, store = pair
@@ -320,6 +350,9 @@ def run(*, data_root: Path = DEFAULT_DATA_ROOT, work_root: Path = DEFAULT_WORK_R
             with lock:
                 if len(errors) < 30:
                     errors.append({"slug": store.slug, "error": f"{type(exc).__name__}: {exc}"[:300]})
+        # 読んだ分はその自治体が終わったらすぐ書く。PDF は残さないので、回の途中で止められて
+        # 読み直しになると、その間に消えた PDF は戻らない。
+        save(store)
         with lock:
             counts.update(result)
 
@@ -328,15 +361,11 @@ def run(*, data_root: Path = DEFAULT_DATA_ROOT, work_root: Path = DEFAULT_WORK_R
             list(executor.map(work, with_pending))
     finally:
         parser.close()
-    saved_at = now_jst()
+    # 読む PDF の無かった自治体も、本文のファイルを見た位置が進んでいれば書く。
     for _, store in stores:
-        try:
-            store.save(saved_at)
-        except Exception as exc:
-            if len(errors) < 30:
-                errors.append({"slug": store.slug, "error": f"保存できません {type(exc).__name__}: {exc}"[:300]})
+        save(store)
 
-    finished = now_jst()
+    finished = clock()
     summary: dict[str, object] = {
         "task": "news_attachments",
         "started_at": time_text(started),

@@ -16,11 +16,15 @@
 - 1 回に読むのは 1 自治体あたり `全体の上限 ÷ 待っている自治体の数`（5〜200 件）。
   1 回目のような溜まった分は何回かに分けて読み、どの自治体も少しずつ進む。
 - 同じホストへは 1 秒以上空け、同時に 1 本（フィードの取得と同じ）。
-- つながらない・5xx などは次の回に読み直し、4 回続けて駄目なら諦めて 1 行残す。
+- つながらない・5xx などは間を空けて読み直す（3 時間・6 時間・12 時間・1 日・2 日・
+  3 日・7 日）。2 週間ほど続けて駄目なら諦めて 1 行残す。サイトの半日の休みや、
+  一時的に断られただけで、その間のお知らせを失わないため。
   http でつながらないときは https で読み直す（http を閉じたサイトがある）。
   404・410 は消えたとして 1 行残す。
 - HTML は本文と添付の一覧（`news_body.py`）、PDF は本文を抜く。そのほかの形式は
-  形式だけ残す。
+  形式だけ残す。PDF の本文は子のプロセスで抜き、時間を超えたら打ち切る
+  （`pdf_text_worker.py`）。
+- 読んだ分は自治体ごとにすぐ保存する。途中で止められても、終わった自治体の分は残る。
 
     python tools/news/fetch_news_bodies.py --code 01100
     python tools/news/fetch_news_bodies.py --per-run 200 --data-root /tmp/news --work-root /tmp/news-work
@@ -36,7 +40,7 @@ import threading
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -46,7 +50,7 @@ WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
 if str(WORKSPACE_ROOT) not in sys.path:
     sys.path.insert(0, str(WORKSPACE_ROOT))
 
-from tools.document_crawl import USER_AGENT, extract_pdf_text, read_limited, sniff_document_type, write_json  # noqa: E402
+from tools.document_crawl import USER_AGENT, read_limited, sniff_document_type, write_json  # noqa: E402
 from tools.news.fetch_news_feeds import (  # noqa: E402
     DEFAULT_DATA_ROOT,
     DEFAULT_WORK_ROOT,
@@ -55,13 +59,20 @@ from tools.news.fetch_news_feeds import (  # noqa: E402
     time_text,
 )
 from tools.news.news_body import TEXT_MAX_CHARS, extract_page  # noqa: E402
+from tools.news.pdf_text_worker import PdfTextWorker, PdfTimeout  # noqa: E402
 
 DEFAULT_PER_RUN = 4000
 MIN_PER_MUNICIPALITY = 5
 MAX_PER_MUNICIPALITY = 200
 DEFAULT_WORKERS = 16
-MAX_TRIES = 4
+# 読めなかったあと、次に読み直すまでの時間（時間）。n 回目の失敗のあとは RETRY_WAIT_HOURS[n - 1]。
+# 最後まで駄目なら諦める（合わせて 2 週間ほど）。
+RETRY_WAIT_HOURS = (3, 6, 12, 24, 48, 72, 168)
+MAX_TRIES = len(RETRY_WAIT_HOURS) + 1
 MAX_BYTES = 20_000_000
+MAX_PDF_PAGES = 300
+# PDF 1 本を読む時間の上限。添付（fetch_news_attachments.py）と同じ。
+PARSE_TIMEOUT_SECONDS = 180.0
 TIMEOUT_SECONDS = 30.0
 GONE_STATUSES = (404, 410)
 ACCEPT = "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.5"
@@ -84,7 +95,7 @@ class BodyStore:
 
     `state.json`:
         cursor   項目のファイルごとに、どこまで読んだか（バイト）
-        pending  id → {url, revision, seen, date, tries, error}  まだ読んでいない項目
+        pending  id → {url, revision, seen, date, tries, error, retry_after}  まだ読んでいない項目
         done     id → [読んだ版, 本文の印 か "gone" / "failed"]
     """
 
@@ -97,6 +108,8 @@ class BodyStore:
         self.pending: dict[str, dict] = dict(state.get("pending") or {})
         self.done: dict[str, list] = dict(state.get("done") or {})
         self.lines: list[dict] = []
+        # 前の保存から変わったか。変わっていない自治体の state.json は書き直さない。
+        self.changed = False
 
     def _load(self) -> dict:
         try:
@@ -137,6 +150,7 @@ class BodyStore:
                 if self._enqueue(record):
                     added += 1
             self.cursor[path.name] = offset + end + 1
+            self.changed = True
         return added
 
     def _enqueue(self, record: dict) -> bool:
@@ -160,18 +174,21 @@ class BodyStore:
         }
         return True
 
-    def take(self, limit: int) -> list[tuple[str, dict]]:
+    def take(self, limit: int, now: datetime) -> list[tuple[str, dict]]:
         """新しく見つけた順（時の単位。同じなら日付の新しい順）に `limit` 件。
 
         見つけた時刻はフィードごとに秒が違うので、秒まで比べると後に読んだフィードの
-        古い項目が先に来る。
+        古い項目が先に来る。読めなくて待っている項目は、待ちが明けるまで出さない。
         """
-        ordered = sorted(self.pending.items(),
-                         key=lambda pair: (str(pair[1].get("seen", ""))[:13], pair[1].get("date", "")), reverse=True)
+        now_text = time_text(now)
+        ready = [pair for pair in self.pending.items() if str(pair[1].get("retry_after") or "") <= now_text]
+        ordered = sorted(ready, key=lambda pair: (str(pair[1].get("seen", ""))[:13], pair[1].get("date", "")),
+                         reverse=True)
         return ordered[:max(0, limit)]
 
     def finish(self, item_id: str, entry: dict, line: dict, mark: str) -> bool:
         """読んだ結果を残す。本文が前の版と同じなら行は足さない。足したら True。"""
+        self.changed = True
         self.pending.pop(item_id, None)
         previous = self.done.get(item_id)
         self.done[item_id] = [int(entry.get("revision", 0)), mark]
@@ -180,16 +197,23 @@ class BodyStore:
         self.lines.append(line)
         return True
 
-    def retry_later(self, item_id: str, error: str) -> bool:
-        """読めなかった。諦めたら True。"""
+    def retry_later(self, item_id: str, error: str, now: datetime) -> bool:
+        """読めなかった。次に読み直す時刻を決める。諦めたら True。"""
         entry = self.pending.get(item_id)
         if entry is None:
             return False
+        self.changed = True
         entry["tries"] = int(entry.get("tries", 0)) + 1
         entry["error"] = error[:300]
-        return entry["tries"] >= MAX_TRIES
+        if entry["tries"] >= MAX_TRIES:
+            return True
+        entry["retry_after"] = time_text(now + timedelta(hours=RETRY_WAIT_HOURS[entry["tries"] - 1]))
+        return False
 
     def save(self, now: datetime) -> None:
+        """足した行と状態を書く。前の保存から変わっていなければ何もしない。"""
+        if not self.changed and not self.lines:
+            return
         if self.lines:
             path = self.directory / "bodies" / f"{now.year}.jsonl"
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -198,14 +222,17 @@ class BodyStore:
                     handle.write(json.dumps(line, ensure_ascii=False) + "\n")
             self.lines = []
         write_json(self.state_path, {"cursor": self.cursor, "pending": self.pending, "done": self.done})
+        self.changed = False
 
 
 class BodyFetcher:
     def __init__(self, *, data_root: Path, session: requests.Session | None = None, pacer: HostPacer | None = None,
-                 clock=now_jst) -> None:
+                 parser: PdfTextWorker | None = None, clock=now_jst) -> None:
         self.data_root = data_root
         self.session = session or requests.Session()
         self.pacer = pacer or HostPacer()
+        # PDF の本文を抜く子のプロセス。添付を読むときは使わないので無くてよい。
+        self.parser = parser
         self.clock = clock
         # http をやめて https だけで答えるホスト（鶴岡市など。フィードのリンクは http のまま）。
         self._https_hosts: set[str] = set()
@@ -288,8 +315,14 @@ class BodyFetcher:
     def _content(self, raw: bytes, content_type: str, url: str) -> dict[str, object]:
         kind = sniff_document_type(raw, url, content_type)
         if kind == "pdf":
-            text, pages = extract_pdf_text(raw)
-            return {"kind": "pdf", "pages": pages, "text": text[:TEXT_MAX_CHARS]}
+            if self.parser is None:
+                raise RuntimeError("PDF を読む子のプロセスがありません")
+            try:
+                pages, total = self.parser.read(raw, MAX_PDF_PAGES)
+            except PdfTimeout as exc:  # 読み直しても同じ
+                return {"kind": "pdf", "error": str(exc)}
+            text = "\n\n".join(page for page in pages if page).strip()
+            return {"kind": "pdf", "pages": total, "text": text[:TEXT_MAX_CHARS]}
         if kind:
             return {"kind": kind}
         media_type = content_type.split(";", 1)[0].strip().lower()
@@ -303,7 +336,7 @@ class BodyFetcher:
         return {key: value for key, value in result.items() if value not in ("", [], None)}
 
     def _failure(self, store: BodyStore, item_id: str, entry: dict, line: dict, error: str) -> str:
-        if not store.retry_later(item_id, error):
+        if not store.retry_later(item_id, error, self.clock()):
             return "retry"
         line.update({"kind": "failed", "error": error[:300], "tries": int(entry.get("tries", 0))})
         store.finish(item_id, entry, line, "failed")
@@ -311,7 +344,7 @@ class BodyFetcher:
 
     def read_municipality(self, store: BodyStore, code: str, limit: int) -> Counter[str]:
         counts: Counter[str] = Counter()
-        for item_id, entry in store.take(limit):
+        for item_id, entry in store.take(limit, self.clock()):
             try:
                 counts[self.read(store, code, item_id, entry)] += 1
             except Exception as exc:  # 1 件の思わぬ失敗で、自治体の残りを捨てない
@@ -339,9 +372,9 @@ def per_municipality_limit(per_run: int, waiting: int) -> int:
 
 def run(*, data_root: Path = DEFAULT_DATA_ROOT, work_root: Path = DEFAULT_WORK_ROOT, codes: set[str] | None = None,
         per_run: int = DEFAULT_PER_RUN, workers: int = DEFAULT_WORKERS, session: requests.Session | None = None,
-        pacer: HostPacer | None = None, quiet: bool = False) -> dict[str, object]:
-    """待っている項目のリンク先を読む。結果の要約を返す。"""
-    started = now_jst()
+        pacer: HostPacer | None = None, quiet: bool = False, clock=now_jst) -> dict[str, object]:
+    """待っている項目のリンク先を読む。結果の要約を返す。`clock` は試験で時刻を進めるためのもの。"""
+    started = clock()
     stores: list[tuple[str, BodyStore]] = []
     queued = 0
     errors: list[dict[str, str]] = []
@@ -358,9 +391,18 @@ def run(*, data_root: Path = DEFAULT_DATA_ROOT, work_root: Path = DEFAULT_WORK_R
     with_pending = [(code, store) for code, store in stores if store.pending]
     limit = per_municipality_limit(per_run, len(with_pending))
 
-    fetcher = BodyFetcher(data_root=data_root, session=session, pacer=pacer)
+    parser = PdfTextWorker(PARSE_TIMEOUT_SECONDS)
+    fetcher = BodyFetcher(data_root=data_root, session=session, pacer=pacer, parser=parser, clock=clock)
     counts: Counter[str] = Counter()
     lock = threading.Lock()
+
+    def save(store: BodyStore) -> None:
+        try:
+            store.save(clock())
+        except Exception as exc:
+            with lock:
+                if len(errors) < 30:
+                    errors.append({"slug": store.slug, "error": f"保存できません {type(exc).__name__}: {exc}"[:300]})
 
     def work(pair: tuple[str, BodyStore]) -> None:
         code, store = pair
@@ -371,20 +413,21 @@ def run(*, data_root: Path = DEFAULT_DATA_ROOT, work_root: Path = DEFAULT_WORK_R
             with lock:
                 if len(errors) < 30:
                     errors.append({"slug": store.slug, "error": f"{type(exc).__name__}: {exc}"[:300]})
+        # 読んだ分はその自治体が終わったらすぐ書く。回の途中で止められても、ここまでは残る。
+        save(store)
         with lock:
             counts.update(result)
 
-    with ThreadPoolExecutor(max(1, workers)) as executor:
-        list(executor.map(work, with_pending))
-    saved_at = now_jst()
+    try:
+        with ThreadPoolExecutor(max(1, workers)) as executor:
+            list(executor.map(work, with_pending))
+    finally:
+        parser.close()
+    # 読む項目の無かった自治体も、項目のファイルを見た位置が進んでいれば書く。
     for _, store in stores:
-        try:
-            store.save(saved_at)
-        except Exception as exc:
-            if len(errors) < 30:
-                errors.append({"slug": store.slug, "error": f"保存できません {type(exc).__name__}: {exc}"[:300]})
+        save(store)
 
-    finished = now_jst()
+    finished = clock()
     summary: dict[str, object] = {
         "task": "news_bodies",
         "started_at": time_text(started),

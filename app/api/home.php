@@ -13,6 +13,13 @@ ob_start();
 
 try {
     $prefectureFilter = is_string($_GET['prefecture'] ?? null) ? (string)$_GET['prefecture'] : '';
+    // 都道府県のコードにそろえてから控えの鍵にする。知らない値（?prefecture=x1 など）は「全国」と同じ結果に
+    // なるのに、生の値を鍵にすると、値ごとに控えのファイル（1 つ 2MB ほど）が増え続ける。
+    $prefectureOptions = [];
+    foreach (municipality_prefecture_names() as $prefectureCode => $prefectureName) {
+        $prefectureOptions[] = ['code' => str_pad((string)$prefectureCode, 2, '0', STR_PAD_LEFT), 'name' => (string)$prefectureName];
+    }
+    $prefectureFilter = homepage_normalize_prefecture_filter($prefectureFilter, $prefectureOptions);
     $filteredCachePath = homepage_filtered_api_cache_path($prefectureFilter);
     $payload = read_json_cache_file($filteredCachePath, homepage_filtered_api_cache_ttl_seconds());
     $fromFilteredCache = is_array($payload);

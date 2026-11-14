@@ -14,7 +14,11 @@ if (!$clientId || !$clientSecret || !$redirectUri) {
 }
 
 // state の検証
-if (!isset($_GET['state'], $_GET['code']) || ($_GET['state'] !== ($_SESSION['line_oauth_state'] ?? ''))) {
+// セッションに state が無いとき（ログインを始めていない人が直接来たとき）に、空の state どうしが
+// 一致して通ってしまわないよう、空は断る。
+$expectedState = is_string($_SESSION['line_oauth_state'] ?? null) ? (string)$_SESSION['line_oauth_state'] : '';
+$givenState = is_string($_GET['state'] ?? null) ? (string)$_GET['state'] : '';
+if (!is_string($_GET['code'] ?? null) || $expectedState === '' || !hash_equals($expectedState, $givenState)) {
     http_response_code(400);
     echo '無効な state です。';
     exit;

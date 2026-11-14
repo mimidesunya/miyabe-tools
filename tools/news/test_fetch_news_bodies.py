@@ -6,7 +6,7 @@ import json
 import sys
 import tempfile
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import requests
@@ -98,6 +98,8 @@ class BodiesTest(unittest.TestCase):
         self.work_root = root / "work"
         self.items_path = self.data_root / SLUG / "items" / "2026.jsonl"
         self.items_path.parent.mkdir(parents=True)
+        # 読み直しの待ちを確かめるときは、この時刻を進める。
+        self.now = datetime.now(JST)
 
     def tearDown(self) -> None:
         self.temp.cleanup()
@@ -111,12 +113,13 @@ class BodiesTest(unittest.TestCase):
     def run_once(self, responses: dict[str, object], per_run: int = 100) -> dict:
         session = FakeSession(responses)
         summary = bodies.run(data_root=self.data_root, work_root=self.work_root, session=session,
-                             pacer=HostPacer(interval=0), per_run=per_run, workers=1, quiet=True)
+                             pacer=HostPacer(interval=0), per_run=per_run, workers=1, quiet=True,
+                             clock=lambda: self.now)
         summary["calls"] = session.calls
         return summary
 
     def lines(self) -> list[dict]:
-        path = self.data_root / SLUG / "bodies" / f"{datetime.now(JST).year}.jsonl"
+        path = self.data_root / SLUG / "bodies" / f"{self.now.year}.jsonl"
         if not path.exists():
             return []
         return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
@@ -160,15 +163,53 @@ class BodiesTest(unittest.TestCase):
         self.assertEqual((self.lines()[0]["kind"], self.lines()[0]["status"]), ("gone", 404))
         self.assertEqual(self.state()["done"]["a"], [0, "gone"])
 
-    def test_failures_are_retried_then_given_up(self) -> None:
+    def test_failures_are_retried_with_longer_waits_then_given_up(self) -> None:
         self.add_items(item("a"))
+        start = self.now
         for attempt in range(1, bodies.MAX_TRIES):
             summary = self.run_once({self.url("a"): requests.ConnectionError("refused")})
             self.assertEqual((summary["retry"], summary["waiting_after"]), (1, 1))
             self.assertEqual(self.state()["pending"]["a"]["tries"], attempt)
+            # 待ちが明ける前の回では読みに行かない。
+            wait = timedelta(hours=bodies.RETRY_WAIT_HOURS[attempt - 1])
+            self.now += wait - timedelta(minutes=1)
+            summary = self.run_once({})
+            self.assertEqual((summary["calls"], summary["waiting_after"]), ([], 1))
+            self.now += timedelta(minutes=2)
+        # 半日の休みでは諦めない。諦めるのは 2 週間ほど続けて駄目だったとき。
+        self.assertGreater(self.now - start, timedelta(days=13))
         summary = self.run_once({self.url("a"): FakeResponse(503)})
         self.assertEqual((summary["failed"], summary["waiting_after"]), (1, 0))
         self.assertEqual((self.lines()[0]["kind"], self.lines()[0]["error"]), ("failed", "HTTP 503"))
+
+    def test_each_municipality_is_saved_as_soon_as_it_is_read(self) -> None:
+        other = self.data_root / "99998-other-shi" / "items" / "2026.jsonl"
+        other.parent.mkdir(parents=True)
+        other.write_text(json.dumps(dict(item("z"), url="https://www.city.other.jp/z.html")) + "\n", encoding="utf-8")
+        self.add_items(item("a"))
+        saved_first: list[bool] = []
+
+        class Checking(FakeSession):
+            def get(inner, url, headers=None, timeout=None, stream=False):
+                if "city.example.jp" in url:
+                    # 99998 のほうが先に読まれる（名前の順、並列 1）。ここに来たときにはもう書いてある。
+                    saved_first.append((self.data_root / "99998-other-shi" / "bodies" / "state.json").exists())
+                return super().get(url, headers=headers, timeout=timeout, stream=stream)
+
+        session = Checking({"https://www.city.other.jp/z.html": FakeResponse(200, page(FILLER)),
+                            self.url("a"): FakeResponse(200, page(FILLER))})
+        bodies.run(data_root=self.data_root, work_root=self.work_root, session=session,
+                   pacer=HostPacer(interval=0), workers=1, quiet=True)
+        self.assertEqual(saved_first, [True])
+
+    def test_unchanged_state_is_not_rewritten(self) -> None:
+        self.add_items(item("a"))
+        self.run_once({self.url("a"): FakeResponse(200, page(FILLER))})
+        state_path = self.data_root / SLUG / "bodies" / "state.json"
+        state_path.write_text(state_path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+        marked = state_path.read_bytes()
+        self.run_once({})
+        self.assertEqual(state_path.read_bytes(), marked)
 
     def test_too_large_is_not_retried(self) -> None:
         self.add_items(item("a"))

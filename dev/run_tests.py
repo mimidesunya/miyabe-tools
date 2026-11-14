@@ -80,7 +80,10 @@ def step_mcp() -> bool:
         print("[mcp] docker/mcp/node_modules が無いので飛ばします（npm ci で入る）")
         return True
     npm = "npm.cmd" if os.name == "nt" else "npm"
-    return run([npm, "run", "check"], cwd=mcp_dir).returncode == 0
+    if run([npm, "run", "check"], cwd=mcp_dir).returncode != 0:
+        return False
+    # 型の検査だけでは、道具の応答の形が変わっても気づけない。手元の偽の API を相手に道具を呼ぶ試験も走らせる。
+    return run([npm, "test"], cwd=mcp_dir).returncode == 0
 
 
 def main() -> int:
