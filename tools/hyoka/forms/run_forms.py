@@ -77,7 +77,9 @@ def folders(work: Path) -> list[Path]:
 
 def cmd_run(args: argparse.Namespace) -> None:
     codex = run_survey.find_codex(args.codex)
-    pending = [folder for folder in folders(Path(args.work)) if not (folder / "notes.md").is_file()]
+    # 一度流して notes.md の無い団体（時間切れ、Codex の失敗）は --retry のときだけ流し直す（何度も枠を使わない）
+    pending = [folder for folder in folders(Path(args.work)) if not (folder / "notes.md").is_file()
+               and (args.retry or not (folder / "codex.log").is_file())]
     stopped: list[str] = []
 
     def work_on(folder: Path) -> None:
@@ -168,6 +170,7 @@ def main() -> None:
     parser.add_argument("--slug", action="append", default=[])
     parser.add_argument("--slugs", default="", help="fetch: 団体の slug を並べたファイル")
     parser.add_argument("--include-truth", action="store_true", help="fetch: 正解のある文書を必ず見本に入れる")
+    parser.add_argument("--retry", action="store_true", help="run: 前に流して notes.md の無い団体も流し直す")
     parser.add_argument("--layouts-root", default="", help="apply: 升目の置き場（<slug>/layouts）")
     parser.add_argument("--out", default="", help="apply: 記録の置き場")
     parser.add_argument("--source", default="")
