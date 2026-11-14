@@ -7,16 +7,6 @@ function support_h(?string $value): string
 {
     return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
-
-function support_asset_url(string $relativePath): string
-{
-    $normalized = trim(str_replace('\\', '/', $relativePath), '/');
-    $publicPath = '/search/assets/' . $normalized;
-    $diskPath = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'search' . DIRECTORY_SEPARATOR . 'assets' . DIRECTORY_SEPARATOR
-        . str_replace('/', DIRECTORY_SEPARATOR, $normalized);
-    $version = is_file($diskPath) ? (string)filemtime($diskPath) : '';
-    return $version !== '' ? $publicPath . '?v=' . rawurlencode($version) : $publicPath;
-}
 ?><!doctype html>
 <html lang="ja">
 <head>
@@ -29,24 +19,13 @@ function support_asset_url(string $relativePath): string
         '/support/'
     ); ?>
     <?php echo site_render_favicon_links(); ?>
-    <link rel="stylesheet" href="<?php echo support_h(support_asset_url('css/search.css')); ?>">
+    <?php echo site_render_stylesheet(); ?>
 </head>
 <body>
-<div class="app-shell docs-shell">
-    <header class="topbar">
-        <?php echo site_render_brand('/'); ?>
-        <nav class="page-links" aria-label="関連ページ">
-            <a href="/">地図から探す</a>
-            <a href="/search/">記録を検索</a>
-            <a href="/api-guide/">AIから使う（MCP）</a>
-            <a href="/privacy/">プライバシー</a>
-            <a href="/terms/">利用規約</a>
-        </nav>
-    </header>
+<?php echo site_render_header(''); ?>
 
-    <main class="docs-page">
+    <main id="main" class="docs-page">
         <section class="docs-hero">
-            <p class="kicker">Support</p>
             <h1>サポート・お問い合わせ</h1>
             <p>
                 使い方、不具合、掲載内容の修正、AI連携（MCP）については、
@@ -95,7 +74,7 @@ function support_asset_url(string $relativePath): string
             <h3>自分の自治体が見つからない</h3>
             <p>
                 取得元のURLがまだ分からない自治体や、形式に対応できていない自治体は出てきません。
-                いまの状況は<a href="/status/">収集・公開状況</a>のページで自治体ごとに見られます。
+                いまの状況は<a href="/status/">収集状況</a>のページで自治体ごとに見られます。
             </p>
             <h3>内容が古い、または取得元と違う</h3>
             <p>
@@ -110,7 +89,7 @@ function support_asset_url(string $relativePath): string
             </p>
             <h3>AI（MCP）からの使い方を知りたい</h3>
             <p>
-                接続手順は<a href="/api-guide/">AIから使う（MCP）</a>のページにまとめています。
+                接続手順は<a href="/api-guide/">AIで調べる</a>のページにまとめています。
                 MCPサーバーのエンドポイントは <code>https://tools.miya.be/mcp</code> で、認証は不要です。
             </p>
             <h3>大量のデータを取得したい</h3>
@@ -125,10 +104,11 @@ function support_asset_url(string $relativePath): string
             <ul>
                 <li><a href="/terms/">利用規約</a> — 使うときの条件</li>
                 <li><a href="/privacy/">プライバシーポリシー</a> — 個人情報の扱い</li>
-                <li><a href="/status/">収集・公開状況</a> — 自治体ごとの取り込み具合</li>
+                <li><a href="/status/">収集状況</a> — 自治体ごとの集まり具合</li>
             </ul>
         </section>
     </main>
-</div>
+
+<?php echo site_render_footer(); ?>
 </body>
 </html>

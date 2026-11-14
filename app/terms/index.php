@@ -7,16 +7,6 @@ function terms_h(?string $value): string
 {
     return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
-
-function terms_asset_url(string $relativePath): string
-{
-    $normalized = trim(str_replace('\\', '/', $relativePath), '/');
-    $publicPath = '/search/assets/' . $normalized;
-    $diskPath = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'search' . DIRECTORY_SEPARATOR . 'assets' . DIRECTORY_SEPARATOR
-        . str_replace('/', DIRECTORY_SEPARATOR, $normalized);
-    $version = is_file($diskPath) ? (string)filemtime($diskPath) : '';
-    return $version !== '' ? $publicPath . '?v=' . rawurlencode($version) : $publicPath;
-}
 ?><!doctype html>
 <html lang="ja">
 <head>
@@ -29,24 +19,13 @@ function terms_asset_url(string $relativePath): string
         '/terms/'
     ); ?>
     <?php echo site_render_favicon_links(); ?>
-    <link rel="stylesheet" href="<?php echo terms_h(terms_asset_url('css/search.css')); ?>">
+    <?php echo site_render_stylesheet(); ?>
 </head>
 <body>
-<div class="app-shell docs-shell">
-    <header class="topbar">
-        <?php echo site_render_brand('/'); ?>
-        <nav class="page-links" aria-label="関連ページ">
-            <a href="/">地図から探す</a>
-            <a href="/search/">記録を検索</a>
-            <a href="/api-guide/">AIから使う（MCP）</a>
-            <a href="/privacy/">プライバシー</a>
-            <a href="/support/">サポート</a>
-        </nav>
-    </header>
+<?php echo site_render_header(''); ?>
 
-    <main class="docs-page">
+    <main id="main" class="docs-page">
         <section class="docs-hero">
-            <p class="kicker">Terms of Use</p>
             <h1>利用規約</h1>
             <p>
                 このページは、「自治体マップ」と、その検索機能をブラウザ・API・AI（MCP）から利用する場合の条件を
@@ -168,6 +147,7 @@ function terms_asset_url(string $relativePath): string
             </p>
         </section>
     </main>
-</div>
+
+<?php echo site_render_footer(); ?>
 </body>
 </html>

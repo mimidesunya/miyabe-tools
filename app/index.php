@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'site_assets.php';
 require_once dirname(__DIR__) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'municipalities.php';
 require_once dirname(__DIR__) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'news.php';
+require_once dirname(__DIR__) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'hyoka_display.php';
 
 function home_h(?string $value): string
 {
@@ -12,6 +13,21 @@ function home_h(?string $value): string
 
 // 各地のお知らせ。一覧がまだ無ければ（取得の worker が 1 回も書いていない手元など）出さない。
 $homeNews = news_latest_load('all');
+
+// 事務事業評価を検索できる自治体。「自分のまちから探す」で、文書のある自治体にだけ入口を出す。
+$homeHyokaSlugs = [];
+foreach (miyabe_hyoka_display_status_by_slug() as $slug => $row) {
+    if ((int)($row['indexed_documents'] ?? 0) > 0) {
+        $homeHyokaSlugs[] = (string)$slug;
+    }
+}
+
+// 試しに引く言葉。資料の種類ごとに、その資料でよく当たる言葉を並べる。
+$homeExamples = [
+    'minutes' => ['空き家', '学校統廃合', 'メガソーラー', '給食費', '官製談合'],
+    'reiki' => ['空家', '太陽光発電', '政務活動費', 'ハラスメント', '手数料'],
+    'hyoka' => ['敬老', '補助金', '委託料', '廃止', '見直し'],
+];
 
 ?><!doctype html>
 <html lang="ja">
@@ -43,205 +59,208 @@ $homeNews = news_latest_load('all');
     }
     </script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <?php echo site_render_stylesheet(); ?>
     <link rel="stylesheet" href="<?php echo home_h(site_asset_url('assets/css/home.css')); ?>">
 </head>
 <body>
-<div class="app-shell">
-    <header class="site-header">
-        <?php echo site_render_brand('/'); ?>
-        <div class="header-meta">
-            <span class="live-mark"><i></i> データ公開中</span>
-            <span>原典のURLつき</span>
+<?php echo site_render_header('home'); ?>
+
+<main id="main" class="page home">
+    <div class="home-top">
+    <section class="search-panel" aria-labelledby="home-title">
+        <h1 id="home-title">全国の自治体の文書を検索</h1>
+        <p class="lead">
+            議会で何が話されたか、どんな条例があるか、事業がどう評価されたか。全国の自治体が公開している文書を、まとめて調べられます。無料で、登録は要りません。
+        </p>
+
+        <form class="search-box" action="/search/" method="get" role="search" aria-label="自治体の文書を検索">
+            <fieldset class="doc-tabs">
+                <legend class="visually-hidden">探す資料</legend>
+                <label class="doc-tab" data-doc="minutes">
+                    <input type="radio" name="doc_type" value="minutes" checked>
+                    <span class="doc-tab-main">議会の発言</span>
+                    <span class="doc-tab-sub">会議録</span>
+                </label>
+                <label class="doc-tab" data-doc="reiki">
+                    <input type="radio" name="doc_type" value="reiki">
+                    <span class="doc-tab-main">条例・規則</span>
+                    <span class="doc-tab-sub">例規集</span>
+                </label>
+                <label class="doc-tab" data-doc="hyoka">
+                    <input type="radio" name="doc_type" value="hyoka">
+                    <span class="doc-tab-main">事業の評価</span>
+                    <span class="doc-tab-sub">事務事業評価</span>
+                </label>
+            </fieldset>
+
+            <div class="search-box-body">
+                <p class="doc-about" data-doc-about="minutes">議員や市長・職員が、議会で話した内容の記録です。</p>
+                <p class="doc-about" data-doc-about="reiki">自治体が決めた条例・規則・要綱の本文です。</p>
+                <p class="doc-about" data-doc-about="hyoka">自治体が自分の事業を点検した表です。費用や今後の方向が書いてあります。</p>
+
+                <div class="search-row">
+                    <label class="visually-hidden" for="home-record-search">調べたい言葉</label>
+                    <input id="home-record-search" name="q" type="search" enterkeyhint="search" autocomplete="off" placeholder="調べたい言葉を入れる">
+                    <button class="button" type="submit">検索</button>
+                </div>
+
+                <?php foreach ($homeExamples as $exampleType => $exampleWords): ?>
+                <p class="search-examples" data-doc-examples="<?php echo home_h($exampleType); ?>">
+                    <span>たとえば</span>
+                    <?php foreach ($exampleWords as $exampleWord): ?>
+                    <a href="/search/?<?php echo home_h(http_build_query(['q' => $exampleWord, 'doc_type' => $exampleType])); ?>"><?php echo home_h($exampleWord); ?></a>
+                    <?php endforeach; ?>
+                </p>
+                <?php endforeach; ?>
+
+                <details class="search-tips">
+                    <summary>検索のコツ</summary>
+                    <ul>
+                        <li>言葉を空白で区切ると、その全部が出てくる文書を探します。例：<code>空き家 補助金</code></li>
+                        <li><code>"</code>で囲むと、その言い回しどおりに探します。例：<code>"学校給食費の無償化"</code></li>
+                        <li>どちらかが出てくる文書は <code>OR</code>、出てこない文書は <code>NOT</code> でつなぎます。例：<code>盛土 OR 土砂</code></li>
+                        <li>都道府県・自治体・期間で絞るのは、検索したあとの画面でできます。</li>
+                    </ul>
+                </details>
+            </div>
+        </form>
+
+        <p class="search-coverage" data-home-coverage-line>いま検索できる自治体の数を読み込んでいます。</p>
+    </section>
+
+    <section class="town-picker" aria-labelledby="town-title">
+        <div class="section-head">
+            <h2 id="town-title">自分のまちから探す</h2>
         </div>
-    </header>
+        <div class="town-picker-body">
+            <label class="field" for="home-town-input">
+                <span>市区町村か都道府県の名前</span>
+                <input id="home-town-input" type="search" autocomplete="off" placeholder="例：川崎市" data-home-town-input aria-controls="home-town-suggest">
+            </label>
+            <div class="town-suggest" id="home-town-suggest" data-home-town-suggest hidden></div>
+            <div class="town-result" data-home-town-result hidden aria-live="polite"></div>
+        </div>
+    </section>
+    </div>
 
-    <nav class="site-nav" aria-label="主要ページ">
-        <a href="/search/">記録を検索</a>
-        <a href="/api-guide/">AIから使う</a>
-        <a aria-current="page" href="#coverage-map">地図から探す</a>
-        <a href="/municipalities/">自治体一覧</a>
-        <a href="/status/">収集・公開状況</a>
-        <span class="nav-index">全国自治体資料</span>
-    </nav>
+    <?php if ($homeNews !== null): ?>
+    <section class="section news-latest" aria-labelledby="home-news-title" data-home-news>
+        <div class="section-head">
+            <h2 id="home-news-title">各地のお知らせ</h2>
+            <label class="control-field" for="home-news-prefecture">
+                <span>都道府県</span>
+                <select id="home-news-prefecture" data-home-news-prefecture>
+                    <option value="all">全国</option>
+                    <?php foreach (municipality_prefecture_names() as $prefCode => $prefName): ?>
+                    <option value="<?php echo home_h((string)$prefCode); ?>"><?php echo home_h($prefName); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+        </div>
+        <ol class="news-list" data-home-news-list aria-live="polite"><?php echo news_render_items($homeNews); ?></ol>
+        <button type="button" class="button-quiet news-more" data-home-news-more hidden>残りも見る</button>
+        <p class="note news-note">
+            自治体のホームページの新着情報から、3 時間おきに集めています。この 7 日のお知らせを、日付の新しい順に並べています（全国は 1 自治体 1 件、都道府県を選ぶと 1 自治体 3 件まで）。題名を押すと自治体のサイトが開きます。
+            <span data-home-news-updated><?php echo home_h(news_render_updated($homeNews)); ?></span>
+        </p>
+    </section>
+    <?php endif; ?>
 
-    <main>
-        <section class="hero-search" aria-label="全国横断検索">
-            <div class="hero-search-copy">
-                <p class="eyebrow"><span>01</span> 全国横断検索</p>
-                <h1>全国の<em>会議録・例規集</em>を横断検索</h1>
-            </div>
-            <form class="search-ribbon" action="/search/" method="get" role="search" aria-label="自治体資料を検索">
-                <div class="search-ribbon-control">
-                    <span aria-hidden="true">⌕</span>
-                    <label class="visually-hidden" for="home-record-search">自治体名・資料の言葉から探す</label>
-                    <input id="home-record-search" name="q" type="search" enterkeyhint="search" autocomplete="off" placeholder="例：熱海市　盛土　メガソーラー" aria-describedby="home-record-search-hint">
-                    <button type="submit">検索</button>
+    <section class="section map-section" id="map" aria-labelledby="map-title">
+        <div class="section-head">
+            <h2 id="map-title">地図で見る</h2>
+            <p data-home-display-count></p>
+        </div>
+        <p class="lead">点を押すと、その自治体で何を検索できるか、元の資料がどこにあるかが出ます。</p>
+
+        <div class="toolbar">
+            <div class="control-field">
+                <span id="home-feature-label">地図に出す資料</span>
+                <div class="feature-switch" role="group" aria-labelledby="home-feature-label">
+                    <button type="button" class="is-active" data-doc="minutes" data-feature-filter="gijiroku">会議録</button>
+                    <button type="button" data-doc="reiki" data-feature-filter="reiki">例規集</button>
                 </div>
-                <p id="home-record-search-hint" class="search-ribbon-hint">
-                    空白で区切ると、その語をすべて含む資料を探します。自治体名も本文の語として扱います。
-                    <code>"引用符"</code>で語句の完全一致、<code>OR</code>・<code>NOT</code>・<code>( )</code>も使えます。
-                    都道府県や自治体、期間での絞り込みは結果のページでできます。
-                </p>
-                <div class="search-ribbon-scope">
-                    <span id="home-doc-type-label">探す資料</span>
-                    <div class="search-scope-options" role="radiogroup" aria-labelledby="home-doc-type-label">
-                        <label><input type="radio" name="doc_type" value="minutes" checked><span>会議録</span></label>
-                        <label><input type="radio" name="doc_type" value="reiki"><span>例規集（条例・規則）</span></label>
+            </div>
+            <label class="control-field" for="home-prefecture-filter">
+                <span>都道府県</span>
+                <select id="home-prefecture-filter" data-home-prefecture-filter>
+                    <option value="all">全国</option>
+                </select>
+            </label>
+            <label class="control-field" for="home-issue-filter">
+                <span>状態</span>
+                <select id="home-issue-filter" data-home-issue-filter>
+                    <option value="all">すべて</option>
+                    <option value="ready">検索できる</option>
+                    <option value="issues">エラー・警告あり</option>
+                    <option value="pending">準備中・未公開</option>
+                </select>
+            </label>
+            <label class="control-field control-field-search" for="home-municipality-search">
+                <span>自治体名で絞る</span>
+                <input id="home-municipality-search" type="search" placeholder="例：熱海" data-home-search>
+            </label>
+        </div>
+
+        <div class="map-workspace">
+            <div class="map-stage">
+                <div class="map-stage-head">
+                    <p data-home-filter-hint>地図を読み込んでいます。</p>
+                    <div class="legend" aria-label="点の色">
+                        <span><i class="legend-dot legend-dot-minutes"></i>会議録</span>
+                        <span><i class="legend-dot legend-dot-reiki"></i>例規集</span>
+                        <span><i class="legend-dot legend-dot-pending"></i>準備中（色が薄い点）</span>
                     </div>
                 </div>
-                <p class="search-ribbon-examples">
-                    <span>試してみる</span>
-                    <a href="/search/?q=%E7%9B%9B%E5%9C%9F&amp;doc_type=minutes">盛土</a>
-                    <a href="/search/?q=%E3%83%A1%E3%82%AC%E3%82%BD%E3%83%BC%E3%83%A9%E3%83%BC&amp;doc_type=minutes">メガソーラー</a>
-                    <a href="/search/?q=%E7%A9%BA%E3%81%8D%E5%AE%B6&amp;doc_type=minutes">空き家</a>
-                    <a href="/search/?q=%E5%AD%A6%E6%A0%A1%E7%B5%B1%E5%BB%83%E5%90%88&amp;doc_type=minutes">学校統廃合</a>
-                    <a href="/search/?q=%E5%AE%98%E8%A3%BD%E8%AB%87%E5%90%88&amp;doc_type=minutes">官製談合</a>
-                </p>
-            </form>
-        </section>
-
-        <?php if ($homeNews !== null): ?>
-        <section class="news-latest" aria-labelledby="home-news-title" data-home-news>
-            <div class="section-head">
-                <div><span>02</span><h2 id="home-news-title">各地のお知らせ</h2></div>
-                <label class="control-field" for="home-news-prefecture">
-                    <span>都道府県</span>
-                    <select id="home-news-prefecture" data-home-news-prefecture>
-                        <option value="all">全国</option>
-                        <?php foreach (municipality_prefecture_names() as $prefCode => $prefName): ?>
-                        <option value="<?php echo home_h((string)$prefCode); ?>"><?php echo home_h($prefName); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-            </div>
-            <ol class="news-list" data-home-news-list aria-live="polite"><?php echo news_render_items($homeNews); ?></ol>
-            <button type="button" class="news-more" data-home-news-more hidden>残りも見る</button>
-            <p class="news-note">
-                自治体のホームページの新着情報（RSS）から 3 時間おきに集めた、この 7 日のお知らせです。
-                日付の新しい順で、全国は 1 自治体 1 件、都道府県は 1 自治体 3 件まで並べます。題名を選ぶと自治体のサイトが開きます。
-                <span data-home-news-updated><?php echo home_h(news_render_updated($homeNews)); ?></span>
-            </p>
-        </section>
-        <?php endif; ?>
-
-        <section class="map-intro" aria-label="自治体マップの概要">
-            <div class="map-intro-copy">
-                <p class="eyebrow"><span>03</span> このサイトについて</p>
-                <h2 class="intro-title">自治体の文書そのものを検索できます</h2>
-                <p class="intro-lead">
-                    全国の自治体が公開している会議録と例規集を集めて、
-                    ひとつの検索窓からまとめて探せるようにしています。
-                    ClaudeやChatGPTなどのAIからも、MCPで使えます。
-                    選挙ポスター掲示場のページは、この文書検索とは別のものです。
-                </p>
-                <div class="map-intro-actions" aria-label="関連ページ">
-                    <a class="primary-link" href="/search/">記録を検索する <span aria-hidden="true">→</span></a>
-                    <a href="/municipalities/">自治体一覧（原典へ） <span aria-hidden="true">→</span></a>
-                    <a href="/api-guide/">AIから使う（MCP） <span aria-hidden="true">↗</span></a>
-                    <a href="/boards/">選挙ポスター掲示場 <span aria-hidden="true">↗</span></a>
-                    <a href="#coverage-map">地図から探す <span aria-hidden="true">↓</span></a>
+                <div class="map-frame">
+                    <div id="coverage-map" class="coverage-map" role="region" aria-label="自治体ごとの収集状況の地図（国土地理院の地図）" data-coverage-map></div>
+                    <div class="map-loading" data-home-loading>自治体のデータを読み込んでいます。</div>
                 </div>
             </div>
-            <aside class="stats-strip" aria-label="対応状況サマリー" data-home-statbar>
-                <div class="stat-card stat-card-loading">きょうの収録状況を読み込んでいます。</div>
+
+            <aside class="detail-panel" data-home-detail aria-live="polite">
+                <div class="detail-empty">
+                    <h3>自治体を選んでください</h3>
+                    <p>地図の点か、下の一覧の名前を押すと、ここに出ます。</p>
+                </div>
             </aside>
-        </section>
+        </div>
 
-        <section class="coverage-dashboard" aria-label="自治体対応状況">
-            <div class="coverage-head">
-                <p class="eyebrow"><span>04</span> 地図から探す</p>
-                <span class="coverage-count" data-home-display-count>表示自治体: 0</span>
-            </div>
-            <div class="toolbar">
-                <div class="feature-domain-switch" aria-label="表示する自治体文書">
-                    <div class="feature-domain-group">
-                        <span>自治体文書</span>
-                        <div class="feature-switch feature-switch-documents" role="group" aria-label="自治体文書">
-                            <button type="button" class="is-active" data-feature-filter="gijiroku">会議録</button>
-                            <button type="button" data-feature-filter="reiki">例規集</button>
-                        </div>
-                    </div>
-                </div>
-                <label class="control-field" for="home-prefecture-filter">
-                    <span>都道府県</span>
-                    <select id="home-prefecture-filter" data-home-prefecture-filter>
-                        <option value="all">全国</option>
-                    </select>
-                </label>
-                <label class="control-field" for="home-issue-filter">
-                    <span>状態</span>
-                    <select id="home-issue-filter" data-home-issue-filter>
-                        <option value="all">すべて</option>
-                        <option value="ready">利用可能</option>
-                        <option value="issues">エラー・警告あり</option>
-                        <option value="pending">準備中・未公開</option>
-                    </select>
-                </label>
-                <label class="control-field control-field-search" for="home-municipality-search">
-                    <span>自治体名</span>
-                    <input id="home-municipality-search" type="search" placeholder="市区町村を絞り込む" data-home-search>
-                </label>
-            </div>
-
-            <div class="map-workspace">
-                <div class="map-stage">
-                    <div class="map-stage-head">
-                        <div>
-                            <h2>国土地理院地図</h2>
-                            <p data-home-filter-hint>地図を読み込んでいます。</p>
-                        </div>
-                        <div class="legend" aria-label="凡例">
-                            <span><i class="legend-dot legend-dot-minutes"></i>会議録</span>
-                            <span><i class="legend-dot legend-dot-reiki"></i>例規集</span>
-                            <span><i class="legend-dot legend-dot-pending"></i>準備中</span>
-                        </div>
-                    </div>
-                    <div class="map-frame">
-                        <div id="coverage-map" class="coverage-map" role="region" aria-label="自治体対応状況の国土地理院マップ" data-coverage-map></div>
-                        <div class="map-loading" data-home-loading>自治体データを読み込んでいます。</div>
-                    </div>
-                </div>
-
-                <aside class="detail-panel" data-home-detail aria-live="polite">
-                    <div class="detail-empty">
-                        <h2>自治体を選択</h2>
-                        <p>地図の点を選ぶと、その自治体で何が集まっているか、原典がどこにあるかが出ます。</p>
-                    </div>
-                </aside>
-            </div>
-        </section>
-
-        <section class="municipality-results" aria-label="表示中の自治体">
-            <div class="section-head">
-                <div><span>05</span><h2>自治体索引</h2></div>
-                <p>地図に出ている自治体を、都道府県ごとに並べています。</p>
-            </div>
+        <div class="municipality-results">
+            <h3 id="index-title">地図に出ている自治体の一覧</h3>
             <div class="municipality-list" data-home-grid>
-                <div class="loading-panel">自治体データを読み込んでいます。</div>
+                <div class="loading-panel">自治体のデータを読み込んでいます。</div>
             </div>
-        </section>
+        </div>
+        <p class="note">
+            <span data-home-municipality-count>自治体の数を読み込んでいます</span>・<span data-home-generated-at>更新の時刻を読み込んでいます</span>
+        </p>
+    </section>
 
-        <footer class="page-footer">
-            <div class="footer-brand">
-                <strong>自治体マップ</strong>
-                <nav class="footer-links" aria-label="サイト内ページ">
-                    <a href="/search/">記録を検索</a>
-                    <a href="/municipalities/">自治体一覧</a>
-                    <a href="/status/">収集・公開状況</a>
-                    <a href="/api-guide/">AIから使う（MCP）</a>
-                    <a href="/privacy/">プライバシー</a>
-                    <a href="/terms/">利用規約</a>
-                    <a href="/support/">サポート</a>
-                </nav>
-            </div>
-            <div class="footer-data">
-                <span data-home-municipality-count>自治体マスタ: 読み込み中</span>
-                <span data-home-generated-at>更新: 読み込み中</span>
-                <a href="/status/">収集の実行状況</a>
-            </div>
-        </footer>
-    </main>
-</div>
+    <section class="section more-ways" aria-label="ほかの調べ方">
+        <div class="more-way">
+            <h2>AIに調べてもらう</h2>
+            <p>Claude や ChatGPT にこのサイトをつなぐと、「〇〇市の議会で、空き家について何が話されたか調べて」のように頼めます。</p>
+            <a class="button-quiet" href="/api-guide/">つなぎ方を見る</a>
+        </div>
+        <div class="more-way">
+            <h2>元の資料を確かめる</h2>
+            <p>どの文書にも、自治体のサイトへのリンクを付けています。自治体ごとの公開先は一覧にまとめています。</p>
+            <a class="button-quiet" href="/municipalities/">自治体一覧を見る</a>
+        </div>
+        <div class="more-way">
+            <h2>どこまで集まっているか</h2>
+            <p>まだ集められていない自治体や、検索に載っていない文書もあります。いまの状況を自治体ごとに公開しています。</p>
+            <a class="button-quiet" href="/status/">収集状況を見る</a>
+        </div>
+    </section>
+
+    <p class="note home-boards-note">
+        選挙ポスター掲示場のページは、この文書検索とは別のものです。<a href="/boards/">選挙ポスター掲示場を開く</a>
+    </p>
+</main>
+
+<?php echo site_render_footer(); ?>
 
 <script>
 window.HOMEPAGE_API_URL = '/api/home.php';
@@ -250,6 +269,7 @@ window.HOMEPAGE_API_URL = '/api/home.php';
 window.HOMEPAGE_TASK_STATUS_POLL_MS = 0;
 window.HOMEPAGE_REFRESH_MS = 600000;
 </script>
+<script id="home-hyoka-slugs" type="application/json"><?php echo json_encode($homeHyokaSlugs, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="<?php echo home_h(site_asset_url('assets/js/municipality-coordinates.js')); ?>" defer></script>
 <script src="<?php echo home_h(site_asset_url('assets/js/home.js')); ?>" defer></script>

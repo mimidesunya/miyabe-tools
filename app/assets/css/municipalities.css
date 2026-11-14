@@ -1,154 +1,393 @@
-/* 自治体一覧。1,700 行を超える表なので、読む手掛かりを絞って軽く保つ。 */
+/*
+ * 自治体一覧と収集状況の画面。共通の部分は site.css。
+ *
+ * どちらも全国 1,700 自治体ぶんの表が中心。スマホでは表だけを横に動かし、文章は折り返す。
+ * 収集状況の段（cov-*）は site.css、組み立ては assets/js/home.js。
+ */
+
+.page-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 18px;
+    color: var(--ink-soft);
+    font-size: 0.9375rem;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- 自治体一覧 ---- */
 
 .region-index {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px 10px;
-    padding: 16px clamp(18px, 5vw, 92px);
-    border-bottom: 1px solid var(--ink);
-    font-size: 13px;
+    gap: 8px;
+    margin-top: 20px;
 }
 
 .region-index-label {
-    font-weight: 800;
-    letter-spacing: 0.04em;
+    width: 100%;
+    font-weight: 700;
+    font-size: 0.875rem;
+    color: var(--ink-soft);
 }
 
 .region-index a {
-    padding: 5px 13px;
-    border: 1px solid rgba(24, 24, 24, 0.45);
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 4px 16px;
+    border: 2px solid var(--line-strong);
     border-radius: 999px;
     color: var(--ink);
+    font-weight: 700;
     text-decoration: none;
 }
 
 .region-index a:hover {
-    color: var(--panel);
-    background: var(--ink);
+    border-color: var(--accent);
+    background: var(--accent-tint);
 }
 
 .list-note {
-    margin: 0;
-    padding: 14px clamp(18px, 5vw, 92px);
-    border-bottom: 1px solid var(--ink);
-    font-size: 13px;
-    line-height: 1.8;
+    margin-top: 18px;
+    padding: 12px 14px;
+    border-left: 5px solid var(--line-strong);
+    border-radius: 0 var(--radius-small) var(--radius-small) 0;
+    background: var(--ground);
+    color: var(--ink-soft);
+    font-size: 0.9375rem;
 }
 
 .region {
-    padding: 0 clamp(18px, 5vw, 92px) 8px;
+    margin-top: 36px;
 }
 
 .region-heading {
-    margin: 0;
-    padding: 18px 0 10px;
-    background: var(--paper, #fffdf7);
-    font-family: var(--serif);
-    font-size: clamp(19px, 2.2vw, 26px);
+    padding-bottom: 6px;
     border-bottom: 2px solid var(--ink);
 }
 
 .prefecture {
-    padding: 18px 0 6px;
+    margin-top: 22px;
 }
 
 .prefecture-heading {
     display: flex;
     align-items: baseline;
     gap: 10px;
-    margin: 0 0 8px;
-    font-size: 16px;
-    font-weight: 800;
+    margin: 18px 0 6px;
 }
 
 .prefecture-count {
-    font-size: 12px;
-    font-weight: 500;
-    opacity: 0.7;
-}
-
-/* 幅の狭い画面では表だけを横に流す。本文は折り返す。 */
-.table-scroll {
-    overflow-x: auto;
+    color: var(--muted);
+    font-size: 0.875rem;
+    font-weight: 400;
 }
 
 .municipality-table {
     width: 100%;
+    min-width: 640px;
     border-collapse: collapse;
-    font-size: 13px;
+    font-size: 0.9375rem;
     line-height: 1.6;
 }
 
 .municipality-table th,
 .municipality-table td {
-    padding: 7px 10px;
-    border-bottom: 1px solid rgba(24, 24, 24, 0.18);
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--line);
     text-align: left;
     vertical-align: top;
+}
+
+.municipality-table thead th {
+    border-bottom: 2px solid var(--line-strong);
+    background: var(--ground);
+    color: var(--ink-soft);
+    font-size: 0.8125rem;
     white-space: nowrap;
 }
 
-/* 長い都道府県（北海道 186 件）を読む間、列の意味を見失わないよう
-   見出し行だけ貼り付ける。地方見出しも貼り付けると 2 つが重なるので、
-   貼り付けるのはここだけにする。 */
-.municipality-table thead th {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    border-bottom: 1px solid var(--ink);
-    background: var(--paper, #fffdf7);
-    font-size: 12px;
-    letter-spacing: 0.04em;
-}
-
 .municipality-table tbody tr:hover {
-    background: rgba(24, 24, 24, 0.04);
+    background: var(--ground);
 }
 
-.col-code {
+.municipality-table .col-code {
     width: 5.5em;
+    color: var(--muted);
     font-variant-numeric: tabular-nums;
-    opacity: 0.75;
 }
 
-.col-name {
+.municipality-table .col-name {
+    min-width: 7em;
     font-weight: 700;
     white-space: nowrap;
 }
 
-.source-link {
-    color: var(--ink);
-    text-decoration: underline;
-    text-underline-offset: 2px;
+.municipality-table .is-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
-.source-link:hover {
-    background: var(--ink);
-    color: var(--panel);
-    text-decoration: none;
+.source-link {
+    word-break: break-all;
 }
 
 .source-none {
-    opacity: 0.45;
+    color: var(--muted);
 }
 
 .source-note {
+    display: inline-block;
     margin-left: 6px;
-    padding: 1px 6px;
-    border: 1px solid rgba(24, 24, 24, 0.4);
+    padding: 0 8px;
     border-radius: 999px;
-    font-size: 11px;
+    background: var(--off-tint);
+    color: var(--ink-soft);
+    font-size: 0.8125rem;
     white-space: nowrap;
-    opacity: 0.8;
 }
 
-@media (max-width: 720px) {
-    .municipality-table thead th {
-        position: static;
+a.source-note {
+    background: var(--hyoka-tint);
+    color: var(--hyoka-deep);
+}
+
+/* ---- 収集状況 ---- */
+
+.stats-strip-page {
+    display: grid;
+    gap: 14px;
+}
+
+.stats-strip-page .cov-total {
+    grid-column: 1 / -1;
+}
+
+.state-board-note {
+    color: var(--ink-soft);
+    margin-bottom: 12px;
+}
+
+.state-board-groups {
+    display: grid;
+    gap: 24px;
+}
+
+.state-group h3 {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid var(--line-strong);
+}
+
+.state-group h3 span {
+    font-variant-numeric: tabular-nums;
+}
+
+.state-list {
+    list-style: none;
+    padding: 0;
+    display: grid;
+}
+
+.state-list li {
+    display: grid;
+    gap: 2px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.state-list a {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 32px;
+    font-weight: 700;
+}
+
+.state-row-count {
+    font-size: 1.125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 件数の大小を比べるための目盛り */
+.state-row-share {
+    display: block;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--ground);
+    overflow: hidden;
+}
+
+.state-row-share i {
+    display: block;
+    height: 100%;
+    min-width: 2px;
+    background: var(--accent);
+}
+
+.state-row-note {
+    color: var(--muted);
+    font-size: 0.875rem;
+}
+
+.hyoka-status-lead {
+    color: var(--ink-soft);
+    max-width: 46em;
+    margin-bottom: 14px;
+}
+
+.hyoka-status-grid {
+    display: grid;
+    gap: 14px;
+}
+
+.hyoka-status-sub {
+    color: var(--muted);
+    font-size: 0.875rem;
+}
+
+.hyoka-status-detail {
+    margin-top: 18px;
+}
+
+.hyoka-status-detail > summary {
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+    padding: 6px 14px;
+    border: 2px solid var(--line-strong);
+    border-radius: var(--radius-small);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.hyoka-status-table {
+    min-width: 860px;
+}
+
+/* いま動いている処理 */
+.running-board-head {
+    display: grid;
+    gap: 12px;
+}
+
+.running-summary-list {
+    display: grid;
+    gap: 12px;
+}
+
+.operation-card {
+    display: grid;
+    gap: 8px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-small);
+}
+
+.operation-card-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px 12px;
+}
+
+.operation-card-top span,
+.task-badge {
+    display: inline-flex;
+    padding: 1px 10px;
+    border-radius: 999px;
+    background: var(--off-tint);
+    color: var(--off);
+    font-size: 0.8125rem;
+    font-weight: 700;
+}
+
+.task-summary-running,
+.task-running {
+    background: var(--accent-tint) !important;
+    color: var(--accent-deep) !important;
+}
+
+.task-done {
+    background: var(--ok-tint);
+    color: var(--ok);
+}
+
+.task-summary-stale,
+.task-stale {
+    background: var(--wait-tint) !important;
+    color: var(--wait) !important;
+}
+
+.task-failed {
+    background: var(--bad-tint);
+    color: var(--bad);
+}
+
+.operation-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 18px;
+    color: var(--ink-soft);
+    font-size: 0.9375rem;
+}
+
+.operation-stats b {
+    margin-right: 6px;
+    font-weight: 400;
+    color: var(--muted);
+}
+
+.running-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.running-item {
+    display: grid;
+    gap: 4px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-small);
+}
+
+.task-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.task-mini-bar {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--ground);
+    overflow: hidden;
+}
+
+.task-mini-bar span {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+}
+
+@media (min-width: 760px) {
+    .stats-strip-page,
+    .hyoka-status-grid {
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     }
 
-    .municipality-table {
-        font-size: 12px;
+    .state-board-groups {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 32px;
     }
 }

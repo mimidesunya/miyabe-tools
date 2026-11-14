@@ -26,13 +26,18 @@
     const featureButtons = Array.from(document.querySelectorAll('[data-feature-filter]'));
     const runningSection = document.querySelector('[data-running-section]');
     const stateCountsElement = document.querySelector('[data-status-state-counts]');
+    const coverageLine = document.querySelector('[data-home-coverage-line]');
+    const townInput = document.querySelector('[data-home-town-input]');
+    const townSuggest = document.querySelector('[data-home-town-suggest]');
+    const townResult = document.querySelector('[data-home-town-result]');
     const runningSummaryList = document.querySelector('[data-running-summary-list]');
     const runningList = document.querySelector('[data-running-list]');
 
     const featureKeys = ['gijiroku', 'reiki'];
     const featureMeta = {
-        gijiroku: { label: '会議録', shortLabel: '会', color: '#2563eb' },
-        reiki: { label: '例規集', shortLabel: '例', color: '#b45309' },
+        // 色は assets/css/site.css の --minutes・--reiki と同じ値にする。
+        gijiroku: { label: '会議録', shortLabel: '会', color: '#1c4f9c' },
+        reiki: { label: '例規集', shortLabel: '例', color: '#1a6e45' },
     };
     const detailedMarkerMinZoom = 7;
 
@@ -509,8 +514,12 @@
         }
 
         if (options.fit !== false && bounds.isValid()) {
-            map.fitBounds(bounds, {
-                padding: window.innerWidth < 700 ? [24, 24] : [42, 42],
+            // 全国を出すときは、点の全部（沖縄・小笠原まで）に合わせると本州が小さくなる。
+            // 北海道から九州の範囲に合わせ、離島は動かして見てもらう。
+            const wholeCountry = state.prefecture === 'all' && state.query === '';
+            map.invalidateSize();
+            map.fitBounds(wholeCountry ? L.latLngBounds([30.9, 129.3], [45.6, 145.9]) : bounds, {
+                padding: window.innerWidth < 700 ? [8, 8] : [24, 24],
                 maxZoom: cards.length <= 2 ? 9 : 7,
             });
         } else if (options.fit !== false) {
@@ -615,7 +624,19 @@
             </div>`).join('')}</dl>`;
     }
 
+    // トップの検索の箱の下に出す 1 行。段階ごとの内訳は収集状況のページで見せる。
+    function renderCoverageLine() {
+        if (!coverageLine) return;
+        const feats = ['gijiroku', 'reiki'].map(funnelFor).filter(Boolean);
+        if (feats.length === 0) return;
+        const count = (value) => Number(value || 0).toLocaleString('ja-JP');
+        const parts = feats.map((f) => `${escapeHtml(f.label)} <strong>${escapeHtml(count(f.searchable))}</strong> 自治体`);
+        coverageLine.innerHTML = `いま検索できるのは、${parts.join('、')}です（全国 ${escapeHtml(count(feats[0].master))} 自治体のうち）。`
+            + '<a href="/status/">収集状況を見る</a>';
+    }
+
     function renderStats() {
+        renderCoverageLine();
         if (!statbar) return;
         const feats = ['gijiroku', 'reiki'].map(funnelFor).filter(Boolean);
         if (feats.length === 0) {
@@ -625,8 +646,8 @@
         const master = feats[0].master;
         const head = `<div class="cov-total"><span>全国の自治体</span><strong>${escapeHtml(String(master))}</strong></div>`;
         const body = feats.map((f) => `
-            <section class="cov-feat">
-                <h3>${escapeHtml(f.icon ? `${f.icon} ${f.label}` : f.label)}</h3>
+            <section class="cov-feat" data-doc="${f.key === 'reiki' ? 'reiki' : 'minutes'}">
+                <h3>${escapeHtml(f.label)}</h3>
                 <ol class="cov-flow">
                     <li><span>取得元を特定</span><b>${escapeHtml(String(f.resolved))}</b></li>
                     <li><span>取得の対象</span><b>${escapeHtml(String(f.target))}</b></li>
@@ -688,8 +709,8 @@
         if (!card) {
             detailPanel.innerHTML = `
                 <div class="detail-empty">
-                    <h2>自治体を選択</h2>
-                    <p>地図上のマーカーを選ぶと、対応している機能と公開先を確認できます。</p>
+                    <h3>自治体を選んでください</h3>
+                    <p>地図の点か、下の一覧の名前を押すと、ここに出ます。</p>
                 </div>
             `.trim();
             return;
@@ -709,7 +730,7 @@
                 ${features.map((item) => renderFeatureDetail(item, card)).join('')}
             </div>
             <div class="detail-actions">
-                <a href="/search/?slug=${encodeURIComponent(card.slug || '')}">この自治体を検索</a>
+                <a href="/search/?slug=${encodeURIComponent(card.slug || '')}">この自治体の文書を検索</a>
             </div>
         `.trim();
     }
@@ -729,8 +750,8 @@
         const featureUrl = String(feature?.url || '')
             || (card?.slug && key !== '' ? `/${key}/?slug=${encodeURIComponent(String(card.slug))}` : '');
         const action = String(feature?.mode || '') === 'link' && featureUrl !== ''
-            ? `<a class="feature-open" href="${escapeHtml(featureUrl)}">開く</a>`
-            : '<span class="feature-open feature-open-disabled">待機</span>';
+            ? `<a class="feature-open" href="${escapeHtml(featureUrl)}">${escapeHtml(meta.label)}を見る</a>`
+            : '<span class="feature-open feature-open-disabled">準備中</span>';
         return `
             <div class="feature-detail feature-detail-${escapeHtml(key)}">
                 <div class="feature-detail-top">
@@ -751,12 +772,12 @@
         const cards = visibleCards();
         if (displayCountElement) {
             const total = Number(state.payload?.display_municipality_count || allCards().length || 0);
-            displayCountElement.textContent = `表示自治体: ${cards.length} / ${total}`;
+            displayCountElement.textContent = `${cards.length.toLocaleString('ja-JP')} 自治体を表示中（全 ${total.toLocaleString('ja-JP')}）`;
         }
         if (filterHint) {
             const featureLabel = featureMeta[state.feature]?.label || state.feature;
             const prefLabel = state.prefecture === 'all' ? '全国' : (prefectureByCode.get(state.prefecture)?.name || state.prefecture);
-            filterHint.textContent = `${prefLabel} / ${featureLabel} / ${cards.length}自治体`;
+            filterHint.textContent = `${prefLabel}の${featureLabel}（${cards.length.toLocaleString('ja-JP')} 自治体）`;
         }
         if (cards.length === 0) {
             resultList.innerHTML = '<div class="loading-panel">条件に合う自治体はありません。</div>';
@@ -817,9 +838,149 @@
                     .filter((feature) => String(feature?.acquisition_detail || '').trim() !== '')
                     .map((feature) => `<p class="municipality-inline-note">${escapeHtml(feature?.label || '')}: ${escapeHtml(String(feature.acquisition_detail).trim())}</p>`)
                     .join('')}
-                <a href="/search/?slug=${encodeURIComponent(card?.slug || '')}">${escapeHtml(card?.name || '')}の記録を検索 <span aria-hidden="true">→</span></a>
+                <a href="/search/?slug=${encodeURIComponent(card?.slug || '')}">${escapeHtml(card?.name || '')}の文書を検索</a>
             </div>
         `.trim();
+    }
+
+    // ---- 自分のまちから探す ----
+    //
+    // 地図を触らなくても、名前を入れれば自分の自治体の入口に行けるようにする。
+    // 候補は地図と同じデータ（state.payload）から作る。事務事業評価は地図のデータに無いので、
+    // 文書のある自治体の slug をページに埋めてもらう（#home-hyoka-slugs）。
+    const hyokaSlugs = (() => {
+        try {
+            return new Set(JSON.parse(document.getElementById('home-hyoka-slugs')?.textContent || '[]'));
+        } catch (error) {
+            return new Set();
+        }
+    })();
+    const TOWN_SUGGEST_LIMIT = 8;
+
+    function townMatches(text) {
+        const needle = String(text || '').trim().replace(/\s+/g, '');
+        if (needle === '') return [];
+        const cards = allCards();
+        const scored = [];
+        for (const card of cards) {
+            const name = String(card?.name || '');
+            const full = `${card?.prefecture_label || ''}${name}`;
+            let rank = -1;
+            if (name === needle || full === needle) rank = 0;
+            else if (name.startsWith(needle)) rank = 1;
+            else if (full.includes(needle)) rank = 2;
+            if (rank >= 0) scored.push([rank, card]);
+        }
+        scored.sort((a, b) => a[0] - b[0] || String(a[1].slug || '').localeCompare(String(b[1].slug || '')));
+        return scored.map(([, card]) => card);
+    }
+
+    function renderTownSuggest() {
+        if (!townInput || !townSuggest) return;
+        const text = townInput.value;
+        if (String(text).trim() === '') {
+            townSuggest.hidden = true;
+            townSuggest.innerHTML = '';
+            return;
+        }
+        if (!state.payload) {
+            townSuggest.hidden = false;
+            townSuggest.innerHTML = '<p>自治体のデータを読み込んでいます。</p>';
+            return;
+        }
+        const matches = townMatches(text);
+        townSuggest.hidden = false;
+        if (matches.length === 0) {
+            townSuggest.innerHTML = '<p>その名前の自治体が見つかりません。市区町村の名前を入れてください（例：川崎市）。</p>';
+            return;
+        }
+        const more = matches.length > TOWN_SUGGEST_LIMIT
+            ? `<p>ほかに ${matches.length - TOWN_SUGGEST_LIMIT} 件あります。名前を続けて入れると絞れます。</p>`
+            : '';
+        townSuggest.innerHTML = matches.slice(0, TOWN_SUGGEST_LIMIT).map((card) => `
+            <button type="button" data-town-slug="${escapeHtml(card.slug || '')}">${escapeHtml(card.name || '')}<span>${escapeHtml(card.prefecture_label || '')}</span></button>
+        `.trim()).join('') + more;
+    }
+
+    function townLink(doc, label, about, href, ready, waitText) {
+        if (!ready) {
+            return `<div class="town-link is-off" data-doc="${doc}"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(waitText)}</span></div>`;
+        }
+        return `<a class="town-link" data-doc="${doc}" href="${escapeHtml(href)}"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(about)}</span></a>`;
+    }
+
+    function renderTownResult(card) {
+        if (!townResult) return;
+        if (!card) {
+            townResult.hidden = true;
+            townResult.innerHTML = '';
+            return;
+        }
+        const slug = String(card.slug || '');
+        const query = (docType) => `/search/?doc_type=${docType}&slug=${encodeURIComponent(slug)}`;
+        const minutes = featureByKey(card, 'gijiroku');
+        const reiki = featureByKey(card, 'reiki');
+        const coverage = featureSearchCoverage(card);
+        const minutesAbout = coverage
+            ? `議会での発言を新しい順に読めます（${searchCoverageText(coverage, { includeCount: false, compact: true })}）`
+            : '議会での発言を新しい順に読めます';
+        const links = [
+            townLink('minutes', '議会の発言（会議録）を見る', minutesAbout, query('minutes'),
+                featureReady(card, 'gijiroku'), minutes ? `いまは検索できません（${minutes.status_label || '準備中'}）` : 'この自治体の会議録はまだ集めていません'),
+            townLink('reiki', '条例・規則（例規集）を見る', '条例・規則・要綱を探せます', query('reiki'),
+                featureReady(card, 'reiki'), reiki ? `いまは検索できません（${reiki.status_label || '準備中'}）` : 'この自治体の例規集はまだ集めていません'),
+            townLink('hyoka', '事業の評価（事務事業評価）を見る', '事業ごとの費用や今後の方向を探せます', query('hyoka'),
+                hyokaSlugs.has(slug), 'この自治体の事務事業評価はまだ集めていません'),
+        ];
+        townResult.hidden = false;
+        townResult.innerHTML = `
+            <h3>${escapeHtml(card.name || '')}<span>${escapeHtml(card.prefecture_label || '')}</span></h3>
+            <div class="town-links">${links.join('')}</div>
+            <div class="town-result-foot">
+                <button type="button" data-town-map="${escapeHtml(slug)}">地図で場所と収集状況を見る</button>
+            </div>
+        `.trim();
+    }
+
+    function chooseTown(slug) {
+        const card = allCards().find((item) => String(item?.slug || '') === String(slug));
+        if (!card) return;
+        if (townInput) townInput.value = String(card.name || '');
+        if (townSuggest) {
+            townSuggest.hidden = true;
+            townSuggest.innerHTML = '';
+        }
+        renderTownResult(card);
+    }
+
+    function bindTownPicker() {
+        if (!townInput || !townSuggest || !townResult) return;
+        townInput.addEventListener('input', () => {
+            renderTownResult(null);
+            renderTownSuggest();
+        });
+        townInput.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            const first = townMatches(townInput.value)[0];
+            if (first) chooseTown(first.slug);
+        });
+        townSuggest.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-town-slug]');
+            if (button) chooseTown(button.getAttribute('data-town-slug'));
+        });
+        townResult.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-town-map]');
+            if (!button) return;
+            // 絞り込みで地図から外れていることがあるので、全国・すべての状態に戻してから選ぶ。
+            state.prefecture = 'all';
+            state.issue = 'all';
+            state.query = '';
+            syncControls();
+            renderAll({ fit: false });
+            selectCard(button.getAttribute('data-town-map'), { pan: true });
+            document.getElementById('map')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
     }
 
     function renderFeatureSummaries(featureSummaries) {
@@ -1015,8 +1176,8 @@
     function renderPayload(payload) {
         state.payload = documentCatalogPayload(payload);
         if (loadingPanel) loadingPanel.remove();
-        if (municipalityCountElement) municipalityCountElement.textContent = `自治体マスタ: ${Number(state.payload?.municipality_count || 0)}`;
-        if (generatedAtElement) generatedAtElement.textContent = `更新: ${String(state.payload?.generated_at || '不明')}`;
+        if (municipalityCountElement) municipalityCountElement.textContent = `全国 ${Number(state.payload?.municipality_count || 0).toLocaleString('ja-JP')} 自治体`;
+        if (generatedAtElement) generatedAtElement.textContent = `データの更新 ${String(state.payload?.generated_at || '不明')}`;
         if (taskSummariesElement) taskSummariesElement.innerHTML = renderFeatureSummaries(state.payload?.feature_summaries);
         collectStateFilterLabels(state.payload);
         renderStateCounts(state.payload?.state_counts);
@@ -1053,7 +1214,7 @@
                     ${description ? `<p class="state-row-note">${escapeHtml(description)}</p>` : ''}
                 </li>`;
             }).join('');
-            const heading = group?.icon ? `${group.icon} ${group.label}` : String(group?.label || '');
+            const heading = String(group?.label || '');
             return `<section class="state-group">
                 <h3>${escapeHtml(heading)}<span>${escapeHtml(String(total))}</span></h3>
                 <ol class="state-list">${rows}</ol>
@@ -1160,6 +1321,7 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         initMap();
+        bindTownPicker();
         refresh().finally(() => {
             if (taskStatusPollMs > 0) refreshTaskStatus();
         });

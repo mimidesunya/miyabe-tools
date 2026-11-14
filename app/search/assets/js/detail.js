@@ -305,3 +305,28 @@
     item.classList.add('is-target');
     item.scrollIntoView({ block: 'start' });
 })();
+
+// 「検索の結果に戻る」。検索の画面から来たときは、ブラウザの「戻る」と同じ動きにして、
+// 見ていた結果（頁・絞り込み・地図の位置）にそのまま戻す。直接来たときはリンク先の検索の画面へ行く。
+(() => {
+    const link = document.querySelector('[data-detail-back]');
+    if (!link) {
+        return;
+    }
+    let fromSearch = false;
+    try {
+        const referrer = new URL(document.referrer);
+        fromSearch = referrer.origin === window.location.origin
+            && referrer.pathname.startsWith('/search/')
+            && !referrer.pathname.startsWith('/search/detail');
+    } catch (error) {
+        fromSearch = false;
+    }
+    if (!fromSearch || window.history.length < 2) {
+        return;
+    }
+    link.addEventListener('click', (event) => {
+        event.preventDefault();
+        window.history.back();
+    });
+})();

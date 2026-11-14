@@ -22,16 +22,19 @@ require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPAR
     <?php echo site_render_favicon_links(); ?>
     <?php $cssVer = @filemtime(__DIR__ . '/assets/css/reiki.css') ?: 1; ?>
     <?php $jsVer  = @filemtime(__DIR__ . '/assets/js/reiki.js')  ?: 1; ?>
+    <?php echo site_render_stylesheet(); ?>
     <link rel="stylesheet" href="/reiki/assets/css/reiki.css?v=<?php echo $cssVer; ?>">
 </head>
-<body data-reiki-slug="<?php echo h($requestSlug); ?>">
-<header class="header">
-    <div style="display:flex; align-items:center; gap:10px;">
-        <h1><a href="<?php echo h($clearUrl); ?>" style="color:inherit; text-decoration:none;"><?php echo h($pageTitle); ?></a></h1>
+<body class="reiki-page" data-doc="reiki" data-reiki-slug="<?php echo h($requestSlug); ?>">
+<?php echo site_render_header('search'); ?>
+<header class="header" id="main">
+    <div class="header-title">
+        <span class="doc-badge">例規集</span>
+        <h1><a href="<?php echo h($clearUrl); ?>"><?php echo h($pageTitle); ?></a></h1>
         <button id="menu-toggle" type="button">検索・一覧</button>
     </div>
-    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
-        <select aria-label="自治体切り替え" onchange="if (this.value) { window.location.href = this.value; }" style="padding:8px 10px; border:1px solid #cbd5e1; border-radius:999px; font-size:13px;">
+    <div class="header-tools">
+        <select class="municipality-switch" aria-label="ほかの自治体の例規集に切り替える" onchange="if (this.value) { window.location.href = this.value; }">
             <?php foreach ($switcherItems as $item): ?>
                 <?php $switchMunicipality = municipality_entry((string)$item['slug']); ?>
                 <?php $switchUrl = (string)($switchMunicipality['reiki']['url'] ?? ''); ?>
@@ -50,12 +53,12 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
 ?>
 <div class="<?php echo $layoutClasses; ?>">
     <nav class="mobile-back">
-        <a href="<?php echo h(query_with(['file' => null])); ?>">← 一覧に戻る</a>
+        <a href="<?php echo h(query_with(['file' => null])); ?>">一覧に戻る</a>
     </nav>
     <aside class="sidebar">
         <form class="search" method="get" action="/reiki/">
             <input type="hidden" name="slug" value="<?php echo h($requestSlug); ?>">
-            <input type="text" name="q" value="<?php echo h($q); ?>" placeholder="タイトルで検索">
+            <input type="text" name="q" value="<?php echo h($q); ?>" placeholder="題名の言葉で探す" aria-label="題名の言葉で探す">
             
             <div class="filter-block" data-filter-group>
                 <div class="filter-title">
@@ -116,7 +119,6 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
     <main class="content">
         <?php if (!$featureAvailable): ?>
             <div class="empty-content">
-                <div style="font-size:40px; margin-bottom:12px;">🏗</div>
                 <div style="font-size:16px; font-weight:600; color:#334155; margin-bottom:8px;">
                     <?php echo h($featureNotice); ?>
                 </div>
@@ -126,7 +128,6 @@ elseif ($isLanding) $layoutClasses .= ' is-landing';
             </div>
         <?php elseif ($selectedRecord === null): ?>
             <div class="empty-content">
-                <div style="font-size:40px; margin-bottom:12px;">📋</div>
                 <div style="font-size:16px; font-weight:600; color:#334155; margin-bottom:8px;">
                     <?php echo h((string)$total); ?>件の例規<?php echo $isLanding ? 'があります' : 'が見つかりました'; ?>
                 </div>

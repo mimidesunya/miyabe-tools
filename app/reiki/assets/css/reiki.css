@@ -1,9 +1,55 @@
-* { box-sizing: border-box; }
-body {
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans JP', sans-serif;
-    background: #f5f7fb;
-    color: #1f2937;
+/*
+ * 例規集の本文を読む画面。共通の部分（ヘッダー・色・文字）は assets/css/site.css を先に読む。
+ * PC は左に一覧・右に本文の 2 列で、それぞれ別に動かす。スマホは一覧と本文を切り替える。
+ */
+body.reiki-page {
+    background: var(--ground);
+}
+
+.header-title,
+.header-tools {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.header-tools {
+    justify-content: flex-end;
+}
+
+.header h1 a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.municipality-switch {
+    width: auto;
+    max-width: 16em;
+    min-height: 44px;
+}
+
+/* PC は画面の高さいっぱいに 2 列を置き、列の中だけを動かす */
+@media (min-width: 1025px) {
+    body.reiki-page {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+    }
+
+    body.reiki-page .layout {
+        flex: 1 1 auto;
+        min-height: 0;
+        height: auto;
+    }
+}
+
+/* スマホは下に固定のタブがあるので、頁送りをその上に貼り付ける */
+@media (max-width: 859px) {
+    body.reiki-page .pager {
+        bottom: calc(var(--tab-bar) + env(safe-area-inset-bottom, 0px));
+    }
 }
 
 /* ─── Header ─── */
@@ -11,8 +57,8 @@ body {
     position: sticky;
     top: 0;
     z-index: 20;
-    background: linear-gradient(90deg, #ffffff 0%, #f9fbff 100%);
-    border-bottom: 1px solid #e5e7eb;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
     padding: 12px 16px;
     display: flex;
     gap: 12px;
@@ -20,7 +66,7 @@ body {
     justify-content: space-between;
 }
 .header h1 { margin: 0; font-size: 20px; white-space: nowrap; }
-.meta { color: #6b7280; font-size: 13px; }
+.meta { color: var(--muted); font-size: 14px; }
 
 /* ─── Desktop: Two-column grid layout ─── */
 .layout {
@@ -30,7 +76,7 @@ body {
     overflow: hidden;
 }
 .sidebar {
-    border-right: 1px solid #e5e7eb;
+    border-right: 1px solid var(--line);
     background: #fff;
     overflow-y: auto;
     display: flex;
@@ -40,7 +86,7 @@ body {
 /* ─── Search & Filters ─── */
 .search {
     padding: 12px;
-    border-bottom: 1px solid #eef2f7;
+    border-bottom: 1px solid var(--line);
     position: sticky;
     top: 0;
     background: #fff;
@@ -50,12 +96,12 @@ body {
 .search input[type="text"] {
     width: 100%;
     padding: 9px 10px;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--line-strong);
     border-radius: 8px;
-    font-size: 14px;
+    font-size: 15px;
 }
 .search select {
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--line-strong);
     border-radius: 8px;
     background: #fff;
 }
@@ -63,26 +109,26 @@ body {
     margin-top: 8px;
     width: 100%;
     padding: 8px 10px;
-    border: 1px solid #275ea3;
-    background: #275ea3;
+    border: 1px solid var(--reiki);
+    background: var(--reiki);
     color: #fff;
     border-radius: 8px;
     cursor: pointer;
 }
 .filter-block {
     margin-top: 8px;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--line-strong);
     border-radius: 8px;
     background: #fff;
     overflow: hidden;
 }
 .filter-title {
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 700;
-    color: #475569;
+    color: var(--ink-soft);
     padding: 8px 10px;
-    background: #f8fafc;
-    border-bottom: 1px solid #e2e8f0;
+    background: var(--ground);
+    border-bottom: 1px solid var(--line);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -91,7 +137,7 @@ body {
 }
 .filter-count {
     font-size: 11px;
-    color: #64748b;
+    color: var(--muted);
     font-weight: 500;
 }
 .checkbox-grid {
@@ -106,10 +152,10 @@ body {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.35;
     cursor: pointer;
-    color: #1f2937;
+    color: var(--ink);
     min-width: 0;
 }
 .checkbox-item input[type="checkbox"] {
@@ -128,15 +174,15 @@ body {
 .list a {
     display: block;
     padding: 12px 12px;
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid var(--ground);
     text-decoration: none;
     color: inherit;
 }
-.list a:hover { background: #f8fafc; }
-.list a.active { background: #e8f0fe; border-left: 3px solid #275ea3; }
+.list a:hover { background: var(--ground); }
+.list a.active { background: var(--reiki-tint); border-left: 3px solid var(--reiki); }
 .law-title {
-    font-size: 14px;
-    color: #0f172a;
+    font-size: 15px;
+    color: var(--ink);
     font-weight: 600;
     line-height: 1.35;
     display: -webkit-box;
@@ -145,14 +191,14 @@ body {
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
-.file-meta { margin-top: 4px; font-size: 12px; color: #94a3b8; }
+.file-meta { margin-top: 4px; font-size: 14px; color: var(--line-strong); }
 
 /* ─── Pager ─── */
 .pager {
     display: flex;
     gap: 6px;
     padding: 10px 12px;
-    border-top: 1px solid #eef2f7;
+    border-top: 1px solid var(--line);
     position: sticky;
     bottom: 0;
     background: #fff;
@@ -161,11 +207,11 @@ body {
 }
 .pager a, .pager span {
     padding: 5px 8px;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--line-strong);
     border-radius: 6px;
-    font-size: 12px;
+    font-size: 14px;
     text-decoration: none;
-    color: #334155;
+    color: var(--ink-soft);
     background: #fff;
 }
 
@@ -176,7 +222,7 @@ body {
 }
 .card {
     background: #fff;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--line);
     border-radius: 10px;
     padding: 16px;
     margin-bottom: 12px;
@@ -185,9 +231,9 @@ body {
 .title { margin: 0 0 8px 0; font-size: 22px; }
 /* ─── Law Content ─── */
 .law-content {
-    font-size: 15px;
+    font-size: 16px;
     line-height: 1.9;
-    color: #111827;
+    color: var(--ink);
 }
 .law-content h1, .law-content h2, .law-content h3, .law-content h4 {
     margin: 0.8em 0 0.4em;
@@ -200,19 +246,19 @@ body {
     width: 100%;
     border-collapse: collapse;
     margin: 10px 0;
-    font-size: 14px;
+    font-size: 15px;
 }
 .law-content th, .law-content td {
-    border: 1px solid #dbe4ef;
+    border: 1px solid var(--line);
     padding: 6px 8px;
     vertical-align: top;
 }
 .law-content th {
-    background: #f8fafc;
+    background: var(--ground);
     font-weight: 600;
 }
 .law-content a {
-    color: #1d4ed8;
+    color: var(--reiki);
     text-decoration: underline;
     word-break: break-all;
 }
@@ -225,7 +271,7 @@ body {
     justify-content: center;
     text-align: center;
     padding: 60px 20px;
-    color: #64748b;
+    color: var(--muted);
 }
 
 /* ─── Mobile Back Button (hidden on desktop) ─── */
@@ -275,7 +321,7 @@ body {
     }
     .layout.is-landing .sidebar {
         order: 2;
-        border-top: 1px solid #e5e7eb;
+        border-top: 1px solid var(--line);
     }
     .mobile-back {
         order: 0;
@@ -284,7 +330,7 @@ body {
         display: block;
         padding: 10px 12px;
         background: #fff;
-        border-bottom: 1px solid #e5e7eb;
+        border-bottom: 1px solid var(--line);
         position: sticky;
         top: 0;
         z-index: 15;
@@ -293,14 +339,14 @@ body {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        font-size: 14px;
-        color: #275ea3;
+        font-size: 15px;
+        color: var(--reiki);
         text-decoration: none;
         font-weight: 600;
         padding: 10px 14px;
-        border: 1px solid #d1d5db;
+        border: 1px solid var(--line-strong);
         border-radius: 8px;
-        background: #f8fafc;
+        background: var(--ground);
         -webkit-tap-highlight-color: rgba(39, 94, 163, 0.15);
     }
     .filter-block .checkbox-grid {
@@ -314,7 +360,7 @@ body {
     .filter-title::after {
         content: '\25B6';
         font-size: 10px;
-        color: #94a3b8;
+        color: var(--line-strong);
         transition: transform 0.2s;
     }
     .filter-block.expanded .filter-title::after {
@@ -335,7 +381,7 @@ body {
     .header h1 { font-size: 17px; }
 
     .mobile-back a:active {
-        background: #e8f0fe;
+        background: var(--reiki-tint);
     }
 
     .content { padding: 10px; }
@@ -354,7 +400,7 @@ body {
     }
 
     .checkbox-item {
-        font-size: 14px;
+        font-size: 15px;
         padding: 4px 0;
         min-height: 36px;
         align-items: center;
@@ -370,7 +416,7 @@ body {
         padding: 14px 12px;
     }
     .law-title {
-        font-size: 15px;
+        font-size: 16px;
         line-clamp: 3;
         -webkit-line-clamp: 3;
     }
@@ -381,7 +427,7 @@ body {
     }
     .pager a, .pager span {
         padding: 10px 16px;
-        font-size: 14px;
+        font-size: 15px;
     }
 
     /* Cards */
@@ -398,7 +444,7 @@ body {
         -webkit-overflow-scrolling: touch;
     }
     .law-content {
-        font-size: 14px;
+        font-size: 15px;
         line-height: 1.8;
     }
 
@@ -408,7 +454,7 @@ body {
    Small phones (≤400px)
    ═══════════════════════════════════════ */
 @media (max-width: 400px) {
-    .header h1 { font-size: 15px; }
+    .header h1 { font-size: 16px; }
     .content { padding: 6px; }
     .card { padding: 10px; }
     .title { font-size: 16px; }

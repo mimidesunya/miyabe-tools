@@ -52,64 +52,51 @@ function status_asset_url(string $relativePath): string
         '/status/'
     ); ?>
     <?php echo site_render_favicon_links(); ?>
-    <link rel="stylesheet" href="<?php echo status_h(status_asset_url('css/home.css')); ?>">
+    <?php echo site_render_stylesheet(); ?>
     <link rel="stylesheet" href="<?php echo status_h(status_asset_url('css/municipalities.css')); ?>">
 </head>
 <body>
-    <div class="shell">
-        <header class="status-masthead">
-            <?php echo site_render_brand('/'); ?>
-            <nav aria-label="関連ページ">
-                <a href="/">地図から探す</a>
-                <a href="/search/">記録を検索</a>
-                <a href="/municipalities/">自治体一覧</a>
-                <a href="/api-guide/">AIから使う（MCP）</a>
-            </nav>
-        </header>
-        <section class="hero">
-            <div class="eyebrow">自治体資料の収集状況</div>
-            <h1>収集・公開状況</h1>
-            <div class="hero-copy">
-                会議録・例規集・事務事業評価をどこまで取り込み、どこまで検索に載せられたかを全国分まとめています。
-                会議録と例規集の自治体ごとの状態は<a href="/">自治体マップ</a>で、事務事業評価は<a href="#hyoka">下の表</a>で見られます。
-            </div>
-            <div class="hero-meta">
-                <a href="/search/">記録を検索へ</a>
-                <a href="/privacy/">プライバシー</a>
-                <a href="/terms/">利用規約</a>
-                <a href="/support/">サポート</a>
-                <span data-home-municipality-count>自治体マスタ: 読み込み中</span>
-                <span data-home-generated-at>更新: 読み込み中</span>
-                <div class="hero-meta-dynamic" data-home-task-summaries></div>
+<?php echo site_render_header('status'); ?>
+
+    <main id="main" class="page">
+        <section class="page-head">
+            <h1>収集状況</h1>
+            <p>
+                会議録・例規集・事務事業評価を、どこまで集めて、どこまで検索できるようにしたかを、全国ぶんまとめています。
+                会議録と例規集の自治体ごとの状態は<a href="/#map">トップの地図</a>で、事務事業評価は<a href="#hyoka">下の表</a>で見られます。
+            </p>
+            <div class="page-meta">
+                <span data-home-municipality-count>自治体の数を読み込んでいます</span>
+                <span data-home-generated-at>更新の時刻を読み込んでいます</span>
             </div>
         </section>
 
-        <section class="coverage-dashboard" aria-label="収録状況">
-            <div class="coverage-head">
-                <p class="eyebrow"><span>01</span> 全国の進み具合</p>
+        <section class="section" aria-labelledby="status-coverage-title">
+            <div class="section-head">
+                <h2 id="status-coverage-title">会議録と例規集</h2>
+                <p>全国の自治体のうち、検索できるところまで進んだ数</p>
             </div>
-            <aside class="stats-strip stats-strip-page" aria-label="収録状況サマリー" data-home-statbar>
-                <div class="stat-card stat-card-loading">収録状況を読み込んでいます。</div>
+            <aside class="stats-strip-page" aria-label="収録状況のまとめ" data-home-statbar>
+                <div class="stat-card-loading">収録状況を読み込んでいます。</div>
             </aside>
         </section>
 
-        <section class="state-board" aria-label="状態別の件数">
-            <div class="coverage-head">
-                <p class="eyebrow"><span>02</span> 状態別の件数</p>
+        <section class="section state-board" aria-labelledby="status-state-title">
+            <div class="section-head">
+                <h2 id="status-state-title">状態ごとの自治体の数</h2>
             </div>
             <p class="state-board-note">
-                件数を選ぶと、その状態の自治体だけを自治体マップに表示します。
+                数を押すと、その状態の自治体だけをトップの地図に出します。
             </p>
             <div class="state-board-groups" data-status-state-counts>
-                <div class="loading-panel">状態別の件数を読み込んでいます。</div>
+                <div class="loading-panel">状態ごとの数を読み込んでいます。</div>
             </div>
         </section>
 
-        <section class="coverage-dashboard hyoka-status" id="hyoka" aria-labelledby="hyoka-status-title">
-            <div class="coverage-head">
-                <p class="eyebrow"><span>03</span> 事務事業評価</p>
+        <section class="section hyoka-status" id="hyoka" aria-labelledby="hyoka-status-title" data-doc="hyoka">
+            <div class="section-head">
+                <h2 class="hyoka-status-title" id="hyoka-status-title">事務事業評価</h2>
             </div>
-            <h2 class="hyoka-status-title" id="hyoka-status-title">事務事業評価の取り込み</h2>
             <?php if ($hyokaStatus === null): ?>
                 <p class="hyoka-status-lead">取り込みの状態をまだ集計していません。</p>
             <?php else: ?>
@@ -199,17 +186,18 @@ function status_asset_url(string $relativePath): string
             <?php endif; ?>
         </section>
 
-        <section class="running-board" hidden data-running-section>
+        <section class="section running-board" hidden data-running-section aria-labelledby="status-running-title">
+            <div class="section-head">
+                <h2 id="status-running-title">いま動いている処理</h2>
+            </div>
             <div class="running-board-head">
-                <div class="eyebrow">実行中の処理</div>
-                <div class="running-board-title">いま動いている処理</div>
                 <div class="running-summary-list" data-running-summary-list></div>
             </div>
             <div class="running-list" data-running-list></div>
         </section>
+    </main>
 
-
-    </div>
+<?php echo site_render_footer(); ?>
     <script>
         // 自治体カードは送らせない。一覧はトップにあり、このページは件数しか使わない。
         window.HOMEPAGE_API_URL = '/api/status-summary.php';

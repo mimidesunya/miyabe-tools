@@ -80,6 +80,91 @@ function site_render_brand(string $href = '/'): string
         . '</span>';
 }
 
+// ---- 全ページ共通の枠（ヘッダー・移動・フッター） ----
+//
+// どのページでも同じ 5 つの行き先を、同じ言葉・同じ順番で出す。スマホでは画面の下に固定の
+// タブとして並び、PC ではヘッダーの右に並ぶ（見た目の切り替えは assets/css/site.css）。
+// ページごとに案内の中身が違うと、初めての人は自分がどこにいるのか分からなくなる。
+
+/** @return array<string, array{label: string, href: string, icon: string}> */
+function site_nav_items(): array
+{
+    return [
+        'home' => [
+            'label' => 'ホーム',
+            'href' => '/',
+            'icon' => '<path d="M4 11.5 12 4l8 7.5"/><path d="M6.5 10v9.5h11V10"/><path d="M10 19.5v-5h4v5"/>',
+        ],
+        'search' => [
+            'label' => '検索',
+            'href' => '/search/',
+            'icon' => '<circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/>',
+        ],
+        'municipalities' => [
+            'label' => '自治体一覧',
+            'href' => '/municipalities/',
+            'icon' => '<path d="M5 6.5h14M5 12h14M5 17.5h14"/><circle cx="3" cy="6.5" r=".6"/><circle cx="3" cy="12" r=".6"/><circle cx="3" cy="17.5" r=".6"/>',
+        ],
+        'ai' => [
+            'label' => 'AIで調べる',
+            'href' => '/api-guide/',
+            'icon' => '<path d="M5 5.5h14v10.5H12l-4.5 3.5V16H5z"/><path d="M9 9.5h6M9 12.5h4"/>',
+        ],
+        'status' => [
+            'label' => '収集状況',
+            'href' => '/status/',
+            'icon' => '<path d="M5 19.5V13M10 19.5V8M15 19.5v-4.5M20 19.5V5"/>',
+        ],
+    ];
+}
+
+/** 共通のスタイル。各ページの専用 CSS より前に読む。 */
+function site_render_stylesheet(): string
+{
+    $url = htmlspecialchars(site_asset_url('assets/css/site.css'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    return '<link rel="stylesheet" href="' . $url . '">';
+}
+
+/** ヘッダーと移動。$current は site_nav_items() の鍵（どれでもないページは空）。 */
+function site_render_header(string $current = ''): string
+{
+    $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $links = '';
+    foreach (site_nav_items() as $key => $item) {
+        $links .= '<a href="' . $h($item['href']) . '"' . ($key === $current ? ' aria-current="page"' : '') . '>'
+            . '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"'
+            . ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $item['icon'] . '</svg>'
+            . '<span>' . $h($item['label']) . '</span></a>';
+    }
+    return '<a class="skip-link" href="#main">本文へ進む</a>' . "\n"
+        . '<header class="site-header">' . "\n"
+        . '    <div class="site-header-inner">' . "\n"
+        . '        ' . site_render_brand('/') . "\n"
+        . '        <nav class="site-nav" aria-label="サイト内の移動">' . $links . '</nav>' . "\n"
+        . '    </div>' . "\n"
+        . '</header>';
+}
+
+function site_render_footer(): string
+{
+    return '<footer class="site-footer">' . "\n"
+        . '    <div class="site-footer-inner">' . "\n"
+        . '        <p class="site-footer-about"><strong>自治体マップ</strong>は、全国の自治体が公開している議会の会議録・条例や規則・事業の評価を集めて、'
+        . 'まとめて検索できるようにしたサイトです。載せている文書には、元の自治体のページへのリンクを付けています。無料で、登録は要りません。</p>' . "\n"
+        . '        <nav class="site-footer-links" aria-label="このサイトについて">'
+        . '<a href="/search/">検索</a>'
+        . '<a href="/municipalities/">自治体一覧</a>'
+        . '<a href="/api-guide/">AIで調べる</a>'
+        . '<a href="/status/">収集状況</a>'
+        . '<a href="/support/">お問い合わせ</a>'
+        . '<a href="/terms/">利用規約</a>'
+        . '<a href="/privacy/">プライバシー</a>'
+        . '</nav>' . "\n"
+        . '        <p class="site-footer-owner">運営: <a href="https://tatsuhiko.miya.be/" target="_blank" rel="noopener">宮部たつひこ</a></p>' . "\n"
+        . '    </div>' . "\n"
+        . '</footer>';
+}
+
 // ChatGPTのプラグイン名がサイト名と異なるため、審査や利用者が同一サービスだと
 // 確認できるよう、規約・プライバシー・サポートの各ページで名称の対応を明示する。
 //

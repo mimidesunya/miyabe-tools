@@ -125,36 +125,27 @@ $generatedAt = app_now_tokyo('Y-m-d');
         '/municipalities/'
     ); ?>
     <?php echo site_render_favicon_links(); ?>
-    <link rel="stylesheet" href="<?php echo municipalities_h(municipalities_asset_url('css/home.css')); ?>">
+    <?php echo site_render_stylesheet(); ?>
     <link rel="stylesheet" href="<?php echo municipalities_h(municipalities_asset_url('css/municipalities.css')); ?>">
 </head>
 <body>
-    <div class="shell">
-        <header class="status-masthead">
-            <?php echo site_render_brand('/'); ?>
-            <nav aria-label="関連ページ">
-                <a href="/">地図から探す</a>
-                <a href="/search/">記録を検索</a>
-                <a href="/status/">収集・公開状況</a>
-                <a href="/api-guide/">AIから使う（MCP）</a>
-            </nav>
-        </header>
+<?php echo site_render_header('municipalities'); ?>
 
-        <section class="hero">
-            <div class="eyebrow">原典への入口</div>
+    <div class="page">
+        <section class="page-head">
             <h1>自治体一覧</h1>
-            <div class="hero-copy">
+            <p>
                 会議録・例規集・事務事業評価を、<strong>自治体自身がどこで公開しているか</strong>の一覧です。
-                リンク先はこの検索ではなく、自治体のサイトです。
-                ここに載っている内容を確かめたいときは、原典を直接見てください。
-                検索は<a href="/search/">記録を検索</a>、収録の進み具合は<a href="/status/">収集・公開状況</a>にあります。
-            </div>
-            <div class="hero-meta">
+                リンクの先はこのサイトの検索ではなく、自治体のサイトです。
+                このサイトに載っている内容を確かめたいときは、元の資料を直接見てください。
+                言葉で探すときは<a href="/search/">検索</a>、どこまで集まっているかは<a href="/status/">収集状況</a>にあります。
+            </p>
+            <div class="page-meta">
                 <span>自治体 <?php echo number_format($counts['total']); ?></span>
-                <span>会議録 <?php echo number_format($counts['gijiroku']); ?></span>
-                <span>例規集 <?php echo number_format($counts['reiki']); ?></span>
-                <span>事務事業評価 <?php echo number_format($counts['hyoka']); ?></span>
-                <span>更新 <?php echo municipalities_h($generatedAt); ?></span>
+                <span>会議録の公開先 <?php echo number_format($counts['gijiroku']); ?></span>
+                <span>例規集の公開先 <?php echo number_format($counts['reiki']); ?></span>
+                <span>事務事業評価の公開先 <?php echo number_format($counts['hyoka']); ?></span>
+                <span><?php echo municipalities_h($generatedAt); ?> 時点</span>
             </div>
         </section>
 
@@ -171,10 +162,10 @@ $generatedAt = app_now_tokyo('Y-m-d');
             公開していないと決まったわけではありません。事務事業評価の「要確認」は、
             入口は見つかったものの、中身をまだ確かめていないものです。
             事務事業評価の「検索 N本」はこちらで取り込んで検索できる文書の数、「事業 N件」は事業ごとの欄に分けた記録の数です。
-            調べ方は<a href="/status/">収集・公開状況</a>と各調査文書に書いています。
+            いまの集まり具合は<a href="/status/">収集状況</a>にあります。
         </p>
 
-        <main>
+        <main id="main">
         <?php foreach ($regionNames as $regionKey => $regionLabel): ?>
             <?php if (!isset($tree[$regionKey])) { continue; } ?>
             <section class="region" id="region-<?php echo municipalities_h($regionKey); ?>">
@@ -220,13 +211,8 @@ $generatedAt = app_now_tokyo('Y-m-d');
         <?php endforeach; ?>
         </main>
 
-        <footer class="status-footer">
-            <a href="/">地図から探す</a>
-            <a href="/search/">記録を検索</a>
-            <a href="/status/">収集・公開状況</a>
-            <a href="/privacy/">プライバシー</a>
-            <a href="/terms/">利用規約</a>
-        </footer>
     </div>
+
+<?php echo site_render_footer(); ?>
 </body>
 </html>

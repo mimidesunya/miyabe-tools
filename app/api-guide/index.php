@@ -7,16 +7,6 @@ function api_guide_h(?string $value): string
 {
     return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
-
-function api_guide_asset_url(string $relativePath): string
-{
-    $normalized = trim(str_replace('\\', '/', $relativePath), '/');
-    $publicPath = '/search/assets/' . $normalized;
-    $diskPath = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'search' . DIRECTORY_SEPARATOR . 'assets' . DIRECTORY_SEPARATOR
-        . str_replace('/', DIRECTORY_SEPARATOR, $normalized);
-    $version = is_file($diskPath) ? (string)filemtime($diskPath) : '';
-    return $version !== '' ? $publicPath . '?v=' . rawurlencode($version) : $publicPath;
-}
 ?><!doctype html>
 <html lang="ja">
 <head>
@@ -29,28 +19,16 @@ function api_guide_asset_url(string $relativePath): string
         '/api-guide/'
     ); ?>
     <?php echo site_render_favicon_links(); ?>
-    <link rel="stylesheet" href="<?php echo api_guide_h(api_guide_asset_url('css/search.css')); ?>">
+    <?php echo site_render_stylesheet(); ?>
 </head>
 <body>
-<div class="app-shell docs-shell">
-    <header class="topbar">
-        <?php echo site_render_brand('/'); ?>
-        <nav class="page-links" aria-label="関連ページ">
-            <a href="/">地図から探す</a>
-            <a href="/search/">記録を検索</a>
-            <a href="/status/">収集・公開状況</a>
-            <a href="/privacy/">プライバシー</a>
-            <a href="/terms/">利用規約</a>
-            <a href="/support/">サポート</a>
-        </nav>
-    </header>
+<?php echo site_render_header('ai'); ?>
 
-    <main class="docs-page">
+    <main id="main" class="docs-page">
         <section class="docs-hero">
-            <p class="kicker">AIに調べてもらう</p>
             <h1>自治体マップをAIにつなぐ方法</h1>
             <p>
-                いちばん簡単なのは、このサイトの<a href="/search/">「記録を検索」</a>をそのまま使う方法です。
+                いちばん簡単なのは、このサイトの<a href="/search/">「検索」</a>をそのまま使う方法です。
                 AIに探してもらいたい場合は、下のアドレスをAIサービスに登録します。
             </p>
             <pre><code>https://tools.miya.be/mcp</code></pre>
@@ -147,15 +125,15 @@ function api_guide_asset_url(string $relativePath): string
         <section class="docs-section">
             <h2>何を調べられる？</h2>
             <div class="docs-choice-grid">
-                <div>
+                <div data-doc="minutes">
                     <h3>会議録</h3>
                     <p>議会で、だれが何を話したかを調べます。</p>
                 </div>
-                <div>
+                <div data-doc="reiki">
                     <h3>例規集</h3>
                     <p>その自治体で決まっている条例や規則を調べます。</p>
                 </div>
-                <div>
+                <div data-doc="hyoka">
                     <h3>事務事業評価</h3>
                     <p>自治体が公表した評価表や報告書を、自治体・都道府県・年度・種別で絞って調べます。</p>
                 </div>
@@ -386,6 +364,7 @@ OpenAPI YAML: https://tools.miya.be/openapi.yaml</code></pre>
             </p>
         </section>
     </main>
-</div>
+
+<?php echo site_render_footer(); ?>
 </body>
 </html>

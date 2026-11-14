@@ -38,6 +38,10 @@
         hitMapSummary: document.getElementById('hit-map-summary'),
         hitMapNote: document.getElementById('hit-map-note'),
         hitMapToggle: document.getElementById('hit-map-toggle'),
+        filters: document.querySelector('[data-filters]'),
+        filterToggle: document.querySelector('[data-filter-toggle]'),
+        filterCount: document.querySelector('[data-filter-count]'),
+        filterReset: document.querySelector('[data-filter-reset]'),
     };
 
     const prefNames = new Map((Array.isArray(boot.prefectures) ? boot.prefectures : [])
@@ -350,6 +354,39 @@
             button.classList.toggle('is-active', active);
             button.setAttribute('aria-pressed', active ? 'true' : 'false');
         });
+        // 資料の種類の色（assets/css/site.css の [data-doc]）を画面全体に効かせる。
+        document.body.dataset.doc = state.docType;
+        renderFilterCount();
+    }
+
+    /* 絞り込みはスマホでは畳んである。いくつ効いているかをボタンに出し、畳んだままでも気づけるようにする */
+    function activeFilterCount() {
+        const isHyoka = state.docType === 'hyoka';
+        return [
+            state.prefCode,
+            state.slug,
+            isHyoka ? state.fiscalYear : (state.startDate || state.startYear),
+            isHyoka ? state.kind : (state.endDate || state.endYear),
+        ].filter(Boolean).length;
+    }
+
+    function renderFilterCount() {
+        if (!refs.filterCount) {
+            return;
+        }
+        const count = activeFilterCount();
+        refs.filterCount.textContent = count > 0 ? `（${count}）` : '';
+        if (refs.filterReset) {
+            refs.filterReset.hidden = count === 0;
+        }
+    }
+
+    function setFiltersOpen(open) {
+        if (!refs.filters || !refs.filterToggle) {
+            return;
+        }
+        refs.filters.classList.toggle('is-open', Boolean(open));
+        refs.filterToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
 
     function buildUrl() {
@@ -502,19 +539,25 @@
             : '';
     }
 
+    /* 結果の上に出す 1 行。「どこの・何が・何件」を文で言う */
+    function scopeLabel() {
+        if (state.slug) {
+            const municipality = municipalityBySlug.get(state.slug);
+            return municipality ? municipality.name : '';
+        }
+        return state.prefCode ? (prefNames.get(state.prefCode) || '') : '';
+    }
+
     function renderStats(payload = state.lastPayload) {
-        if (!payload || payload.status !== 'ok') {
-            refs.stats.innerHTML = [
-                { label: '検索範囲', value: docTypeLabel(state.docType) },
-                { label: '結果', value: state.loading ? '検索中' : (payload ? '検索できませんでした' : '未検索') },
-            ].map(renderStat).join('');
+        if (!payload || payload.status !== 'ok' || !Array.isArray(payload.items) || payload.items.length === 0) {
+            refs.stats.innerHTML = '';
             return;
         }
-        refs.stats.innerHTML = [
-            { label: '検索範囲', value: docTypeLabel(payload.doc_type || state.docType) },
-            { label: 'ヒット', value: hitCountLabel(payload) },
-            { label: '応答', value: `${Number(payload.took_ms || 0)} ms` },
-        ].map(renderStat).join('');
+        const scope = scopeLabel();
+        const label = docTypeLabel(payload.doc_type || state.docType);
+        const page = Number(payload.page || 1);
+        refs.stats.innerHTML = `${scope ? `${escapeHtml(scope)}の` : ''}${escapeHtml(label)}が <strong>${escapeHtml(hitCountLabel(payload))}</strong> 件見つかりました`
+            + `<span>${state.sort === 'relevance' ? '言葉がよく合う順' : '新しい順'}${page > 1 ? `・${page} ページ目` : ''}</span>`;
     }
 
     /* 件数は 10,000 で数えるのを止める（total_relation が gte）。そのときは、種類ごとの集計（1 種類だけを
@@ -531,28 +574,20 @@
             : `${total.toLocaleString('ja-JP')}+`;
     }
 
-    function renderStat(item) {
-        return `<div class="stat"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong></div>`;
-    }
-
+    /* 見つかった文書の多い都道府県。押すとその都道府県に絞る */
     function renderFacets(payload = state.lastPayload) {
-        if (!payload || payload.status !== 'ok') {
-            refs.facets.innerHTML = payload
-                ? '<div class="facet-row"><span>内訳</span><strong>—</strong></div>'
-                : '<div class="facet-row"><span>結果</span><strong>まだ検索していません</strong></div>';
-            return;
+        const panel = refs.facets.closest('.facet-panel');
+        const buckets = payload && payload.status === 'ok' && Array.isArray(payload.aggregations?.prefectures)
+            ? payload.aggregations.prefectures.slice(0, 8)
+            : [];
+        if (panel) {
+            panel.hidden = buckets.length < 2;
         }
-        const aggs = payload.aggregations || {};
-        const rows = [];
-        for (const bucket of Array.isArray(aggs.doc_types) ? aggs.doc_types : []) {
-            rows.push([resultKindLabel(bucket.key), bucket.count]);
-        }
-        for (const bucket of Array.isArray(aggs.prefectures) ? aggs.prefectures.slice(0, 8) : []) {
-            rows.push([prefNames.get(String(bucket.key || '')) || String(bucket.key || ''), bucket.count]);
-        }
-        refs.facets.innerHTML = rows.length
-            ? rows.map(([label, count]) => `<div class="facet-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(count)}</strong></div>`).join('')
-            : '<div class="facet-row"><span>内訳</span><strong>該当なし</strong></div>';
+        refs.facets.innerHTML = buckets.map((bucket) => {
+            const code = normalizePrefCode(bucket.key);
+            const name = prefNames.get(code) || String(bucket.key || '');
+            return `<button type="button" class="facet-row" data-facet-pref="${escapeHtml(code)}"><span>${escapeHtml(name)}</span><strong>${escapeHtml(Number(bucket.count || 0).toLocaleString('ja-JP'))}</strong></button>`;
+        }).join('');
     }
 
     /* joinLines: 事務事業評価の抜粋は表の升目ごとに改行が入り、1 字ずつの行が縦に続くので詰める */
@@ -590,7 +625,7 @@
             const href = `${detailUrl}#${recordAnchor(record.id)}`;
             return `
                 <tr${record.matched ? ' class="is-match"' : ''}>
-                    <th scope="row"><a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(record.project_name || '（事業名なし）')}</a></th>
+                    <th scope="row"><a href="${escapeHtml(href)}">${escapeHtml(record.project_name || '（事業名なし）')}</a></th>
                     <td data-label="担当">${escapeHtml(shortText(record.department, 24) || '—')}</td>
                     <td data-label="評価">${escapeHtml(shortText(record.evaluation_rating, 24) || '—')}</td>
                     <td data-label="今後の方向性">${escapeHtml(shortText(record.future_direction) || '—')}</td>
@@ -598,7 +633,7 @@
         }).join('');
         const rest = total - records.length;
         const note = rest > 0
-            ? `${scope}の事業 ${total.toLocaleString('ja-JP')}件のうち、検索語を含むものから ${records.length}件。残りは「詳細」で。`
+            ? `${scope}の事業 ${total.toLocaleString('ja-JP')}件のうち、検索語を含むものから ${records.length}件。残りは「全文を読む」で。`
             : `${scope}の事業 ${total.toLocaleString('ja-JP')}件。`;
         return `
             <div class="result-records">
@@ -666,7 +701,6 @@
             item.meeting_name,
             item.category,
             item.year_label,
-            item.source_system,
         ];
         // 会議名と年の表記が同じ会議録（「令和8年」が 2 つ並ぶ）があるので、同じ値は 1 つにする。
         return [...new Set(parts.map((part) => String(part || '').trim()).filter(Boolean))];
@@ -682,7 +716,7 @@
         if (!canSearch()) {
             refs.results.innerHTML = '';
             refs.pager.innerHTML = '';
-            renderMessage('キーワードを入力してください。');
+            renderMessage('上の箱に調べたい言葉を入れて「検索」を押してください。自治体を選べば、言葉を入れなくても新しい順の一覧が出ます。');
             return;
         }
         if (!payload || payload.status !== 'ok') {
@@ -695,29 +729,37 @@
         if (items.length === 0) {
             refs.results.innerHTML = '';
             refs.pager.innerHTML = '';
-            renderMessage('該当する文書がありません。');
+            renderMessage('この条件に合う文書は見つかりませんでした。言葉を短くするか、絞り込みを外して試してください。');
             return;
         }
 
         renderMessage('');
         refs.results.innerHTML = items.map((item) => {
-            const meta = resultMeta(item);
             const detailUrl = safeUrl(buildDetailUrl(item));
             const sourceUrl = safeUrl((item.doc_type === 'hyoka' ? item.source_page_link : '') || item.source_url || '');
             const isHyoka = item.doc_type === 'hyoka';
-            const sourceLabel = item.doc_type === 'hyoka' ? (item.page ? `原典 ${hyokaPageLabel(item)}` : '原典') : '原サイト';
+            const sourceLabel = isHyoka && item.page ? `自治体のサイトで見る（${hyokaPageLabel(item)}）` : '自治体のサイトで見る';
+            // 自治体は一番上に出すので、下の細かい情報からは外す。
+            const place = [item.pref_name, item.municipality_name]
+                .map((part) => String(part || '').trim()).filter(Boolean);
+            // 題名と同じ値（会議の名前がそのまま題名の会議録）も、繰り返さない。
+            const plainTitle = String(item.title || '').trim();
+            const meta = resultMeta(item).filter((value) => !place.includes(value) && value !== plainTitle);
+            const title = renderExcerpt(item.title_highlight || item.title || '（題名なし）');
+            const date = displayDate(item);
             return `
-                <article class="result-item">
+                <article class="result-item" data-doc="${escapeHtml(normalizeDocType(item.doc_type))}">
                     <div class="result-top">
-                        <span class="result-kind">${escapeHtml(resultKindLabel(item.doc_type))}</span>
-                        <span class="result-date">${escapeHtml(displayDate(item))}</span>
+                        <span class="doc-badge">${escapeHtml(resultKindLabel(item.doc_type))}</span>
+                        <span class="result-place">${escapeHtml([...new Set(place)].join(' '))}</span>
+                        ${date ? `<span class="result-date">${escapeHtml(date)}</span>` : ''}
                     </div>
-                    <h2 class="result-title">${renderExcerpt(item.title_highlight || item.title || '')}</h2>
+                    <h2 class="result-title">${detailUrl ? `<a href="${escapeHtml(detailUrl)}">${title}</a>` : title}</h2>
                     ${meta.length ? `<div class="result-meta">${meta.map((value) => `<span>${escapeHtml(value)}</span>`).join('')}</div>` : ''}
                     ${isHyoka ? renderHyokaRecords(item, detailUrl) : ''}
                     ${item.excerpt ? `<p class="result-excerpt${isHyoka ? ' is-joined' : ''}">${renderExcerpt(item.excerpt, { joinLines: isHyoka })}</p>` : ''}
                     <div class="result-actions">
-                        ${detailUrl ? `<a class="result-link" href="${escapeHtml(detailUrl)}" target="_blank" rel="noopener noreferrer">詳細</a>` : ''}
+                        ${detailUrl ? `<a class="result-link is-main" href="${escapeHtml(detailUrl)}">全文を読む</a>` : ''}
                         ${sourceUrl ? `<a class="result-link" href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(sourceLabel)}</a>` : ''}
                     </div>
                 </article>
@@ -726,9 +768,9 @@
 
         const currentPage = Number(payload.page || 1);
         refs.pager.innerHTML = `
-            <button type="button" data-page="${currentPage - 1}" ${currentPage <= 1 ? 'disabled' : ''}>前へ</button>
-            <span>${escapeHtml(String(currentPage))}</span>
-            <button type="button" data-page="${currentPage + 1}" ${payload.has_more ? '' : 'disabled'}>次へ</button>
+            <button type="button" class="button-quiet" data-page="${currentPage - 1}" ${currentPage <= 1 ? 'disabled' : ''}>前の 20 件</button>
+            <span>${escapeHtml(String(currentPage))} ページ目</span>
+            <button type="button" class="button-quiet" data-page="${currentPage + 1}" ${payload.has_more ? '' : 'disabled'}>次の 20 件</button>
         `;
     }
 
@@ -752,6 +794,8 @@
     const HIT_MAP_ZOOM = 4;
     /* サーバ側の自治体集計の上限（opensearch_search.php の terms size）と合わせる */
     const HIT_MAP_BUCKET_LIMIT = 50;
+    /* 円の色は資料の種類の色（assets/css/site.css の --minutes・--reiki・--hyoka と同じ値） */
+    const HIT_MAP_COLORS = { minutes: '#1c4f9c', reiki: '#1a6e45', hyoka: '#a34d0c' };
     const coordinatesByCode = (
         window.MIYABE_MUNICIPALITY_COORDINATES
         && typeof window.MIYABE_MUNICIPALITY_COORDINATES === 'object'
@@ -759,7 +803,8 @@
 
     let hitMap = null;
     let hitMarkerLayer = null;
-    let hitMapCollapsed = false;
+    /* スマホでは最初は畳んでおく。地図が先に来ると、結果が 1 画面ぶん下へ押し出される */
+    let hitMapCollapsed = window.matchMedia('(max-width: 859px)').matches;
     /* 「戻る」で来たとき、離れたときの地図の位置に戻すための控え。次の描画で使い切る */
     let pendingMapView = null;
 
@@ -831,11 +876,11 @@
             points.push(coordinate);
             const marker = L.circleMarker(coordinate, {
                 radius: hitRadius(bucket.count, max),
-                color: '#8a2b2b',
-                weight: 1,
-                opacity: 0.9,
-                fillColor: '#c0392b',
-                fillOpacity: 0.55,
+                color: '#ffffff',
+                weight: 1.5,
+                opacity: 1,
+                fillColor: HIT_MAP_COLORS[state.docType] || HIT_MAP_COLORS.minutes,
+                fillOpacity: 0.7,
             });
             const label = municipality.label || municipality.name;
             marker.bindTooltip(`${label}　${bucket.count.toLocaleString('ja-JP')}件`, {
@@ -897,11 +942,15 @@
         }
         refs.hitMapPanel.classList.toggle('is-collapsed', hitMapCollapsed);
         if (refs.hitMapToggle) {
-            refs.hitMapToggle.textContent = hitMapCollapsed ? 'ひらく' : 'たたむ';
+            refs.hitMapToggle.textContent = hitMapCollapsed ? '地図をひらく' : '地図をたたむ';
             refs.hitMapToggle.setAttribute('aria-expanded', hitMapCollapsed ? 'false' : 'true');
         }
         if (!hitMapCollapsed && hitMap) {
-            window.setTimeout(() => hitMap.invalidateSize(), 0);
+            /* 畳んだまま作った地図は大きさが 0 なので、開いたときに測り直して範囲を合わせ直す */
+            window.setTimeout(() => {
+                hitMap.invalidateSize();
+                renderHitMap();
+            }, 0);
         }
     }
 
@@ -1029,6 +1078,7 @@
 
     refs.form.addEventListener('submit', (event) => {
         event.preventDefault();
+        setFiltersOpen(false);
         runSearch(1);
     });
 
@@ -1080,7 +1130,7 @@
         renderDateStatus(refs.endDateStatus, state.endDate, 'end');
     });
 
-    refs.form.addEventListener('click', (event) => {
+    (refs.filters || refs.form).addEventListener('click', (event) => {
         const button = event.target.closest('[data-clear-date]');
         if (!button) {
             return;
@@ -1108,6 +1158,39 @@
         }
     });
 
+    refs.filterToggle?.addEventListener('click', () => {
+        setFiltersOpen(!refs.filters.classList.contains('is-open'));
+    });
+
+    refs.filterReset?.addEventListener('click', () => {
+        refs.pref.value = '';
+        state.prefCode = '';
+        state.municipalityFilter = '';
+        if (refs.municipalityFilter) {
+            refs.municipalityFilter.value = '';
+        }
+        renderMunicipalityOptions();
+        refs.slug.value = '';
+        state.slug = '';
+        [refs.startYear, refs.endYear, refs.startDate, refs.endDate, refs.fiscalYear, refs.kind].forEach((control) => {
+            control.value = '';
+        });
+        runSearch(1);
+    });
+
+    refs.facets.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-facet-pref]');
+        if (!button) {
+            return;
+        }
+        refs.pref.value = button.getAttribute('data-facet-pref') || '';
+        state.prefCode = normalizePrefCode(refs.pref.value);
+        renderMunicipalityOptions();
+        refs.slug.value = '';
+        state.slug = '';
+        runSearch(1);
+    });
+
     refs.queryHelpOpen?.addEventListener('click', openQueryHelp);
     refs.queryHelpCloseButtons.forEach((button) => {
         button.addEventListener('click', closeQueryHelp);
@@ -1123,6 +1206,7 @@
         restoreSnapshot(snapshot);
     });
 
+    setHitMapCollapsed(hitMapCollapsed);
     syncControls({ values: true });
     renderAll();
     loadMunicipalities();

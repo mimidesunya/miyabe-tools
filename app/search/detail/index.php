@@ -99,6 +99,18 @@ $meta = array_values(array_filter([
 ], static fn(string $value): bool => $value !== ''));
 
 $docTypeLabel = match ($docType) { 'reiki' => '例規', 'hyoka' => '事務事業評価', default => '会議録' };
+$docTypeBadge = match ($docType) { 'reiki' => '例規集', 'hyoka' => '事務事業評価', default => '会議録' };
+$placeParts = array_values(array_unique(array_filter([
+    trim((string)($document['pref_name'] ?? '')),
+    trim((string)($document['municipality_name'] ?? '')),
+], static fn(string $value): bool => $value !== '')));
+$placeLabel = implode(' ', $placeParts);
+$metaWithPlace = $meta;
+$meta = array_values(array_filter($meta, static fn(string $value): bool => !in_array($value, $placeParts, true) && $value !== $title));
+$backUrl = '/search/?' . http_build_query(array_filter([
+    'q' => $query,
+    'doc_type' => $docType,
+], static fn(string $value): bool => $value !== ''));
 $bodyLabel = $pageNumber > 0 ? $pageLabel . 'の本文' : '全文';
 // 抽出済みの自治体の文書だけ、事業ごとの欄を先に出す。本文は PDF の文字の並びのままで読みにくい。
 $hyokaDisplay = ($docType === 'hyoka' && $document !== null) ? miyabe_hyoka_display_document($id) : ['records' => [], 'source_url' => ''];
@@ -121,36 +133,41 @@ $boot = [
     <?php if ($document !== null): ?>
         <?php echo site_render_page_meta(
             $title . '｜自治体マップ',
-            ($meta !== [] ? implode('・', $meta) . 'の' : '') . $docTypeLabel . '「' . $title . '」の' . $bodyLabel . 'を表示します。原典URLつき。',
+            ($metaWithPlace !== [] ? implode('・', $metaWithPlace) . 'の' : '') . $docTypeLabel . '「' . $title . '」の' . $bodyLabel . 'を表示します。原典URLつき。',
             '/search/detail/?id=' . rawurlencode($id) . '&doc_type=' . rawurlencode($docType)
         ); ?>
     <?php else: ?>
         <meta name="robots" content="noindex">
     <?php endif; ?>
     <?php echo site_render_favicon_links(); ?>
+    <?php echo site_render_stylesheet(); ?>
     <link rel="stylesheet" href="<?php echo search_detail_h(search_detail_asset_url('css/search.css')); ?>">
 </head>
-<body class="detail-page">
-<div class="app-shell">
-    <header class="topbar">
-        <?php echo site_render_brand('/'); ?>
-        <?php if ($sourceLink !== ''): ?>
-            <a class="result-link detail-source-link" href="<?php echo search_detail_h($sourceLink); ?>" target="_blank" rel="noopener noreferrer"><?php echo $docType === 'hyoka' ? ($pageNumber > 0 ? '原典 ' . $pageNumber . '頁' : '原典') : '原サイト'; ?></a>
-        <?php endif; ?>
-    </header>
+<body class="detail-page" data-doc="<?php echo search_detail_h($docType); ?>">
+<?php echo site_render_header('search'); ?>
 
-    <main class="detail-layout">
+    <main id="main" class="detail-layout">
+        <?php /* 検索の結果から来た人は「戻る」で同じ結果に戻れる（detail.js）。直接来た人には検索の画面への入口になる。 */ ?>
+        <a class="detail-back" href="<?php echo search_detail_h($backUrl); ?>" data-detail-back>検索の結果に戻る</a>
         <?php if ($error !== ''): ?>
             <div class="message is-error"><?php echo search_detail_h($error); ?></div>
         <?php else: ?>
             <section class="detail-head">
-                <p class="kicker"><?php echo search_detail_h($docTypeLabel); ?>詳細</p>
+                <div class="detail-head-top">
+                    <span class="doc-badge"><?php echo search_detail_h($docTypeBadge); ?></span>
+                    <?php if ($placeLabel !== ''): ?><strong><?php echo search_detail_h($placeLabel); ?></strong><?php endif; ?>
+                </div>
                 <h1><?php echo search_detail_h($title); ?></h1>
                 <?php if ($meta !== []): ?>
-                    <div class="result-meta detail-meta">
+                    <div class="detail-meta">
                         <?php foreach ($meta as $value): ?>
                             <span><?php echo search_detail_h($value); ?></span>
                         <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+                <?php if ($sourceLink !== ''): ?>
+                    <div class="detail-actions">
+                        <a class="result-link is-main" href="<?php echo search_detail_h($sourceLink); ?>" target="_blank" rel="noopener noreferrer"><?php echo $docType === 'hyoka' && $pageNumber > 0 ? '自治体のサイトで見る（' . search_detail_h($pageLabel) . '）' : '自治体のサイトで見る'; ?></a>
                     </div>
                 <?php endif; ?>
                 <?php if ($docType === 'hyoka' && ($document['status'] ?? '') === 'gone'): ?>
@@ -239,14 +256,14 @@ $boot = [
                 <h2 class="detail-section-title" id="detail-text">本文（原典から取り出した文字）</h2>
             <?php endif; ?>
 
-            <section class="detail-search" aria-label="ページ内検索">
+            <section class="detail-search" aria-label="この文書の中を探す">
                 <label class="field" for="detail-search-input">
-                    <span>ページ内検索</span>
-                    <input id="detail-search-input" type="search" autocomplete="off">
+                    <span>この文書の中を探す</span>
+                    <input id="detail-search-input" type="search" autocomplete="off" placeholder="この文書の中を探す">
                 </label>
                 <div class="detail-search-actions">
-                    <button id="detail-prev" type="button">前へ</button>
-                    <button id="detail-next" type="button">次へ</button>
+                    <button id="detail-prev" type="button">前</button>
+                    <button id="detail-next" type="button">次</button>
                     <span id="detail-count" class="detail-count">0 / 0</span>
                 </div>
             </section>
@@ -254,7 +271,8 @@ $boot = [
             <article id="detail-body" class="detail-body" aria-label="<?php echo search_detail_h($docTypeLabel . $bodyLabel); ?>"></article>
         <?php endif; ?>
     </main>
-</div>
+
+<?php echo site_render_footer(); ?>
 
 <script id="search-detail-boot" type="application/json"><?php echo json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?></script>
 <script src="<?php echo search_detail_h(search_detail_asset_url('js/detail.js')); ?>"></script>

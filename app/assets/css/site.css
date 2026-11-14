@@ -1,0 +1,906 @@
+/*
+ * 全ページ共通のスタイル。各ページの専用 CSS より前に読む。
+ *
+ * 考え方
+ * - 読む人は、政治に関心はあるが情報技術には詳しくない人。文字は大きめ、押す所は指で押せる大きさ（44px 以上）、
+ *   言葉はふだんの言い方（「議会の発言」「条例・規則」「事業の評価」）を先に出す。
+ * - 色は 3 種類の資料の見分けに使う。会議録 = 藍、例規集 = 緑、事務事業評価 = 柿。
+ *   タブ・結果の札・地図の点で同じ色にする。飾りには色を使わない。
+ * - 紙は白、文字は墨。検索で当たった語は蛍光ペンの黄色。
+ * - 行き先は 5 つ（site_nav_items）。スマホは画面の下に固定のタブ、PC はヘッダーの右。
+ */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+:root {
+    --paper: #ffffff;
+    --ground: #f2f4f6;
+    --ink: #16202a;
+    --ink-soft: #3d4955;
+    --muted: #5b6672;
+    --line: #d6dbe1;
+    --line-strong: #98a3ae;
+
+    /* 資料の種類の色 */
+    --minutes: #1c4f9c;
+    --minutes-deep: #143c79;
+    --minutes-tint: #e9f0fa;
+    --reiki: #1a6e45;
+    --reiki-deep: #125333;
+    --reiki-tint: #e6f3ec;
+    --hyoka: #a34d0c;
+    --hyoka-deep: #7d3a07;
+    --hyoka-tint: #fbefe0;
+
+    /* 押せるもの・いまいる場所は藍 */
+    --accent: var(--minutes);
+    --accent-deep: var(--minutes-deep);
+    --accent-tint: var(--minutes-tint);
+
+    --marker: #ffe66b;
+    --ok: #1a6e45;
+    --ok-tint: #e6f3ec;
+    --wait: #8a5a00;
+    --wait-tint: #fdf3d7;
+    --bad: #b3261e;
+    --bad-tint: #fdecea;
+    --off: #5b6672;
+    --off-tint: #eceff2;
+
+    --radius: 10px;
+    --radius-small: 6px;
+    --lift: 0 1px 2px rgba(22, 32, 42, 0.08), 0 6px 20px rgba(22, 32, 42, 0.07);
+    --page-width: 1120px;
+    --gutter: 16px;
+    --tab-bar: 60px;
+
+    --font: "BIZ UDPGothic", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif;
+    --font-read: "BIZ UDPMincho", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+}
+
+/* 資料の種類ごとに --doc を差し替える。タブ・札・枠がこれを使う。 */
+[data-doc="minutes"] { --doc: var(--minutes); --doc-deep: var(--minutes-deep); --doc-tint: var(--minutes-tint); }
+[data-doc="reiki"] { --doc: var(--reiki); --doc-deep: var(--reiki-deep); --doc-tint: var(--reiki-tint); }
+[data-doc="hyoka"] { --doc: var(--hyoka); --doc-deep: var(--hyoka-deep); --doc-tint: var(--hyoka-tint); }
+
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    scroll-padding-top: 16px;
+}
+
+body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.75;
+    /* スマホは下に固定のタブがあるので、その分だけ空ける */
+    padding-bottom: calc(var(--tab-bar) + env(safe-area-inset-bottom, 0px));
+    overflow-wrap: anywhere;
+}
+
+h1, h2, h3, h4, p, ul, ol, dl, dd, figure {
+    margin: 0;
+}
+
+h1 { font-size: 1.375rem; line-height: 1.45; }
+h2 { font-size: 1.1875rem; line-height: 1.5; }
+h3 { font-size: 1.0625rem; line-height: 1.5; }
+
+a {
+    color: var(--accent);
+    text-underline-offset: 0.2em;
+}
+
+a:hover {
+    color: var(--accent-deep);
+}
+
+button,
+input,
+select,
+textarea {
+    font: inherit;
+    color: inherit;
+}
+
+button {
+    cursor: pointer;
+}
+
+img,
+svg {
+    max-width: 100%;
+}
+
+:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+.visually-hidden,
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+
+.skip-link {
+    position: absolute;
+    left: 8px;
+    top: -60px;
+    z-index: 2000;
+    padding: 10px 16px;
+    background: var(--ink);
+    color: #fff;
+    border-radius: var(--radius-small);
+}
+
+.skip-link:focus {
+    top: 8px;
+    color: #fff;
+}
+
+/* ---- ヘッダーと移動 ---- */
+
+.site-header {
+    border-bottom: 1px solid var(--line);
+    background: var(--paper);
+}
+
+.site-header-inner {
+    max-width: var(--page-width);
+    margin: 0 auto;
+    padding: 8px var(--gutter);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    line-height: 1.2;
+}
+
+.brand img {
+    display: block;
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+}
+
+.brand > span {
+    display: grid;
+}
+
+.brand a {
+    color: var(--ink);
+    text-decoration: none;
+}
+
+.brand strong {
+    font-size: 1.125rem;
+    letter-spacing: 0.02em;
+}
+
+.brand small {
+    font-size: 0.75rem;
+    color: var(--muted);
+}
+
+.brand small a {
+    color: inherit;
+}
+
+.site-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1200;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--paper);
+    border-top: 1px solid var(--line-strong);
+}
+
+.site-nav a {
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 1px;
+    min-height: var(--tab-bar);
+    padding: 6px 2px;
+    color: var(--ink-soft);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 1.3;
+    text-align: center;
+    text-decoration: none;
+    border-top: 3px solid transparent;
+}
+
+.site-nav a[aria-current="page"] {
+    color: var(--accent);
+    border-top-color: var(--accent);
+    background: var(--accent-tint);
+}
+
+.site-nav svg {
+    width: 24px;
+    height: 24px;
+}
+
+@media (min-width: 860px) {
+    body {
+        padding-bottom: 0;
+    }
+
+    :root {
+        --gutter: 24px;
+    }
+
+    h1 { font-size: 1.625rem; }
+    h2 { font-size: 1.3125rem; }
+
+    .site-header-inner {
+        padding-block: 10px;
+    }
+
+    .site-nav {
+        position: static;
+        display: flex;
+        gap: 4px;
+        padding: 0;
+        border: 0;
+        background: none;
+    }
+
+    .site-nav a {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 44px;
+        padding: 6px 12px;
+        font-size: 0.9375rem;
+        border-top: 0;
+        border-bottom: 3px solid transparent;
+        border-radius: var(--radius-small) var(--radius-small) 0 0;
+    }
+
+    .site-nav a:hover {
+        background: var(--ground);
+        color: var(--ink);
+    }
+
+    .site-nav a[aria-current="page"] {
+        border-bottom-color: var(--accent);
+    }
+
+    .site-nav svg {
+        width: 20px;
+        height: 20px;
+    }
+}
+
+/* ---- ページの枠 ---- */
+
+.page {
+    max-width: var(--page-width);
+    margin: 0 auto;
+    padding: 20px var(--gutter) 48px;
+}
+
+.page-narrow {
+    max-width: 780px;
+}
+
+.page-head {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 24px;
+}
+
+.page-head p {
+    color: var(--ink-soft);
+    max-width: 44em;
+}
+
+.section {
+    margin-top: 40px;
+}
+
+.section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--ink);
+}
+
+.section-head p {
+    color: var(--muted);
+    font-size: 0.875rem;
+}
+
+.lead {
+    color: var(--ink-soft);
+    max-width: 44em;
+}
+
+.note {
+    color: var(--muted);
+    font-size: 0.875rem;
+    line-height: 1.7;
+}
+
+/* ---- 押すもの ---- */
+
+.button,
+.button-quiet {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 48px;
+    padding: 10px 20px;
+    border-radius: var(--radius-small);
+    font-weight: 700;
+    line-height: 1.3;
+    text-decoration: none;
+    text-align: center;
+}
+
+.button {
+    border: 2px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+}
+
+.button:hover {
+    background: var(--accent-deep);
+    border-color: var(--accent-deep);
+    color: #fff;
+}
+
+.button-quiet {
+    border: 2px solid var(--line-strong);
+    background: var(--paper);
+    color: var(--ink);
+}
+
+.button-quiet:hover {
+    border-color: var(--ink);
+    color: var(--ink);
+}
+
+.button[disabled],
+.button-quiet[disabled] {
+    opacity: 0.45;
+    cursor: default;
+}
+
+/* ---- 入力 ---- */
+
+.field {
+    display: grid;
+    gap: 4px;
+}
+
+.field > span,
+.field-label {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--ink-soft);
+}
+
+input[type="search"],
+input[type="text"],
+input[type="number"],
+input[type="date"],
+select {
+    width: 100%;
+    min-height: 48px;
+    padding: 8px 12px;
+    border: 2px solid var(--line-strong);
+    border-radius: var(--radius-small);
+    background: var(--paper);
+    font-size: 1rem;
+    line-height: 1.4;
+}
+
+input::placeholder {
+    color: #7b8691;
+}
+
+input:focus-visible,
+select:focus-visible {
+    border-color: var(--accent);
+    outline-offset: 0;
+}
+
+/* ---- 検索の箱（トップと検索の画面で使う） ----
+ *
+ * 書類の見出しタブのように、3 種類の資料を切り替える。タブはそれぞれ自分の色（data-doc）で、
+ * 選んだタブだけ塗る。箱の枠は選んだ資料の色（--doc）。
+ * トップは radio（home.css が :has で --doc を差し替える）、検索の画面は button（body の data-doc）。
+ */
+
+.search-box {
+    margin-top: 6px;
+}
+
+.doc-tabs {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    align-items: end;
+}
+
+/* タブはそれぞれ自分の色（data-doc）。選んだタブだけ塗る。 */
+.doc-tab {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: 0;
+    min-height: 60px;
+    padding: 8px 4px 8px;
+    border: 2px solid var(--doc);
+    border-bottom: 0;
+    border-radius: var(--radius) var(--radius) 0 0;
+    background: var(--paper);
+    color: var(--doc-deep);
+    text-align: center;
+    line-height: 1.3;
+    cursor: pointer;
+}
+
+.doc-tab input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.doc-tab-main {
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.doc-tab-sub {
+    font-size: 0.75rem;
+}
+
+.doc-tab:has(input:checked),
+.doc-tab.is-active {
+    background: var(--doc);
+    color: #fff;
+    min-height: 66px;
+}
+
+.doc-tab:has(input:focus-visible) {
+    outline: 3px solid var(--ink);
+    outline-offset: 2px;
+}
+
+.search-box-body {
+    display: grid;
+    gap: 12px;
+    padding: 16px 14px;
+    border: 2px solid var(--doc);
+    border-top-width: 5px;
+    border-radius: 0 0 var(--radius) var(--radius);
+    background: var(--doc-tint);
+}
+
+
+.search-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+}
+
+.search-row input {
+    min-height: 56px;
+    border-color: var(--doc);
+    font-size: 1.125rem;
+}
+
+.search-row .button {
+    min-height: 56px;
+    min-width: 88px;
+    border-color: var(--doc);
+    background: var(--doc);
+    font-size: 1.0625rem;
+}
+
+.search-row .button:hover {
+    border-color: var(--doc-deep);
+    background: var(--doc-deep);
+}
+
+.doc-tab {
+    font: inherit;
+}
+
+/* ---- 札・知らせ ---- */
+
+.doc-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 10px;
+    border-radius: 999px;
+    background: var(--doc, var(--accent));
+    color: #fff;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.7;
+    white-space: nowrap;
+}
+
+.message {
+    padding: 14px 16px;
+    border-left: 5px solid var(--line-strong);
+    background: var(--ground);
+    border-radius: 0 var(--radius-small) var(--radius-small) 0;
+}
+
+.message.is-error {
+    border-left-color: var(--bad);
+    background: var(--bad-tint);
+}
+
+mark {
+    background: var(--marker);
+    color: inherit;
+    padding: 0 1px;
+    border-radius: 2px;
+}
+
+/* ---- 表 ---- */
+
+.table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ---- 説明のページ（AIで調べる・規約・プライバシー・お問い合わせ） ---- */
+
+.docs-page {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 20px var(--gutter) 48px;
+}
+
+.docs-hero {
+    display: grid;
+    gap: 10px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--ink);
+}
+
+/* 見出しの上の小さい札（「おすすめ」など） */
+.kicker {
+    justify-self: start;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: var(--accent-tint);
+    color: var(--accent-deep);
+    font-size: 0.8125rem;
+    font-weight: 700;
+}
+
+.docs-section {
+    display: grid;
+    gap: 12px;
+    padding: 24px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.docs-section:last-child {
+    border-bottom: 0;
+}
+
+.docs-page ul,
+.docs-page ol {
+    padding-left: 1.4em;
+    display: grid;
+    gap: 6px;
+}
+
+.docs-steps {
+    counter-reset: step;
+    list-style: none;
+    padding-left: 0 !important;
+    gap: 10px !important;
+}
+
+.docs-steps li {
+    counter-increment: step;
+    position: relative;
+    padding: 12px 14px 12px 54px;
+    background: var(--ground);
+    border-radius: var(--radius-small);
+}
+
+.docs-steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 12px;
+    top: 12px;
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.docs-note {
+    padding: 12px 14px;
+    border-left: 5px solid var(--line-strong);
+    background: var(--ground);
+    color: var(--ink-soft);
+    font-size: 0.9375rem;
+    border-radius: 0 var(--radius-small) var(--radius-small) 0;
+}
+
+.docs-caution {
+    padding: 20px 16px;
+    border: 2px solid var(--wait);
+    border-radius: var(--radius);
+    background: var(--wait-tint);
+    margin-block: 24px;
+}
+
+.docs-page code {
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--ground);
+    font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+    font-size: 0.9em;
+    word-break: break-all;
+}
+
+.docs-page pre {
+    margin: 0;
+    padding: 14px;
+    overflow-x: auto;
+    border-radius: var(--radius-small);
+    background: var(--ink);
+    color: #f2f4f6;
+    font-size: 0.875rem;
+    line-height: 1.6;
+}
+
+.docs-page pre code {
+    padding: 0;
+    background: none;
+    color: inherit;
+    word-break: normal;
+}
+
+.docs-choice-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.docs-choice-grid > div {
+    display: grid;
+    gap: 6px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-left: 6px solid var(--doc, var(--accent));
+    border-radius: var(--radius-small);
+}
+
+.docs-params {
+    display: grid;
+    gap: 4px 16px;
+}
+
+.docs-params dt {
+    font-weight: 700;
+}
+
+.docs-details {
+    display: block;
+}
+
+.docs-details summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.docs-details-body {
+    display: grid;
+    gap: 12px;
+    padding-top: 12px;
+}
+
+.docs-details-body h2 {
+    font-size: 1.0625rem;
+    margin-top: 12px;
+}
+
+@media (min-width: 700px) {
+    .docs-choice-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .docs-params {
+        grid-template-columns: max-content 1fr;
+    }
+}
+
+/* ---- 収録状況の段（トップと収集状況で使う。組み立ては home.js） ---- */
+
+.cov-total {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.cov-total strong {
+    font-size: 1.5rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.cov-feat {
+    display: grid;
+    gap: 10px;
+    align-content: start;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-top: 5px solid var(--doc, var(--ink));
+    border-radius: var(--radius-small);
+    background: var(--paper);
+}
+
+.cov-flow {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: 2px;
+}
+
+.cov-flow li {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--line);
+}
+
+.cov-flow li b {
+    font-size: 1.125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.cov-flow li.is-goal {
+    border-bottom: 0;
+    font-weight: 700;
+}
+
+.cov-flow li.is-goal b {
+    font-size: 1.5rem;
+    color: var(--doc, var(--ink));
+}
+
+.cov-gap {
+    display: grid;
+    gap: 2px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 0.875rem;
+}
+
+.cov-gap > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.cov-gap dd {
+    font-variant-numeric: tabular-nums;
+}
+
+.loading-panel,
+.stat-card-loading {
+    padding: 16px;
+    color: var(--muted);
+    background: var(--ground);
+    border-radius: var(--radius-small);
+}
+
+/* ---- フッター ---- */
+
+.site-footer {
+    margin-top: 32px;
+    border-top: 1px solid var(--line);
+    background: var(--ground);
+}
+
+.site-footer-inner {
+    max-width: var(--page-width);
+    margin: 0 auto;
+    padding: 24px var(--gutter) 28px;
+    display: grid;
+    gap: 14px;
+    font-size: 0.875rem;
+    color: var(--ink-soft);
+}
+
+.site-footer-about {
+    max-width: 46em;
+}
+
+.site-footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 20px;
+}
+
+.site-footer-links a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    color: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * {
+        scroll-behavior: auto !important;
+        transition: none !important;
+        animation: none !important;
+    }
+}
+
+@media print {
+    .site-nav,
+    .skip-link,
+    .site-footer {
+        display: none;
+    }
+
+    body {
+        padding-bottom: 0;
+    }
+}
