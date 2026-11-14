@@ -695,12 +695,14 @@ def sweep_reiki_source_discovery(limit: int = 0) -> dict[str, object]:
 
 
 # 自治体の新着情報のフィードを 1 回り読み（`tools/news/fetch_news_feeds.py`）、
-# すぐ後に新しい項目のリンク先の本文を読む（`tools/news/fetch_news_bodies.py`）。
+# すぐ後に新しい項目のリンク先の本文を読み（`tools/news/fetch_news_bodies.py`）、
+# 続けてページの添付の PDF を読む（`tools/news/fetch_news_attachments.py`、60 分まで）。
 # お知らせのページは数日で消えることがあるので、見つけた回のうちに読む。
-# 結果は work/news/last_run.json・bodies_last_run.json と、それぞれの runs にも残る。
+# 結果は work/news/last_run.json・bodies_last_run.json・attachments_last_run.json と、
+# それぞれの runs にも残る。
 @app.task(name="deploy.scraper_runtime.celery.tasks.run_news_fetch")
 def run_news_fetch(codes: list[str] | None = None) -> dict[str, object]:
-    from tools.news import fetch_news_bodies, fetch_news_feeds
+    from tools.news import fetch_news_attachments, fetch_news_bodies, fetch_news_feeds
 
     selected = set(codes) if codes else None
     try:
@@ -714,6 +716,11 @@ def run_news_fetch(codes: list[str] | None = None) -> dict[str, object]:
         result["bodies"] = {key: value for key, value in bodies.items() if key != "errors"}
     except Exception as exc:
         result["bodies"] = {"error": f"{type(exc).__name__}: {exc}"}
+    try:
+        attachments = fetch_news_attachments.run(codes=selected)
+        result["attachments"] = {key: value for key, value in attachments.items() if key != "errors"}
+    except Exception as exc:
+        result["attachments"] = {"error": f"{type(exc).__name__}: {exc}"}
     return result
 
 

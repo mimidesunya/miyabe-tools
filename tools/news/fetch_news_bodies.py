@@ -67,6 +67,14 @@ GONE_STATUSES = (404, 410)
 ACCEPT = "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.5"
 
 
+class TooLarge(Exception):
+    """上限より大きい。`size` は応答が告げた大きさ（告げなければ None）。"""
+
+    def __init__(self, size: int | None) -> None:
+        super().__init__(f"大きすぎるため取りません（{size} バイト）" if size else "大きすぎるため取りません")
+        self.size = size
+
+
 def text_hash(text: str) -> str:
     return hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
 
@@ -203,25 +211,28 @@ class BodyFetcher:
         self._https_hosts: set[str] = set()
         self._lock = threading.Lock()
 
-    def _fetch(self, url: str) -> tuple[int, str, str, bytes]:
-        """http でつながらなければ https で読み直す。読めたホストは以後 https で読む。"""
+    def fetch(self, url: str, max_bytes: int = MAX_BYTES) -> tuple[int, str, str, bytes]:
+        """(状態, 行き着いた URL, Content-Type, 中身)。4xx・5xx は中身を読まない。
+
+        http でつながらなければ https で読み直す。読めたホストは以後 https で読む。
+        """
         host = (urlsplit(url).hostname or "").lower()
         if url.startswith("http://"):
             with self._lock:
                 upgraded = host in self._https_hosts
             if upgraded:
-                return self._get("https://" + url[len("http://"):])
+                return self._get("https://" + url[len("http://"):], max_bytes)
         try:
-            return self._get(url)
+            return self._get(url, max_bytes)
         except (requests.ConnectionError, requests.Timeout):
             if not url.startswith("http://"):
                 raise
-            result = self._get("https://" + url[len("http://"):])
+            result = self._get("https://" + url[len("http://"):], max_bytes)
             with self._lock:
                 self._https_hosts.add(host)
             return result
 
-    def _get(self, url: str) -> tuple[int, str, str, bytes]:
+    def _get(self, url: str, max_bytes: int) -> tuple[int, str, str, bytes]:
         headers = {"User-Agent": USER_AGENT, "Accept": ACCEPT, "Accept-Language": "ja,en;q=0.5"}
         host = (urlsplit(url).hostname or "").lower()
         with self.pacer.hold(host):
@@ -229,7 +240,13 @@ class BodyFetcher:
             try:
                 if response.status_code >= 400:
                     return response.status_code, response.url, "", b""
-                raw = read_limited(response, MAX_BYTES)
+                declared = str(response.headers.get("Content-Length") or "")
+                if declared.isdigit() and int(declared) > max_bytes:
+                    raise TooLarge(int(declared))
+                try:
+                    raw = read_limited(response, max_bytes)
+                except ValueError as exc:
+                    raise TooLarge(None) from exc
             finally:
                 response.close()
         return response.status_code, response.url, response.headers.get("Content-Type", ""), raw
@@ -241,8 +258,12 @@ class BodyFetcher:
         line: dict[str, object] = {"id": item_id, "jis_code": code, "revision": int(entry.get("revision", 0)),
                                    "url": url, "fetched_at": time_text(now)}
         try:
-            status, final_url, content_type, raw = self._fetch(url)
-        except Exception as exc:  # つながらない・時間切れ・大きすぎる
+            status, final_url, content_type, raw = self.fetch(url)
+        except TooLarge as exc:  # 取り直しても同じ
+            line.update({"kind": "too_large", "size": exc.size})
+            store.finish(item_id, entry, line, "too_large")
+            return "failed"
+        except Exception as exc:  # つながらない・時間切れ
             return self._failure(store, item_id, entry, line, f"{type(exc).__name__}: {exc}")
         line["status"] = status
         if final_url and final_url != url:

@@ -288,6 +288,11 @@ def tidy_text(text: str) -> str:
 
 def extract_pdf_pages(raw: bytes) -> list[str]:
     """PDF の頁ごとの本文。文字の無い頁は空文字のまま残す（頁の番号を詰めない）。読めなければ空の一覧。"""
+    return read_pdf_pages(raw)[0]
+
+
+def read_pdf_pages(raw: bytes, max_pages: int | None = None) -> tuple[list[str], int]:
+    """頁ごとの本文（先頭から `max_pages` 頁まで）と、全体の頁数。読めなければ ([], 0)。"""
     try:
         from pypdf import PdfReader
     except ImportError as exc:  # pragma: no cover - 依存は requirements にある
@@ -300,7 +305,10 @@ def extract_pdf_pages(raw: bytes) -> list[str]:
         # その文書だけ読めない扱いにする。
         pages = list(reader.pages)
     except Exception:
-        return []
+        return [], 0
+    total = len(pages)
+    if max_pages is not None:
+        pages = pages[:max(0, max_pages)]
     texts: list[str] = []
     for page in pages:
         try:
@@ -308,7 +316,7 @@ def extract_pdf_pages(raw: bytes) -> list[str]:
         except Exception:
             text = ""
         texts.append(re.sub(r"\n{3,}", "\n\n", tidy_text(text).replace("\f", "\n")))
-    return texts
+    return texts, total
 
 
 def extract_pdf_text(raw: bytes) -> tuple[str, int]:

@@ -4,7 +4,7 @@
 台帳 `data/municipalities/news_feed_urls.tsv` の `enabled` のフィードを読み、
 新しい項目を自治体ごとに追記する。Celery beat から 3 時間おきに呼ぶ
 （`run_news_fetch`。同じタスクで続けて `fetch_news_bodies.py` がリンク先の
-本文を読む）。調べた結果と作り方は `doc/news-feed-survey.md`・`doc/news.md`。
+本文を、`fetch_news_attachments.py` が添付の PDF を読む）。調べた結果と作り方は `doc/news-feed-survey.md`・`doc/news.md`。
 
     data/news/<slug>/
         items/<年>.jsonl   項目（初めて見た年ごと。1 行 1 項目）

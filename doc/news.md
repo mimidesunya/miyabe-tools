@@ -2,7 +2,7 @@
 
 自治体のホームページの新着情報（お知らせ・報道発表など）を、フィード（RSS 1.0・RSS 2.0・Atom）から集めてためる。調べた結果と全体の案は [news-feed-survey.md](news-feed-survey.md)。
 
-いまできているのは **フィードの取得と保存**、**リンク先の本文**、**トップページの「各地のお知らせ」**まで。検索の索引と MCP の道具はまだ無い。
+いまできているのは **フィードの取得と保存**、**リンク先の本文**、**添付の PDF の本文**、**トップページの「各地のお知らせ」**まで。検索の索引と MCP の道具はまだ無い。
 
 ## 台帳
 
@@ -133,9 +133,10 @@ data/news/<slug>/bodies/
 100 自治体 × 5 件では、本文の中央値は 801 字、100 字未満は 8 件（1.6%。中身を JavaScript で出すサイト）。段落ごとに改行を入れる。
 
 - PDF のリンクは PDF の本文を抜く（`kind: pdf`・`pages`）。Excel・Word などは形式だけ（`kind: xlsx` など）、画像などは `kind: other` と `media_type`。
-- **添付は URL とリンクの文字だけ**控える（`attachments`）。お知らせの 55% に添付があり、報道発表のように中身が PDF だけのものも多い。添付の中身はまだ読まない。
+- 添付は URL とリンクの文字を控える（`attachments`、50 本まで）。お知らせの 55% に添付があり、報道発表のように中身が PDF だけのものも多い。PDF の中身は下の「添付」で読む。
+- 20MB を超えるページは読まずに `kind: too_large`（読み直さない）。
 
-行の欄: `id`・`jis_code`・`revision`（読んだ項目の版）・`url`・`final_url`（転送された先）・`fetched_at`・`status`・`kind`（`html` / `pdf` / `gone` / `failed` / `unreadable` / 形式）・`page_title`・`text`・`chars`・`method`（どこから抜いたか）・`attachments`・`text_hash`・`error`。
+行の欄: `id`・`jis_code`・`revision`（読んだ項目の版）・`url`・`final_url`（転送された先）・`fetched_at`・`status`・`kind`（`html` / `pdf` / `gone` / `failed` / `too_large` / `unreadable` / 形式）・`page_title`・`text`・`chars`・`method`（どこから抜いたか）・`attachments`・`text_hash`・`error`。
 
 Celery の `run_news_fetch` が、フィードを読んだすぐ後に呼ぶ。結果は `work/news/bodies_last_run.json` と `bodies_runs.jsonl`。
 
@@ -145,6 +146,41 @@ python tools/news/fetch_news_bodies.py --per-run 500 --data-root /tmp/news --wor
 ```
 
 手元で 100 自治体 × 5 件（494 リクエスト）を読んで 159 秒。本番の 1 回目（10 万 6 千件の待ち、1 回に 7 千件ほど）は 30〜40 分かかる見込み。
+
+## 添付
+
+`tools/news/fetch_news_attachments.py`。本文の行の `attachments` を後ろから追いかけ、まだ読んでいない **PDF** を読む。Excel・Word などの添付はまだ読まない（PDF が添付の 87%）。
+
+```
+data/news/<slug>/attachments/
+    <年>.jsonl    PDF の本文（読んだ年ごと、1 行 1 本）。追記だけで消さない
+    state.json    本文のファイルをどこまで見たか・まだ読んでいない PDF・読んだ PDF の印（URL の SHA-1 の頭 16 桁 → 本文の印か結果）
+```
+
+2026-11-14 に本番の本文 1 万 3 千件を見ると、52% に PDF の添付があり、1 件あたり中央値 2 本・多いものは 50 本、合わせて 4 万 3 千本だった。全国から 1 自治体 1 本ずつ 400 本を読むと、大きさは平均 1.4MB・最大 27MB、頁は中央値 2・最大 139、文字は平均 5,200 字、文字の無いもの（画像だけ）13%、抜き出しは平均 0.46 秒・最大 49 秒（図面）。
+
+- **PDF そのものは残さない。** 平均 1.4MB で 1 日 5 千本ほど出るので、残すと年に数 TB になる。本文と `sha1`（中身の印）・`bytes` を残す。
+- 頁は改頁文字（`\f`）で区切る（空の頁も 1 頁と数える）。先頭の 300 頁まで、本文は 200,000 字まで（超えたら `truncated`）。
+- 1 件のお知らせから、ページに並んだ順に 20 本まで（様式や過去の号を何十本も並べるページがある）。同じ自治体で同じ URL は 1 回だけ読む。
+- 本文を新しく読んだ順に読む。1 回に読むのは 1 自治体あたり `6,000 ÷ 待っている自治体の数`（3〜200 本）。
+- **1 回に使うのは 60 分まで。** 過ぎたら新しく読み始めず、次の回に回す（`out_of_time`）。3 時間おきの回が次の回に重ならないため。待ちの古い自治体から読むので、時間切れでも同じ自治体ばかり残らない。
+- 同じホストへは 1 秒以上空け、同時に 1 本。http でつながらなければ https で読み直す（本文と同じ）。
+- 30MB を超えるもの（大きさを告げていればその場で）は読まずに `kind: too_large`。404・410 は `gone`。つながらない・5xx は 4 回まで読み直して `failed`。
+- 転送でトップページなどの HTML に行き着いたら `kind: other` と `media_type`。
+- **抜き出しは子のプロセスで行い、1 本 180 秒で打ち切る**（`tools/news/pdf_text_worker.py`、`error` に理由、結果の `too_slow`）。pypdf は図面などで何十秒もかかることがあり、終わらない PDF があるとフィードの取得まで止まるため。子は 1 つで、PDF は 1 本ずつ読む（worker の CPU は 0.5）。
+
+行の欄: `url`・`item`（初めて見つけたお知らせの `id`）・`jis_code`・`link_text`（リンクの文字。大きさが書いてあることが多い）・`fetched_at`・`status`・`final_url`・`kind`（`pdf` / `gone` / `failed` / `too_large` / 形式 / `other`）・`bytes`・`sha1`・`pages`・`pages_read`（300 頁で止めたとき）・`text`・`chars`・`text_pages`（文字のある頁の数）・`truncated`・`text_hash`・`size`・`media_type`・`error`。
+
+お知らせとつなぐときは、本文の行の `attachments[].url` と添付の行の `url` を合わせる。
+
+Celery の `run_news_fetch` が、本文を読んだすぐ後に呼ぶ。結果は `work/news/attachments_last_run.json` と `attachments_runs.jsonl`。
+
+```bash
+python tools/news/fetch_news_attachments.py --code 01100
+python tools/news/fetch_news_attachments.py --per-run 300 --budget-minutes 10 --data-root /tmp/news --work-root /tmp/news-work
+```
+
+手元で、前に試した 100 自治体の本文から 1 自治体 3 本ずつ読むと、266 本・320MB を 62 秒。文字なし 32 本。1 行は平均 8.4KB。
 
 ## 本番
 
@@ -161,7 +197,7 @@ docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml exec -T s
   sh -lc 'cd /workspace && PYTHONPATH=/workspace python3 deploy/scraper_runtime/celery/enqueue.py news-fetch'
 ```
 
-結果を見るには `work/news/last_run.json`（フィード）と `work/news/bodies_last_run.json`（本文）。
+結果を見るには `work/news/last_run.json`（フィード）・`bodies_last_run.json`（本文）・`attachments_last_run.json`（添付）。
 
 ## トップページ
 
@@ -199,9 +235,10 @@ python tools/news/latest_news.py --data-root data/news --work-root work/news
 - 1 日に 2,556 本 × 8 回 ≒ 2 万リクエスト。半分以上は 304 で中身を送らない。相手 1 団体あたりは 1 日 8 回 × フィードの本数。
 - 保存は 1 項目 600 バイトほど。1 回目の 10 万 6 千件で 62MB。その後は 1 日 2,400 件ほど（1.4MB）で、年に 500MB ほど。
 - 本文は 1 件 4.5KB ほど（添付の一覧を含む）。溜まった 10 万 6 千件で 480MB、その後は 1 日 13MB・年に 5GB ほど。リンク先へのリクエストは 1 日 2,900 件ほど（相手 1 団体あたり 1 日数件）。
+- 添付の PDF は 1 本 8.4KB ほど（本文だけ）。1 日 5 千本ほどで、年に 15GB ほど。溜まった分（10 万 6 千件の 52%、20 本までで 26 万本ほど）は 1 回 60 分で 3 千〜4 千本ずつの見込みで、2 週間ほど。ダウンロードは 1 本平均 1.4MB で、1 日 7GB ほど。
 
 ## 残り
 
 - 直方市の 2 本（証明書の検証に落ちる）。中間証明書を送ってこない形なら、例規の取得（`tools/reiki/scrapers/static_catalog.py` の `ca_bundle_path`）と同じく足せば通る見込み。まだ確かめていない。
-- 次の段: 添付（PDF など）の中身、検索の索引と MCP の道具、地図の自治体の欄への表示、フィードの無い団体の読み取り（[news-feed-survey.md](news-feed-survey.md) の「作るときの案」）。
+- 次の段: 検索の索引と MCP の道具、文字の無い PDF（13%）の OCR、Excel・Word の添付、地図の自治体の欄への表示、フィードの無い団体の読み取り（[news-feed-survey.md](news-feed-survey.md) の「作るときの案」）。
 - 実行状態（`management_task_statuses`）や収集状況のページにはまだ出していない。

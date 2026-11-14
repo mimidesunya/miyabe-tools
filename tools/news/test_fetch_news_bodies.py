@@ -25,17 +25,22 @@ def page(text: str) -> bytes:
     return f"<html><body><article><p>{text}</p><a href='/x.pdf'>資料</a></article></body></html>".encode("utf-8")
 
 
-def make_pdf(text: str) -> bytes:
-    """本文を持つ小さな PDF。pypdf で抜き出せる形にする。"""
-    content = f"BT /F1 12 Tf 72 720 Td ({text}) Tj ET".encode("latin-1")
+def make_pdf(*texts: str) -> bytes:
+    """頁ごとに本文を持つ小さな PDF。pypdf で抜き出せる形にする。"""
+    count = len(texts)
+    page_numbers = [3 + 2 * n for n in range(count)]
+    font_number = 3 + 2 * count
+    kids = " ".join(f"{number} 0 R" for number in page_numbers)
     objects = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
-        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R "
-        b"/Resources << /Font << /F1 5 0 R >> >> >>",
-        b"<< /Length " + str(len(content)).encode() + b" >>\nstream\n" + content + b"\nendstream",
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        f"<< /Type /Pages /Kids [{kids}] /Count {count} >>".encode(),
     ]
+    for number, text in zip(page_numbers, texts):
+        content = f"BT /F1 12 Tf 72 720 Td ({text}) Tj ET".encode("latin-1")
+        objects.append(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents {number + 1} 0 R "
+                       f"/Resources << /Font << /F1 {font_number} 0 R >> >> >>".encode())
+        objects.append(b"<< /Length " + str(len(content)).encode() + b" >>\nstream\n" + content + b"\nendstream")
+    objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
     out = bytearray(b"%PDF-1.4\n")
     offsets = []
     for number, body in enumerate(objects, 1):
@@ -51,10 +56,10 @@ def make_pdf(text: str) -> bytes:
 
 class FakeResponse:
     def __init__(self, status: int, body: bytes = b"", content_type: str = "text/html; charset=utf-8",
-                 url: str = "") -> None:
+                 url: str = "", headers: dict[str, str] | None = None) -> None:
         self.status_code = status
         self.body = body
-        self.headers = {"Content-Type": content_type}
+        self.headers = {"Content-Type": content_type, **(headers or {})}
         self.url = url
 
     def iter_content(self, chunk_size: int = 0):
@@ -164,6 +169,13 @@ class BodiesTest(unittest.TestCase):
         summary = self.run_once({self.url("a"): FakeResponse(503)})
         self.assertEqual((summary["failed"], summary["waiting_after"]), (1, 0))
         self.assertEqual((self.lines()[0]["kind"], self.lines()[0]["error"]), ("failed", "HTTP 503"))
+
+    def test_too_large_is_not_retried(self) -> None:
+        self.add_items(item("a"))
+        huge = FakeResponse(200, b"", headers={"Content-Length": str(bodies.MAX_BYTES + 1)})
+        summary = self.run_once({self.url("a"): huge})
+        self.assertEqual((summary["failed"], summary["waiting_after"]), (1, 0))
+        self.assertEqual((self.lines()[0]["kind"], self.lines()[0]["size"]), ("too_large", bodies.MAX_BYTES + 1))
 
     def test_http_that_does_not_answer_is_read_over_https(self) -> None:
         plain = [dict(item(name), url=f"http://www.city.example.jp/{name}.html") for name in ("a", "b")]
