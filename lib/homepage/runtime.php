@@ -4080,9 +4080,12 @@ function homepage_build_status_api_payload_cached(int $ttlSeconds = 60): array
 
     $staleCached = read_json_cache_file(homepage_status_api_cache_path(), 0);
     if (is_array($staleCached) && PHP_SAPI !== 'cli') {
-        homepage_schedule_status_api_payload_cache_refresh();
+        $refresh = homepage_schedule_status_api_payload_cache_refresh();
         if (!headers_sent()) {
             header('X-Status-Cache: stale');
+            if ($refresh !== '') {
+                header('X-Status-Cache-Refresh: ' . $refresh);
+            }
         }
         return homepage_status_api_payload_with_live_tasks($staleCached);
     }
@@ -4094,42 +4097,117 @@ function homepage_build_status_api_payload_cached(int $ttlSeconds = 60): array
     return homepage_status_api_payload_with_live_tasks($payload);
 }
 
-function homepage_schedule_status_api_payload_cache_refresh(): void
+// 応答のあとに控えを作り直す仕組み（状況 API・実行状況・トップ API で共通）。
+//
+// 作り直しは見に来た要求をきっかけに、fastcgi_finish_request のあと shutdown 関数の中で
+// 走る。作り直しのあいだは flock を握り、ほかの要求は重ねずに古い控えを返す。
+//
+// 長く誰も見ていないと、控えはそのときのまま古くなる。そのあとの 1 回目の作り直しは
+// 冷えているので遅い（状況 API で 2026-11-12 は 2 分ほど、11-14 は 43 秒。温まっていれば
+// 1 秒）。その間に何度取っても古い控えが返るので、止まったように見える（11-12 に
+// 「21:04 の控えのまま」と見えたのはこれ）。だから作り直しを始めたかどうかを
+// X-Status-Cache-Refresh で知らせ、遅い作り直しはかかった時間をログに出す。
+function homepage_background_refresh_time_limit_seconds(): int
 {
-    static $scheduled = false;
-    if ($scheduled || PHP_SAPI === 'cli') {
-        return;
-    }
+    // shutdown 関数では、要求の残りの CPU 時間（既定 30 秒）がそのまま使われる。
+    // 冷えた作り直しの分として数え直す。
+    return 120;
+}
 
-    $lockPath = homepage_status_api_cache_refresh_lock_path();
+function homepage_background_refresh_slow_seconds(): float
+{
+    return 30.0;
+}
+
+// 作り直しの flock を取る。ほかの要求が作り直している最中なら null、
+// ロックのファイルを開けなければ false。
+function homepage_background_refresh_try_lock(string $lockPath)
+{
     $lockDir = dirname($lockPath);
     if (!is_dir($lockDir)) {
         @mkdir($lockDir, 0755, true);
     }
     $lockHandle = @fopen($lockPath, 'c');
     if ($lockHandle === false) {
-        return;
+        return false;
     }
     if (!@flock($lockHandle, LOCK_EX | LOCK_NB)) {
         @fclose($lockHandle);
-        return;
+        return null;
+    }
+    return $lockHandle;
+}
+
+function homepage_run_background_cache_refresh(
+    string $label,
+    $lockHandle,
+    string $lockPath,
+    callable $rebuild,
+    ?float $slowSeconds = null
+): bool {
+    $slowSeconds ??= homepage_background_refresh_slow_seconds();
+    $startedAt = microtime(true);
+    $ok = false;
+    try {
+        $rebuild();
+        $ok = true;
+    } catch (Throwable $error) {
+        error_log('[' . $label . '] background cache refresh failed: ' . $error->getMessage());
+    } finally {
+        @flock($lockHandle, LOCK_UN);
+        @fclose($lockHandle);
+        @unlink($lockPath);
     }
 
-    $scheduled = true;
-    register_shutdown_function(static function () use ($lockHandle, $lockPath): void {
+    $elapsed = microtime(true) - $startedAt;
+    if ($elapsed >= $slowSeconds) {
+        error_log(sprintf('[%s] background cache refresh took %.1fs', $label, $elapsed));
+    }
+    return $ok;
+}
+
+// 応答のあとの作り直しを頼む。返り値は X-Status-Cache-Refresh に出す値。
+// 'started' はこの要求の応答のあとに作り直す、'running' はほかの要求が作り直している最中、
+// '' は頼めなかった（CLI や、ロックのファイルを開けないとき）。
+function homepage_schedule_background_cache_refresh(string $label, string $lockPath, callable $rebuild): string
+{
+    static $scheduled = [];
+    if (PHP_SAPI === 'cli') {
+        return '';
+    }
+    if (isset($scheduled[$lockPath])) {
+        return 'started';
+    }
+    $lockHandle = homepage_background_refresh_try_lock($lockPath);
+    if ($lockHandle === null) {
+        return 'running';
+    }
+    if ($lockHandle === false) {
+        return '';
+    }
+
+    $scheduled[$lockPath] = true;
+    register_shutdown_function(static function () use ($label, $lockHandle, $lockPath, $rebuild): void {
+        // 応答を閉じたあとに何か出ても打ち切られないようにする。
+        ignore_user_abort(true);
         if (function_exists('fastcgi_finish_request')) {
             @fastcgi_finish_request();
         }
-        try {
-            homepage_rebuild_status_api_payload_cache();
-        } catch (Throwable $error) {
-            error_log('[status_api] background cache refresh failed: ' . $error->getMessage());
-        } finally {
-            @flock($lockHandle, LOCK_UN);
-            @fclose($lockHandle);
-            @unlink($lockPath);
-        }
+        @set_time_limit(homepage_background_refresh_time_limit_seconds());
+        homepage_run_background_cache_refresh($label, $lockHandle, $lockPath, $rebuild);
     });
+    return 'started';
+}
+
+function homepage_schedule_status_api_payload_cache_refresh(): string
+{
+    return homepage_schedule_background_cache_refresh(
+        'status_api',
+        homepage_status_api_cache_refresh_lock_path(),
+        static function (): void {
+            homepage_rebuild_status_api_payload_cache();
+        }
+    );
 }
 
 function homepage_api_cache_refresh_lock_path(): string
@@ -4227,47 +4305,17 @@ function homepage_build_task_status_payload_cached(int $ttlSeconds = 10): array
 
 function homepage_schedule_task_status_payload_cache_refresh(): void
 {
-    static $scheduled = false;
-    if ($scheduled || PHP_SAPI === 'cli') {
-        return;
-    }
-
-    $lockPath = homepage_task_status_cache_refresh_lock_path();
-    $lockDir = dirname($lockPath);
-    if (!is_dir($lockDir)) {
-        @mkdir($lockDir, 0755, true);
-    }
-
-    $lockHandle = @fopen($lockPath, 'c');
-    if ($lockHandle === false) {
-        return;
-    }
-
-    if (!@flock($lockHandle, LOCK_EX | LOCK_NB)) {
-        @fclose($lockHandle);
-        return;
-    }
-
-    $scheduled = true;
-    register_shutdown_function(static function () use ($lockHandle, $lockPath): void {
-        if (function_exists('fastcgi_finish_request')) {
-            @fastcgi_finish_request();
-        }
-
-        try {
+    homepage_schedule_background_cache_refresh(
+        'task_status_api',
+        homepage_task_status_cache_refresh_lock_path(),
+        static function (): void {
             $payload = homepage_build_task_status_payload();
             write_json_cache_file(homepage_task_status_cache_path(), [
                 'source_version' => homepage_task_status_source_version(),
                 'payload' => $payload,
             ]);
-        } catch (Throwable $error) {
-            error_log('[task_status_api] background cache refresh failed: ' . $error->getMessage());
-        } finally {
-            @flock($lockHandle, LOCK_UN);
-            @fclose($lockHandle);
-            @unlink($lockPath);
         }
-    });
+    );
 }
 
 function homepage_store_cached_api_payload(string $path, array $payload): void
@@ -4808,43 +4856,13 @@ function homepage_build_task_status_payload(): array
 
 function homepage_schedule_api_payload_cache_refresh(): void
 {
-    static $scheduled = false;
-    if ($scheduled || PHP_SAPI === 'cli') {
-        return;
-    }
-
-    $lockPath = homepage_api_cache_refresh_lock_path();
-    $lockDir = dirname($lockPath);
-    if (!is_dir($lockDir)) {
-        @mkdir($lockDir, 0755, true);
-    }
-
-    $lockHandle = @fopen($lockPath, 'c');
-    if ($lockHandle === false) {
-        return;
-    }
-
-    if (!@flock($lockHandle, LOCK_EX | LOCK_NB)) {
-        @fclose($lockHandle);
-        return;
-    }
-
-    $scheduled = true;
-    register_shutdown_function(static function () use ($lockHandle, $lockPath): void {
-        if (function_exists('fastcgi_finish_request')) {
-            @fastcgi_finish_request();
-        }
-
-        try {
+    homepage_schedule_background_cache_refresh(
+        'home_api',
+        homepage_api_cache_refresh_lock_path(),
+        static function (): void {
             homepage_rebuild_api_payload_cache();
-        } catch (Throwable $error) {
-            error_log('[home_api] background cache refresh failed: ' . $error->getMessage());
-        } finally {
-            @flock($lockHandle, LOCK_UN);
-            @fclose($lockHandle);
-            @unlink($lockPath);
         }
-    });
+    );
 }
 
 function homepage_build_api_payload_cached(int $ttlSeconds = 15): array
