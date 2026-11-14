@@ -127,7 +127,9 @@ test("hyoka MCP contract through a local public API mock", { timeout: 30000 }, a
           truncated: url.searchParams.get("max_body_chars") === "0" },
         attachments: [
           { url: "https://example.invalid/list.pdf", link_text: "一覧表（PDF 120KB）", read: true, kind: "pdf", pages: 2,
-            chars: 20, fetched_at: "2026-11-14 17:37:13", text: "〔1頁〕\n件名\n\n〔2頁〕\n工事", truncated: false },
+            chars: 20, fetched_at: "2026-11-14 17:37:13",
+            ...(url.searchParams.get("include_attachments") === "0" ? {}
+              : { text: "〔1頁〕\n件名\n\n〔2頁〕\n工事", truncated: false }) },
           { url: "https://example.invalid/form.xlsx", link_text: "様式（Excel）", read: false, kind: null, pages: null,
             chars: 0, fetched_at: null }
         ] } }));
@@ -420,6 +422,11 @@ test("hyoka MCP contract through a local public API mock", { timeout: 30000 }, a
     const short = await rpc(base, "tools/call", { name: "get_municipal_news_item", arguments: {
       id: newsFixture.id, max_body_chars: 0 } });
     assert.match(short.content[0].text, /本文: 17字（max_body_chars が 0 なので省いた）/);
+
+    const listOnly = await rpc(base, "tools/call", { name: "get_municipal_news_item", arguments: {
+      id: newsFixture.id, include_attachments: false } });
+    assert.equal(requests.at(-1).searchParams.get("include_attachments"), "0");
+    assert.match(listOnly.content[0].text, /添付 1: 一覧表（PDF 120KB） — pdf、2頁、20字（文字は省いた。include_attachments が true なら返す）/);
   });
 
   await t.test("reports an ambiguous municipality name with candidates", async () => {

@@ -1033,6 +1033,7 @@ function formatNewsItemText(payload: any): string {
     const state = !attachment.read ? "まだ読んでいない（PDF 以外か、読む順番待ち）"
       : attachment.text ? `${attachment.kind}、${attachment.pages ?? "?"}頁、${attachment.chars}字${attachment.truncated ? "（途中まで）" : ""}`
       : attachment.omitted ? `${attachment.chars}字（max_attachment_chars を使い切ったので省いた）`
+      : attachment.chars > 0 ? `${attachment.kind}、${attachment.pages ?? "?"}頁、${attachment.chars}字（文字は省いた。include_attachments が true なら返す）`
       : `${attachment.kind}（文字なし）`;
     out.push(`添付 ${index + 1}: ${attachment.link_text || "(リンクの文字なし)"} — ${state}`, `   ${attachment.url}`);
     if (attachment.text) {
