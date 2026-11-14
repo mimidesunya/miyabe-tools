@@ -118,6 +118,7 @@ function api_guide_h(?string $value): string
             <pre><code>川崎市の議会で「盛土」について話し合われた記録を探して
 メガソーラーを規制する条例がある自治体を教えて
 2024年度の事務事業評価から「子育て支援」を探して、原典の頁も示して
+町田市が今週ホームページに出したお知らせを一覧にして
 その会議録の全文を読んで、賛成と反対の意見をまとめて
 答えの根拠にした自治体のページも示して</code></pre>
         </section>
@@ -137,6 +138,10 @@ function api_guide_h(?string $value): string
                     <h3>事務事業評価</h3>
                     <p>自治体が公表した評価表や報告書を、自治体・都道府県・年度・種別で絞って調べます。</p>
                 </div>
+                <div>
+                    <h3>自治体のお知らせ</h3>
+                    <p>自治体がホームページの「新着情報」に出したお知らせを、自治体や期間で一覧にし、本文や添付の PDF も読みます。</p>
+                </div>
             </div>
             <p>
                 AIは検索と本文の読み取りを自動で使い分けます。ツールの名前を覚える必要はありません。
@@ -154,6 +159,12 @@ function api_guide_h(?string $value): string
                 事業 1 件の表と原典の頁は <code>get_hyoka_project</code> で確かめられます。事業ごとの値は、原典の表の欄を機械やAIが書き写したもので、人の確認はまだです。
                 頁が分かる文書は該当頁へ、頁区切りがない文書は文書全体へ案内します。
                 「取得元から消失」と表示されたものは、保存した本文を検索できますが、原典URLが開けない場合があります。
+            </p>
+            <p>
+                自治体のお知らせは <code>list_municipal_news</code> で一覧にし、<code>get_municipal_news_item</code> で
+                リンク先のページの本文と添付の PDF の文字を読みます。ホームページの新着情報（RSS など）を 3 時間おきに集めているもので、
+                新着情報の配信が見つかっていない自治体の分はありません。一覧の言葉の絞り込みは題名と概要だけで、本文の全文検索はまだできません。
+                お知らせのページは数日で消えることがあるので、見つけたときに読んで保存しています。
             </p>
         </section>
 
@@ -297,6 +308,8 @@ url = "https://tools.miya.be/mcp"</code></pre>
 GET https://tools.miya.be/api/search?doc_type=reiki&amp;q=個人情報保護
 GET https://tools.miya.be/api/search?doc_type=hyoka&amp;q=子育て&amp;fiscal_year=2024&amp;kind=project_evaluation
 GET https://tools.miya.be/api/document?id=検索結果のid&amp;doc_type=minutes
+GET https://tools.miya.be/api/news.php?municipality=町田市&amp;since=2026-11-01
+GET https://tools.miya.be/api/news-item.php?id=お知らせの一覧のid
 
 OpenAPI JSON: https://tools.miya.be/openapi.json
 OpenAPI YAML: https://tools.miya.be/openapi.yaml</code></pre>

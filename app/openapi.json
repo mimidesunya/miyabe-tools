@@ -807,6 +807,254 @@
           }
         }
       }
+    },
+    "/api/news.php": {
+      "get": {
+        "operationId": "listMunicipalNews",
+        "summary": "自治体のお知らせの一覧",
+        "description": "自治体がホームページの新着情報（RSS などのフィード）で出したお知らせを、自治体・都道府県・期間・題名の言葉で絞り、新しい順に返します。3 時間おきに集めています。リンク先のページの本文の抜粋と、添付の数も返します。本文と添付の PDF の文字は /api/news-item.php で読めます。新着情報のフィードが見つかっていない自治体のお知らせは集めていません。",
+        "parameters": [
+          {
+            "name": "municipality",
+            "in": "query",
+            "required": false,
+            "description": "自治体名。「町田市」も「東京都町田市」も受けます。同じ名前が複数ある（伊達市・府中市など）ときは pref_code を付けてください。付けないと 422 で候補を返します。",
+            "schema": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "example": "町田市"
+          },
+          {
+            "name": "municipality_code",
+            "in": "query",
+            "required": false,
+            "description": "全国地方公共団体コード（検査数字なしの5桁、検査数字つきの6桁も可）。",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{5,6}$"
+            },
+            "example": "13209"
+          },
+          {
+            "name": "slug",
+            "in": "query",
+            "required": false,
+            "description": "自治体の canonical slug。",
+            "schema": {
+              "type": "string"
+            },
+            "example": "13209-machida-shi"
+          },
+          {
+            "name": "pref_code",
+            "in": "query",
+            "required": false,
+            "description": "都道府県コード（1〜47）。自治体を指定しなければ、その都道府県の全部の自治体。",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,2}$"
+            },
+            "example": "13"
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "description": "この日から（YYYY-MM-DD）。お知らせの日付で絞ります。日付の無いものと、催しの日を日付にしたもの（見つけた日より後の日付）は、見つけた日で数えます。",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2026-11-01"
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "description": "この日まで（YYYY-MM-DD）。",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "題名と概要に含まれる言葉。空白で区切ると全部を含むもの（5 語まで）。本文の全文検索ではありません。",
+            "schema": {
+              "type": "string",
+              "maxLength": 50
+            },
+            "example": "ごみ"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "ページ番号。page × per_page は 10000 まで。",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "description": "1 ページの件数。",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "お知らせの一覧",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewsListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "条件の形が正しくありません。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "自治体が見つからない（municipality_not_found）か、同じ名前の自治体が複数あります（ambiguous_municipality。candidates に候補）。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "お知らせの索引がまだありません。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/news-item.php": {
+      "get": {
+        "operationId": "getMunicipalNewsItem",
+        "summary": "自治体のお知らせ 1 件",
+        "description": "お知らせ 1 件のリンク先のページの本文と、ページにあった添付の PDF から取り出した文字を返します。ページは見つけた回のうちに読んで保存しているので、自治体のサイトから消えたお知らせも読めます。PDF の文字は頁ごとに〔N頁〕の印を付けます。Excel・Word などの添付は、まだ読みません（read が false）。",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "description": "一覧の id（news:<slug>:<項目の印>）。",
+            "schema": {
+              "type": "string"
+            },
+            "example": "news:13209-machida-shi:8ef5af7778483a04"
+          },
+          {
+            "name": "max_body_chars",
+            "in": "query",
+            "required": false,
+            "description": "本文の最大文字数。",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 200000,
+              "default": 20000
+            }
+          },
+          {
+            "name": "include_attachments",
+            "in": "query",
+            "required": false,
+            "description": "0 なら添付の PDF の文字を返しません（添付の一覧は返します）。",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1",
+                "0"
+              ],
+              "default": "1"
+            }
+          },
+          {
+            "name": "max_attachment_chars",
+            "in": "query",
+            "required": false,
+            "description": "添付の PDF の文字の上限（添付の全部で）。ページに並んだ順に詰め、使い切ったものは omitted が true。",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 200000,
+              "default": 20000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "お知らせ 1 件",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewsItemResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "id の形が正しくありません。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "お知らせが見つかりません。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "お知らせの索引がまだありません。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1887,6 +2135,215 @@
           },
           "sheet_truncated": {
             "type": "boolean"
+          }
+        }
+      },
+      "NewsItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "/api/news-item.php に渡す id。"
+          },
+          "title": {
+            "type": "string"
+          },
+          "date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "フィードに書かれた日付。"
+          },
+          "sort_date": {
+            "type": "string",
+            "description": "並べるのに使う日付。日付の無いもの・催しの日を日付にしたものは見つけた日。"
+          },
+          "url": {
+            "type": "string",
+            "description": "自治体のページ。"
+          },
+          "municipality_name": {
+            "type": "string"
+          },
+          "pref_name": {
+            "type": "string"
+          },
+          "municipality_code": {
+            "type": "string"
+          },
+          "pref_code": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "フィードの概要（300 字まで）。"
+          },
+          "event_start": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event_end": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "first_seen_at": {
+            "type": "string",
+            "description": "初めて見つけた日時（日本時間）。"
+          },
+          "body": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "リンク先のページから取り出した本文。一覧では抜粋（excerpt）、1 件では本文（text）。まだ読んでいなければ null。",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "description": "html・pdf・gone（読む前に消えていた）など。"
+              },
+              "chars": {
+                "type": "integer"
+              },
+              "excerpt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "text": {
+                "type": "string"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            }
+          },
+          "attachments_count": {
+            "type": "integer"
+          },
+          "api_item_url": {
+            "type": "string"
+          },
+          "attachments": {
+            "type": "array",
+            "description": "1 件のときだけ。ページに並んだ順。",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string"
+                },
+                "link_text": {
+                  "type": "string"
+                },
+                "read": {
+                  "type": "boolean",
+                  "description": "読んだか。PDF 以外はまだ読まない。"
+                },
+                "kind": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "pages": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "chars": {
+                  "type": "integer"
+                },
+                "text": {
+                  "type": "string",
+                  "description": "PDF から取り出した文字。頁ごとに〔N頁〕の印。"
+                },
+                "truncated": {
+                  "type": "boolean"
+                },
+                "omitted": {
+                  "type": "boolean",
+                  "description": "max_attachment_chars を使い切ったので文字を省いた。"
+                }
+              }
+            }
+          }
+        }
+      },
+      "NewsListResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "per_page": {
+            "type": "integer"
+          },
+          "filters": {
+            "type": "object"
+          },
+          "municipality": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "自治体を指定したとき。collecting が false ならお知らせを集めていない。"
+          },
+          "index_updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NewsItem"
+            }
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "NewsItemResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "index_updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "item": {
+            "$ref": "#/components/schemas/NewsItem"
           }
         }
       }

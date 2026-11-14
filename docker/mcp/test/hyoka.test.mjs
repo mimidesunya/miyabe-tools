@@ -43,6 +43,15 @@ const projectFixture = {
   api_project_url: "/api/hyoka-project.php?id=x"
 };
 
+const newsFixture = {
+  id: "news:13209-machida-shi:8ef5af7778483a04", title: "電子入札による一般競争入札公表", date: "2026-11-13",
+  sort_date: "2026-11-13", url: "https://example.invalid/nyusatsu.html", municipality_name: "町田市", pref_name: "東京都",
+  municipality_code: "13209", pref_code: "13", slug: "13209-machida-shi", categories: ["入札"], summary: null,
+  event_start: null, event_end: null, first_seen_at: "2026-11-13 19:02:11",
+  body: { kind: "html", chars: 913, excerpt: "町田市では電子入札で行っています。" }, attachments_count: 2,
+  api_item_url: "/api/news-item.php?id=news%3A13209-machida-shi%3A8ef5af7778483a04"
+};
+
 async function listen(server) {
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
@@ -94,6 +103,34 @@ test("hyoka MCP contract through a local public API mock", { timeout: 30000 }, a
       document.page_split_reason = "saved_text_no_page_boundaries";
     }
     res.setHeader("Content-Type", "application/json");
+    if (url.pathname === "/api/news.php") {
+      if (url.searchParams.get("municipality") === "伊達市") {
+        res.statusCode = 422;
+        res.end(JSON.stringify({ status: "ambiguous_municipality", error: "「伊達市」という自治体が複数あります。",
+          candidates: [{ municipality_name: "伊達市", pref_name: "北海道", municipality_code: "01233" },
+            { municipality_name: "伊達市", pref_name: "福島県", municipality_code: "07213" }] }));
+        return;
+      }
+      res.end(JSON.stringify({ status: "ok", total: 1, page: 1, per_page: 20,
+        filters: { since: url.searchParams.get("since"), q: url.searchParams.get("q") },
+        municipality: { municipality_name: "町田市", pref_name: "東京都", municipality_code: "13209", pref_code: "13",
+          slug: "13209-machida-shi", collecting: true, items: 143, last_date: "2026-11-14" },
+        index_updated_at: "2026-11-14 17:38:32", items: [newsFixture] }));
+      return;
+    }
+    if (url.pathname === "/api/news-item.php") {
+      res.end(JSON.stringify({ status: "ok", index_updated_at: "2026-11-14 17:38:32", item: { ...newsFixture,
+        api_item_url: undefined,
+        body: { kind: "html", status: 200, pages: null, page_title: "入札 | 町田市", final_url: null,
+          fetched_at: "2026-11-14 17:36:54", text: "町田市では電子入札で行っています。", chars: 17, truncated: false },
+        attachments: [
+          { url: "https://example.invalid/list.pdf", link_text: "一覧表（PDF 120KB）", read: true, kind: "pdf", pages: 2,
+            chars: 20, fetched_at: "2026-11-14 17:37:13", text: "〔1頁〕\n件名\n\n〔2頁〕\n工事", truncated: false },
+          { url: "https://example.invalid/form.xlsx", link_text: "様式（Excel）", read: false, kind: null, pages: null,
+            chars: 0, fetched_at: null }
+        ] } }));
+      return;
+    }
     if (url.pathname === "/api/hyoka-projects.php") {
       res.end(JSON.stringify({ status: "ok", query: url.searchParams.get("q") || "", sort: "cost_desc", page: 1, per_page: 10,
         total: 1, total_relation: "eq", items: [projectFixture] }));
@@ -168,9 +205,10 @@ test("hyoka MCP contract through a local public API mock", { timeout: 30000 }, a
   await t.test("lists hyoka filters and permits hyoka document reads", async () => {
     const result = await rpc(base, "tools/list");
     assert.deepEqual(result.tools.map(tool => tool.name).sort(),
-      ["aggregate_hyoka_amounts", "get_hyoka_project", "get_municipal_document", "search_hyoka", "search_hyoka_projects",
-        "search_minutes", "search_reiki"]);
-    for (const name of ["aggregate_hyoka_amounts", "get_hyoka_project", "search_hyoka_projects"]) {
+      ["aggregate_hyoka_amounts", "get_hyoka_project", "get_municipal_document", "get_municipal_news_item",
+        "list_municipal_news", "search_hyoka", "search_hyoka_projects", "search_minutes", "search_reiki"]);
+    for (const name of ["aggregate_hyoka_amounts", "get_hyoka_project", "search_hyoka_projects", "list_municipal_news",
+      "get_municipal_news_item"]) {
       assert.equal(result.tools.find(tool => tool.name === name).annotations.readOnlyHint, true);
     }
     const hyoka = result.tools.find(tool => tool.name === "search_hyoka");
@@ -344,6 +382,45 @@ test("hyoka MCP contract through a local public API mock", { timeout: 30000 }, a
     assert.equal(related.structuredContent.related.minutes.total, 1);
     assert.match(related.content[0].text, /事業名が出てくる会議録: 1件/);
     assert.match(related.content[0].text, /事業名が出てくる例規集: 1件/);
+  });
+
+  await t.test("lists municipal news and reads one item with its attachments", async () => {
+    const listed = await rpc(base, "tools/call", { name: "list_municipal_news", arguments: {
+      municipality: "町田市", since: "2026-11-01", q: "入札 公表", per_page: 5 } });
+    assert.notEqual(listed.isError, true, JSON.stringify(listed));
+    const query = requests.at(-1).searchParams;
+    assert.equal(requests.at(-1).pathname, "/api/news.php");
+    for (const [key, value] of Object.entries({ municipality: "町田市", since: "2026-11-01", q: "入札 公表",
+      page: "1", per_page: "5" })) {
+      assert.equal(query.get(key), value);
+    }
+    assert.equal(listed.structuredContent.items[0].api_item_url,
+      "https://public.invalid/api/news-item.php?id=news%3A13209-machida-shi%3A8ef5af7778483a04");
+    const text = listed.content[0].text;
+    assert.match(text, /自治体のお知らせ: 町田市（東京都） 2026-11-01〜 「入札 公表」 \/ 1件/);
+    assert.match(text, /id: news:13209-machida-shi:8ef5af7778483a04/);
+    assert.match(text, /本文の抜粋: 町田市では電子入札で行っています。（913字）/);
+
+    const item = await rpc(base, "tools/call", { name: "get_municipal_news_item", arguments: {
+      id: newsFixture.id, max_attachment_chars: 500 } });
+    assert.notEqual(item.isError, true, JSON.stringify(item));
+    const itemQuery = requests.at(-1).searchParams;
+    assert.equal(itemQuery.get("include_attachments"), "1");
+    assert.equal(itemQuery.get("max_attachment_chars"), "500");
+    assert.equal(itemQuery.get("max_body_chars"), "20000");
+    const itemText = item.content[0].text;
+    assert.match(itemText, /<<<自治体のページの本文 ここから>>>\n町田市では電子入札で行っています。\n<<<ここまで>>>/);
+    assert.match(itemText, /添付 1: 一覧表（PDF 120KB） — pdf、2頁、20字/);
+    assert.match(itemText, /〔2頁〕\n工事/);
+    assert.match(itemText, /添付 2: 様式（Excel） — まだ読んでいない/);
+    assert.equal(item.structuredContent.item.attachments[1].read, false);
+  });
+
+  await t.test("reports an ambiguous municipality name with candidates", async () => {
+    const result = await rpc(base, "tools/call", { name: "list_municipal_news", arguments: { municipality: "伊達市" } });
+    assert.equal(result.isError, true);
+    assert.equal(result.structuredContent.http_status, 422);
+    assert.equal(result.structuredContent.detail.candidates.length, 2);
   });
 
   await t.test("keeps existing minutes/reiki default sort and filters", async () => {

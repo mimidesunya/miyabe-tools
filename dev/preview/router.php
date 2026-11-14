@@ -20,6 +20,12 @@ putenv('OPENSEARCH_URL=http://127.0.0.1:18092');
 $uri = (string)($_SERVER['REQUEST_URI'] ?? '/');
 $path = (string)(parse_url($uri, PHP_URL_PATH) ?: '/');
 
+// お知らせの API は手元の索引（work/news/index.sqlite）と data/news を読む。
+// 手元で `python tools/news/fetch_news_feeds.py --code …` と `news_index.py` を流してから見る。
+if (in_array($path, ['/api/news.php', '/api/news-item.php'], true)) {
+    return false;
+}
+
 if (str_starts_with($path, '/api/')) {
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
         http_response_code(405);

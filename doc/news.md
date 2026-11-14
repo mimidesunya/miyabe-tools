@@ -2,7 +2,7 @@
 
 自治体のホームページの新着情報（お知らせ・報道発表など）を、フィード（RSS 1.0・RSS 2.0・Atom）から集めてためる。調べた結果と全体の案は [news-feed-survey.md](news-feed-survey.md)。
 
-いまできているのは **フィードの取得と保存**、**リンク先の本文**、**添付の PDF の本文**、**トップページの「各地のお知らせ」**まで。検索の索引と MCP の道具はまだ無い。
+いまできているのは **フィードの取得と保存**、**リンク先の本文**、**添付の PDF の本文**、**トップページの「各地のお知らせ」**、**一覧と 1 件の API・MCP の道具**（下の「API と MCP」）まで。本文の全文検索はまだ無い。
 
 ## 台帳
 
@@ -203,7 +203,7 @@ docker compose -p miyabe-tools-scraping -f docker-compose.scraping.yml exec -T s
 
 ## トップページ
 
-トップページの「02 各地のお知らせ」。取得の 1 回の終わりに `tools/news/latest_news.py` がためた項目から一覧を書き、web はそれを読むだけ。
+トップページの「各地のお知らせ」。取得の 1 回の終わりに `tools/news/latest_news.py` がためた項目から一覧を書き、web はそれを読むだけ。
 
 ```
 work/news/latest/all.json        全国。1 自治体 1 件まで、20 件
@@ -232,6 +232,59 @@ python tools/news/latest_news.py --data-root data/news --work-root work/news
 
 テストは `tools/news/test_latest_news.py` と `php tests/news_latest_test.php`。
 
+## API と MCP
+
+ためたお知らせを、自治体・都道府県・期間で一覧にし、1 件の本文と添付の PDF の文字を返す。
+
+| | REST | MCP |
+|---|---|---|
+| 一覧 | `/api/news.php` | `list_municipal_news` |
+| 1 件 | `/api/news-item.php?id=news:<slug>:<項目の id>` | `get_municipal_news_item` |
+
+仕様は `app/openapi.json`・`.yaml`。使い方の案内は `/api-guide/`。
+
+### 索引
+
+`tools/news/news_index.py` が、ためた記録を SQLite（`work/news/index.sqlite`）に足す。
+
+- `run_news_fetch` が、本文を読んだ後と添付を読んだ後の 2 回呼ぶ（添付は 60 分かかることがあるので、項目と本文はその前に出す）。
+- 項目・本文・添付の記録は追記だけなので、ファイルごとに読んだ位置（バイト）を覚え、増えた分だけ読む。自治体 1 つごとに確定し、読んだ位置も同じ確定に入れる。改行で終わっていない最後の行は次に回す。
+- 項目は id ごとに最後の版。同じ自治体の同じ題名・同じ日付は先に見つけた 1 件だけ出す（`hidden`）。
+- 並べる日付（`sort_date`）は項目の日付。日付が無いものと、見つけた日より後の日付（催しの日）は見つけた日。
+- 本文の抜粋は 160 字。ページ番号・更新日・「メニューを飛ばして本文へ」などの行と題名と同じ行を飛ばし、15 字以上の最初の行から取る。
+- 読み直して消えていた（`gone`）・読めなかった行で、前に読めた本文を消さない。添付も同じ。
+- **本文と添付の全文は索引に入れない。** 索引は行の位置（`bodies/<年>.jsonl` と先頭からのバイト数）だけを持ち、web がそこから 1 行だけ読む。読んだ行の `id`（添付は `url`）が違えば本文を返さない。
+- 索引の形を変えたら `SCHEMA_VERSION` を上げる。次の回に別のファイル（`index.sqlite.building`）で一から作り、差し替える。
+- web は読むだけで開くので、WAL は使わない（読み手が `-shm` を書けない）。確定の一瞬だけ読み手を待たせる（PHP は 10 秒まで待つ）。
+- 手元で 7 自治体・593 件を一から作って 0.3 秒、索引は 1 件 1.4KB ほど。
+
+```bash
+python tools/news/news_index.py              # 増えた分だけ
+python tools/news/news_index.py --rebuild    # 一から
+```
+
+### 一覧（`/api/news.php`）
+
+- 自治体は `municipality`（名前。「町田市」も「東京都町田市」も受ける）・`municipality_code`（5 桁か検査数字つきの 6 桁）・`slug` のどれか。同じ名前が複数ある（伊達市・府中市など）ときは 422 で候補（`candidates`）を返す。見つからない自治体も 422（`/api/search` と同じ）。
+- 自治体を指定しなければ `pref_code`（1〜47）の都道府県、それも無ければ全国。
+- `since`・`until` は `sort_date` で絞る。`q` は題名と概要に含まれる言葉（空白で区切ると全部を含むもの、5 語・50 字まで）。本文の全文検索ではない。
+- 新しい順（`sort_date`、見つけた日時、id）。`per_page` は 100 まで（MCP は 50）、`page × per_page` は 10,000 まで。
+- 集めていない自治体は `municipality.collecting` が false で、`note` を付ける。
+- 応答は 5 分の `Cache-Control`。
+
+### 1 件（`/api/news-item.php`）
+
+- 本文（`max_body_chars`、既定 20,000 字）と、ページにあった添付をページに並んだ順に返す。
+- 添付の PDF の文字は `max_attachment_chars`（添付の全部で、既定 20,000 字）まで、並んだ順に詰める。使い切った添付は `omitted`。`include_attachments=0` なら一覧だけ。
+- PDF の文字は頁ごとに `〔N頁〕` の印を付ける（記録の改頁文字 `\f` を直す）。
+- PDF 以外（Excel・Word など）と、まだ読んでいない PDF は `read: false`。
+- MCP の文字の結果では、本文と添付の文字を `<<<…ここから>>>`・`<<<ここまで>>>` で囲む。第三者の文書の中に AI への指示が書かれていても、区別できるようにするため。
+
+### 本番
+
+- php の容器に、共有領域の `news` を `/var/www/data/news` へ読み取り専用で見せる（`deploy/deploy.py` の compose）。索引は `work` の下なので、前から見えている。
+- 索引が無いうちは 503。
+
 ## 量と負荷
 
 - 1 日に 2,556 本 × 8 回 ≒ 2 万リクエスト。半分以上は 304 で中身を送らない。相手 1 団体あたりは 1 日 8 回 × フィードの本数。
@@ -242,5 +295,5 @@ python tools/news/latest_news.py --data-root data/news --work-root work/news
 ## 残り
 
 - 直方市の 2 本（証明書の検証に落ちる）。中間証明書を送ってこない形なら、例規の取得（`tools/reiki/scrapers/static_catalog.py` の `ca_bundle_path`）と同じく足せば通る見込み。まだ確かめていない。
-- 次の段: 検索の索引と MCP の道具、文字の無い PDF（13%）の OCR、Excel・Word の添付、地図の自治体の欄への表示、フィードの無い団体の読み取り（[news-feed-survey.md](news-feed-survey.md) の「作るときの案」）。
+- 次の段: 本文と添付の全文検索（OpenSearch）、文字の無い PDF（13%）の OCR、Excel・Word の添付、地図の自治体の欄への表示、フィードの無い団体の読み取り（[news-feed-survey.md](news-feed-survey.md) の「作るときの案」）。
 - 実行状態（`management_task_statuses`）や収集状況のページにはまだ出していない。

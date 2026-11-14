@@ -1063,6 +1063,8 @@ fi
     # （プライバシーポリシーの保存期間）。日ごとのアクセスログはワーカー（nginx ユーザー）が
     # 開くので、web は置き場所の持ち主を nginx にしてから起動する。
     # ssh_copy_content はロケールの文字コードで送るので、この YAML には日本語を書かない。
+    # お知らせの置き場（news）は php にだけ読み取り専用で見せる。/api/news-item.php が
+    # 索引（work/news/index.sqlite）に控えた位置から本文と添付の行を 1 行ずつ読む。
     docker_compose_prod = f"""version: '3'
 services:
   web:
@@ -1120,6 +1122,7 @@ services:
       - ./data:/var/www/data
       - {shared_data_dir}/reiki:/var/www/data/reiki
       - {shared_data_dir}/gijiroku:/var/www/data/gijiroku
+      - {shared_data_dir}/news:/var/www/data/news:ro
       - {shared_data_dir}/work:/var/www/work
       - ./app:/var/www/html
       - ./lib:/var/www/lib

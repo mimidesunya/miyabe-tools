@@ -726,6 +726,11 @@ mark {
     border-radius: var(--radius-small);
 }
 
+/* 色は 3 種類の資料の見分けにだけ使う。それ以外（お知らせなど）は灰色の線。 */
+.docs-choice-grid > div:not([data-doc]) {
+    border-left-color: var(--line-strong);
+}
+
 .docs-params {
     display: grid;
     gap: 4px 16px;

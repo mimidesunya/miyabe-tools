@@ -700,11 +700,22 @@ def sweep_reiki_source_discovery(limit: int = 0) -> dict[str, object]:
 # お知らせのページは数日で消えることがあるので、見つけた回のうちに読む。
 # 結果は work/news/last_run.json・bodies_last_run.json・attachments_last_run.json と、
 # それぞれの runs にも残る。
+#
+# 段ごとに、増えた分を API の索引（work/news/index.sqlite、`tools/news/news_index.py`）へ足す。
+# 添付は 60 分かかることがあるので、項目と本文はその前に API に出す。
 @app.task(name="deploy.scraper_runtime.celery.tasks.run_news_fetch")
 def run_news_fetch(codes: list[str] | None = None) -> dict[str, object]:
-    from tools.news import fetch_news_attachments, fetch_news_bodies, fetch_news_feeds
+    from tools.news import fetch_news_attachments, fetch_news_bodies, fetch_news_feeds, news_index
 
     selected = set(codes) if codes else None
+    indexed: list[dict[str, object]] = []
+
+    def update_index() -> None:
+        try:
+            indexed.append(news_index.update_index(codes=selected))
+        except Exception as exc:
+            indexed.append({"error": f"{type(exc).__name__}: {exc}"})
+
     try:
         summary = fetch_news_feeds.run(codes=selected)
         result: dict[str, object] = {key: value for key, value in summary.items() if key != "errors"}
@@ -716,11 +727,14 @@ def run_news_fetch(codes: list[str] | None = None) -> dict[str, object]:
         result["bodies"] = {key: value for key, value in bodies.items() if key != "errors"}
     except Exception as exc:
         result["bodies"] = {"error": f"{type(exc).__name__}: {exc}"}
+    update_index()
     try:
         attachments = fetch_news_attachments.run(codes=selected)
         result["attachments"] = {key: value for key, value in attachments.items() if key != "errors"}
     except Exception as exc:
         result["attachments"] = {"error": f"{type(exc).__name__}: {exc}"}
+    update_index()
+    result["index"] = indexed
     return result
 
 

@@ -7,7 +7,7 @@
 - [reiki.md](reiki.md) — 例規集ツール。保存済み HTML / Markdown / JSON からの index 作成と画面・API
 - [hyoka-search.md](hyoka-search.md) — 事務事業評価の全文検索。頁・出典、索引の作成と本番実行、OCR・項目抽出との境界
 - [hyoka-projects.md](hyoka-projects.md) — 事務事業評価の事業ごとの索引。費用・方向性・評価・目標割れで探す、金額を集計する（二重に数えない仕組み）、MCP の 3 つの道具
-- [news.md](news.md) — 自治体の新着情報。フィードの台帳 `news_feed_urls.tsv`、3 時間おきの取得と保存（項目は消さない・版の付け方）、本番の worker
+- [news.md](news.md) — 自治体の新着情報。フィードの台帳 `news_feed_urls.tsv`、3 時間おきの取得と保存（項目は消さない・版の付け方）、本文と添付の PDF、一覧と 1 件の API・MCP の道具（`/api/news.php`・`list_municipal_news`）、本番の worker
 - [mcp.md](mcp.md) — MCP 連携。`/mcp` エンドポイント、ツール定義、設定項目
 
 ## 設計・運用
