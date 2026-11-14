@@ -122,7 +122,9 @@ test("hyoka MCP contract through a local public API mock", { timeout: 30000 }, a
       res.end(JSON.stringify({ status: "ok", index_updated_at: "2026-11-14 17:38:32", item: { ...newsFixture,
         api_item_url: undefined,
         body: { kind: "html", status: 200, pages: null, page_title: "入札 | 町田市", final_url: null,
-          fetched_at: "2026-11-14 17:36:54", text: "町田市では電子入札で行っています。", chars: 17, truncated: false },
+          fetched_at: "2026-11-14 17:36:54", chars: 17,
+          text: url.searchParams.get("max_body_chars") === "0" ? "" : "町田市では電子入札で行っています。",
+          truncated: url.searchParams.get("max_body_chars") === "0" },
         attachments: [
           { url: "https://example.invalid/list.pdf", link_text: "一覧表（PDF 120KB）", read: true, kind: "pdf", pages: 2,
             chars: 20, fetched_at: "2026-11-14 17:37:13", text: "〔1頁〕\n件名\n\n〔2頁〕\n工事", truncated: false },
@@ -414,6 +416,10 @@ test("hyoka MCP contract through a local public API mock", { timeout: 30000 }, a
     assert.match(itemText, /〔2頁〕\n工事/);
     assert.match(itemText, /添付 2: 様式（Excel） — まだ読んでいない/);
     assert.equal(item.structuredContent.item.attachments[1].read, false);
+
+    const short = await rpc(base, "tools/call", { name: "get_municipal_news_item", arguments: {
+      id: newsFixture.id, max_body_chars: 0 } });
+    assert.match(short.content[0].text, /本文: 17字（max_body_chars が 0 なので省いた）/);
   });
 
   await t.test("reports an ambiguous municipality name with candidates", async () => {

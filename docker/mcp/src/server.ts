@@ -1023,6 +1023,8 @@ function formatNewsItemText(payload: any): string {
   } else if (body.text) {
     out.push(`本文（${body.kind}、${body.chars}字${body.truncated ? `のうち先頭の ${body.text.length}字。max_body_chars で増やせる` : ""}）:`,
       "<<<自治体のページの本文 ここから>>>", body.text, "<<<ここまで>>>");
+  } else if (body.chars > 0) {
+    out.push(`本文: ${body.chars}字（max_body_chars が 0 なので省いた）`);
   } else {
     out.push(`本文: ${body.kind === "gone" ? "読む前にページが消えていた" : `取り出せなかった（${body.kind}）`}`);
   }
