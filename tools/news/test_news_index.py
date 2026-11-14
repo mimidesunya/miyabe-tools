@@ -176,6 +176,34 @@ class NewsIndexTest(unittest.TestCase):
         self.assertEqual(result["index_items"], 1)
         self.assertEqual(self.query("SELECT item_id FROM items"), [("a1",)])
 
+    def test_a_failure_drops_only_the_uncommitted_batch_and_the_next_run_reads_it_again(self) -> None:
+        self.append("items", [item("a1", "町田", "2026-11-13", "2026-11-13 10:00:00")])
+        self.update()
+        self.append("items", [item("a2", "町田 2", "2026-11-14", "2026-11-14 10:00:00")])
+        self.append("items", [{"id": "s1", "jis_code": "01100", "url": "https://www.city.sapporo.jp/s1.html",
+                               "title": "札幌", "first_seen_at": "2026-11-14 10:00:00", "date": "2026-11-14"}],
+                    slug="01100-sapporo-shi")
+        original_item = news_index.NewsIndex._item
+        original_seconds = news_index.COMMIT_SECONDS
+
+        def broken(index, record, slug, code, ref, offset):
+            if slug == SLUG:
+                raise RuntimeError("壊れた")
+            return original_item(index, record, slug, code, ref, offset)
+
+        news_index.NewsIndex._item = broken
+        news_index.COMMIT_SECONDS = 0.0  # 自治体ごとに確定させる（札幌が先、町田が後）
+        try:
+            with self.assertRaises(RuntimeError):
+                self.update()
+        finally:
+            news_index.NewsIndex._item = original_item
+            news_index.COMMIT_SECONDS = original_seconds
+        self.assertEqual(self.query("SELECT item_id FROM items ORDER BY item_id"), [("a1",), ("s1",)])
+        result = self.update()
+        self.assertEqual(result["index_items"], 1)
+        self.assertEqual(self.query("SELECT item_id FROM items ORDER BY item_id"), [("a1",), ("a2",), ("s1",)])
+
     def test_excerpt_skips_page_furniture_and_the_title(self) -> None:
         text = "\n".join([
             "「ホリデーイベント」の参加者募集", "ページ番号：1014261", "更新日", "令和8年11月13日", "印刷大きな文字で印刷",

@@ -17,7 +17,8 @@
 本文と添付の全文は索引に入れない（本文だけで年に 5GB、添付で 24GB ほどになる）。
 web は行の位置から元のファイルを 1 行だけ読む（`lib/news_api.php`）。
 
-- web は読むだけで開く。書くのはこの台本だけで、自治体 1 つごとに確定する。
+- web は読むだけで開く。書くのはこの台本だけで、30 秒ごとにまとめて確定する（確定のたびにディスクの
+  書き込みの完了を待つので、自治体ごとだと本番の HDD で何十分もかかった）。
   読んだ位置も同じ確定に入れるので、途中で止まっても、次は止まったところから読む。
 - 書いている途中の最後の行（改行で終わっていない行）は読まず、次に回す。
 - 同じ自治体の同じ題名・同じ日付は、先に見つけた 1 件だけを出す（`hidden`）。
@@ -52,6 +53,7 @@ INDEX_NAME = "index.sqlite"
 
 SCHEMA_VERSION = "1"
 SUMMARY_CHARS = 300
+COMMIT_SECONDS = 30.0
 EXCERPT_CHARS = 160
 EXCERPT_MIN_LINE = 15
 BOILERPLATE = re.compile(r"^(ページの先頭|メニューを飛ばして|本文へ|ここから本文|現在の位置|このページ|ページ番号|更新日|最終更新)")
@@ -300,40 +302,42 @@ class NewsIndex:
         self.offsets = dict(conn.execute("SELECT path, offset FROM sources"))
 
     def ingest(self, directory: Path) -> dict[str, int]:
-        """1 自治体の増えた分を読み、確定する。"""
+        """1 自治体の増えた分を読む。確定は呼び手（`update_index`）がまとめて行う。
+
+        行と読んだ位置は同じ確定に入るので、途中で止まっても、次は確定したところから読む。
+        """
         slug = directory.name
         code = SLUG_PATTERN.match(slug).group(1)  # type: ignore[union-attr]
         counts = {"items": 0, "bodies": 0, "attachments": 0}
         handlers = {"items": self._item, "bodies": self._body, "attachments": self._attachment}
-        with self.conn:
-            for kind in KINDS:
-                for path in year_files(directory / kind):
-                    key = f"{slug}/{kind}/{path.name}"
-                    offset = self.offsets.get(key, 0)
+        for kind in KINDS:
+            for path in year_files(directory / kind):
+                key = f"{slug}/{kind}/{path.name}"
+                offset = self.offsets.get(key, 0)
+                try:
+                    size = path.stat().st_size
+                except OSError:
+                    continue
+                if size < offset:  # 作り直されたファイル。初めから読む（同じ行は上書きになるだけ）
+                    offset = 0
+                if size == offset:
+                    continue
+                lines, position = new_lines(path, offset)
+                ref = f"{kind}/{path.name}"
+                for line_offset, raw in lines:
                     try:
-                        size = path.stat().st_size
-                    except OSError:
+                        record = json.loads(raw)
+                    except ValueError:
                         continue
-                    if size < offset:  # 作り直されたファイル。初めから読む（同じ行は上書きになるだけ）
-                        offset = 0
-                    if size == offset:
-                        continue
-                    lines, position = new_lines(path, offset)
-                    ref = f"{kind}/{path.name}"
-                    for line_offset, raw in lines:
-                        try:
-                            record = json.loads(raw)
-                        except ValueError:
-                            continue
-                        if isinstance(record, dict) and handlers[kind](record, slug, code, ref, line_offset):
-                            counts[kind] += 1
-                    if position != offset:
-                        self.conn.execute("INSERT INTO sources (path, offset) VALUES (?, ?) "
-                                          "ON CONFLICT (path) DO UPDATE SET offset = excluded.offset", (key, position))
-                        self.offsets[key] = position
-            if counts["items"]:
-                self.conn.execute(MARK_DUPLICATES, (slug,))
-                self.conn.execute(COUNT_MUNICIPALITY, {"slug": slug, "jis_code": code})
+                    if isinstance(record, dict) and handlers[kind](record, slug, code, ref, line_offset):
+                        counts[kind] += 1
+                if position != offset:
+                    self.conn.execute("INSERT INTO sources (path, offset) VALUES (?, ?) "
+                                      "ON CONFLICT (path) DO UPDATE SET offset = excluded.offset", (key, position))
+                    self.offsets[key] = position
+        if counts["items"]:
+            self.conn.execute(MARK_DUPLICATES, (slug,))
+            self.conn.execute(COUNT_MUNICIPALITY, {"slug": slug, "jis_code": code})
         return counts
 
     def _item(self, record: dict, slug: str, code: str, ref: str, offset: int) -> bool:
@@ -365,11 +369,18 @@ def connect(path: Path) -> sqlite3.Connection:
     # web は読むだけで開くので WAL は使わない（読み手が -shm を書けない）。確定の一瞬だけ読み手を待たせる。
     conn.execute("PRAGMA journal_mode = DELETE")
     conn.execute("PRAGMA synchronous = NORMAL")
+    # 確定の前に書き出す（そのあいだ読み手を待たせる）ことがないよう、手元に多めに抱える。
+    conn.execute("PRAGMA cache_size = -65536")
     return conn
 
 
 def create(path: Path, master: dict[str, dict[str, str]]) -> sqlite3.Connection:
-    conn = connect(path)
+    """一から作るファイルを開く。差し替えるまで誰も読まず、途中で落ちたら次も一から作るので、
+    ディスクへの書き込みの完了を待たない（本番の HDD では、確定ごとの待ちで 1,391 自治体に 44 分かかった）。"""
+    conn = sqlite3.connect(path, timeout=60)
+    conn.execute("PRAGMA journal_mode = OFF")
+    conn.execute("PRAGMA synchronous = OFF")
+    conn.execute("PRAGMA cache_size = -65536")
     with conn:
         conn.executescript(SCHEMA)
         conn.execute("INSERT INTO meta (key, value) VALUES ('schema_version', ?)", (SCHEMA_VERSION,))
@@ -433,18 +444,26 @@ def update_index(*, data_root: Path = DEFAULT_DATA_ROOT, work_root: Path = DEFAU
     municipalities = 0
     try:
         index = NewsIndex(conn)
+        last_commit = time.monotonic()
         for directory in municipality_dirs(data_root, codes):
             added = index.ingest(directory)
             municipalities += 1 if any(added.values()) else 0
             for key, value in added.items():
                 counts[key] += value
+            # 確定は COMMIT_SECONDS ごとにまとめる。確定のたびにディスクの書き込みの完了を待つので、
+            # 自治体ごとに確定すると、ほかの取得で混んだ HDD では何十分もかかる。
+            if time.monotonic() - last_commit >= COMMIT_SECONDS:
+                conn.commit()
+                last_commit = time.monotonic()
         stamp = (now or datetime.now(JST)).astimezone(JST).strftime(TIME_FORMAT)
-        with conn:
-            conn.execute("INSERT INTO meta (key, value) VALUES ('updated_at', ?) "
-                         "ON CONFLICT (key) DO UPDATE SET value = excluded.value", (stamp,))
+        conn.execute("INSERT INTO meta (key, value) VALUES ('updated_at', ?) "
+                     "ON CONFLICT (key) DO UPDATE SET value = excluded.value", (stamp,))
+        conn.commit()
     finally:
-        conn.close()
+        conn.close()  # 確定していない分は捨てる。読んだ位置も一緒に戻るので、次の回に読み直す
     if fresh:
+        with target.open("rb+") as handle:  # 差し替える前に、書いた中身をディスクへ
+            os.fsync(handle.fileno())
         os.replace(target, path)
     return {
         "index_rebuilt": fresh,
