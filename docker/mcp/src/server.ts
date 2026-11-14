@@ -920,7 +920,7 @@ const newsListInputSchema = z.object({
   pref_code: z.string().optional().describe("都道府県コード。例: 東京都は 13。自治体を指定しなければ、その都道府県の全部の自治体。"),
   since: z.string().optional().describe("この日から（YYYY-MM-DD）。日付はお知らせの日付。日付の無いものと、催しの日を日付にしたものは、見つけた日で数える。"),
   until: z.string().optional().describe("この日まで（YYYY-MM-DD）。"),
-  q: z.string().max(50).optional().describe("題名と概要に含まれる言葉。空白で区切ると全部を含むもの（5 語まで）。本文の全文検索ではない。"),
+  q: z.string().max(50).optional().describe("題名と概要に含まれる言葉。空白で区切ると全部を含むもの（5 語まで）。本文の全文検索ではない。都道府県も自治体も指定しないとき（全国）は、期間を 31 日以内にしてください（since を書かなければ直近 7 日）。"),
   page: z.number().int().min(1).default(1).describe("ページ番号。page × per_page は 10000 まで。"),
   per_page: z.number().int().min(1).max(50).default(20).describe("1ページの件数。MCPでは最大50件。")
 });

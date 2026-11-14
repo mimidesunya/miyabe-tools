@@ -17,6 +17,8 @@ const NEWS_API_REF_PATTERN = '/^(bodies|attachments)\/\d{4}\.jsonl$/';
 const NEWS_API_MAX_PER_PAGE = 100;
 const NEWS_API_MAX_WINDOW = 10000;
 const NEWS_API_MAX_QUERY_CHARS = 50;
+const NEWS_API_NATIONWIDE_Q_DAYS = 31;
+const NEWS_API_NATIONWIDE_Q_DEFAULT_DAYS = 7;
 const NEWS_API_DEFAULT_TEXT_CHARS = 20000;
 const NEWS_API_MAX_TEXT_CHARS = 200000;
 
@@ -255,7 +257,8 @@ const NEWS_API_ITEM_COLUMNS = 'i.slug, i.item_id, i.jis_code, i.pref_code, i.tit
     b.kind AS body_kind, b.chars AS body_chars, b.excerpt AS body_excerpt, b.attachments_count';
 
 // お知らせの一覧。新しい順（日付。日付の無いもの・催しの日のものは見つけた日）。
-function news_api_list(array $query, ?PDO $pdo = null): array
+// $today は試験のため（既定は日本時間のきょう）。
+function news_api_list(array $query, ?PDO $pdo = null, ?string $today = null): array
 {
     $pdo ??= news_api_open();
     $prefCode = news_api_pref_code($query);
@@ -268,6 +271,20 @@ function news_api_list(array $query, ?PDO $pdo = null): array
     $q = news_api_param($query, 'q');
     if ($q !== null && mb_strlen($q) > NEWS_API_MAX_QUERY_CHARS) {
         throw new NewsApiError(400, 'invalid_request', 'q は ' . NEWS_API_MAX_QUERY_CHARS . ' 字までです。');
+    }
+    // 言葉は題名と概要を 1 件ずつ見るので、全国では期間を区切る（全国の 10 万 8 千件で 1.1 秒。1 日 2,400 件ずつ増える）。
+    $note = null;
+    if ($q !== null && $municipality === null && $prefCode === null) {
+        $today ??= (new DateTimeImmutable('now', new DateTimeZone('Asia/Tokyo')))->format('Y-m-d');
+        if ($since === null) {
+            $since = (new DateTimeImmutable($until ?? $today))->modify('-' . (NEWS_API_NATIONWIDE_Q_DEFAULT_DAYS - 1) . ' days')->format('Y-m-d');
+            $note = '全国を言葉で絞るときは、since を書かなければ直近 ' . NEWS_API_NATIONWIDE_Q_DEFAULT_DAYS . ' 日です。';
+        }
+        $days = (int)(new DateTimeImmutable($since))->diff(new DateTimeImmutable($until ?? $today))->format('%a') + 1;
+        if ($days > NEWS_API_NATIONWIDE_Q_DAYS) {
+            throw new NewsApiError(400, 'invalid_request', '全国を言葉で絞るときは、期間を ' . NEWS_API_NATIONWIDE_Q_DAYS
+                . ' 日以内にしてください。都道府県か自治体を指定すれば、期間は自由です。');
+        }
     }
     $page = news_api_int($query, 'page', 1, 1, NEWS_API_MAX_WINDOW);
     $perPage = news_api_int($query, 'per_page', 20, 1, NEWS_API_MAX_PER_PAGE);
@@ -338,6 +355,8 @@ function news_api_list(array $query, ?PDO $pdo = null): array
     ];
     if ($municipality !== null && $municipality['slug'] === null) {
         $payload['note'] = 'この自治体のお知らせはまだ集めていません（新着情報のフィードが見つかっていないなど）。';
+    } elseif ($note !== null) {
+        $payload['note'] = $note;
     }
     return $payload;
 }
@@ -428,7 +447,8 @@ function news_api_item(array $query, ?PDO $pdo = null): array
                 $text = (string)($line['text'] ?? '');
             }
         }
-        [$cut, $length, $truncated] = news_api_cut($text, $maxBody);
+        // 頁の印は切る前に付ける（切ってから付けると、1 頁目で切ったときに〔1頁〕が付かない）。
+        [$cut, , $truncated] = news_api_cut($row['body_kind'] === 'pdf' ? news_api_mark_pages($text) : $text, $maxBody);
         $body = [
             'kind' => (string)$row['body_kind'],
             'status' => $row['body_status'] !== null ? (int)$row['body_status'] : null,
@@ -436,8 +456,8 @@ function news_api_item(array $query, ?PDO $pdo = null): array
             'page_title' => $row['page_title'] !== null ? (string)$row['page_title'] : null,
             'final_url' => $row['final_url'] !== null ? (string)$row['final_url'] : null,
             'fetched_at' => $row['body_fetched_at'] !== null ? (string)$row['body_fetched_at'] : null,
-            'text' => $row['body_kind'] === 'pdf' ? news_api_mark_pages($cut) : $cut,
-            'chars' => $length,
+            'text' => $cut,
+            'chars' => mb_strlen($text),
             'truncated' => $truncated,
         ];
     }
@@ -471,9 +491,9 @@ function news_api_item(array $query, ?PDO $pdo = null): array
                 } else {
                     $line = news_api_read_line($slug, (string)$found['ref'], (int)$found['offset']);
                     if ($line !== null && (string)($line['url'] ?? '') === $link['url']) {
-                        [$cut, , $truncated] = news_api_cut((string)($line['text'] ?? ''), $budget);
+                        [$cut, , $truncated] = news_api_cut(news_api_mark_pages((string)($line['text'] ?? '')), $budget);
                         $budget -= mb_strlen($cut);
-                        $entry['text'] = news_api_mark_pages($cut);
+                        $entry['text'] = $cut;
                         $entry['truncated'] = $truncated || (bool)$found['truncated'];
                     }
                 }

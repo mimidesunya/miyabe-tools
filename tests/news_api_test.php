@@ -126,9 +126,16 @@ $named = news_api_list(['municipality' => '東京都町田市', 'since' => '2026
 check('都道府県名つきの名前と since', $named['total'] === 2 && $named['municipality']['municipality_code'] === '13209'
     && $named['municipality']['collecting'] === true);
 check('pref_code で都道府県', news_api_list(['pref_code' => '7'], $pdo)['total'] === 1);
-check('q は題名と概要から', array_column(news_api_list(['q' => '一般競争'], $pdo)['items'], 'id') === ['news:13209-machida-shi:m1']);
-check('q の % は文字として探す', array_column(news_api_list(['q' => '100%'], $pdo)['items'], 'id') === ['news:13209-machida-shi:m3']
-    && news_api_list(['q' => '%'], $pdo)['total'] === 1);
+$today = '2026-11-14';
+$nationwide = news_api_list(['q' => '一般競争'], $pdo, $today);
+check('q は題名と概要から', array_column($nationwide['items'], 'id') === ['news:13209-machida-shi:m1']);
+check('全国の q は、since が無ければ直近 7 日', ($nationwide['filters']->since ?? null) === '2026-11-08'
+    && isset($nationwide['note']));
+check('全国の q で 31 日を超える期間は断る', fails(fn() => news_api_list(['q' => '還元', 'since' => '2026-10-01'], $pdo, $today), 400, 'invalid_request'));
+check('全国の q の 31 日ちょうどは受ける', news_api_list(['q' => '還元', 'since' => '2026-10-15'], $pdo, $today)['total'] === 0);
+check('自治体を指定した q は期間が自由', array_column(news_api_list(['q' => '100%', 'slug' => '13209-machida-shi'], $pdo, $today)['items'], 'id')
+    === ['news:13209-machida-shi:m3']);
+check('q の % は文字として探す', news_api_list(['q' => '%', 'pref_code' => '13', 'since' => '2026-01-01'], $pdo, $today)['total'] === 1);
 check('自治体コードの 6 桁', news_api_list(['municipality_code' => '132098'], $pdo)['total'] === 4);
 check('頁送り', array_column(news_api_list(['slug' => '13209-machida-shi', 'per_page' => '2', 'page' => '2'], $pdo)['items'], 'id')
     === ['news:13209-machida-shi:m4', 'news:13209-machida-shi:m3']);
@@ -161,6 +168,7 @@ check('1 件には api_item_url を付けない', !array_key_exists('api_item_ur
 $cut = news_api_item(['id' => 'news:13209-machida-shi:m1', 'max_body_chars' => '5', 'max_attachment_chars' => '3'], $pdo)['item'];
 check('本文を切る', mb_strlen($cut['body']['text']) === 5 && $cut['body']['truncated'] === true
     && $cut['body']['chars'] === mb_strlen($bodyText));
+check('切っても 1 頁目の印は付く', ($cut['attachments'][0]['text'] ?? '') === '〔1頁');
 check('添付の上限は全部で。使い切った分は omitted', ($cut['attachments'][0]['truncated'] ?? null) === true
     && ($cut['attachments'][1]['omitted'] ?? null) === true && !isset($cut['attachments'][1]['text']));
 $without = news_api_item(['id' => 'news:13209-machida-shi:m1', 'include_attachments' => '0'], $pdo)['item'];
