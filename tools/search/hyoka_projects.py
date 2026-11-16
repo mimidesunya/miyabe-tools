@@ -49,7 +49,13 @@ COST_SCOPES = ("total", "direct", "personnel")
 
 UNIT_FACTORS = {"円": 1, "千円": 1_000, "万円": 10_000, "百万円": 1_000_000, "億円": 100_000_000}
 EMPTY_VALUES = {"", "-", "－", "―", "—", "‐", "−", "…", "・", "ー", "*", "＊", "x", "X"}
-NUMBER_RE = re.compile(r"([△▲\-−]?)(\d+(?:\.\d+)?)")
+# 桁区切りのカンマは 3 桁ごとのときだけ数の一部とみる。1 つの升目に入った複数の数を空白を除いてつなぐと
+# 「33,36644,9700」のように区切りが崩れるので、数として読まない（杉並区・琴浦町で 10 の 58 乗の金額になった）。
+NUMBER_RE = re.compile(r"([△▲\-−]?)(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?")
+# 1 つの事業の金額としてありえない大きさ（10 兆円）。これ以上は読み違いとみて落とす。
+MAX_YEN = 10**13
+# 指標の目標・実績としてありえない大きさ。これ以上は読み違いとみて落とす。
+MAX_NUMBER = 1e15
 YEAR_RE = re.compile(r"(\d{4})\s*年度")
 
 # 方向性の短い記載の言葉。長い文は区分を決めない（「縮小は考えていない」を縮小と読まない）。
@@ -73,19 +79,25 @@ def nfkc(value: object) -> str:
 
 def parse_number(raw: object) -> float | None:
     """升目の数（「1,234」「△500」「7.0以上」「85.8%」）。数の後ろに数字以外が付くのは許す。数が無ければ None。"""
-    text = nfkc(raw).replace(",", "").replace(" ", "")
+    text = nfkc(raw).replace(" ", "")
     if text in EMPTY_VALUES:
         return None
     match = NUMBER_RE.match(text)
     if match is None or re.search(r"\d", text[match.end():]):
         return None
-    value = float(match.group(2))
+    value = number_value(match)
+    if abs(value) >= MAX_NUMBER:
+        return None
     return -value if match.group(1) else value
+
+
+def number_value(match: re.Match) -> float:
+    return float(match.group(2).replace(",", "") + (match.group(3) or ""))
 
 
 def parse_yen(raw: object, unit: str) -> int | None:
     """金額を円にする。単位が分からなければ None（推定しない）。値の中に単位が書いてあればそちらを使う。"""
-    text = nfkc(raw).replace(",", "").replace(" ", "")
+    text = nfkc(raw).replace(" ", "")
     for name in sorted(UNIT_FACTORS, key=len, reverse=True):
         if text.endswith(name):
             unit = name
@@ -97,7 +109,9 @@ def parse_yen(raw: object, unit: str) -> int | None:
     match = NUMBER_RE.fullmatch(text)
     if match is None:
         return None
-    value = round(float(match.group(2)) * factor)
+    value = round(number_value(match) * factor)
+    if value >= MAX_YEN:
+        return None
     return -value if match.group(1) else value
 
 
