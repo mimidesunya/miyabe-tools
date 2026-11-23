@@ -326,9 +326,27 @@ python3 tools/news/news_search.py --rebuild --workers 4  # 一から
 - `total` はお知らせの数（`cardinality`。1 万を超えると概数で、`total_relation: approximate`）。`per_page` は 30 まで。
 - 当たった語の抜粋は、文書ごとに先頭の 120,000 字で解析する。
 
-### 初めての 1 回（本番）
+### 作り直し（本番）
 
-2026-11-23 の本番の量は、本文 12 万 6 千件・1.45 億字、添付 23 万 5 千本・14.3 億字。既存の索引の大きさ（事務事業評価 1 字 2.9 バイト、例規 3.5 バイト）から見ると、5GB 前後。分かち書きは手元（1 スレッド）で毎秒 13 万字ほど。CPU 0.5 の `scraper-news` の中では半日かかるので、初めての 1 回は並列にして別に流す。
+`scraper-news` は CPU 0.5 なので、一から作るのは別の一時容器で、分かち書きを並列にして流す（`docker exec` では CPU 0.5 のまま）。
+作っている間も、今の索引で検索できる。作り直しのあいだ、定時の回の更新は待つ。
+
+```bash
+docker run -d --name miyabe-news-rebuild --cpus 6 --user 1000:1000 -w /workspace \
+  -v ~/services/miyabe-tools:/workspace \
+  -v /mnt/big/miyabe-tools/news:/workspace/data/news \
+  -v /mnt/big/miyabe-tools/work/news:/workspace/work/news \
+  --add-host host.docker.internal:host-gateway -e HOME=/tmp -e PYTHONUNBUFFERED=1 \
+  -e OPENSEARCH_URL=http://host.docker.internal:9200 \
+  miyabe-tools-scraper python3 tools/news/news_search.py --rebuild --workers 6
+docker logs -f miyabe-news-rebuild    # 5,000 件ごとに進み具合。終わったら docker rm miyabe-news-rebuild
+```
+
+- 2026-11-23 の 1 回目: 36 万 468 文書（お知らせ 12.6 万件と添付の PDF）、5.3GB、38 分（毎分 1 万件ほど）。
+  事務事業評価の事業の索引づくりと 20 分重なったが、OpenSearch の書き込みの断り（`thread_pool/write` の rejected）は 0、ヒープは 65% まで。
+- 古い世代は消さない。切り替えのあとで `_cat/aliases` に載っていないことを確かめてから消す（本番の削除は自動モードで止められるので、利用者に頼む）。
+- `scraper-news` は 2026-11-23 まで `extra_hosts` が無く、`host.docker.internal` を引けなかった（ほかの索引の worker にはある）。
+  定時の回の更新が `search_error`（OpenSearch is unreachable）になっていたら、まずこれを疑う。
 
 ## 量と負荷
 
