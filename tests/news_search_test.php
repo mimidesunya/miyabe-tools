@@ -74,6 +74,9 @@ check('part で添付だけにする', in_array(['term' => ['part' => 'attachmen
 check('頁送り', $request['body']['from'] === 5 && $request['body']['size'] === 5);
 check('お知らせ 1 件にまとめる', $request['body']['collapse']['field'] === 'item_key'
     && $request['body']['collapse']['inner_hits']['name'] === 'parts');
+check('題名の強調はまとめた当たりに、本文の抜粋は文書ごとに付ける',
+    array_keys($request['body']['highlight']['fields']) === ['title']
+    && array_keys($request['body']['collapse']['inner_hits']['highlight']['fields']) === ['body']);
 check('1 語の検索は日付の新しい順が先', $request['proximity_ranked'] === false && array_keys($request['body']['sort'][0])[0] === 'sort_date');
 $relevance = news_search_build_request(['q' => 'ごみ', 'sort' => 'relevance'], $pdo);
 check('関連度順', array_keys($relevance['body']['sort'][0])[0] === '_score');

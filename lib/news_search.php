@@ -89,11 +89,17 @@ function news_search_build_request(array $query, ?PDO $pdo = null): array
             : [['_score' => ['order' => 'desc']], ['sort_date' => ['order' => 'desc', 'missing' => '_last']]];
     }
 
+    // 題名の強調はまとめた当たり（上の段）に、本文の抜粋は当たった文書ごと（inner_hits）に付ける。
+    // inner_hits の強調は上の段の当たりには返らないので、題名を inner_hits に付けても題名の強調は空になる。
+    $titleHighlight = [
+        'pre_tags' => ['[[['],
+        'post_tags' => [']]]'],
+        'fields' => ['title' => ['number_of_fragments' => 0]],
+    ];
     $highlight = [
         'pre_tags' => ['[[['],
         'post_tags' => [']]]'],
         'fields' => [
-            'title' => ['number_of_fragments' => 0],
             'body' => [
                 'fragment_size' => 160,
                 'number_of_fragments' => 1,
@@ -122,6 +128,7 @@ function news_search_build_request(array $query, ?PDO $pdo = null): array
         ],
         '_source' => ['item_key', 'slug', 'municipality_code', 'pref_code', 'pref_name', 'municipality_name', 'title', 'url',
             'date', 'sort_date', 'first_seen_at', 'event_start', 'event_end', 'summary', 'categories', 'hidden'],
+        'highlight' => $titleHighlight,
         'aggs' => ['items' => ['cardinality' => ['field' => 'item_key', 'precision_threshold' => 10000]]],
     ];
 
