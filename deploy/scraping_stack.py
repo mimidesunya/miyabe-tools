@@ -94,7 +94,6 @@ def build_scraping_compose(
         "MIYABE_MINUTES_ALIAS": "${MIYABE_MINUTES_ALIAS:-miyabe-minutes-current}",
         "MIYABE_REIKI_ALIAS": "${MIYABE_REIKI_ALIAS:-miyabe-reiki-current}",
         "MIYABE_HYOKA_ALIAS": "${MIYABE_HYOKA_ALIAS:-miyabe-hyoka-current}",
-        "MIYABE_NEWS_ALIAS": "${MIYABE_NEWS_ALIAS:-miyabe-news-current}",
         "MANAGEMENT_DATABASE_URL": "${MANAGEMENT_DATABASE_URL:-postgresql://miyabe:miyabe@host.docker.internal:5432/miyabe_management}",
         "SCRAPER_BUILD_SEARCH_INDEX": "1",
     }
@@ -267,6 +266,8 @@ def build_scraping_compose(
             # 自治体の新着情報のフィード・リンク先の本文・添付の PDF を読む（3 時間おき）。
             # フィードと本文は 15 分ほどで CPU はほとんど使わない。PDF の本文の抜き出しは
             # 1 回 60 分まで、CPU 0.5 を使い切ってよい（溜まった分がなくなれば短くなる）。
+            # お知らせの全文検索の索引（OpenSearch）へも入れるので、ほかの索引の worker と同じく
+            # host.docker.internal を引けるようにする（無いと OpenSearch に届かない。2026-11-23）。
             "scraper-news": {
                 "image": image_name,
                 "restart": "unless-stopped",
@@ -282,6 +283,7 @@ def build_scraping_compose(
                     f"{shared_data_dir}/news:/workspace/data/news",
                     f"{shared_data_dir}/work/news:/workspace/work/news",
                 ],
+                "extra_hosts": ["host.docker.internal:host-gateway"],
                 "command": [
                     "celery",
                     "-A",

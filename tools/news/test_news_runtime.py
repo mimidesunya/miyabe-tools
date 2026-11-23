@@ -38,6 +38,9 @@ class NewsWorkerComposeTest(unittest.TestCase):
         self.assertIn("/mnt/big/miyabe-tools/work/news:/workspace/work/news", service["volumes"])
         queues = service["command"][service["command"].index("-Q") + 1]
         self.assertEqual(queues, "news")
+        # 全文検索の索引（OpenSearch）に届くように。
+        self.assertIn("host.docker.internal:host-gateway", service["extra_hosts"])
+        self.assertTrue(service["environment"]["OPENSEARCH_URL"].endswith("host.docker.internal:9200}"))
 
 
 @unittest.skipIf(celery_app is None, "celery が無い環境では確かめない")
