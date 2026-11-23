@@ -124,11 +124,11 @@ def test_full_sheet_wins_over_summary_row_with_same_name():
 def test_projects_link_by_code_and_by_name_across_years_only():
     renamed = [hp.project_document(SLUG, {"doc_id": "a" * 16}, record("r1", "難病対策事業", code="105", table=sheet(2024, ["1", "2"])),
                                    {"fiscal_year": 2024}, {}),
-               hp.project_document(SLUG, {"doc_id": "b" * 16}, record("r2", "指定難病対策事業", code="105", table=sheet(2025, ["2", "3"])),
+               hp.project_document(SLUG, {"doc_id": "b" * 16}, record("r2", "指定難病対策事業", code="105", year=2025, table=sheet(2025, ["2", "3"])),
                                    {"fiscal_year": 2025}, {})]
     renumbered = [hp.project_document(SLUG, {"doc_id": "a" * 16}, record("r3", "児童虐待防止対策事業", code="201", table=sheet(2024, ["1", "2"])),
                                       {"fiscal_year": 2024}, {}),
-                  hp.project_document(SLUG, {"doc_id": "b" * 16}, record("r4", "児童虐待防止対策事業", code="210", table=sheet(2025, ["2", "3"])),
+                  hp.project_document(SLUG, {"doc_id": "b" * 16}, record("r4", "児童虐待防止対策事業", code="210", year=2025, table=sheet(2025, ["2", "3"])),
                                       {"fiscal_year": 2025}, {})]
     same_year = [hp.project_document(SLUG, {"doc_id": "a" * 16}, record("r5", "広報事業", code="301", table=sheet(2024, ["1", "2"])),
                                      {"fiscal_year": 2024}, {}),
@@ -142,6 +142,41 @@ def test_projects_link_by_code_and_by_name_across_years_only():
     assert keys["r5"] != keys["r6"]
     best_2024 = sum(fact["yen"] for doc in same_year for fact in doc["amounts"] if fact["best"] and fact["year"] == 2024)
     assert best_2024 == 8_000
+
+
+def coded(rows):
+    """(年度, 番号, 事業名) の並びから、年度ごとの文書の記録を作る。"""
+    return [hp.project_document(SLUG, {"doc_id": f"{year:016d}"}, record(f"{year}-{code}-{name}", name, code=code, year=year,
+                                                                       table=amounts("千円", [(year, "決算")], [("総コスト(A+B)", "総費用（人件費を含む）", ["100"])])),
+                                {"fiscal_year": year}, {}) for year, code, name in rows]
+
+
+def test_serial_numbers_do_not_link_different_projects():
+    # 毎年 1 から振り直す通し番号。番号が同じでも関係の無い事業なので、名前だけでつなぐ。
+    names = [f"{word}事業" for word in "あいうえおかきくけこさしすせそたちつてとなにぬねの"]
+    documents = coded([(year, str(index + 1), name) for year in (2022, 2023, 2024)
+                       for index, name in enumerate(names[year - 2022:] + names[:year - 2022])])
+    hp.mark_best(documents)
+    assert len({doc["project_key"] for doc in documents}) == len(names)
+    assert not any("renamed" in doc["flags"] for doc in documents)
+    assert sum(fact["yen"] for doc in documents for fact in doc["amounts"] if fact["best"] and fact["year"] == 2024) == len(names) * 100_000
+
+
+def test_numbers_shared_in_one_year_do_not_link():
+    # 部署ごとの通し番号。同じ年度に 1 つの番号へいくつもの事業が並ぶ。
+    documents = coded([(2024, str(number), f"{word}の{number}") for word in "あいう" for number in range(1, 11)])
+    hp.mark_best(documents)
+    assert len({doc["project_key"] for doc in documents}) == 30
+
+
+def test_rename_links_only_when_the_names_do_not_coexist():
+    stable = [(year, str(index + 100), f"事業{index}") for year in (2022, 2023, 2024) for index in range(30)]
+    documents = coded(stable + [(2022, "1", "旧の名前"), (2023, "1", "新しい名前"), (2024, "1", "新しい名前"),
+                                (2022, "2", "続く事業"), (2023, "2", "番号を継いだ事業"), (2023, "3", "続く事業")])
+    hp.mark_best(documents)
+    keys = {doc["project_name"]: doc["project_key"] for doc in documents}
+    assert keys["旧の名前"] == keys["新しい名前"]
+    assert keys["続く事業"] != keys["番号を継いだ事業"]
 
 
 def write_display(root: Path, docs: dict[str, list[dict]]):

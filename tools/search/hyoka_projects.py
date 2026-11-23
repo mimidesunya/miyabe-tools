@@ -511,12 +511,33 @@ def project_document(slug: str, doc: dict, record: dict, meta: dict, municipalit
     }
 
 
+# 事業番号が事業を決めているかを確かめる数。番号と年度の組がこれより少なければ、番号を信じる。
+CODE_MIN_CELLS = 20
+# 同じ年度に 1 つの番号へ 2 つ以上の名前が付く割合の上限と、続く年度で同じ番号の名前が同じ割合の下限。
+CODE_MAX_CLASH = 0.05
+CODE_MIN_SAME_NAME = 0.9
+
+
+def codes_identify_projects(names_by_code: dict[str, dict[int, set[str]]]) -> bool:
+    """事業番号が年度をまたいで 1 つの事業を指す自治体か。
+
+    川崎市の番号は事業に固有だが、文書や課の中の通し番号を事業番号の欄に刷る自治体もある。通し番号で
+    まとめると関係の無い事業が 1 つになり、集計から落ちるので、番号と名前の対応を数えて見分ける。
+    """
+    cells = [names for years in names_by_code.values() for names in years.values()]
+    if len(cells) >= CODE_MIN_CELLS and sum(len(names) > 1 for names in cells) > len(cells) * CODE_MAX_CLASH:
+        return False
+    pairs = [(years[before], years[after]) for years in names_by_code.values()
+             for before, after in zip(sorted(years), sorted(years)[1:])]
+    return len(pairs) < CODE_MIN_CELLS or sum(bool(a & b) for a, b in pairs) >= len(pairs) * CODE_MIN_SAME_NAME
+
+
 def link_projects(documents: list[dict]) -> None:
     """1 自治体の中で同じ事業の記録に同じ project_key を付ける（その場で書き換える）。
 
-    事業番号があれば番号で、無ければ名前でまとめる。名前が変わっても番号が同じなら同じ事業、
-    番号が振り直されても、違う年度の文書で名前が同じなら同じ事業とみなす。同じ年度の文書で名前が同じで
-    番号の違う記録（別の部署の同名の事業）はまとめない。
+    違う年度の文書で名前が同じなら、番号が振り直されても同じ事業とみなす。同じ年度の文書で名前が同じで
+    番号の違う記録（別の部署の同名の事業）はまとめない。名前の違う記録は、番号が事業を決めている自治体で
+    番号が同じで、しかも 2 つの名前が同じ年度に並ばないとき（改称）だけまとめる。
     """
     parent: dict[str, str] = {}
 
@@ -531,24 +552,47 @@ def link_projects(documents: list[dict]) -> None:
         if root_a != root_b:
             parent[max(root_a, root_b)] = min(root_a, root_b)
 
-    nodes = []
-    by_name: dict[str, list[tuple[str, int]]] = {}
+    nodes: list[str] = []
+    names: list[str] = []
+    by_name: dict[str, list[tuple[str, bool, int]]] = {}
+    names_by_code: dict[str, dict[int, set[str]]] = {}
+    years_by_name: dict[str, set[int]] = {}
     for document in documents:
         name = document["project_key"]
         code = nfkc(document.get("project_code"))
-        node = f"code:{code}" if code else name
+        node = f"code:{code}:{name}" if code else name
         nodes.append(node)
+        names.append(name)
         find(node)
-        if not name.startswith("record:"):
-            by_name.setdefault(name, []).append((node, int(document.get("document_fiscal_year") or 0)))
-    for name, members in by_name.items():
-        uncoded = [node for node, _ in members if not node.startswith("code:")]
+        if name.startswith("record:"):
+            continue
+        by_name.setdefault(name, []).append((node, bool(code), int(document.get("document_fiscal_year") or 0)))
+        year = int(document.get("evaluation_year") or document.get("document_fiscal_year") or 0)
+        years_by_name.setdefault(name, set()).add(year)
+        if code:
+            names_by_code.setdefault(code, {}).setdefault(year, set()).add(name)
+    for members in by_name.values():
+        uncoded = [node for node, coded, _ in members if not coded]
         # 違う年度の文書どうしを全部つなぐと、年度が 2 つ以上あれば同じ名前の記録はすべて 1 つにまとまる。
         # 年度が 1 つだけなら、番号の無い記録とだけつなぐ。
-        linked = uncoded[:1] if len({year for _, year in members}) < 2 else [members[0][0]]
-        for node, _ in members:
+        linked = uncoded[:1] if len({year for _, _, year in members}) < 2 else [members[0][0]]
+        for node, _, _ in members:
             for other in linked:
                 union(node, other)
+    if codes_identify_projects(names_by_code):
+        # 改称でつないだまとまりの年度。つなぎを重ねて、同じ年度に並ぶ別の事業どうしが 1 つになるのを防ぐ。
+        group_years: dict[str, set[int]] = {}
+        for node, name in zip(nodes, names):
+            group_years.setdefault(find(node), set()).update(years_by_name.get(name, ()))
+        for code in sorted(names_by_code):
+            ordered = sorted(set().union(*names_by_code[code].values()), key=lambda name: (min(years_by_name[name]), name))
+            for before, after in zip(ordered, ordered[1:]):
+                roots = find(f"code:{code}:{before}"), find(f"code:{code}:{after}")
+                if roots[0] == roots[1] or group_years[roots[0]] & group_years[roots[1]]:
+                    continue
+                years = group_years.pop(roots[0]) | group_years.pop(roots[1])
+                union(*roots)
+                group_years[find(roots[0])] = years
     for document, node in zip(documents, nodes):
         document["project_key"] = find(node)
 
