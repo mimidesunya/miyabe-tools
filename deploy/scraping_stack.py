@@ -94,6 +94,7 @@ def build_scraping_compose(
         "MIYABE_MINUTES_ALIAS": "${MIYABE_MINUTES_ALIAS:-miyabe-minutes-current}",
         "MIYABE_REIKI_ALIAS": "${MIYABE_REIKI_ALIAS:-miyabe-reiki-current}",
         "MIYABE_HYOKA_ALIAS": "${MIYABE_HYOKA_ALIAS:-miyabe-hyoka-current}",
+        "MIYABE_NEWS_ALIAS": "${MIYABE_NEWS_ALIAS:-miyabe-news-current}",
         "MANAGEMENT_DATABASE_URL": "${MANAGEMENT_DATABASE_URL:-postgresql://miyabe:miyabe@host.docker.internal:5432/miyabe_management}",
         "SCRAPER_BUILD_SEARCH_INDEX": "1",
     }

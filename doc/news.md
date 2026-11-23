@@ -2,7 +2,7 @@
 
 自治体のホームページの新着情報（お知らせ・報道発表など）を、フィード（RSS 1.0・RSS 2.0・Atom）から集めてためる。調べた結果と全体の案は [news-feed-survey.md](news-feed-survey.md)。
 
-いまできているのは **フィードの取得と保存**、**リンク先の本文**、**添付の PDF の本文**、**トップページの「各地のお知らせ」**、**一覧と 1 件の API・MCP の道具**（下の「API と MCP」）まで。本文の全文検索はまだ無い。
+いまできているのは **フィードの取得と保存**、**リンク先の本文**、**添付の PDF の本文**、**トップページの「各地のお知らせ」**、**一覧と 1 件の API・MCP の道具**（下の「API と MCP」）、**本文と添付の PDF の全文検索**（下の「全文検索」）まで。
 
 ## 台帳
 
@@ -285,6 +285,51 @@ python tools/news/news_index.py --rebuild    # 一から
 - php の容器に、共有領域の `news` を `/var/www/data/news` へ読み取り専用で見せる（`deploy/deploy.py` の compose）。索引は `work` の下なので、前から見えている。
 - 索引が無いうちは 503。
 
+## 全文検索
+
+お知らせの題名・概要・リンク先のページの本文・添付の PDF の文字を、言葉で探す。
+
+| | REST | MCP |
+|---|---|---|
+| 検索 | `/api/news-search.php?q=…` | `search_municipal_news` |
+
+### 索引（OpenSearch）
+
+`tools/news/news_search.py` が、別名 `miyabe-news-current`（世代 `miyabe-news-v<日時>`）を作る。会議録・例規集・事務事業評価の索引とは別で、統合の別名（`miyabe-documents-current`）にも入れない。
+
+- 文書は 2 種類。**お知らせ 1 件**（`part: item`。題名・概要・本文・ページの題名）と、**添付の PDF 1 本**（`part: attachment`。題名・リンクの文字・PDF の文字）。検索では、同じお知らせ（`item_key`）の文書を 1 件にまとめる（collapse）。PDF は別の文書なので、題名と PDF の言葉の AND も引ける（PDF の文書にも題名を写してある）。
+- 同じ自治体の同じ題名・同じ日付で後から見つけたもの（`hidden`）は、文書に印を付けて検索から外す。
+- 分かち書きは会議録・例規と同じ Sudachi（`title_terms`・`body_terms`）。部品が無ければ止まる（黙って空白区切りにしない）。形態素の項目は索引のみに持ち、`_source` には入れない。
+- 索引の文字は PDF 1 本で 200,000 字まで（取得のときに切ったまま）。
+
+### 索引へ入れる
+
+- 項目・本文・添付の行を SQLite の索引（`news_index.py`）に書くたびに、`search_dirty` に印が付く。`run_news_fetch` が、SQLite を更新したすぐ後に `run_sync` を呼び、印の付いたものを、新しい日付から OpenSearch に入れる（`_bulk`）。本文の後は 300 秒、添付の後は 900 秒まで。残りは次の回。
+- 入れ終わったものの印を消す。読んでから消すまでに付け直された印（`seq` が違う）は残る。途中で止まっても次の回に続きから入る。同じ文書を入れ直しても中身は同じ。
+- 項目の題名・日付・隠す印が変わったら、その項目の添付の文書も入れ直す。
+- 索引がまだ無いうちは何もしない（印は残る）。**初めての 1 回と、作り直しは `--rebuild`**（新しい世代を作り終えてから別名を切り替える。件数が前の半分に満たなければ切り替えない。古い世代は消さない）。作り直しのあいだ、取得の回の更新は待つ（印は残る）。落ちて作り直しの印が残ったら、1 日たてば見なさない。すぐ始めたいときは、作り直しが動いていないのを確かめて `--clear-rebuild-mark`。
+
+```bash
+python3 tools/news/news_search.py                       # 印の付いた分だけ（取得の回と同じ）
+python3 tools/news/news_search.py --rebuild --workers 4  # 一から
+```
+
+- `search_dirty` は索引の形（`SCHEMA_VERSION`）に入れず、無ければ作る。前からある索引を作り直さずに済む。
+- 結果は `work/news/index_last_run.json`（`search_indexed`・`search_remaining`・`search_seconds`）。celery のログの結果は途中で切れて見えない。
+
+### 検索（`/api/news-search.php`）
+
+- `q` は必須。200 字まで。空白区切りは AND、OR・NOT・括弧・引用符も使える（会議録などの検索と同じ）。条件の検査は、検索語の分かち書き（Python を 1 回起動する）より前にする。
+- 自治体・都道府県・期間（`sort_date`）・`part`（`item`／`attachment`）で絞る。
+- 既定の `sort=date` は新しい順。語を 2 つ以上並べた AND 検索では、語が近くに現れたものを先に置く（`/api/search` と同じ）。`sort=relevance` は関連度順。
+- 返すのは、お知らせ 1 件（一覧と同じ欄）と、当たった文書を 3 つまで（`matches`。ページの本文か添付の PDF、抜粋）。抜粋の `[[[ ]]]` は当たった語の印。PDF の何頁にあるかは、1 件の API の 〔N頁〕 で確かめる。
+- `total` はお知らせの数（`cardinality`。1 万を超えると概数で、`total_relation: approximate`）。`per_page` は 30 まで。
+- 当たった語の抜粋は、文書ごとに先頭の 120,000 字で解析する。
+
+### 初めての 1 回（本番）
+
+2026-11-23 の本番の量は、本文 12 万 6 千件・1.45 億字、添付 23 万 5 千本・14.3 億字。既存の索引の大きさ（事務事業評価 1 字 2.9 バイト、例規 3.5 バイト）から見ると、5GB 前後。分かち書きは手元（1 スレッド）で毎秒 13 万字ほど。CPU 0.5 の `scraper-news` の中では半日かかるので、初めての 1 回は並列にして別に流す。
+
 ## 量と負荷
 
 - 1 日に 2,556 本 × 8 回 ≒ 2 万リクエスト。半分以上は 304 で中身を送らない。相手 1 団体あたりは 1 日 8 回 × フィードの本数。
@@ -295,5 +340,5 @@ python tools/news/news_index.py --rebuild    # 一から
 ## 残り
 
 - 直方市の 2 本（証明書の検証に落ちる）。中間証明書を送ってこない形なら、例規の取得（`tools/reiki/scrapers/static_catalog.py` の `ca_bundle_path`）と同じく足せば通る見込み。まだ確かめていない。
-- 次の段: 本文と添付の全文検索（OpenSearch）、文字の無い PDF（13%）の OCR、Excel・Word の添付、地図の自治体の欄への表示、フィードの無い団体の読み取り（[news-feed-survey.md](news-feed-survey.md) の「作るときの案」）。
+- 次の段: 検索の画面への組み込み、文字の無い PDF（13%）の OCR、Excel・Word の添付、地図の自治体の欄への表示、フィードの無い団体の読み取り（[news-feed-survey.md](news-feed-survey.md) の「作るときの案」）。
 - 実行状態（`management_task_statuses`）や収集状況のページにはまだ出していない。

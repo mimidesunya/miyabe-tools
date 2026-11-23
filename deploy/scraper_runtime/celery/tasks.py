@@ -694,6 +694,11 @@ def sweep_reiki_source_discovery(limit: int = 0) -> dict[str, object]:
     return _run_source_discovery("reiki", limit)
 
 
+# 検索の索引に入れる時間の上限（秒）。本文のあとは短く、添付のあとは長めに（3 時間おきの回に収まる）。
+NEWS_SEARCH_SECONDS_AFTER_BODIES = 300.0
+NEWS_SEARCH_SECONDS_AFTER_ATTACHMENTS = 900.0
+
+
 # 自治体の新着情報のフィードを 1 回り読み（`tools/news/fetch_news_feeds.py`）、
 # すぐ後に新しい項目のリンク先の本文を読み（`tools/news/fetch_news_bodies.py`）、
 # 続けてページの添付の PDF を読む（`tools/news/fetch_news_attachments.py`、60 分まで）。
@@ -702,19 +707,26 @@ def sweep_reiki_source_discovery(limit: int = 0) -> dict[str, object]:
 # それぞれの runs にも残る。
 #
 # 段ごとに、増えた分を API の索引（work/news/index.sqlite、`tools/news/news_index.py`）へ足す。
-# 添付は 60 分かかることがあるので、項目と本文はその前に API に出す。
+# 添付は 60 分かかることがあるので、項目と本文はその前に API に出す。そのすぐ後に、変わったものだけを
+# 全文検索の索引（OpenSearch、`tools/news/news_search.py`）に入れる（1 回ごとに時間の上限。残りは次の回）。
 @app.task(name="deploy.scraper_runtime.celery.tasks.run_news_fetch")
 def run_news_fetch(codes: list[str] | None = None) -> dict[str, object]:
-    from tools.news import fetch_news_attachments, fetch_news_bodies, fetch_news_feeds, news_index
+    from tools.news import fetch_news_attachments, fetch_news_bodies, fetch_news_feeds, news_index, news_search
 
     selected = set(codes) if codes else None
     indexed: list[dict[str, object]] = []
 
-    def update_index() -> None:
+    def update_index(search_seconds: float) -> None:
         try:
-            indexed.append(news_index.update_index(codes=selected))
+            result_of_step: dict[str, object] = news_index.update_index(codes=selected)
         except Exception as exc:
-            indexed.append({"error": f"{type(exc).__name__}: {exc}"})
+            result_of_step = {"error": f"{type(exc).__name__}: {exc}"}
+        # 検索の索引に入れるのに失敗しても、取得と一覧・1 件の API は止めない。残りは印が残っていて次の回に入る。
+        try:
+            result_of_step.update(news_search.run_sync(budget_seconds=search_seconds))
+        except Exception as exc:
+            result_of_step["search_error"] = f"{type(exc).__name__}: {exc}"
+        indexed.append(result_of_step)
 
     try:
         summary = fetch_news_feeds.run(codes=selected)
@@ -727,14 +739,21 @@ def run_news_fetch(codes: list[str] | None = None) -> dict[str, object]:
         result["bodies"] = {key: value for key, value in bodies.items() if key != "errors"}
     except Exception as exc:
         result["bodies"] = {"error": f"{type(exc).__name__}: {exc}"}
-    update_index()
+    update_index(NEWS_SEARCH_SECONDS_AFTER_BODIES)
     try:
         attachments = fetch_news_attachments.run(codes=selected)
         result["attachments"] = {key: value for key, value in attachments.items() if key != "errors"}
     except Exception as exc:
         result["attachments"] = {"error": f"{type(exc).__name__}: {exc}"}
-    update_index()
+    update_index(NEWS_SEARCH_SECONDS_AFTER_ATTACHMENTS)
     result["index"] = indexed
+    # celery のログの結果は途中で切れて見えないので、索引の分はファイルにも残す。
+    try:
+        from tools.document_crawl import write_json
+
+        write_json(news_index.DEFAULT_WORK_ROOT / "index_last_run.json", {"steps": indexed})
+    except Exception as exc:
+        result["index_last_run_error"] = f"{type(exc).__name__}: {exc}"
     return result
 
 

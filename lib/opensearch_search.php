@@ -50,6 +50,7 @@ function miyabe_search_alias_for_type(string $docType): string
         'minutes' => miyabe_search_env('MIYABE_MINUTES_ALIAS', 'miyabe-minutes-current'),
         'reiki' => miyabe_search_env('MIYABE_REIKI_ALIAS', 'miyabe-reiki-current'),
         'hyoka' => miyabe_search_env('MIYABE_HYOKA_ALIAS', 'miyabe-hyoka-current'),
+        'news' => miyabe_search_env('MIYABE_NEWS_ALIAS', 'miyabe-news-current'),
         default => miyabe_search_env('MIYABE_MINUTES_ALIAS', 'miyabe-minutes-current'),
     };
 }
@@ -336,7 +337,11 @@ function miyabe_search_build_query_clause(string $query, string $docType = 'minu
                     'title.ngram^1.4',
                     'meeting_name^2',
                     'body^1.5',
-                ], $docType === 'hyoka' ? ['link_text^2', 'heading^2'] : []),
+                ], match ($docType) {
+                    'hyoka' => ['link_text^2', 'heading^2'],
+                    'news' => ['summary^2', 'link_text^2'],
+                    default => [],
+                }),
                 'default_operator' => 'and',
                 'flags' => MIYABE_SEARCH_QUERY_FLAGS,
             ],
@@ -387,10 +392,17 @@ function miyabe_search_build_query_clause(string $query, string $docType = 'minu
                     ['match_phrase' => ['title' => ['query' => $phrase, 'boost' => 3.0]]],
                     ['match_phrase' => ['meeting_name' => ['query' => $phrase, 'boost' => 2.0]]],
                     ['match_phrase' => ['body' => ['query' => $phrase]]],
-                ], $docType === 'hyoka' ? [
-                    ['match_phrase' => ['link_text' => ['query' => $phrase]]],
-                    ['match_phrase' => ['heading' => ['query' => $phrase]]],
-                ] : []),
+                ], match ($docType) {
+                    'hyoka' => [
+                        ['match_phrase' => ['link_text' => ['query' => $phrase]]],
+                        ['match_phrase' => ['heading' => ['query' => $phrase]]],
+                    ],
+                    'news' => [
+                        ['match_phrase' => ['summary' => ['query' => $phrase]]],
+                        ['match_phrase' => ['link_text' => ['query' => $phrase]]],
+                    ],
+                    default => [],
+                }),
                 'minimum_should_match' => 1,
             ],
         ];

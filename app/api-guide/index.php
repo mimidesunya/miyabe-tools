@@ -119,6 +119,7 @@ function api_guide_h(?string $value): string
 メガソーラーを規制する条例がある自治体を教えて
 2024年度の事務事業評価から「子育て支援」を探して、原典の頁も示して
 町田市が今週ホームページに出したお知らせを一覧にして
+全国の自治体で、今月「ごみの有料化」をお知らせしたところを、当たった PDF も示して探して
 その会議録の全文を読んで、賛成と反対の意見をまとめて
 答えの根拠にした自治体のページも示して</code></pre>
         </section>
@@ -140,7 +141,7 @@ function api_guide_h(?string $value): string
                 </div>
                 <div>
                     <h3>自治体のお知らせ</h3>
-                    <p>自治体がホームページの「新着情報」に出したお知らせを、自治体や期間で一覧にし、本文や添付の PDF も読みます。</p>
+                    <p>自治体がホームページの「新着情報」に出したお知らせを、自治体や期間で一覧にし、本文や添付の PDF を言葉で探して読みます。</p>
                 </div>
             </div>
             <p>
@@ -161,9 +162,10 @@ function api_guide_h(?string $value): string
                 「取得元から消失」と表示されたものは、保存した本文を検索できますが、原典URLが開けない場合があります。
             </p>
             <p>
-                自治体のお知らせは <code>list_municipal_news</code> で一覧にし、<code>get_municipal_news_item</code> で
+                自治体のお知らせは <code>list_municipal_news</code> で一覧にし、<code>search_municipal_news</code> で
+                題名・概要・本文・添付の PDF の文字から探し、<code>get_municipal_news_item</code> で
                 リンク先のページの本文と添付の PDF の文字を読みます。ホームページの新着情報（RSS など）を 3 時間おきに集めているもので、
-                新着情報の配信が見つかっていない自治体の分はありません。一覧の言葉の絞り込みは題名と概要だけで、本文の全文検索はまだできません。
+                新着情報の配信が見つかっていない自治体の分はありません。
                 お知らせのページは数日で消えることがあるので、見つけたときに読んで保存しています。
             </p>
         </section>
@@ -310,6 +312,7 @@ GET https://tools.miya.be/api/search?doc_type=hyoka&amp;q=子育て&amp;fiscal_y
 GET https://tools.miya.be/api/document?id=検索結果のid&amp;doc_type=minutes
 GET https://tools.miya.be/api/news.php?municipality=町田市&amp;since=2026-11-01
 GET https://tools.miya.be/api/news-item.php?id=お知らせの一覧のid
+GET https://tools.miya.be/api/news-search.php?q=ごみ%20有料化&amp;since=2026-11-01
 
 OpenAPI JSON: https://tools.miya.be/openapi.json
 OpenAPI YAML: https://tools.miya.be/openapi.yaml</code></pre>

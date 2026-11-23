@@ -13,6 +13,7 @@
     attachments     添付の PDF の頁数・文字数と、行の位置
     municipalities  自治体の名前と、ためたお知らせの数
     sources         ファイルごとの読んだ位置
+    search_dirty    全文検索の索引へ入れ直すもの（`news_search.py` が読んで消す）
 
 本文と添付の全文は索引に入れない（本文だけで年に 5GB、添付で 24GB ほどになる）。
 web は行の位置から元のファイルを 1 行だけ読む（`lib/news_api.php`）。
@@ -133,6 +134,27 @@ CREATE TABLE attachments (
     offset INTEGER NOT NULL,
     PRIMARY KEY (slug, url)
 );
+"""
+
+# 全文検索の索引（OpenSearch、`news_search.py`）へ入れ直すものの印。項目・本文・添付の行を書くたびに付け、
+# 入れ終わったら `news_search.py` が消す。seq は、読んでから消すまでに付け直された印を消さないための番号。
+# 索引の形（SCHEMA_VERSION）に入れず、無ければ作る。前からある索引を作り直さずに済む。
+SEARCH_SCHEMA = """
+CREATE TABLE IF NOT EXISTS search_dirty (
+    kind TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    key TEXT NOT NULL,
+    prio TEXT NOT NULL,
+    seq INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (kind, slug, key)
+);
+CREATE INDEX IF NOT EXISTS search_dirty_by_prio ON search_dirty (prio DESC, kind, slug, key);
+"""
+
+# prio は並べる日付。新しいお知らせから索引に入れる。
+MARK_DIRTY = """
+INSERT INTO search_dirty (kind, slug, key, prio) VALUES (?, ?, ?, ?)
+ON CONFLICT (kind, slug, key) DO UPDATE SET prio = excluded.prio, seq = search_dirty.seq + 1
 """
 
 UPSERT_ITEM = """
@@ -299,6 +321,7 @@ def year_files(folder: Path) -> list[Path]:
 class NewsIndex:
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
+        self.conn.executescript(SEARCH_SCHEMA)
         self.offsets = dict(conn.execute("SELECT path, offset FROM sources"))
 
     def ingest(self, directory: Path) -> dict[str, int]:
@@ -310,6 +333,7 @@ class NewsIndex:
         code = SLUG_PATTERN.match(slug).group(1)  # type: ignore[union-attr]
         counts = {"items": 0, "bodies": 0, "attachments": 0}
         handlers = {"items": self._item, "bodies": self._body, "attachments": self._attachment}
+        hidden_before = dict(self.conn.execute("SELECT item_id, hidden FROM items WHERE slug = ?", (slug,)))
         for kind in KINDS:
             for path in year_files(directory / kind):
                 key = f"{slug}/{kind}/{path.name}"
@@ -338,22 +362,40 @@ class NewsIndex:
         if counts["items"]:
             self.conn.execute(MARK_DUPLICATES, (slug,))
             self.conn.execute(COUNT_MUNICIPALITY, {"slug": slug, "jis_code": code})
+            # 重複を隠す印が変わった項目は、全文検索の索引も入れ直す。
+            for item_id, hidden, prio in self.conn.execute(
+                    "SELECT item_id, hidden, sort_date FROM items WHERE slug = ?", (slug,)).fetchall():
+                if item_id in hidden_before and hidden_before[item_id] != hidden:
+                    self._mark_item(slug, item_id, prio)
         return counts
+
+    def _mark(self, kind: str, slug: str, key: str, prio: str) -> None:
+        self.conn.execute(MARK_DIRTY, (kind, slug, key, prio))
+
+    def _mark_item(self, slug: str, item_id: str, prio: str) -> None:
+        """項目に印を付ける。題名・日付・隠す印は添付の文書にも写しているので、その項目の添付にも付ける。"""
+        self._mark("item", slug, item_id, prio)
+        for (url,) in self.conn.execute("SELECT url FROM attachments WHERE slug = ? AND item_id = ?",
+                                        (slug, item_id)).fetchall():
+            self._mark("attachment", slug, url, prio)
 
     def _item(self, record: dict, slug: str, code: str, ref: str, offset: int) -> bool:
         row = item_row(record, slug, code)
         if row is None:
             return False
         self.conn.execute(UPSERT_ITEM, row)
+        self._mark_item(slug, row["item_id"], row["sort_date"])
         return True
 
     def _body(self, record: dict, slug: str, code: str, ref: str, offset: int) -> bool:
-        found = self.conn.execute("SELECT title FROM items WHERE slug = ? AND item_id = ?",
+        found = self.conn.execute("SELECT title, sort_date FROM items WHERE slug = ? AND item_id = ?",
                                   (slug, str(record.get("id") or ""))).fetchone()
         row = body_row(record, slug, ref, offset, found[0] if found else "")
         if row is None:
             return False
         self.conn.execute(UPSERT_BODY, row)
+        if found:  # 添付のリンクの文字は本文の行にあるので、添付の文書も入れ直す
+            self._mark_item(slug, row["item_id"], found[1])
         return True
 
     def _attachment(self, record: dict, slug: str, code: str, ref: str, offset: int) -> bool:
@@ -361,6 +403,10 @@ class NewsIndex:
         if row is None:
             return False
         self.conn.execute(UPSERT_ATTACHMENT, row)
+        found = self.conn.execute("SELECT sort_date FROM items WHERE slug = ? AND item_id = ?",
+                                  (slug, row["item_id"] or "")).fetchone()
+        if found:
+            self._mark("attachment", slug, row["url"], found[0])
         return True
 
 
