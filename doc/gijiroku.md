@@ -71,8 +71,10 @@ python tools/gijiroku/scrape_all_minutes.py --list-excluded
 144 自治体・3,860 件。OCR が無い限り、何周回しても同じように除外される。
 
 使うのは国立国会図書館の **NDLOCR-Lite**（CC BY 4.0）。GPU を必要とせず、
-モデル（ONNX 4 本・149MB）を同梱しているので、実行時のダウンロードも
-API キーも要らない。実測 0.7 秒/ページ。
+モデル（2.0.0 で ONNX 5 本・178MB）を同梱しているので、実行時のダウンロードも
+API キーも要らない。実測 0.7 秒/ページ。PDF を渡すと 1.3.0 からは頁ごとに
+`.txt` を分けて出すので、`pdf_ocr.py` は名前の順（=頁の順）につなぐ。
+2.0.0 の CLI は表の構造（markdown-it-py）を使わないので、像の部品は前のまま。
 
 - リポジトリには入れない。サーバーの `vendor/ndlocr-lite` へ直接置く
   （`python deploy/sync_ocr_tool.py deploy.json`）。スクレイパは `.` を

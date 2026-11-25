@@ -139,11 +139,15 @@ def ocr_pdf_text(
             tail = (completed.stderr or completed.stdout or "").strip().splitlines()
             return "", f"OCR が失敗（終了コード {completed.returncode}）: {tail[-1] if tail else ''}"
 
+        # 1.3.0 からは PDF の頁ごとに input_00001.txt, input_00002.txt … と分けて出す
+        # （それより前は input.txt の 1 つ）。名前の順が頁の順なので、順につなぐ。
         texts = sorted(output.glob("*.txt"))
         if not texts:
             return "", "OCR がテキストを出さなかった"
         try:
-            body = texts[0].read_text(encoding="utf-8", errors="replace")
+            body = "\n".join(
+                text.read_text(encoding="utf-8", errors="replace").strip("\n") for text in texts
+            )
         except Exception as error:
             return "", f"OCR の出力を読めない: {error}"
 

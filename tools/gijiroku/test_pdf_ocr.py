@@ -49,6 +49,55 @@ class ToolLookupTest(unittest.TestCase):
         self.assertIn("保存されていない", reason)
 
 
+# NDLOCR-Lite の代わりに、決まった .txt を出すだけの ocr.py を置いて呼ぶ。
+FAKE_OCR = '''
+import argparse, pathlib
+parser = argparse.ArgumentParser()
+parser.add_argument("--sourcepdf")
+parser.add_argument("--output")
+parser.add_argument("--device")
+args = parser.parse_args()
+out = pathlib.Path(args.output)
+for name, text in %r:
+    (out / name).write_text(text, encoding="utf-8")
+'''
+
+
+class OutputFilesTest(unittest.TestCase):
+    def run_fake(self, files: list[tuple[str, str]]) -> tuple[str, str]:
+        with tempfile.TemporaryDirectory() as directory:
+            tool = Path(directory) / "ndlocr-lite"
+            (tool / "src").mkdir(parents=True)
+            (tool / "src" / "ocr.py").write_text(FAKE_OCR % (files,), encoding="utf-8")
+            pdf = Path(directory) / "会議録.pdf"
+            pdf.write_bytes(b"%PDF-1.4\n%%EOF\n")
+            with mock.patch.object(pdf_ocr, "tool_directory", return_value=tool), \
+                    mock.patch.object(pdf_ocr, "python_executable", return_value=sys.executable), \
+                    mock.patch.object(pdf_ocr, "pdf_page_count", return_value=3):
+                return pdf_ocr.ocr_pdf_text(pdf)
+
+    def test_pages_written_one_file_each_are_joined_in_order(self) -> None:
+        # 1.3.0 から（2.0.0 も）の形。頁ごとの .txt を、名前の順（=頁の順）でつなぐ。
+        body, reason = self.run_fake([
+            ("input_00002.txt", "二頁目\n"),
+            ("input_00010.txt", "十頁目\n"),
+            ("input_00001.txt", "一頁目\n"),
+        ])
+        self.assertEqual(reason, "")
+        self.assertEqual(body, "一頁目\n二頁目\n十頁目")
+
+    def test_a_single_file_is_read_as_before(self) -> None:
+        # 1.2 までの形（PDF 全体で input.txt の 1 つ）
+        body, reason = self.run_fake([("input.txt", "全部の頁\n続き\n")])
+        self.assertEqual(reason, "")
+        self.assertEqual(body, "全部の頁\n続き")
+
+    def test_no_text_file_is_reported(self) -> None:
+        body, reason = self.run_fake([("input.json", "{}")])
+        self.assertEqual(body, "")
+        self.assertIn("テキストを出さなかった", reason)
+
+
 class AttemptsTest(unittest.TestCase):
     def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory()
