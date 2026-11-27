@@ -123,7 +123,7 @@ if ($resolvedSlug !== '') {
 }
 
 $requestedDocType = strtolower(search_query_param('doc_type', search_query_param('type', 'minutes')));
-$selectedDocType = in_array($requestedDocType, ['reiki', 'hyoka'], true) ? $requestedDocType : 'minutes';
+$selectedDocType = in_array($requestedDocType, ['reiki', 'hyoka', 'news'], true) ? $requestedDocType : 'minutes';
 $requestedFiscalYear = search_query_param('fiscal_year');
 $requestedFiscalYear = preg_match('/^[1-9]\d{3}$/', $requestedFiscalYear) === 1 ? $requestedFiscalYear : '';
 $hyokaKinds = [
@@ -146,6 +146,9 @@ $yearOptions = search_year_options([$requestedStartYear, $requestedEndYear]);
 
 $boot = [
     'apiUrl' => '/api/search',
+    // お知らせは別の API。言葉があれば全文検索、無ければ（自治体を選んだとき）新しい順の一覧。
+    'newsSearchUrl' => '/api/news-search.php',
+    'newsListUrl' => '/api/news.php',
     'municipalitiesApiUrl' => '/api/municipalities.php',
     'query' => search_query_param('q'),
     'docType' => $selectedDocType,
@@ -171,7 +174,7 @@ $boot = [
     <title>全国自治体 横断検索｜自治体マップ</title>
     <?php echo site_render_page_meta(
         '全国自治体 横断検索｜自治体マップ',
-        '全国の自治体の議会会議録・例規集（条例・規則）・事務事業評価を全文検索できます。都道府県・自治体などで絞り込み、原典URLまでたどれます。無料・登録不要。',
+        '全国の自治体の議会会議録・例規集（条例・規則）・事務事業評価・お知らせを全文検索できます。都道府県・自治体などで絞り込み、原典URLまでたどれます。無料・登録不要。',
         '/search/'
     ); ?>
     <?php echo site_render_favicon_links(); ?>
@@ -199,6 +202,10 @@ $boot = [
             <button type="button" class="doc-tab" data-doc="hyoka" data-doc-type="hyoka">
                 <span class="doc-tab-main">事業の評価</span>
                 <span class="doc-tab-sub">事務事業評価</span>
+            </button>
+            <button type="button" class="doc-tab" data-doc="news" data-doc-type="news">
+                <span class="doc-tab-main">お知らせ</span>
+                <span class="doc-tab-sub">新着情報</span>
             </button>
         </div>
         <div class="search-box-body">

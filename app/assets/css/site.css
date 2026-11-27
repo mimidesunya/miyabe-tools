@@ -35,6 +35,9 @@
     --hyoka: #a34d0c;
     --hyoka-deep: #7d3a07;
     --hyoka-tint: #fbefe0;
+    --news: #6b3f8f;
+    --news-deep: #512d6d;
+    --news-tint: #f3edf8;
 
     /* 押せるもの・いまいる場所は藍 */
     --accent: var(--minutes);
@@ -66,6 +69,7 @@
 [data-doc="minutes"] { --doc: var(--minutes); --doc-deep: var(--minutes-deep); --doc-tint: var(--minutes-tint); }
 [data-doc="reiki"] { --doc: var(--reiki); --doc-deep: var(--reiki-deep); --doc-tint: var(--reiki-tint); }
 [data-doc="hyoka"] { --doc: var(--hyoka); --doc-deep: var(--hyoka-deep); --doc-tint: var(--hyoka-tint); }
+[data-doc="news"] { --doc: var(--news); --doc-deep: var(--news-deep); --doc-tint: var(--news-tint); }
 
 html {
     -webkit-text-size-adjust: 100%;

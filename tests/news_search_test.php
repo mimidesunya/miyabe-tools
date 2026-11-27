@@ -145,6 +145,20 @@ check('当たった文書の種類と抜粋', $item['matches'][0] === ['part' =>
 check('題名の強調', $item['title_highlight'] === '[[[入札]]]の公表');
 $large = news_search_shape_response(['aggregations' => ['items' => ['value' => 20000]]], $request);
 check('1 万を超える数は概数と分かる', $large['total_relation'] === 'approximate');
+check('集計は頼まれたときだけ', !isset($request['body']['aggs']['prefectures']) && !isset($large['aggregations']));
+$faceted = news_search_build_request(['q' => 'ごみ', 'include_facets' => '1'], $pdo);
+check('都道府県と自治体を、お知らせの数の多い順に集める',
+    $faceted['body']['aggs']['prefectures']['terms']['field'] === 'pref_code'
+    && $faceted['body']['aggs']['municipalities']['terms']['field'] === 'slug'
+    && $faceted['body']['aggs']['municipalities']['terms']['order'] === ['items' => 'desc']
+    && $faceted['body']['aggs']['municipalities']['aggs']['items']['cardinality']['field'] === 'item_key');
+$facets = news_search_shape_response(['aggregations' => ['items' => ['value' => 5],
+    'prefectures' => ['buckets' => [['key' => '13', 'doc_count' => 9, 'items' => ['value' => 4]]]],
+    'municipalities' => ['buckets' => [['key' => '13209-machida-shi', 'doc_count' => 9, 'items' => ['value' => 4]], 'x']]]], $faceted);
+check('集計は /api/search と同じ形で、数はお知らせの数', $facets['aggregations'] === [
+    'prefectures' => [['key' => '13', 'count' => 4]],
+    'municipalities' => [['key' => '13209-machida-shi', 'count' => 4]],
+]);
 putenv('MIYABE_NEWS_ALIAS=miyabe-news-check');
 check('別名は環境で変えられる', (static function () use ($pdo): bool {
     $path = '';

@@ -325,6 +325,15 @@ python3 tools/news/news_search.py --rebuild --workers 4  # 一から
 - 返すのは、お知らせ 1 件（一覧と同じ欄）と、当たった文書を 3 つまで（`matches`。ページの本文か添付の PDF、抜粋）。抜粋の `[[[ ]]]` は当たった語の印。PDF の何頁にあるかは、1 件の API の 〔N頁〕 で確かめる。
 - `total` はお知らせの数（`cardinality`。1 万を超えると概数で、`total_relation: approximate`）。`per_page` は 30 まで。
 - 当たった語の抜粋は、文書ごとに先頭の 120,000 字で解析する。
+- 題名の強調（`title_highlight`）はまとめた当たり（上の段）に付ける。inner_hits に付けた強調は上の段に返らない。
+- `include_facets=1` で `aggregations` に都道府県・自治体ごとのお知らせの数（文書ではなく `item_key` の数で数え、多い順に 50 まで）を入れる。形は `/api/search` と同じ（`key`・`count`）。検索の画面の「多い都道府県」と地図が使う。
+
+### 検索の画面（`/search/?doc_type=news`）
+
+- 4 つ目のタブ「お知らせ」。言葉があれば `/api/news-search.php`（`include_facets=1`）、言葉が無く自治体を選んだときは `/api/news.php` の新しい順の一覧を引く。年・日の絞り込みは `since`・`until`（年なら 1 月 1 日〜12 月 31 日）にして渡す。
+- 題名は自治体のページへ飛ぶ（詳細の画面は作っていない）。当たった文書ごとに「ページの本文」か「添付: リンクの文字」と抜粋を出す。抜粋に語が入らない文書は、語の入った抜粋がほかにあれば出さず、1 つも無ければ最初の文書の冒頭を「冒頭」と断って出す。
+- 色は `--news`（`app/assets/css/site.css`）。トップの検索の箱は 3 つのタブのまま。
+- 手元のプレビュー（`dev/preview/router.php`）は、お知らせの API も本番から借りる。手元の索引で API を見るときは `MIYABE_PREVIEW_LOCAL_NEWS=1`。
 
 ### 作り直し（本番）
 
@@ -358,5 +367,5 @@ docker logs -f miyabe-news-rebuild    # 5,000 件ごとに進み具合。終わ�
 ## 残り
 
 - 直方市の 2 本（証明書の検証に落ちる）。中間証明書を送ってこない形なら、例規の取得（`tools/reiki/scrapers/static_catalog.py` の `ca_bundle_path`）と同じく足せば通る見込み。まだ確かめていない。
-- 次の段: 検索の画面への組み込み、文字の無い PDF（13%）の OCR、Excel・Word の添付、地図の自治体の欄への表示、フィードの無い団体の読み取り（[news-feed-survey.md](news-feed-survey.md) の「作るときの案」）。
+- 次の段: トップの検索の箱へのお知らせのタブ、文字の無い PDF（13%）の OCR、Excel・Word の添付、地図の自治体の欄への表示、フィードの無い団体の読み取り（[news-feed-survey.md](news-feed-survey.md) の「作るときの案」）。
 - 実行状態（`management_task_statuses`）や収集状況のページにはまだ出していない。

@@ -1187,6 +1187,16 @@
               "maximum": 30,
               "default": 10
             }
+          },
+          {
+            "name": "include_facets",
+            "in": "query",
+            "required": false,
+            "description": "true なら aggregations に都道府県・自治体ごとのお知らせの数（多い順に 50 まで）を入れる。",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {
@@ -2636,6 +2646,42 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/NewsSearchItem"
+            }
+          },
+          "aggregations": {
+            "type": "object",
+            "description": "include_facets が true のときだけ。count は当たったお知らせの数（添付が当たっても 1 件と数える）。",
+            "properties": {
+              "prefectures": {
+                "type": "array",
+                "description": "都道府県コードごと。",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              },
+              "municipalities": {
+                "type": "array",
+                "description": "自治体の slug ごと。",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
             }
           }
         }

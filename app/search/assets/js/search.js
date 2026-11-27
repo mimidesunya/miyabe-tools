@@ -99,7 +99,7 @@
 
     function normalizeDocType(value) {
         const text = String(value || '').trim();
-        return ['reiki', 'hyoka'].includes(text) ? text : 'minutes';
+        return ['reiki', 'hyoka', 'news'].includes(text) ? text : 'minutes';
     }
 
     function normalizeFiscalYear(value) {
@@ -204,13 +204,15 @@
                 return '例規集';
             case 'hyoka':
                 return '事務事業評価';
+            case 'news':
+                return 'お知らせ';
             default:
                 return '会議録';
         }
     }
 
     function resultKindLabel(value) {
-        return value === 'hyoka' ? '事務事業評価' : (value === 'minutes' ? '会議録' : (value === 'reiki' ? '例規集' : '文書'));
+        return { hyoka: '事務事業評価', minutes: '会議録', reiki: '例規集', news: 'お知らせ' }[value] || '文書';
     }
 
     function filteredMunicipalities() {
@@ -524,6 +526,44 @@
         return params;
     }
 
+    /*
+     * お知らせは別の API。言葉があれば全文検索（/api/news-search.php）、無ければ自治体のお知らせを
+     * 新しい順に並べる一覧（/api/news.php）。期間は年でも日でも、日付（since・until）にして渡す。
+     */
+    function newsApiUrl(page = state.page) {
+        const params = new URLSearchParams({ page: String(page), per_page: String(state.perPage) });
+        if (state.query) {
+            params.set('q', state.query);
+            params.set('sort', state.sort);
+            params.set('include_facets', '1');
+        }
+        if (state.slug) {
+            params.set('slug', state.slug);
+        } else if (state.prefCode) {
+            params.set('pref_code', state.prefCode);
+        }
+        const since = state.startDate || (state.startYear ? `${state.startYear.padStart(4, '0')}-01-01` : '');
+        const until = state.endDate || (state.endYear ? `${state.endYear.padStart(4, '0')}-12-31` : '');
+        if (since) params.set('since', since);
+        if (until) params.set('until', until);
+        const base = state.query ? boot.newsSearchUrl || '/api/news-search.php' : boot.newsListUrl || '/api/news.php';
+        return `${base}?${params.toString()}`;
+    }
+
+    /* お知らせの API の答えを、ほかの資料の答えと同じように扱える形にそろえる */
+    function normalizeNewsPayload(payload, page) {
+        const items = (Array.isArray(payload.items) ? payload.items : []).map((item) => ({ ...item, doc_type: 'news' }));
+        const total = Number(payload.total || 0);
+        const perPage = Number(payload.per_page || state.perPage);
+        return {
+            ...payload,
+            doc_type: 'news',
+            items,
+            // API は 10,000 件目までしか返さない。
+            has_more: page * perPage < total && (page + 1) * perPage <= 10000,
+        };
+    }
+
     function renderDateStatus(element, date, edge) {
         if (!element) {
             return;
@@ -557,13 +597,18 @@
         const label = docTypeLabel(payload.doc_type || state.docType);
         const page = Number(payload.page || 1);
         refs.stats.innerHTML = `${scope ? `${escapeHtml(scope)}の` : ''}${escapeHtml(label)}が <strong>${escapeHtml(hitCountLabel(payload))}</strong> 件見つかりました`
-            + `<span>${state.sort === 'relevance' ? '言葉がよく合う順' : '新しい順'}${page > 1 ? `・${page} ページ目` : ''}</span>`;
+            // お知らせの一覧（言葉なし）は、いつも新しい順。
+            + `<span>${state.sort === 'relevance' && state.query ? '言葉がよく合う順' : '新しい順'}${page > 1 ? `・${page} ページ目` : ''}</span>`;
     }
 
     /* 件数は 10,000 で数えるのを止める（total_relation が gte）。そのときは、種類ごとの集計（1 種類だけを
        引いているので総数と同じ・数え切る）があればそれを出し、内訳の数とそろえる */
     function hitCountLabel(payload) {
         const total = Number(payload.total || 0);
+        // お知らせの全文検索は、1 万を超えると概数（total_relation が approximate）。
+        if (payload.total_relation === 'approximate') {
+            return `約${total.toLocaleString('ja-JP')}`;
+        }
         if (payload.total_relation !== 'gte') {
             return total.toLocaleString('ja-JP');
         }
@@ -706,6 +751,66 @@
         return [...new Set(parts.map((part) => String(part || '').trim()).filter(Boolean))];
     }
 
+    /* お知らせの、当たった文書（ページの本文・添付）の出どころ */
+    function newsMatchSource(match) {
+        if (match.part !== 'attachment') {
+            return 'ページの本文';
+        }
+        const label = `添付: ${shortText(match.link_text, 60) || '添付ファイル'}`;
+        const href = safeUrl(match.attachment_url);
+        const pages = Number(match.pages || 0) > 0 ? `<span>${escapeHtml(`全${Number(match.pages).toLocaleString('ja-JP')}頁`)}</span>` : '';
+        return href
+            ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>${pages}`
+            : `${escapeHtml(label)}${pages}`;
+    }
+
+    /*
+     * お知らせ 1 件。詳しく読むのは自治体のページなので、題名はそこへ飛ぶ。
+     * 全文検索では、当たった文書（最大 3 つ）ごとに抜粋を出す。抜粋に当たった語が入らない文書
+     * （題名だけで当たった・長い PDF の後ろのほうで当たった）は、ほかに語の入った抜粋があれば出さない。
+     * 1 つも無ければ、最初の文書の冒頭を「冒頭」と断って出す。
+     */
+    function renderNewsItem(item) {
+        const sourceUrl = safeUrl(item.url);
+        const place = [...new Set([item.pref_name, item.municipality_name].map((part) => String(part || '').trim()).filter(Boolean))];
+        const title = renderExcerpt(item.title_highlight || item.title || '（題名なし）');
+        const date = String(item.date || item.sort_date || '').trim();
+        const categories = (Array.isArray(item.categories) ? item.categories : []).map((value) => String(value || '').trim()).filter(Boolean);
+        const meta = [...categories];
+        if (item.event_start) {
+            meta.push(`催しの日 ${item.event_start}${item.event_end && item.event_end !== item.event_start ? `〜${item.event_end}` : ''}`);
+        }
+        if (Number(item.attachments_count || 0) > 0) {
+            meta.push(`添付 ${Number(item.attachments_count).toLocaleString('ja-JP')}件`);
+        }
+        let excerpts = '';
+        if (Array.isArray(item.matches)) {
+            const withHit = item.matches.filter((match) => match && match.excerpt_has_hit);
+            const shown = withHit.length > 0 ? withHit : item.matches.slice(0, 1);
+            excerpts = shown.filter((match) => match && match.excerpt).map((match) => `
+                <div class="news-match">
+                    <p class="news-match-source">${newsMatchSource(match)}${match.excerpt_has_hit ? '' : '<span>冒頭</span>'}</p>
+                    <p class="result-excerpt is-joined">${renderExcerpt(match.excerpt)}</p>
+                </div>`).join('');
+        } else {
+            const text = String(item.summary || item.body?.excerpt || '').trim();
+            excerpts = text ? `<p class="result-excerpt is-joined">${escapeHtml(shortText(text, 160))}</p>` : '';
+        }
+        return `
+            <article class="result-item" data-doc="news">
+                <div class="result-top">
+                    <span class="doc-badge">お知らせ</span>
+                    <span class="result-place">${escapeHtml(place.join(' '))}</span>
+                    ${date ? `<span class="result-date">${escapeHtml(date)}</span>` : ''}
+                </div>
+                <h2 class="result-title">${sourceUrl ? `<a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">${title}</a>` : title}</h2>
+                ${meta.length ? `<div class="result-meta">${meta.map((value) => `<span>${escapeHtml(value)}</span>`).join('')}</div>` : ''}
+                ${excerpts}
+                ${sourceUrl ? `<div class="result-actions"><a class="result-link is-main" href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">自治体のサイトで読む</a></div>` : ''}
+            </article>
+        `;
+    }
+
     function renderResults(payload = state.lastPayload) {
         if (state.loading) {
             refs.results.innerHTML = '';
@@ -729,12 +834,18 @@
         if (items.length === 0) {
             refs.results.innerHTML = '';
             refs.pager.innerHTML = '';
-            renderMessage('この条件に合う文書は見つかりませんでした。言葉を短くするか、絞り込みを外して試してください。');
+            // お知らせは、まだ集めていない自治体がある（新着情報のフィードが見つからないなど）。
+            renderMessage(payload.municipality && payload.municipality.collecting === false
+                ? 'この自治体のお知らせはまだ集めていません（新着情報の配信が見つかっていないなど）。'
+                : 'この条件に合う文書は見つかりませんでした。言葉を短くするか、絞り込みを外して試してください。');
             return;
         }
 
         renderMessage('');
         refs.results.innerHTML = items.map((item) => {
+            if (item.doc_type === 'news') {
+                return renderNewsItem(item);
+            }
             const detailUrl = safeUrl(buildDetailUrl(item));
             const sourceUrl = safeUrl((item.doc_type === 'hyoka' ? item.source_page_link : '') || item.source_url || '');
             const isHyoka = item.doc_type === 'hyoka';
@@ -794,8 +905,8 @@
     const HIT_MAP_ZOOM = 4;
     /* サーバ側の自治体集計の上限（opensearch_search.php の terms size）と合わせる */
     const HIT_MAP_BUCKET_LIMIT = 50;
-    /* 円の色は資料の種類の色（assets/css/site.css の --minutes・--reiki・--hyoka と同じ値） */
-    const HIT_MAP_COLORS = { minutes: '#1c4f9c', reiki: '#1a6e45', hyoka: '#a34d0c' };
+    /* 円の色は資料の種類の色（assets/css/site.css の --minutes・--reiki・--hyoka・--news と同じ値） */
+    const HIT_MAP_COLORS = { minutes: '#1c4f9c', reiki: '#1a6e45', hyoka: '#a34d0c', news: '#6b3f8f' };
     const coordinatesByCode = (
         window.MIYABE_MUNICIPALITY_COORDINATES
         && typeof window.MIYABE_MUNICIPALITY_COORDINATES === 'object'
@@ -1037,8 +1148,9 @@
 
         const controller = new AbortController();
         state.abortController = controller;
+        const isNews = state.docType === 'news';
         try {
-            const response = await fetch(`${state.apiUrl}?${apiParams(state.page).toString()}`, {
+            const response = await fetch(isNews ? newsApiUrl(state.page) : `${state.apiUrl}?${apiParams(state.page).toString()}`, {
                 headers: { Accept: 'application/json' },
                 cache: 'no-store',
                 signal: controller.signal,
@@ -1047,7 +1159,7 @@
             if (!response.ok) {
                 throw new Error(String(payload.error || `HTTP ${response.status}`));
             }
-            state.lastPayload = payload;
+            state.lastPayload = isNews ? normalizeNewsPayload(payload, state.page) : payload;
         } catch (error) {
             if (controller.signal.aborted) {
                 return;

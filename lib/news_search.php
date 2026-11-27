@@ -16,6 +16,7 @@ const NEWS_SEARCH_MAX_QUERY_CHARS = 200;
 const NEWS_SEARCH_MAX_PER_PAGE = 30;
 // 1 件のお知らせの中で見せる、当たった文書（ページ本文・添付の PDF）の数。
 const NEWS_SEARCH_MAX_PARTS = 3;
+const NEWS_SEARCH_FACET_SIZE = 50;
 // 長い PDF の抜粋で、解析する先頭の字数。1 頁 30 件で、ほとんどの文書は 1 万字に満たない。
 const NEWS_SEARCH_HIGHLIGHT_CHARS = 120000;
 
@@ -47,6 +48,7 @@ function news_search_build_request(array $query, ?PDO $pdo = null): array
     if ($since !== null && $until !== null && $since > $until) {
         throw new NewsApiError(400, 'invalid_request', 'since は until より前の日付にしてください。');
     }
+    $includeFacets = news_api_bool($query, 'include_facets', false);
     $prefCode = news_api_pref_code($query);
     $municipality = null;
     foreach (['slug', 'municipality_code', 'municipality'] as $key) {
@@ -131,6 +133,16 @@ function news_search_build_request(array $query, ?PDO $pdo = null): array
         'highlight' => $titleHighlight,
         'aggs' => ['items' => ['cardinality' => ['field' => 'item_key', 'precision_threshold' => 10000]]],
     ];
+    if ($includeFacets) {
+        // 検索画面の「多い都道府県」と地図のため。文書（ページ・添付）ではなくお知らせの数で数え、多い順に 50 まで。
+        $byItems = ['items' => ['cardinality' => ['field' => 'item_key', 'precision_threshold' => 1000]]];
+        foreach (['prefectures' => 'pref_code', 'municipalities' => 'slug'] as $name => $field) {
+            $body['aggs'][$name] = [
+                'terms' => ['field' => $field, 'size' => NEWS_SEARCH_FACET_SIZE, 'order' => ['items' => 'desc']],
+                'aggs' => $byItems,
+            ];
+        }
+    }
 
     return [
         'q' => $q,
@@ -143,8 +155,27 @@ function news_search_build_request(array $query, ?PDO $pdo = null): array
         'pref_code' => $municipality === null ? $prefCode : null,
         'municipality' => $municipality,
         'proximity_ranked' => $proximityRanked,
+        'include_facets' => $includeFacets,
         'body' => $body,
     ];
+}
+
+// 集計を /api/search と同じ形（key と count の並び）にする。count はお知らせの数。
+function news_search_shape_facets(array $aggregations): array
+{
+    $facets = [];
+    foreach (['prefectures', 'municipalities'] as $name) {
+        $facets[$name] = [];
+        foreach ($aggregations[$name]['buckets'] ?? [] as $bucket) {
+            if (is_array($bucket) && isset($bucket['key'])) {
+                $facets[$name][] = [
+                    'key' => (string)$bucket['key'],
+                    'count' => (int)($bucket['items']['value'] ?? $bucket['doc_count'] ?? 0),
+                ];
+            }
+        }
+    }
+    return $facets;
 }
 
 function news_search_highlight(array $hit, string $field): string
@@ -216,7 +247,7 @@ function news_search_shape_response(array $response, array $request): array
         }
     }
     $total = (int)($response['aggregations']['items']['value'] ?? count($items));
-    return [
+    $payload = [
         'status' => 'ok',
         'query' => $request['q'],
         'sort' => $request['sort'],
@@ -237,6 +268,10 @@ function news_search_shape_response(array $response, array $request): array
             ? news_api_municipality_summary($request['municipality']) : null,
         'items' => $items,
     ];
+    if ($request['include_facets'] ?? false) {
+        $payload['aggregations'] = news_search_shape_facets(is_array($response['aggregations'] ?? null) ? $response['aggregations'] : []);
+    }
+    return $payload;
 }
 
 function news_search_execute(array $query, ?PDO $pdo = null, ?callable $http = null): array

@@ -20,6 +20,26 @@
     --shadow: none;
 }
 
+/* 検索の画面のタブは 4 つ（お知らせが加わる）。トップの箱は 3 つのまま（site.css）。 */
+.search-page .doc-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* スマホでは 4 つを 1 段に収めるため、字を少し小さくする */
+@media (max-width: 520px) {
+    .search-page .doc-tab {
+        padding-inline: 2px;
+    }
+
+    .search-page .doc-tab-main {
+        font-size: 0.875rem;
+    }
+
+    .search-page .doc-tab-sub {
+        font-size: 0.6875rem;
+    }
+}
+
 /* ---- 検索の箱の下の段 ---- */
 
 .search-row-sub {
@@ -408,6 +428,33 @@
 .result-link[target="_blank"]::after {
     content: "↗";
     margin-left: 6px;
+}
+
+/* ---- お知らせ：当たった文書（ページの本文・添付）ごとの抜粋 ---- */
+
+.news-match {
+    display: grid;
+    gap: 2px;
+    padding-left: 12px;
+    border-left: 3px solid var(--doc-tint, var(--line));
+}
+
+.news-match-source {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 10px;
+    color: var(--muted);
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.news-match-source a {
+    color: var(--doc-deep, var(--accent));
+    overflow-wrap: anywhere;
+}
+
+.news-match-source span {
+    font-weight: 400;
 }
 
 .pager {
