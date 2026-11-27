@@ -1,0 +1,272 @@
+/*
+ * 行政文書（/gyosei/）の画面。site.css の後に読む。
+ * 文書の束を読むための画面なので、飾らない。読む幅は説明のページと同じ 780px。
+ */
+
+.gyosei-page {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 20px var(--gutter) 48px;
+}
+
+.gyosei-trail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    margin-bottom: 12px;
+    color: var(--muted);
+    font-size: 0.9375rem;
+}
+
+.gyosei-head {
+    display: grid;
+    gap: 8px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--ink);
+}
+
+.gyosei-kind {
+    color: var(--ink-soft);
+    font-weight: 700;
+}
+
+.gyosei-summary {
+    color: var(--ink-soft);
+}
+
+.gyosei-meta {
+    color: var(--muted);
+    font-size: 0.9375rem;
+}
+
+.gyosei-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.gyosei-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px 24px;
+    margin: 0;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.gyosei-facts dt {
+    color: var(--muted);
+    font-size: 0.875rem;
+}
+
+.gyosei-facts dd {
+    margin: 2px 0 0;
+}
+
+.gyosei-facts-wide {
+    grid-column: 1 / -1;
+}
+
+.gyosei-facts blockquote {
+    margin: 4px 0 0;
+    padding: 10px 14px;
+    border-left: 4px solid var(--line-strong);
+    background: var(--ground);
+}
+
+.gyosei-section {
+    display: grid;
+    gap: 10px;
+    padding: 24px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.gyosei-section:last-child {
+    border-bottom: 0;
+}
+
+.gyosei-section h3 {
+    margin-top: 10px;
+    font-size: 1rem;
+    color: var(--ink-soft);
+}
+
+.gyosei-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9375rem;
+}
+
+.gyosei-table th,
+.gyosei-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+}
+
+.gyosei-table th {
+    color: var(--muted);
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.gyosei-table .nowrap {
+    white-space: nowrap;
+}
+
+.gyosei-docs,
+.gyosei-cases,
+.gyosei-pages {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.gyosei-docs li {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 4px 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.gyosei-doc-title {
+    font-weight: 700;
+}
+
+.gyosei-doc-meta {
+    color: var(--muted);
+    font-size: 0.875rem;
+    white-space: nowrap;
+}
+
+.gyosei-doc-links {
+    display: flex;
+    gap: 4px;
+}
+
+.gyosei-doc-links a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 10px;
+}
+
+.gyosei-cases li {
+    display: grid;
+    gap: 6px;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.gyosei-cases h2 {
+    font-size: 1.25rem;
+}
+
+.gyosei-notes {
+    padding-left: 1.4em;
+    display: grid;
+    gap: 6px;
+    color: var(--ink-soft);
+}
+
+.gyosei-page-text {
+    padding: 20px 0;
+    border-bottom: 1px solid var(--line);
+    scroll-margin-top: 12px;
+}
+
+.gyosei-page-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.gyosei-page-head h2 {
+    font-size: 1rem;
+    color: var(--muted);
+}
+
+.gyosei-page-head a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+}
+
+.gyosei-ocr {
+    display: grid;
+    gap: 10px;
+    line-height: 1.8;
+    overflow-wrap: anywhere;
+}
+
+.gyosei-ocr .ocr-heading {
+    font-weight: 700;
+}
+
+.ocr-table {
+    border-collapse: collapse;
+    font-size: 0.9375rem;
+}
+
+.ocr-table td {
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    vertical-align: top;
+}
+
+.gyosei-empty {
+    color: var(--muted);
+}
+
+.gyosei-pager {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.gyosei-pager a {
+    display: grid;
+    gap: 2px;
+    padding: 12px 14px;
+    border: 2px solid var(--line-strong);
+    border-radius: var(--radius-small);
+    text-decoration: none;
+    color: var(--ink);
+}
+
+.gyosei-pager a:hover {
+    border-color: var(--ink);
+}
+
+.gyosei-pager span {
+    color: var(--muted);
+    font-size: 0.8125rem;
+}
+
+.gyosei-pager-next {
+    grid-column: 2;
+    text-align: right;
+}
+
+@media (max-width: 520px) {
+    .gyosei-docs li {
+        grid-template-columns: 1fr auto;
+    }
+
+    .gyosei-doc-meta {
+        grid-column: 1;
+        grid-row: 2;
+    }
+
+    .gyosei-doc-links {
+        grid-column: 2;
+        grid-row: 1 / span 2;
+    }
+}

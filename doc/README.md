@@ -8,6 +8,7 @@
 - [hyoka-search.md](hyoka-search.md) — 事務事業評価の全文検索。頁・出典、索引の作成と本番実行、OCR・項目抽出との境界
 - [hyoka-projects.md](hyoka-projects.md) — 事務事業評価の事業ごとの索引。費用・方向性・評価・目標割れで探す、金額を集計する（二重に数えない仕組み）、MCP の 3 つの道具
 - [news.md](news.md) — 自治体の新着情報。フィードの台帳 `news_feed_urls.tsv`、3 時間おきの取得と保存（項目は消さない・版の付け方）、本文と添付の PDF、一覧と 1 件の API・MCP の道具（`/api/news.php`・`list_municipal_news`）、全文検索（`/api/news-search.php`・`search_municipal_news`）、本番の worker
+- [gyosei.md](gyosei.md) — 行政文書（`/gyosei/`）。情報公開請求で得た文書を I:\行政文書 から選んで、PDF を画像にして作り直し、頁ごとの文字と一緒に置く。台帳 `tools/gyosei/publish.json`、本番への送り方、残り（検索・受付）
 - [mcp.md](mcp.md) — MCP 連携。`/mcp` エンドポイント、ツール定義、設定項目
 
 ## 設計・運用

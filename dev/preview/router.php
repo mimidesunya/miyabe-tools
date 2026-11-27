@@ -20,10 +20,28 @@ putenv('OPENSEARCH_URL=http://127.0.0.1:18092');
 $uri = (string)($_SERVER['REQUEST_URI'] ?? '/');
 $path = (string)(parse_url($uri, PHP_URL_PATH) ?: '/');
 
-// お知らせの API は手元の索引（work/news/index.sqlite）と data/news を読む。
-// 手元で `python tools/news/fetch_news_feeds.py --code …` と `news_index.py` を流してから見る。
-if (in_array($path, ['/api/news.php', '/api/news-item.php'], true)) {
+// お知らせの API（/api/news*.php）も本番から借りる。手元の索引（work/news/index.sqlite）で API そのものを
+// 確かめるときは、環境変数 MIYABE_PREVIEW_LOCAL_NEWS=1 を付けて起動する（全文検索は OpenSearch が要るので手元では引けない）。
+if (getenv('MIYABE_PREVIEW_LOCAL_NEWS') === '1' && in_array($path, ['/api/news.php', '/api/news-item.php'], true)) {
     return false;
+}
+
+// 行政文書（/gyosei/）は、tools/gyosei/build_public.py が手元に作った束（work/gyosei/public）を読む。
+// 本番の data/gyosei と同じ形。PDF は nginx の /data/ の代わりにここで出す。
+$gyoseiDir = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'work' . DIRECTORY_SEPARATOR . 'gyosei' . DIRECTORY_SEPARATOR . 'public';
+if (getenv('MIYABE_GYOSEI_DIR') === false) {
+    putenv('MIYABE_GYOSEI_DIR=' . $gyoseiDir);
+}
+if (preg_match('#^/data/gyosei/([a-z0-9][a-z0-9-]*)/([0-9]{2,3}\.pdf)$#', $path, $m) === 1) {
+    $file = (string)getenv('MIYABE_GYOSEI_DIR') . DIRECTORY_SEPARATOR . $m[1] . DIRECTORY_SEPARATOR . $m[2];
+    if (!is_file($file)) {
+        http_response_code(404);
+        return true;
+    }
+    header('Content-Type: application/pdf');
+    header('Content-Length: ' . (string)filesize($file));
+    readfile($file);
+    return true;
 }
 
 if (str_starts_with($path, '/api/')) {
